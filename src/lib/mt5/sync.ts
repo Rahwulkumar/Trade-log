@@ -46,15 +46,6 @@ interface MetaApiDeal {
 const SYNC_LIMIT = parseInt(process.env.MT5_MONTHLY_SYNC_LIMIT || '60');
 
 /**
- * Checks if sync count needs to be reset (new month)
- */
-function shouldResetSyncCount(resetAt: string): boolean {
-    const resetDate = new Date(resetAt);
-    const now = new Date();
-    return resetDate.getMonth() !== now.getMonth() || resetDate.getFullYear() !== now.getFullYear();
-}
-
-/**
  * Main sync function - Deploy -> Sync -> Undeploy
  */
 export async function syncMT5Account(connectionId: string): Promise<SyncResult> {
@@ -76,23 +67,44 @@ export async function syncMT5Account(connectionId: string): Promise<SyncResult> 
 
         const conn = connection as MT5Connection;
 
-        // 2. Check and reset monthly counter if needed
-        if (shouldResetSyncCount(conn.syncs_reset_at)) {
-            await db
-                .from('mt5_connections')
-                .update({ syncs_this_month: 0, syncs_reset_at: new Date().toISOString() })
-                .eq('id', connectionId);
-            conn.syncs_this_month = 0;
+        // 2. Atomic check and increment sync counter using PostgreSQL function
+        // This prevents race conditions when multiple syncs happen simultaneously
+        const { data: syncCheck, error: syncCheckError } = await db
+            .rpc('check_and_increment_sync', {
+                p_connection_id: connectionId,
+                p_max_syncs: SYNC_LIMIT
+            })
+            .single();
+
+        if (syncCheckError) {
+            console.error('[Sync] Failed to check sync counter:', syncCheckError);
+            return {
+                success: false,
+                newTrades: 0,
+                skippedTrades: 0,
+                error: 'Failed to check sync limit'
+            };
         }
 
-        // 3. Check budget limit
-        if (conn.syncs_this_month >= SYNC_LIMIT) {
+        if (!syncCheck || !syncCheck.can_sync) {
+            const currentCount = syncCheck?.current_count || conn.syncs_this_month;
             await db
                 .from('mt5_connections')
-                .update({ error_message: 'Monthly sync limit reached. Resets on the 1st.' })
+                .update({
+                    error_message: `Monthly sync limit reached (${currentCount}/${SYNC_LIMIT}). Resets on the 1st.`
+                })
                 .eq('id', connectionId);
-            return { success: false, newTrades: 0, skippedTrades: 0, error: 'Monthly sync limit reached (60/60)' };
+            return {
+                success: false,
+                newTrades: 0,
+                skippedTrades: 0,
+                error: `Monthly sync limit reached (${currentCount}/${SYNC_LIMIT})`
+            };
         }
+
+        // Counter already incremented atomically, update local reference
+        conn.syncs_this_month = syncCheck.current_count;
+        console.log(`[Sync] Sync allowed. Counter: ${syncCheck.current_count}/${SYNC_LIMIT}, Reset needed: ${syncCheck.reset_needed}`);
 
         // 4. Update status to syncing
         await db
@@ -288,13 +300,13 @@ export async function syncMT5Account(connectionId: string): Promise<SyncResult> 
         // Commenting out undeploy to avoid repeated deploy/undeploy cycles
         // await api.undeploy(accountId);
 
-        // 12. Update connection status
+        // 12. Update connection status (counter already incremented atomically at start)
         await db
             .from('mt5_connections')
             .update({
                 connection_status: 'undeployed',
                 last_synced_at: new Date().toISOString(),
-                syncs_this_month: conn.syncs_this_month + 1,
+                // Don't increment syncs_this_month here - already done by check_and_increment_sync
                 error_message: null,
             })
             .eq('id', connectionId);

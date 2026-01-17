@@ -19,6 +19,7 @@ export interface RateLimitResult {
 
 /**
  * Check if user has exceeded rate limit for a given action
+ * Uses atomic PostgreSQL function to prevent race conditions
  */
 export async function checkRateLimit(
     userId: string,
@@ -29,16 +30,18 @@ export async function checkRateLimit(
     const windowStart = new Date(Date.now() - limit.windowMs);
 
     try {
-        // Count attempts in current window
-        const { data: attempts, error } = await (supabase as any)
-            .from('rate_limit_tracking')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('action', action)
-            .gte('attempted_at', windowStart.toISOString());
+        // Use atomic PostgreSQL function for check + increment
+        const { data: result, error } = await (supabase as any)
+            .rpc('check_rate_limit', {
+                p_user_id: userId,
+                p_action: action,
+                p_window_start: windowStart.toISOString(),
+                p_max_attempts: limit.max
+            })
+            .single();
 
         if (error) {
-            console.error('Rate limit check error:', error);
+            console.error('[Rate Limit] Error calling check_rate_limit:', error);
             // Fail open - allow the request if we can't check rate limit
             return {
                 allowed: true,
@@ -47,9 +50,7 @@ export async function checkRateLimit(
             };
         }
 
-        const currentCount = attempts?.length || 0;
-
-        if (currentCount >= limit.max) {
+        if (!result || !result.allowed) {
             return {
                 allowed: false,
                 remaining: 0,
@@ -58,20 +59,13 @@ export async function checkRateLimit(
             };
         }
 
-        // Log this attempt
-        await (supabase as any).from('rate_limit_tracking').insert({
-            user_id: userId,
-            action,
-            attempted_at: new Date().toISOString(),
-        });
-
         return {
             allowed: true,
-            remaining: limit.max - currentCount - 1,
+            remaining: result.remaining,
             resetAt: new Date(Date.now() + limit.windowMs),
         };
     } catch (err) {
-        console.error('Rate limit error:', err);
+        console.error('[Rate Limit] Exception:', err);
         // Fail open
         return {
             allowed: true,
