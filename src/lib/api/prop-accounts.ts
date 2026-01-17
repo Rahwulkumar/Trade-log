@@ -1,0 +1,151 @@
+import { createClient } from '@/lib/supabase/client'
+import type { PropAccount, PropAccountInsert } from '@/lib/supabase/types'
+
+export async function getPropAccounts(): Promise<PropAccount[]> {
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+        .from('prop_accounts')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+    if (error) throw new Error(error.message)
+    return (data || []) as PropAccount[]
+}
+
+export async function getActivePropAccounts(): Promise<PropAccount[]> {
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+        .from('prop_accounts')
+        .select('*')
+        .eq('status', 'active')
+        .order('name', { ascending: true })
+
+    if (error) throw new Error(error.message)
+    return (data || []) as PropAccount[]
+}
+
+export async function getPropAccount(id: string): Promise<PropAccount | null> {
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+        .from('prop_accounts')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+    if (error) {
+        if (error.code === 'PGRST116') return null
+        throw new Error(error.message)
+    }
+    return data as PropAccount
+}
+
+export async function createPropAccount(account: Omit<PropAccountInsert, 'user_id'>): Promise<PropAccount> {
+    const supabase = createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const { data, error } = await supabase
+        .from('prop_accounts')
+        .insert({ ...account, user_id: user.id })
+        .select()
+        .single()
+
+    if (error) throw new Error(error.message)
+    return data as PropAccount
+}
+
+export async function updatePropAccount(id: string, updates: Partial<PropAccount>): Promise<PropAccount> {
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+        .from('prop_accounts')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) throw new Error(error.message)
+    return data as PropAccount
+}
+
+export async function deletePropAccount(id: string): Promise<void> {
+    const supabase = createClient()
+
+    const { error } = await supabase
+        .from('prop_accounts')
+        .delete()
+        .eq('id', id)
+
+    if (error) throw new Error(error.message)
+}
+
+// Update balance after a trade
+export async function updateAccountBalance(
+    accountId: string,
+    newBalance: number,
+    dailyPnl: number
+): Promise<PropAccount> {
+    const account = await getPropAccount(accountId)
+    if (!account) throw new Error('Account not found')
+
+    // Calculate drawdowns
+    const pnlPercent = ((newBalance - account.initial_balance) / account.initial_balance) * 100
+    const dailyDrawdownPercent = dailyPnl < 0
+        ? Math.abs((dailyPnl / account.initial_balance) * 100)
+        : 0
+
+    // Update current drawdown values
+    const totalDdCurrent = pnlPercent < 0 ? Math.abs(pnlPercent) : 0
+    const dailyDdCurrent = Math.max(account.daily_dd_current, dailyDrawdownPercent)
+
+    return updatePropAccount(accountId, {
+        current_balance: newBalance,
+        total_dd_current: totalDdCurrent,
+        daily_dd_current: dailyDdCurrent,
+    })
+}
+
+// Reset daily drawdown (call at start of trading day)
+export async function resetDailyDrawdown(accountId: string): Promise<PropAccount> {
+    return updatePropAccount(accountId, {
+        daily_dd_current: 0,
+    })
+}
+
+// Check if account is compliant with drawdown rules
+export interface ComplianceStatus {
+    isCompliant: boolean
+    dailyDdRemaining: number
+    totalDdRemaining: number
+    profitProgress: number | null
+    daysRemaining: number | null
+}
+
+export async function checkCompliance(accountId: string): Promise<ComplianceStatus> {
+    const account = await getPropAccount(accountId)
+    if (!account) throw new Error('Account not found')
+
+    const dailyDdRemaining = (account.daily_dd_max || 0) - account.daily_dd_current
+    const totalDdRemaining = (account.total_dd_max || 0) - account.total_dd_current
+
+    const isCompliant = dailyDdRemaining > 0 && totalDdRemaining > 0
+
+    // Calculate profit progress
+    let profitProgress: number | null = null
+    if (account.profit_target) {
+        const currentProfit = ((account.current_balance - account.initial_balance) / account.initial_balance) * 100
+        profitProgress = (currentProfit / account.profit_target) * 100
+    }
+
+    return {
+        isCompliant,
+        dailyDdRemaining,
+        totalDdRemaining,
+        profitProgress,
+        daysRemaining: null, // Would need to calculate based on start_date and challenge duration
+    }
+}
