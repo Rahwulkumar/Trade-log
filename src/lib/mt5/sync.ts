@@ -148,8 +148,9 @@ export async function syncMT5Account(connectionId: string): Promise<SyncResult> 
                 .eq('id', connectionId);
         }
 
-        // 7. Check current account state and deploy if needed
+        // 7. Check current account state and deploy if needed, wait for broker connection
         const accountInfo = await api.getAccount(accountId);
+        let region: string;
 
         if (accountInfo.state !== 'DEPLOYED') {
             // Only deploy if not already deployed
@@ -159,19 +160,35 @@ export async function syncMT5Account(connectionId: string): Promise<SyncResult> 
                 .eq('id', connectionId);
 
             await api.deploy(accountId);
-            await api.waitForConnection(accountId, 60000); // 60s timeout
+
+            // Wait for deployment AND broker connection (returns region)
+            await db
+                .from('mt5_connections')
+                .update({ connection_status: 'connecting' })
+                .eq('id', connectionId);
+
+            region = await api.waitForConnection(accountId, 120000); // 2 min timeout for cold start
 
             await db
                 .from('mt5_connections')
-                .update({ connection_status: 'deployed' })
+                .update({ connection_status: 'connected' })
                 .eq('id', connectionId);
         } else {
-            // Account already deployed, just update status
+            // Account already deployed, still wait for broker connection
             await db
                 .from('mt5_connections')
-                .update({ connection_status: 'deployed' })
+                .update({ connection_status: 'connecting' })
+                .eq('id', connectionId);
+
+            region = await api.waitForConnection(accountId, 60000); // 60s if already deployed
+
+            await db
+                .from('mt5_connections')
+                .update({ connection_status: 'connected' })
                 .eq('id', connectionId);
         }
+
+        console.log(`[Sync] Using MetaAPI region: ${region}`);
 
         // 8. Fetch ALL deals since last sync (with pagination)
         const startTime = conn.last_synced_at
@@ -187,8 +204,9 @@ export async function syncMT5Account(connectionId: string): Promise<SyncResult> 
 
         console.log(`[Sync] Fetching deals from ${startTime.toISOString()} to ${endTime.toISOString()}`);
 
+
         while (hasMore) {
-            const deals = await api.getDeals(accountId, startTime, endTime, offset, limit);
+            const deals = await api.getDeals(accountId, startTime, endTime, offset, limit, 30000, region);
             allDeals.push(...deals);
 
             // Check if there might be more deals
@@ -296,9 +314,14 @@ export async function syncMT5Account(connectionId: string): Promise<SyncResult> 
             }
         }
 
-        // 11. Keep account deployed for future syncs (don't undeploy)
-        // Commenting out undeploy to avoid repeated deploy/undeploy cycles
-        // await api.undeploy(accountId);
+        // 11. Undeploy account to stop running (saves costs, user accepts cold start)
+        try {
+            await api.undeploy(accountId);
+            console.log('[Sync] Account undeployed successfully');
+        } catch (undeployError) {
+            console.error('[Sync] Failed to undeploy account:', undeployError);
+            // Continue anyway - account might auto-undeploy after timeout
+        }
 
         // 12. Update connection status (counter already incremented atomically at start)
         await db
@@ -306,10 +329,43 @@ export async function syncMT5Account(connectionId: string): Promise<SyncResult> 
             .update({
                 connection_status: 'undeployed',
                 last_synced_at: new Date().toISOString(),
-                // Don't increment syncs_this_month here - already done by check_and_increment_sync
                 error_message: null,
             })
             .eq('id', connectionId);
+
+        // 13. Update prop account balance from all synced trades
+        // Calculate total P&L from all trades linked to this prop account
+        const { data: allTrades, error: tradesError } = await db
+            .from('trades')
+            .select('pnl')
+            .eq('prop_account_id', conn.prop_account_id);
+
+        if (!tradesError && allTrades) {
+            const totalPnl = allTrades.reduce((sum: number, t: { pnl: number | null }) => sum + (t.pnl || 0), 0);
+
+            // Get prop account to calculate new balance
+            const { data: propAccount } = await db
+                .from('prop_accounts')
+                .select('initial_balance')
+                .eq('id', conn.prop_account_id)
+                .single();
+
+            if (propAccount) {
+                const newBalance = propAccount.initial_balance + totalPnl;
+                const pnlPercent = (totalPnl / propAccount.initial_balance) * 100;
+                const totalDdCurrent = pnlPercent < 0 ? Math.abs(pnlPercent) : 0;
+
+                await db
+                    .from('prop_accounts')
+                    .update({
+                        current_balance: newBalance,
+                        total_dd_current: totalDdCurrent,
+                    })
+                    .eq('id', conn.prop_account_id);
+
+                console.log(`[Sync] Updated prop account balance: $${newBalance.toFixed(2)} (P&L: $${totalPnl.toFixed(2)})`);
+            }
+        }
 
         return { success: true, newTrades, skippedTrades };
 

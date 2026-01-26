@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
-import { getPropAccounts, createPropAccount, deletePropAccount, checkCompliance, type ComplianceStatus } from "@/lib/api/prop-accounts";
+import { getPropAccounts, createPropAccount, deletePropAccount, checkCompliance, recalculateBalanceFromTrades, type ComplianceStatus } from "@/lib/api/prop-accounts";
 import { getPropFirms, getFirmChallenges, createAccountFromChallenge } from "@/lib/api/prop-firms";
 import type { PropFirm, PropFirmChallenge } from "@/lib/types/prop-firms";
 import { PropFirmWidget } from "@/components/dashboard/prop-firm-widget";
@@ -99,6 +99,14 @@ const FIRM_PRESETS = [
 const CHALLENGE_TYPES = ["1-Phase", "2-Phase", "Instant Funded", "Direct Funded"];
 const PHASE_OPTIONS = ["Phase 1 (Evaluation)", "Phase 2 (Verification)", "Funded"];
 
+// Helper: Convert dollar amount to percentage of initial balance
+// The database stores daily_dd_max, total_dd_max, profit_target as dollar amounts
+// but we need to display them as percentages
+function toPercent(dollarAmount: number | null | undefined, initialBalance: number): number {
+  if (!dollarAmount || !initialBalance || initialBalance === 0) return 0;
+  return (dollarAmount / initialBalance) * 100;
+}
+
 export default function PropFirmPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
   const { selectedAccountId, setSelectedAccountId } = usePropAccount();
@@ -187,9 +195,17 @@ export default function PropFirmPage() {
       
       const accountsData = await getPropAccounts();
       
+      // Recalculate balance from trades for each account (ensures balance is always up to date)
+      await Promise.all(
+        accountsData.map(account => recalculateBalanceFromTrades(account.id))
+      );
+      
+      // Refetch accounts after balance recalculation
+      const updatedAccountsData = await getPropAccounts();
+      
       // Get compliance for each account
       const accountsWithCompliance = await Promise.all(
-        accountsData.map(async (account) => {
+        updatedAccountsData.map(async (account) => {
           const compliance = await checkCompliance(account.id);
           return { ...account, compliance };
         })
@@ -554,14 +570,14 @@ export default function PropFirmPage() {
                     <div className="space-y-1 pt-2 border-t border-white/5">
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Daily DD</span>
-                        <span className={account.daily_dd_current > (account.daily_dd_max * 0.8) ? "text-red-400" : "text-muted-foreground"}>
-                          {account.daily_dd_current.toFixed(1)}% / {account.daily_dd_max}%
+                        <span className={account.daily_dd_current > (toPercent(account.daily_dd_max, account.initial_balance) * 0.8) ? "text-red-400" : "text-muted-foreground"}>
+                          {account.daily_dd_current.toFixed(1)}% / {toPercent(account.daily_dd_max, account.initial_balance).toFixed(1)}%
                         </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
                         <div 
-                          className={cn("h-full rounded-full", getStatusColor(account.daily_dd_current, account.daily_dd_max))} 
-                          style={{ width: `${(account.daily_dd_current / account.daily_dd_max) * 100}%` }} 
+                          className={cn("h-full rounded-full", getStatusColor(account.daily_dd_current, toPercent(account.daily_dd_max, account.initial_balance)))} 
+                          style={{ width: `${(account.daily_dd_current / toPercent(account.daily_dd_max, account.initial_balance)) * 100}%` }} 
                         />
                       </div>
                     </div>
@@ -666,16 +682,16 @@ export default function PropFirmPage() {
                 <div className="space-y-3 p-4 rounded-lg bg-white/[0.02] border border-white/5">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Daily Drawdown</span>
-                    <span className="text-sm">{selectedAccount.daily_dd_current.toFixed(1)}% / {selectedAccount.daily_dd_max}%</span>
+                    <span className="text-sm">{selectedAccount.daily_dd_current.toFixed(1)}% / {toPercent(selectedAccount.daily_dd_max, selectedAccount.initial_balance).toFixed(1)}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                     <div 
-                      className={cn("h-full rounded-full transition-all", getStatusColor(selectedAccount.daily_dd_current, selectedAccount.daily_dd_max))} 
-                      style={{ width: `${(selectedAccount.daily_dd_current / selectedAccount.daily_dd_max) * 100}%` }} 
+                      className={cn("h-full rounded-full transition-all", getStatusColor(selectedAccount.daily_dd_current, toPercent(selectedAccount.daily_dd_max, selectedAccount.initial_balance)))} 
+                      style={{ width: `${(selectedAccount.daily_dd_current / toPercent(selectedAccount.daily_dd_max, selectedAccount.initial_balance)) * 100}%` }} 
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {(selectedAccount.daily_dd_max - selectedAccount.daily_dd_current).toFixed(1)}% remaining
+                    {(toPercent(selectedAccount.daily_dd_max, selectedAccount.initial_balance) - selectedAccount.daily_dd_current).toFixed(1)}% remaining
                   </p>
                 </div>
               )}
@@ -685,16 +701,16 @@ export default function PropFirmPage() {
                 <div className="space-y-3 p-4 rounded-lg bg-white/[0.02] border border-white/5">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Total Drawdown</span>
-                    <span className="text-sm">{selectedAccount.total_dd_current.toFixed(1)}% / {selectedAccount.total_dd_max}%</span>
+                    <span className="text-sm">{selectedAccount.total_dd_current.toFixed(1)}% / {toPercent(selectedAccount.total_dd_max, selectedAccount.initial_balance).toFixed(1)}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                     <div 
-                      className={cn("h-full rounded-full transition-all", getStatusColor(selectedAccount.total_dd_current, selectedAccount.total_dd_max))} 
-                      style={{ width: `${(selectedAccount.total_dd_current / selectedAccount.total_dd_max) * 100}%` }} 
+                      className={cn("h-full rounded-full transition-all", getStatusColor(selectedAccount.total_dd_current, toPercent(selectedAccount.total_dd_max, selectedAccount.initial_balance)))} 
+                      style={{ width: `${(selectedAccount.total_dd_current / toPercent(selectedAccount.total_dd_max, selectedAccount.initial_balance)) * 100}%` }} 
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {(selectedAccount.total_dd_max - selectedAccount.total_dd_current).toFixed(1)}% remaining
+                    {(toPercent(selectedAccount.total_dd_max, selectedAccount.initial_balance) - selectedAccount.total_dd_current).toFixed(1)}% remaining
                   </p>
                 </div>
               )}
@@ -706,17 +722,17 @@ export default function PropFirmPage() {
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Profit Target</span>
                   <span className="text-sm">
-                    {(selectedAccount.compliance?.profitProgress || 0).toFixed(1)}% / {selectedAccount.profit_target}%
+                    {(selectedAccount.compliance?.profitProgress || 0).toFixed(1)}% / {toPercent(selectedAccount.profit_target, selectedAccount.initial_balance).toFixed(1)}%
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                   <div 
                     className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" 
-                    style={{ width: `${Math.min((selectedAccount.compliance?.profitProgress || 0) / selectedAccount.profit_target * 100, 100)}%` }} 
+                    style={{ width: `${Math.min((selectedAccount.compliance?.profitProgress || 0) / toPercent(selectedAccount.profit_target, selectedAccount.initial_balance) * 100, 100)}%` }} 
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {(selectedAccount.profit_target - (selectedAccount.compliance?.profitProgress || 0)).toFixed(1)}% more to reach target
+                  {(toPercent(selectedAccount.profit_target, selectedAccount.initial_balance) - (selectedAccount.compliance?.profitProgress || 0)).toFixed(1)}% more to reach target
                 </p>
               </div>
             )}
@@ -856,7 +872,7 @@ export default function PropFirmPage() {
                   try {
                     const result = await syncMT5(mt5Connection.id);
                     if (result.success) {
-                      // Refresh status
+                      // Refresh MT5 status
                       const status = await getMT5Status(selectedAccount!.id);
                       setMt5Connection(status.connected ? {
                         connected: true,
@@ -869,6 +885,9 @@ export default function PropFirmPage() {
                         syncLimit: status.connection?.syncLimit,
                         errorMessage: status.connection?.errorMessage,
                       } : { connected: false });
+                      
+                      // Refresh prop accounts to show updated balance
+                      await loadAccounts();
                     } else {
                       setMt5Error(result.error || 'Sync failed');
                     }

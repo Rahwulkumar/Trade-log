@@ -4,7 +4,7 @@ export default function JournalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="px-6 py-8 max-w-7xl mx-auto fade-in">
+    <div className="fade-in h-[calc(100vh-80px)] overflow-hidden">
       {children}
     </div>
   );

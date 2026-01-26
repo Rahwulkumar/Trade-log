@@ -149,3 +149,38 @@ export async function checkCompliance(accountId: string): Promise<ComplianceStat
         daysRemaining: null, // Would need to calculate based on start_date and challenge duration
     }
 }
+
+// Recalculate balance from all trades linked to this prop account
+// Uses API route to bypass RLS restrictions
+export async function recalculateBalanceFromTrades(accountId: string): Promise<PropAccount | null> {
+    try {
+        const response = await fetch('/api/prop-accounts/recalculate-balance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountId }),
+        });
+
+        if (!response.ok) {
+            // Log detailed error info
+            const statusCode = response.status;
+            let errorData: unknown = {};
+            try {
+                errorData = await response.json();
+            } catch {
+                errorData = await response.text();
+            }
+            console.error(`[PropAccounts] Failed to recalculate balance (${statusCode}):`, errorData);
+            // Return current account without updating
+            return await getPropAccount(accountId);
+        }
+
+        const result = await response.json();
+        console.log(`[PropAccounts] Recalculated balance for ${accountId}: $${result.balance?.toFixed(2)} (${result.tradeCount} trades)`);
+
+        // Return updated account
+        return await getPropAccount(accountId);
+    } catch (err) {
+        console.error('[PropAccounts] Error recalculating balance:', err);
+        return await getPropAccount(accountId);
+    }
+}
