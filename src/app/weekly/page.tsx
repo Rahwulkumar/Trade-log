@@ -232,7 +232,7 @@ export default function WeeklyAnalysisPage() {
                   onChange={(e) => setWeeklyPlan(e.target.value)}
                   rows={5}
                   className="resize-none"
-                  placeholder="What's your plan for this week?"
+                  placeholder="What&apos;s your plan for this week?"
                 />
               </CardContent>
             </Card>
