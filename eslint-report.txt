@@ -1,0 +1,126 @@
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\analytics\page.tsx[24m[0m
+[0m  [2m204:11[22m  [31merror[39m  Do not use an `<a>` element to navigate to `/trades/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  [2m@next/next/no-html-link-for-pages[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\api\extension\route.ts[24m[0m
+[0m   [2m30:56[22m  [31merror[39m  Unexpected any. Specify a different type                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m44:59[22m  [31merror[39m  Unexpected any. Specify a different type                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m49:50[22m  [31merror[39m  Unexpected any. Specify a different type                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m55:74[22m  [31merror[39m  Unexpected any. Specify a different type                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m93:21[22m  [31merror[39m  'targetUserId' is never reassigned. Use 'const' instead  [2mprefer-const[22m[0m
+[0m  [2m106:60[22m  [31merror[39m  Unexpected any. Specify a different type                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m136:54[22m  [31merror[39m  Unexpected any. Specify a different type                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\api\mt5\connect\route.ts[24m[0m
+[0m   [2m74:77[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m166:59[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\api\mt5\sync\route.ts[24m[0m
+[0m   [2m30:75[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m45:80[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m65:37[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m115:37[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\api\prop-accounts\recalculate-balance\route.ts[24m[0m
+[0m  [2m64:80[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\dashboard\page.tsx[24m[0m
+[0m  [2m408:15[22m  [31merror[39m  Do not use an `<a>` element to navigate to `/trades/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  [2m@next/next/no-html-link-for-pages[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\notebook\page.tsx[24m[0m
+[0m   [2m92:62[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m147:43[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m294:46[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\trades\[id]\page.tsx[24m[0m
+[0m   [2m77:34[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m186:11[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\trades\page.tsx[24m[0m
+[0m  [2m256:54[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\app\weekly\page.tsx[24m[0m
+[0m  [2m210:52[22m  [31merror[39m  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  [2mreact/no-unescaped-entities[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\components\calendar\trading-calendar.tsx[24m[0m
+[0m  [2m355:11[22m  [31merror[39m  Do not use an `<a>` element to navigate to `/trades/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  [2m@next/next/no-html-link-for-pages[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\components\prop-firm\prop-firm-manager.tsx[24m[0m
+[0m  [2m79:12[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\components\theme-provider.tsx[24m[0m
+[0m  [2m36:7[22m  [31merror[39m  Error: Calling setState synchronously within an effect can trigger cascading renders[0m
+[0m[0m
+[0mEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:[0m
+[0m* Update external systems with the latest state from React.[0m
+[0m* Subscribe for updates from some external system, calling setState in a callback function when external state changes.[0m
+[0m[0m
+[0mCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).[0m
+[0m[0m
+[0mF:\TradingJournal\trading-journal\src\components\theme-provider.tsx:36:7[0m
+[0m  34 |     const stored = localStorage.getItem(storageKey) as Theme;[0m
+[0m  35 |     if (stored) {[0m
+[0m> 36 |       setTheme(stored);[0m
+[0m     |       ^^^^^^^^ Avoid calling setState() directly within an effect[0m
+[0m  37 |     }[0m
+[0m  38 |   }, [storageKey]);[0m
+[0m  39 |  [2mreact-hooks/set-state-in-effect[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\components\trade\trade-chart.tsx[24m[0m
+[0m  [2m96:36[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\components\ui\sidebar.tsx[24m[0m
+[0m  [2m611:26[22m  [31merror[39m  Error: Cannot call impure function during render[0m
+[0m[0m
+[0m`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).[0m
+[0m[0m
+[0mF:\TradingJournal\trading-journal\src\components\ui\sidebar.tsx:611:26[0m
+[0m  609 |   // Random width between 50 to 90%.[0m
+[0m  610 |   const width = React.useMemo(() => {[0m
+[0m> 611 |     return `${Math.floor(Math.random() * 40) + 50}%`[0m
+[0m      |                          ^^^^^^^^^^^^^ Cannot call impure function[0m
+[0m  612 |   }, [])[0m
+[0m  613 |[0m
+[0m  614 |   return (  [2mreact-hooks/purity[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\components\ui\starfield-background.tsx[24m[0m
+[0m  [2m9:5[22m  [31merror[39m  Error: Calling setState synchronously within an effect can trigger cascading renders[0m
+[0m[0m
+[0mEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:[0m
+[0m* Update external systems with the latest state from React.[0m
+[0m* Subscribe for updates from some external system, calling setState in a callback function when external state changes.[0m
+[0m[0m
+[0mCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).[0m
+[0m[0m
+[0mF:\TradingJournal\trading-journal\src\components\ui\starfield-background.tsx:9:5[0m
+[0m   7 |[0m
+[0m   8 |   useEffect(() => {[0m
+[0m>  9 |     setMounted(true);[0m
+[0m     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect[0m
+[0m  10 |   }, []);[0m
+[0m  11 |[0m
+[0m  12 |   if (!mounted) return null;  [2mreact-hooks/set-state-in-effect[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\lib\api\gemini.ts[24m[0m
+[0m   [2m26:32[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m57:65[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m127:13[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\lib\api\pricing.ts[24m[0m
+[0m   [2m39:71[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m78:59[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m267:41[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m273:24[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m282:24[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\lib\mt5\audit.ts[24m[0m
+[0m  [2m10:31[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m27:28[22m  [31merror[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4mF:\TradingJournal\trading-journal\src\lib\mt5\sync.ts[24m[0m
+[0m   [2m54:28[22m  [31merror[39m  Unexpected any. Specify a different type             [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m200:13[22m  [31merror[39m  'allDeals' is never reassigned. Use 'const' instead  [2mprefer-const[22m[0m
+[0m[0m
+[0m[31m[1m✖ 41 problems (41 errors, 0 warnings)[22m[39m[0m
+[0m[31m[1m[22m[39m[31m[1m  2 errors and 0 warnings potentially fixable with the `--fix` option.[22m[39m[0m
+[0m[31m[1m[22m[39m[0m

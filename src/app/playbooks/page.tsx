@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   BookOpen,
   Plus,
@@ -36,13 +36,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
-import { 
-  getPlaybooks, 
-  createPlaybook, 
-  deletePlaybook, 
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  createPlaybook,
+  deletePlaybook,
   duplicatePlaybook,
   togglePlaybookActive,
-  type PlaybookStats,
   getAllPlaybooksWithStats,
 } from "@/lib/api/playbooks";
 import type { Playbook } from "@/lib/supabase/types";
@@ -73,7 +73,7 @@ export default function PlaybooksPage() {
   });
 
   // Load playbooks with stats
-  async function loadPlaybooks() {
+  const loadPlaybooks = useCallback(async () => {
     if (!isConfigured || !user) {
       setLoading(false);
       return;
@@ -82,12 +82,13 @@ export default function PlaybooksPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Apply global prop account filter
-      const propAccountIdFilter = selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
-      
+      const propAccountIdFilter =
+        selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
+
       const stats = await getAllPlaybooksWithStats(propAccountIdFilter);
-      const playbooksWithStats: PlaybookWithStats[] = stats.map(s => ({
+      const playbooksWithStats: PlaybookWithStats[] = stats.map((s) => ({
         ...s.playbook,
         stats: {
           totalTrades: s.totalTrades,
@@ -96,25 +97,25 @@ export default function PlaybooksPage() {
           totalPnl: s.totalPnl,
         },
       }));
-      
+
       setPlaybooks(playbooksWithStats);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load playbooks");
     } finally {
       setLoading(false);
     }
-  }
+  }, [isConfigured, user, selectedAccountId]);
 
   useEffect(() => {
     if (!authLoading) {
       loadPlaybooks();
     }
-  }, [user, isConfigured, authLoading, selectedAccountId]);
+  }, [user, isConfigured, authLoading, selectedAccountId, loadPlaybooks]);
 
   // Handle form submission
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    
+
     if (!formData.name) {
       setError("Please enter a playbook name");
       return;
@@ -127,18 +128,22 @@ export default function PlaybooksPage() {
       await createPlaybook({
         name: formData.name,
         description: formData.description || null,
-        rules: formData.rules ? formData.rules.split("\n").filter(r => r.trim()) : null,
+        rules: formData.rules
+          ? formData.rules.split("\n").filter((r) => r.trim())
+          : null,
         is_active: true,
       });
 
       // Reset form and close dialog
       setFormData({ name: "", description: "", rules: "" });
       setIsNewPlaybookOpen(false);
-      
+
       // Reload playbooks
       await loadPlaybooks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create playbook");
+      setError(
+        err instanceof Error ? err.message : "Failed to create playbook",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -152,7 +157,9 @@ export default function PlaybooksPage() {
       await deletePlaybook(id);
       await loadPlaybooks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete playbook");
+      setError(
+        err instanceof Error ? err.message : "Failed to delete playbook",
+      );
     }
   }
 
@@ -162,7 +169,9 @@ export default function PlaybooksPage() {
       await duplicatePlaybook(id);
       await loadPlaybooks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to duplicate playbook");
+      setError(
+        err instanceof Error ? err.message : "Failed to duplicate playbook",
+      );
     }
   }
 
@@ -172,26 +181,37 @@ export default function PlaybooksPage() {
       await togglePlaybookActive(id);
       await loadPlaybooks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update playbook");
+      setError(
+        err instanceof Error ? err.message : "Failed to update playbook",
+      );
     }
   }
 
   const activePlaybooks = playbooks.filter((p) => p.is_active);
-  const totalPnL = playbooks.reduce((sum, p) => sum + (p.stats?.totalPnl || 0), 0);
-  const avgWinRate = playbooks.length > 0 
-    ? playbooks.reduce((sum, p) => sum + (p.stats?.winRate || 0), 0) / playbooks.length 
-    : 0;
+  const totalPnL = playbooks.reduce(
+    (sum, p) => sum + (p.stats?.totalPnl || 0),
+    0,
+  );
+  const avgWinRate =
+    playbooks.length > 0
+      ? playbooks.reduce((sum, p) => sum + (p.stats?.winRate || 0), 0) /
+        playbooks.length
+      : 0;
 
   // Show auth required message
   if (!authLoading && !isConfigured) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <div className="card-void p-8 text-center max-w-md">
-          <h2 className="text-xl font-semibold mb-2">Supabase Not Configured</h2>
-          <p className="text-muted-foreground mb-4">
-            Please add your Supabase credentials to enable this feature.
-          </p>
-        </div>
+        <Card className="bg-black/60 backdrop-blur-xl border-white/5 p-8 text-center max-w-md">
+          <CardContent>
+            <h2 className="text-xl font-semibold mb-2">
+              Supabase Not Configured
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              Please add your Supabase credentials to enable this feature.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -199,15 +219,20 @@ export default function PlaybooksPage() {
   if (!authLoading && !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <div className="card-void p-8 text-center max-w-md">
-          <h2 className="text-xl font-semibold mb-2">Login Required</h2>
-          <p className="text-muted-foreground mb-4">
-            Please sign in to view and manage your playbooks.
-          </p>
-          <a href="/auth/login" className="btn-glow">
-            Sign In
-          </a>
-        </div>
+        <Card className="bg-black/60 backdrop-blur-xl border-white/5 p-8 text-center max-w-md">
+          <CardContent>
+            <h2 className="text-xl font-semibold mb-2">Login Required</h2>
+            <p className="text-muted-foreground mb-4">
+              Please sign in to view and manage your playbooks.
+            </p>
+            <Button
+              asChild
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            >
+              <a href="/auth/login">Sign In</a>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -221,15 +246,21 @@ export default function PlaybooksPage() {
           <h1 className="headline-lg">Playbooks</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button className="btn-void p-2" onClick={loadPlaybooks} title="Refresh">
+          <Button
+            variant="outline"
+            size="icon"
+            className="bg-transparent border-white/10 hover:bg-white/5"
+            onClick={loadPlaybooks}
+            title="Refresh"
+          >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          </button>
+          </Button>
           <Dialog open={isNewPlaybookOpen} onOpenChange={setIsNewPlaybookOpen}>
             <DialogTrigger asChild>
-              <button className="btn-glow">
+              <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
                 <Plus className="h-4 w-4" />
                 New Playbook
-              </button>
+              </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px] bg-void-surface border-white/10">
               <form onSubmit={handleSubmit}>
@@ -242,45 +273,65 @@ export default function PlaybooksPage() {
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Playbook Name *</Label>
-                    <Input 
-                      id="name" 
-                      placeholder="e.g., ICT Order Block" 
+                    <Input
+                      id="name"
+                      placeholder="e.g., ICT Order Block"
                       className="bg-void border-white/10"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
                       required
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
-                    <Textarea 
-                      id="description" 
-                      placeholder="Describe your trading strategy..." 
-                      rows={3} 
+                    <Textarea
+                      id="description"
+                      placeholder="Describe your trading strategy..."
+                      rows={3}
                       className="bg-void border-white/10"
                       value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          description: e.target.value,
+                        })
+                      }
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="rules">Entry Rules (one per line)</Label>
-                    <Textarea 
-                      id="rules" 
-                      placeholder="Rule 1&#10;Rule 2&#10;Rule 3" 
-                      rows={4} 
+                    <Textarea
+                      id="rules"
+                      placeholder="Rule 1&#10;Rule 2&#10;Rule 3"
+                      rows={4}
                       className="bg-void border-white/10"
                       value={formData.rules}
-                      onChange={(e) => setFormData({ ...formData, rules: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, rules: e.target.value })
+                      }
                     />
                   </div>
                 </div>
                 <DialogFooter>
-                  <button type="button" className="btn-void" onClick={() => setIsNewPlaybookOpen(false)}>
+                  <Button
+                    variant="outline"
+                    className="bg-transparent border-white/10 hover:bg-white/5"
+                    onClick={() => setIsNewPlaybookOpen(false)}
+                  >
                     Cancel
-                  </button>
-                  <button type="submit" className="btn-glow" disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Playbook"}
-                  </button>
+                  </Button>
+                  <Button
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Create Playbook"
+                    )}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -292,30 +343,40 @@ export default function PlaybooksPage() {
       {error && (
         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline">Dismiss</button>
+          <button onClick={() => setError(null)} className="ml-2 underline">
+            Dismiss
+          </button>
         </div>
       )}
 
       {/* Stats Summary */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card-void p-6 text-center">
-          <p className="text-label mb-2">Total</p>
-          <p className="stat-large">{playbooks.length}</p>
-        </div>
-        <div className="card-void p-6 text-center">
-          <p className="text-label mb-2">Active</p>
-          <p className="stat-large profit">{activePlaybooks.length}</p>
-        </div>
-        <div className="card-void p-6 text-center">
-          <p className="text-label mb-2">Avg Win Rate</p>
-          <p className="stat-large">{avgWinRate.toFixed(1)}%</p>
-        </div>
-        <div className="card-void p-6 text-center">
-          <p className="text-label mb-2">Total P&L</p>
-          <p className={cn("stat-large", totalPnL >= 0 ? "profit" : "loss")}>
-            {totalPnL >= 0 ? "+" : ""}${totalPnL.toLocaleString()}
-          </p>
-        </div>
+        <Card className="bg-black/60 backdrop-blur-xl border-white/5">
+          <CardContent className="p-6 text-center">
+            <p className="text-label mb-2">Total</p>
+            <p className="stat-large">{playbooks.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-black/60 backdrop-blur-xl border-white/5">
+          <CardContent className="p-6 text-center">
+            <p className="text-label mb-2">Active</p>
+            <p className="stat-large profit">{activePlaybooks.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-black/60 backdrop-blur-xl border-white/5">
+          <CardContent className="p-6 text-center">
+            <p className="text-label mb-2">Avg Win Rate</p>
+            <p className="stat-large">{avgWinRate.toFixed(1)}%</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-black/60 backdrop-blur-xl border-white/5">
+          <CardContent className="p-6 text-center">
+            <p className="text-label mb-2">Total P&L</p>
+            <p className={cn("stat-large", totalPnL >= 0 ? "profit" : "loss")}>
+              {totalPnL >= 0 ? "+" : ""}${totalPnL.toLocaleString()}
+            </p>
+          </CardContent>
+        </Card>
       </section>
 
       {/* Loading State */}
@@ -327,108 +388,172 @@ export default function PlaybooksPage() {
 
       {/* Empty State */}
       {!loading && playbooks.length === 0 && (
-        <div className="card-void p-12 text-center">
-          <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground mb-4">No playbooks yet. Create your first trading strategy!</p>
-          <button className="btn-glow" onClick={() => setIsNewPlaybookOpen(true)}>
-            <Plus className="h-4 w-4" />
-            Create Your First Playbook
-          </button>
-        </div>
+        <Card className="bg-black/60 backdrop-blur-xl border-white/5 p-12 text-center">
+          <CardContent>
+            <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground mb-4">
+              No playbooks yet. Create your first trading strategy!
+            </p>
+            <Button
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              onClick={() => setIsNewPlaybookOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Create Your First Playbook
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {/* Playbooks Grid */}
       {!loading && playbooks.length > 0 && (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {playbooks.map((playbook) => (
-            <div key={playbook.id} className={cn("card-void p-6 relative", !playbook.is_active && "opacity-60")}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={cn("p-2 rounded-lg", (playbook.stats?.totalPnl || 0) >= 0 ? "bg-green-500/10" : "bg-red-500/10")}>
-                    <BookOpen className={cn("h-4 w-4", (playbook.stats?.totalPnl || 0) >= 0 ? "text-green-500" : "text-red-500")} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">{playbook.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      {(playbook.stats?.totalPnl || 0) > 0 && <TrendingUp className="h-3 w-3 profit" />}
-                      {(playbook.stats?.totalPnl || 0) < 0 && <TrendingDown className="h-3 w-3 loss" />}
-                      {!playbook.is_active && <span className="badge-void text-xs">Inactive</span>}
+            <Card
+              key={playbook.id}
+              className={cn(
+                "bg-black/60 backdrop-blur-xl border-white/5",
+                !playbook.is_active && "opacity-60",
+              )}
+            >
+              <CardContent className="p-6 relative">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "p-2 rounded-lg",
+                        (playbook.stats?.totalPnl || 0) >= 0
+                          ? "bg-green-500/10"
+                          : "bg-red-500/10",
+                      )}
+                    >
+                      <BookOpen
+                        className={cn(
+                          "h-4 w-4",
+                          (playbook.stats?.totalPnl || 0) >= 0
+                            ? "text-green-500"
+                            : "text-red-500",
+                        )}
+                      />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{playbook.name}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        {(playbook.stats?.totalPnl || 0) > 0 && (
+                          <TrendingUp className="h-3 w-3 profit" />
+                        )}
+                        {(playbook.stats?.totalPnl || 0) < 0 && (
+                          <TrendingDown className="h-3 w-3 loss" />
+                        )}
+                        {!playbook.is_active && (
+                          <span className="badge-void text-xs">Inactive</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="p-2 hover:bg-white/5 rounded transition-colors">
-                      <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-[#0a0a0a] border-white/10">
-                    <DropdownMenuItem><Edit className="h-4 w-4 mr-2" /> Edit</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDuplicate(playbook.id)}>
-                      <Copy className="h-4 w-4 mr-2" /> Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleToggleActive(playbook.id)}>
-                      {playbook.is_active ? "Deactivate" : "Activate"}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      className="text-red-500"
-                      onClick={() => handleDelete(playbook.id)}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="p-2 hover:bg-white/5 rounded transition-colors">
+                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="bg-[#0a0a0a] border-white/10"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" /> Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                      <DropdownMenuItem>
+                        <Edit className="h-4 w-4 mr-2" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDuplicate(playbook.id)}
+                      >
+                        <Copy className="h-4 w-4 mr-2" /> Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleToggleActive(playbook.id)}
+                      >
+                        {playbook.is_active ? "Deactivate" : "Activate"}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-red-500"
+                        onClick={() => handleDelete(playbook.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
-              <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                {playbook.description || "No description"}
-              </p>
+                <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                  {playbook.description || "No description"}
+                </p>
 
-              {/* Win Rate Progress */}
-              <div className="mb-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Win Rate</span>
-                  <span className="font-medium">{(playbook.stats?.winRate || 0).toFixed(1)}%</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-white/5">
-                  <div 
-                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" 
-                    style={{ width: `${Math.min(playbook.stats?.winRate || 0, 100)}%` }} 
-                  />
-                </div>
-              </div>
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-3 gap-4 text-center mb-4">
-                <div>
-                  <div className="text-lg font-semibold">{playbook.stats?.totalTrades || 0}</div>
-                  <div className="text-xs text-muted-foreground">Trades</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold">{(playbook.stats?.avgRMultiple || 0).toFixed(1)}R</div>
-                  <div className="text-xs text-muted-foreground">Avg R</div>
-                </div>
-                <div>
-                  <div className={cn("text-lg font-semibold mono", (playbook.stats?.totalPnl || 0) >= 0 ? "profit" : "loss")}>
-                    ${Math.abs(playbook.stats?.totalPnl || 0).toLocaleString()}
+                {/* Win Rate Progress */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-muted-foreground">Win Rate</span>
+                    <span className="font-medium">
+                      {(playbook.stats?.winRate || 0).toFixed(1)}%
+                    </span>
                   </div>
-                  <div className="text-xs text-muted-foreground">P&L</div>
+                  <div className="h-1.5 rounded-full bg-white/5">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                      style={{
+                        width: `${Math.min(playbook.stats?.winRate || 0, 100)}%`,
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* Rules Preview */}
-              {playbook.rules && playbook.rules.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-4">
-                  <span className="badge-void text-xs">{playbook.rules.length} rules</span>
+                {/* Stats Grid */}
+                <div className="grid grid-cols-3 gap-4 text-center mb-4">
+                  <div>
+                    <div className="text-lg font-semibold">
+                      {playbook.stats?.totalTrades || 0}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Trades</div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold">
+                      {(playbook.stats?.avgRMultiple || 0).toFixed(1)}R
+                    </div>
+                    <div className="text-xs text-muted-foreground">Avg R</div>
+                  </div>
+                  <div>
+                    <div
+                      className={cn(
+                        "text-lg font-semibold mono",
+                        (playbook.stats?.totalPnl || 0) >= 0
+                          ? "profit"
+                          : "loss",
+                      )}
+                    >
+                      $
+                      {Math.abs(playbook.stats?.totalPnl || 0).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-muted-foreground">P&L</div>
+                  </div>
                 </div>
-              )}
 
-              <button className="w-full py-2 text-sm text-muted-foreground hover:text-white transition-colors flex items-center justify-center gap-2 border-t border-white/5 -mx-6 px-6 -mb-6 mt-4">
-                View Details
-                <ArrowUpRight className="h-4 w-4" />
-              </button>
-            </div>
+                {/* Rules Preview */}
+                {playbook.rules &&
+                  Array.isArray(playbook.rules) &&
+                  playbook.rules.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-4">
+                      <span className="badge-void text-xs">
+                        {playbook.rules.length} rules
+                      </span>
+                    </div>
+                  )}
+
+                <button className="w-full py-2 text-sm text-muted-foreground hover:text-white transition-colors flex items-center justify-center gap-2 border-t border-white/5 -mx-6 px-6 -mb-6 mt-4">
+                  View Details
+                  <ArrowUpRight className="h-4 w-4" />
+                </button>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

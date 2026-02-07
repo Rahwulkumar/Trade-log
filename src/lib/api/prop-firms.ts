@@ -114,7 +114,8 @@ export async function upsertPropFirm(firm: Partial<PropFirm>) {
 export async function upsertChallenge(challenge: Partial<PropFirmChallenge>) {
     const supabase = createClient();
     // Remove joined fields before upsert
-    const { firm, ...cleanChallenge } = challenge;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { firm: _, ...cleanChallenge } = challenge;
 
     const { data, error } = await supabase
         .from("prop_firm_challenges")

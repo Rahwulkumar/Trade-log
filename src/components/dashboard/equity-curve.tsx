@@ -1,40 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
-  TooltipProps
 } from "recharts";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { getEquityCurve, type EquityCurvePoint } from "@/lib/api/analytics";
-
-const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="rounded-lg bg-[#1a1a1a] border border-white/10 p-3 shadow-xl">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-lg font-semibold profit">
-          ${payload[0].value?.toLocaleString()}
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
+import { getEquityCurve } from "@/lib/api/analytics";
+import { ChartTooltip } from "@/components/ui/chart-tooltip";
 
 interface EquityCurveProps {
   startingBalance?: number;
   propAccountId?: string | null;
 }
 
-export function EquityCurve({ startingBalance = 100000, propAccountId }: EquityCurveProps) {
+export function EquityCurve({
+  startingBalance = 0,
+  propAccountId,
+}: EquityCurveProps) {
   const { user, isConfigured } = useAuth();
   const [data, setData] = useState<{ date: string; balance: number }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,12 +36,17 @@ export function EquityCurve({ startingBalance = 100000, propAccountId }: EquityC
       }
 
       try {
-        const curveData = await getEquityCurve(startingBalance, undefined, undefined, propAccountId);
+        const curveData = await getEquityCurve(
+          startingBalance,
+          undefined,
+          undefined,
+          propAccountId,
+        );
         // Format dates for display
-        const formattedData = curveData.map(point => ({
-          date: new Date(point.date).toLocaleDateString("en-US", { 
-            month: "short", 
-            day: "numeric" 
+        const formattedData = curveData.map((point) => ({
+          date: new Date(point.date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
           }),
           balance: point.balance,
         }));
@@ -92,28 +86,31 @@ export function EquityCurve({ startingBalance = 100000, propAccountId }: EquityC
         >
           <defs>
             <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--profit)" stopOpacity={0.2} />
+              <stop offset="95%" stopColor="var(--profit)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="rgba(255,255,255,0.03)"
+          />
           <XAxis
             dataKey="date"
-            tick={{ fill: "#52525b", fontSize: 11 }}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
-            tick={{ fill: "#52525b", fontSize: 11 }}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<ChartTooltip />} />
           <Area
             type="monotone"
             dataKey="balance"
-            stroke="#22c55e"
+            stroke="var(--profit)"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#colorBalance)"

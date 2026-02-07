@@ -1,13 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { User } from "@supabase/supabase-js";
+import type { TradeInsert } from "@/lib/supabase/types";
+
+interface PlaybookRecord {
+  user_id: string;
+}
+
+interface ProfileRecord {
+  id: string;
+}
+
+interface TradePayload {
+  id?: string;
+  symbol?: string;
+  direction?: 'LONG' | 'SHORT';
+  entry_price?: number;
+  exit_price?: number;
+  stop_loss?: number;
+  take_profit?: number;
+  pnl?: number;
+  status?: 'open' | 'closed';
+  position_size?: number; // Added missing property
+  [key: string]: unknown;
+}
+
+interface RequestBody {
+  action: string;
+  payload?: TradePayload;
+}
 
 export async function POST(req: NextRequest) {
     // Use admin client in DEV mode to bypass RLS, otherwise use regular client
     const isDevMode = req.headers.get("x-extension-mode") === "dev";
     const supabase = isDevMode ? createAdminClient() : await createClient();
     try {
-        const body = await req.json();
+        const body = await req.json() as RequestBody;
         const { action, payload } = body;
 
         // AUTH CHECK (For MVP we trust localhost, but ideally check session/key)
@@ -27,7 +56,7 @@ export async function POST(req: NextRequest) {
                 .single();
 
             if (playbookHelper) {
-                helper = { user_id: (playbookHelper as any).user_id };
+                helper = { user_id: (playbookHelper as PlaybookRecord).user_id };
             }
 
             console.log("[Extension Auth] Playbooks query:", helper, playbookError?.message);
@@ -41,18 +70,18 @@ export async function POST(req: NextRequest) {
                     .single();
                 console.log("[Extension Auth] Profiles query:", profileHelper, profileError?.message);
                 if (profileHelper) {
-                    helper = { user_id: (profileHelper as any).id };
+                    helper = { user_id: (profileHelper as ProfileRecord).id };
                 }
             }
 
             if (helper) {
-                user = { id: helper.user_id } as any;
+                user = { id: helper.user_id } as User;
                 console.log("[Extension Auth] Impersonating user:", user!.id);
             } else {
                 // LAST RESORT: Create a mock user for truly empty databases
                 // This allows extension testing even when no users exist
                 console.log("[Extension Auth] No users found in database - using mock user");
-                user = { id: "00000000-0000-0000-0000-000000000000" } as any;
+                user = { id: "00000000-0000-0000-0000-000000000000" } as User;
             }
         }
 
@@ -78,11 +107,21 @@ export async function POST(req: NextRequest) {
             }
 
             case "create_trade": {
-                const { error } = await supabase.from("trades").insert({
+                if (!payload?.symbol || !payload?.direction || !payload?.entry_price || !payload.position_size) {
+                    return NextResponse.json({ error: "Missing required trade fields" }, { status: 400 });
+                }
+                const tradeData: TradeInsert = {
                     user_id: user.id,
-                    ...payload,
-                    status: "open", // Default to open
-                });
+                    symbol: payload.symbol,
+                    direction: payload.direction,
+                    entry_price: payload.entry_price,
+                    position_size: payload.position_size,
+                    pnl: (payload.pnl ?? 0) as number, // Cast to number to fix potential 'never' type
+                    entry_date: new Date().toISOString(),
+                    status: "open",
+                };
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase.from("trades") as any).insert(tradeData);
 
                 if (error) throw error;
                 return NextResponse.json({ success: true });
@@ -90,7 +129,7 @@ export async function POST(req: NextRequest) {
 
             case "seed_strategy": {
                 // Determine user_id (fallback for dev)
-                let targetUserId = user ? user.id : null;
+                const targetUserId = user ? user.id : null;
 
                 // If no user session (e.g. curl), try to find ANY user for demo purposes in DEV only
                 if (!targetUserId && process.env.NODE_ENV === "development") {
@@ -103,25 +142,26 @@ export async function POST(req: NextRequest) {
 
                 if (!targetUserId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-                const { data, error } = await (supabase as any).from("playbooks").insert({
-                    user_id: targetUserId,
-                    name: "ICT Silver Bullet (Demo)",
-                    description: "A time-based liquidity run strategy.",
-                    rules: {
-                        "Entry": "Enter at 10:00 AM NY time on FVG retest",
-                        "Stop": "Below the swing low of the displacement leg",
-                        "Target": "Opposing liquidity pool (PDH/PDL)"
-                    },
-                    is_active: true
-                }).select().single();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: playbook, error: pError } = await (supabase.from("playbooks") as any)
+        .insert({
+          user_id: user.id,
+          name: payload?.playbook_name || "New Playbook",
+          description: "Created via extension",
+          rules: { Entry: "", Stop: "", Target: "" },
+          is_active: true,
+        })
+        .select()
+        .single();
 
-                if (error) throw error;
-                return NextResponse.json({ success: true, data });
+                if (pError) throw pError;
+                return NextResponse.json({ success: true, data: playbook });
             }
 
             case "get_open_trades": {
-                const { data, error } = await supabase
-                    .from("trades")
+                const { data, error } = await (supabase
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    .from("trades") as any)
                     .select("*")
                     .eq("user_id", user.id)
                     .eq("status", "open")
@@ -132,9 +172,13 @@ export async function POST(req: NextRequest) {
             }
 
             case "update_trade": {
+                if (!payload?.id) {
+                    return NextResponse.json({ error: "Trade ID required" }, { status: 400 });
+                }
                 const { id, ...updates } = payload;
-                const { error } = await (supabase as any)
-                    .from("trades")
+                const { error } = await (supabase
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    .from("trades") as any)
                     .update(updates)
                     .eq("id", id)
                     .eq("user_id", user.id); // Security check
@@ -154,7 +198,7 @@ export async function POST(req: NextRequest) {
 }
 
 // Enable CORS for the extension
-export async function OPTIONS(request: Request) {
+export async function OPTIONS() {
     return new NextResponse(null, {
         status: 204,
         headers: {

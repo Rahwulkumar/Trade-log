@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
 import { getTrades } from "@/lib/api/trades";
+import { Badge } from "@/components/ui/badge";
 import type { Trade } from "@/lib/supabase/types";
 
 interface RecentTradesProps {
@@ -72,32 +73,44 @@ export function RecentTrades({ limit = 5, propAccountId }: RecentTradesProps) {
             <tr key={trade.id} className="cursor-pointer">
               <td className="font-medium">{trade.symbol}</td>
               <td>
-                <span className={cn(
-                  "badge-void inline-flex items-center gap-1",
-                  trade.direction === "LONG" ? "badge-profit" : "badge-loss"
-                )}>
-                  {trade.direction === "LONG" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                <Badge variant={trade.direction === "LONG" ? "profit" : "loss"}>
+                  {trade.direction === "LONG" ? (
+                    <ArrowUp className="h-3 w-3" />
+                  ) : (
+                    <ArrowDown className="h-3 w-3" />
+                  )}
                   {trade.direction}
-                </span>
+                </Badge>
               </td>
-              <td className="text-right mono text-muted-foreground">{trade.entry_price}</td>
+              <td className="text-right mono text-muted-foreground">
+                {trade.entry_price}
+              </td>
               <td className="text-right mono text-muted-foreground">
                 {trade.exit_price || "-"}
               </td>
-              <td className={cn("text-right font-medium mono", trade.pnl >= 0 ? "profit" : "loss")}>
-                {trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)}
+              <td
+                className={cn(
+                  "text-right font-medium mono",
+                  (trade.pnl || 0) >= 0 ? "text-green-500" : "text-red-500",
+                )}
+              >
+                {(trade.pnl || 0) >= 0 ? "+" : ""}${(trade.pnl || 0).toFixed(2)}
               </td>
-              <td className={cn("text-right mono", (trade.r_multiple || 0) >= 0 ? "" : "loss")}>
-                {trade.r_multiple 
+              <td
+                className={cn(
+                  "text-right mono",
+                  (trade.r_multiple || 0) >= 0 ? "" : "text-red-500",
+                )}
+              >
+                {trade.r_multiple
                   ? `${trade.r_multiple >= 0 ? "+" : ""}${trade.r_multiple.toFixed(1)}R`
-                  : "-"
-                }
+                  : "-"}
               </td>
               <td className="text-right text-muted-foreground">
-                {new Date(trade.entry_date).toLocaleDateString("en-US", { 
-                  month: "short", 
-                  day: "numeric", 
-                  year: "numeric" 
+                {new Date(trade.entry_date).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
                 })}
               </td>
             </tr>

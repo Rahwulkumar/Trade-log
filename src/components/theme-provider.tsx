@@ -28,14 +28,14 @@ export function ThemeProvider({
   storageKey = "trading-journal-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(defaultTheme);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(storageKey) as Theme;
-    if (stored) {
-      setTheme(stored);
+  // Use lazy initialization to read from localStorage synchronously
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(storageKey) as Theme;
+      return stored || defaultTheme;
     }
-  }, [storageKey]);
+    return defaultTheme;
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -78,6 +78,3 @@ export const useTheme = () => {
 
   return context;
 };
-
-
-
