@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Hexagon, Mail, Lock, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -94,7 +96,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key`}
         )}
 
         {/* Login Form */}
-        <div className="card-void p-8">
+        <Card className="bg-black/60 backdrop-blur-xl border-white/5">
+          <CardContent className="p-8">
           <form onSubmit={handleLogin} className="space-y-6">
             {error && (
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
@@ -139,10 +142,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key`}
               </div>
             </div>
 
-            <button
+            <Button
               type="submit"
               disabled={loading}
-              className="w-full btn-glow flex items-center justify-center gap-2 py-3"
+              className="w-full bg-white/5 border border-white/10 hover:bg-white/10"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -152,7 +155,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key`}
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
-            </button>
+            </Button>
           </form>
 
           <div className="mt-6 text-center text-sm text-muted-foreground">
@@ -161,7 +164,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key`}
               Sign up
             </Link>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

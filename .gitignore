@@ -20,9 +20,21 @@
 # production
 /build
 
-# misc
+# System Files
 .DS_Store
-*.pem
+Thumbs.db
+
+# Logs and Artifacts
+*.log
+*.md
+!README.md
+!CONTRIBUTING.md
+tsc_errors.txt
+build_errors.log
+full_errors.txt
+eslint-errors.json
+lint_*.json
+*_report.txtpem
 
 # debug
 npm-debug.log*

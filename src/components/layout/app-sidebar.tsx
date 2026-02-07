@@ -14,7 +14,6 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
-  Target,
   FileText,
   PieChart,
   Sparkles,
@@ -101,7 +100,7 @@ export function AppSidebar({ className }: AppSidebarProps) {
         className={cn(
           "nav-sidebar relative flex h-screen flex-col transition-all duration-300",
           collapsed ? "w-[68px]" : "w-[260px]",
-          className
+          className,
         )}
       >
         {/* Logo Area */}
@@ -112,8 +111,12 @@ export function AppSidebar({ className }: AppSidebarProps) {
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
               <div className="flex flex-col">
-                <span className="font-bold text-base text-gradient">Nova Trading</span>
-                <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Journal</span>
+                <span className="font-bold text-base text-gradient">
+                  Nova Trading
+                </span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                  Journal
+                </span>
               </div>
             </Link>
           )}
@@ -131,14 +134,16 @@ export function AppSidebar({ className }: AppSidebarProps) {
               <Button
                 className={cn(
                   "btn-primary w-full rounded-xl h-11",
-                  collapsed ? "px-2" : "px-4"
+                  collapsed ? "px-2" : "px-4",
                 )}
               >
                 <Plus className="h-4 w-4" />
                 {!collapsed && <span className="ml-2">Log Trade</span>}
               </Button>
             </TooltipTrigger>
-            {collapsed && <TooltipContent side="right">Log Trade</TooltipContent>}
+            {collapsed && (
+              <TooltipContent side="right">Log Trade</TooltipContent>
+            )}
           </Tooltip>
         </div>
 
@@ -147,20 +152,22 @@ export function AppSidebar({ className }: AppSidebarProps) {
         {/* Main Navigation */}
         <ScrollArea className="flex-1 px-3 py-4">
           <div className={cn("mb-2 px-3", collapsed && "text-center")}>
-            {!collapsed && <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Main Menu</span>}
+            {!collapsed && (
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Main Menu
+              </span>
+            )}
           </div>
           <nav className="flex flex-col gap-1">
             {mainNavItems.map((item) => {
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+              const isActive =
+                pathname === item.href || pathname?.startsWith(item.href + "/");
               return (
                 <Tooltip key={item.href}>
                   <TooltipTrigger asChild>
                     <Link
                       href={item.href}
-                      className={cn(
-                        "nav-item",
-                        isActive && "active"
-                      )}
+                      className={cn("nav-item", isActive && "active")}
                     >
                       <item.icon className="h-5 w-5 shrink-0" />
                       {!collapsed && <span>{item.title}</span>}
@@ -177,20 +184,22 @@ export function AppSidebar({ className }: AppSidebarProps) {
           <Separator className="my-4 opacity-50" />
 
           <div className={cn("mb-2 px-3", collapsed && "text-center")}>
-            {!collapsed && <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tools</span>}
+            {!collapsed && (
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Tools
+              </span>
+            )}
           </div>
           <nav className="flex flex-col gap-1">
             {secondaryNavItems.map((item) => {
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+              const isActive =
+                pathname === item.href || pathname?.startsWith(item.href + "/");
               return (
                 <Tooltip key={item.href}>
                   <TooltipTrigger asChild>
                     <Link
                       href={item.href}
-                      className={cn(
-                        "nav-item",
-                        isActive && "active"
-                      )}
+                      className={cn("nav-item", isActive && "active")}
                     >
                       <item.icon className="h-5 w-5 shrink-0" />
                       {!collapsed && <span>{item.title}</span>}

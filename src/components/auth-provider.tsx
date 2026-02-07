@@ -1,8 +1,15 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import type { Profile } from '@/lib/supabase/types';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import { User, Session } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/types";
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 interface AuthContextType {
   user: User | null;
@@ -19,7 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Check if Supabase is configured
 function isSupabaseConfigured() {
   return !!(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && 
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
 }
@@ -36,14 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const configured = isSupabaseConfigured();
     setIsConfigured(configured);
     console.log("[Auth] Supabase configured:", configured);
-    
+
     if (!configured) {
       setLoading(false);
       return;
     }
 
     // Only import and use Supabase if configured
-    import('@/lib/supabase/client').then(({ createClient }) => {
+    import("@/lib/supabase/client").then(({ createClient }) => {
       const supabase = createClient();
       console.log("[Auth] Supabase client created");
 
@@ -51,22 +58,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("[Auth] Fetching profile for user:", userId);
         try {
           // Add a 3-second timeout to prevent hanging
-          const timeoutPromise = new Promise<null>((_, reject) => 
-            setTimeout(() => reject(new Error("Profile fetch timeout")), 3000)
+          const timeoutPromise = new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error("Profile fetch timeout")), 3000),
           );
-          
+
           const fetchPromise = supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
+            .from("profiles")
+            .select("*")
+            .eq("id", userId)
             .single();
-          
+
           const result = await Promise.race([fetchPromise, timeoutPromise]);
-          
-          if (result && 'data' in result) {
+
+          if (result && "data" in result) {
             const { data, error } = result;
             if (error) {
-              console.log("[Auth] Profile fetch error (this is OK):", error.message);
+              console.log(
+                "[Auth] Profile fetch error (this is OK):",
+                error.message,
+              );
             } else {
               console.log("[Auth] Profile fetched:", data);
             }
@@ -74,7 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } catch (err: unknown) {
           // Profile fetch is optional - don't block on failure
-          console.log("[Auth] Profile fetch skipped:", err instanceof Error ? err.message : "Unknown error");
+          console.log(
+            "[Auth] Profile fetch skipped:",
+            err instanceof Error ? err.message : "Unknown error",
+          );
           setProfile(null);
         }
       }
@@ -82,9 +95,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Get initial session
       console.log("[Auth] Getting initial session...");
       supabase.auth.getSession().then(({ data: { session }, error }) => {
-        console.log("[Auth] Session result:", session ? "Session exists" : "No session", error ? `Error: ${error.message}` : "");
+        console.log(
+          "[Auth] Session result:",
+          session ? "Session exists" : "No session",
+          error ? `Error: ${error.message}` : "",
+        );
         console.log("[Auth] User from session:", session?.user?.id || "none");
-        
+
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
@@ -97,16 +114,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log("[Auth] Auth state changed:", event, session?.user?.id || "no user");
+        console.log(
+          "[Auth] Auth state changed:",
+          event,
+          session?.user?.id || "no user",
+        );
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user) {
           await fetchProfile(session.user.id);
         } else {
           setProfile(null);
         }
-        
+
         setLoading(false);
       });
 
@@ -116,8 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     if (!isConfigured) return;
-    
-    const { createClient } = await import('@/lib/supabase/client');
+
+    const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);
@@ -127,20 +148,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function refreshProfile() {
     if (!isConfigured || !user) return;
-    
-    const { createClient } = await import('@/lib/supabase/client');
+
+    const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
       .single();
-    
+
     setProfile(data as Profile | null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, isConfigured, signOut, refreshProfile }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        session,
+        loading,
+        isConfigured,
+        signOut,
+        refreshProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -149,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

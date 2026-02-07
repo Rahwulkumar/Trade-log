@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { Trade, Json } from '@/lib/supabase/types';
 
 // Initialize Gemini (server-side only!)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -23,7 +24,7 @@ export interface StrategyRule {
         indicator?: string;
         timeframe?: string;
         condition: string;
-        params: Record<string, any>;
+        params: Record<string, Json>;
     };
 }
 
@@ -54,7 +55,7 @@ Format your rules as JSON when asked to create a strategy.`;
  */
 export async function generateStrategy(
     prompt: string,
-    context?: { existingStrategies?: string[]; tradingHistory?: any }
+    context?: { existingStrategies?: string[]; tradingHistory?: Trade[] }
 ): Promise<GeneratedStrategy> {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
 
@@ -124,7 +125,7 @@ Respond helpfully and concisely. If the user asks to create a strategy, guide th
  * Analyze trades and generate insights
  */
 export async function analyzeTrades(
-    trades: any[],
+    trades: Trade[],
     focusAreas: string[] = ['patterns', 'timing', 'risk']
 ): Promise<{ title: string; content: string; confidence: number }[]> {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
@@ -134,11 +135,11 @@ export async function analyzeTrades(
         winners: trades.filter(t => t.pnl > 0).length,
         losers: trades.filter(t => t.pnl < 0).length,
         avgPnL: trades.reduce((sum, t) => sum + t.pnl, 0) / trades.length,
-        bySymbol: trades.reduce((acc, t) => {
+        bySymbol: trades.reduce((acc: Record<string, number>, t) => {
             acc[t.symbol] = (acc[t.symbol] || 0) + 1;
             return acc;
         }, {}),
-        byHour: trades.reduce((acc, t) => {
+        byHour: trades.reduce((acc: Record<number, number>, t) => {
             const hour = new Date(t.entry_date).getHours();
             acc[hour] = (acc[hour] || 0) + 1;
             return acc;

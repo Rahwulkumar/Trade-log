@@ -49,21 +49,21 @@
    ================================================================= */
 
 :root {
-  --radius: 0.75rem;
+  --radius: 0.375rem;
 
   /* Pure Void Palette */
   --void: #000000;
-  --void-soft: #0a0a0a;
-  --void-surface: #111111;
-  --void-elevated: #1a1a1a;
+  --void-soft: #050505;
+  --void-surface: #0a0a0a;
+  --void-elevated: #111111;
 
-  /* Atmospheric Glow */
-  --glow-blue: #3b82f6;
-  --glow-indigo: #6366f1;
-  --glow-cyan: #22d3ee;
+  /* Atmospheric Glow - Minimalist */
+  --glow-blue: #2563eb;
+  --glow-indigo: #4338ca;
+  --glow-cyan: #06b6d4;
 
   /* Functional */
-  --profit: #22c55e;
+  --profit: #10b981;
   --loss: #ef4444;
 
   /* Typography */
@@ -84,10 +84,10 @@
   --secondary-foreground: var(--text-primary);
   --muted: var(--void-surface);
   --muted-foreground: var(--text-secondary);
-  --accent: rgba(99, 102, 241, 0.1);
-  --accent-foreground: var(--glow-indigo);
+  --accent: rgba(255, 255, 255, 0.05);
+  --accent-foreground: var(--text-primary);
   --destructive: var(--loss);
-  --border: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
   --input: var(--void-surface);
   --ring: var(--glow-blue);
 
@@ -97,6 +97,8 @@
   --chart-3: var(--glow-indigo);
   --chart-4: var(--glow-cyan);
   --chart-5: var(--loss);
+  --chart-green: 142.1 76.2% 36.3%; /* hsl format for Tailwind */
+  --chart-red: 0 72.2% 50.6%;
 
   /* Sidebar */
   --sidebar: var(--void);

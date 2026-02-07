@@ -75,12 +75,55 @@ export async function updatePropAccount(id: string, updates: Partial<PropAccount
 export async function deletePropAccount(id: string): Promise<void> {
     const supabase = createClient()
 
+    // Verify user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+        throw new Error('You must be logged in to delete an account')
+    }
+
+    // Verify account exists and user owns it
+    const { data: account, error: fetchError } = await supabase
+        .from('prop_accounts')
+        .select('id, user_id')
+        .eq('id', id)
+        .single()
+
+    if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+            throw new Error('Account not found')
+        }
+        throw new Error(`Account not found: ${fetchError.message}`)
+    }
+
+    if (!account) {
+        throw new Error('Account not found')
+    }
+
+    // Verify ownership
+    if (account.user_id !== user.id) {
+        throw new Error('You do not have permission to delete this account')
+    }
+
+    // Delete the account
     const { error } = await supabase
         .from('prop_accounts')
         .delete()
         .eq('id', id)
 
-    if (error) throw new Error(error.message)
+    if (error) {
+        console.error('[DeletePropAccount] Supabase error:', error)
+        // Provide more helpful error messages
+        if (error.code === '23503') {
+            throw new Error('Cannot delete account: It is referenced by other records. Please delete linked trades or MT5 accounts first.')
+        }
+        if (error.code === '42501') {
+            throw new Error('Permission denied: You do not have permission to delete this account.')
+        }
+        if (error.message?.includes('You do not own this prop account')) {
+            throw new Error('Permission denied: You do not have permission to delete this account. This may be due to a database constraint.')
+        }
+        throw new Error(`Failed to delete account: ${error.message || 'Unknown error'}`)
+    }
 }
 
 // Update balance after a trade
@@ -100,7 +143,7 @@ export async function updateAccountBalance(
 
     // Update current drawdown values
     const totalDdCurrent = pnlPercent < 0 ? Math.abs(pnlPercent) : 0
-    const dailyDdCurrent = Math.max(account.daily_dd_current, dailyDrawdownPercent)
+    const dailyDdCurrent = Math.max(account.daily_dd_current || 0, dailyDrawdownPercent)
 
     return updatePropAccount(accountId, {
         current_balance: newBalance,
@@ -129,8 +172,8 @@ export async function checkCompliance(accountId: string): Promise<ComplianceStat
     const account = await getPropAccount(accountId)
     if (!account) throw new Error('Account not found')
 
-    const dailyDdRemaining = (account.daily_dd_max || 0) - account.daily_dd_current
-    const totalDdRemaining = (account.total_dd_max || 0) - account.total_dd_current
+    const dailyDdRemaining = (account.daily_dd_max || 0) - (account.daily_dd_current || 0)
+    const totalDdRemaining = (account.total_dd_max || 0) - (account.total_dd_current || 0)
 
     const isCompliant = dailyDdRemaining > 0 && totalDdRemaining > 0
 
