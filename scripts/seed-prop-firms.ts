@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import seedData from "../src/lib/data/prop_firms_seed.json";
-import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 

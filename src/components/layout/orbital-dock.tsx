@@ -7,9 +7,7 @@ import {
   TrendingUp,
   BookOpen,
   BarChart3,
-  Calendar,
   CalendarDays,
-  FileText,
   Settings,
   Hexagon,
 } from "lucide-react";
@@ -30,7 +28,7 @@ export function OrbitalDock() {
   const pathname = usePathname();
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ x: -100, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 1, ease: "easeOut" }}
@@ -51,10 +49,10 @@ export function OrbitalDock() {
       <nav className="flex flex-col gap-6 relative z-10">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
-          
+
           return (
-            <Link 
-              key={item.id} 
+            <Link
+              key={item.id}
               href={item.href}
               className="group relative flex items-center justify-center w-12 h-12"
             >
@@ -65,12 +63,12 @@ export function OrbitalDock() {
               </div>
 
               {/* Icon Container */}
-              <div 
+              <div
                 className={cn(
                   "relative w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500",
-                  isActive 
-                    ? "bg-white/10 text-cyan-400 scale-110 border border-cyan-500/30" 
-                    : "text-starlight-dim hover:text-white border border-transparent hover:border-white/5 bg-transparent hover:bg-white/5"
+                  isActive
+                    ? "bg-white/10 text-cyan-400 scale-110 border border-cyan-500/30"
+                    : "text-starlight-dim hover:text-white border border-transparent hover:border-white/5 bg-transparent hover:bg-white/5",
                 )}
               >
                 <item.icon className="w-5 h-5" strokeWidth={1.5} />
@@ -78,7 +76,7 @@ export function OrbitalDock() {
 
               {/* Active Indicator Dot */}
               {isActive && (
-                <motion.div 
+                <motion.div
                   layoutId="activeNavIndicator"
                   className="absolute -right-2 w-1 h-1 bg-cyan-400 rounded-full shadow-[0_0_10px_#22d3ee]"
                 />

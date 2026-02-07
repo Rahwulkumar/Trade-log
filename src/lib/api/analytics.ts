@@ -68,12 +68,12 @@ export async function getAnalyticsSummary(
         }
     }
 
-    const winners = closedTrades.filter(t => t.pnl > 0)
-    const losers = closedTrades.filter(t => t.pnl < 0)
+    const winners = closedTrades.filter(t => (t.pnl || 0) > 0)
+    const losers = closedTrades.filter(t => (t.pnl || 0) < 0)
 
-    const totalPnl = closedTrades.reduce((sum, t) => sum + t.pnl, 0)
-    const grossProfit = winners.reduce((sum, t) => sum + t.pnl, 0)
-    const grossLoss = Math.abs(losers.reduce((sum, t) => sum + t.pnl, 0))
+    const totalPnl = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+    const grossProfit = winners.reduce((sum, t) => sum + (t.pnl || 0), 0)
+    const grossLoss = Math.abs(losers.reduce((sum, t) => sum + (t.pnl || 0), 0))
 
     const winRate = (winners.length / closedTrades.length) * 100
     const avgWin = winners.length > 0 ? grossProfit / winners.length : 0
@@ -92,8 +92,8 @@ export async function getAnalyticsSummary(
         avgPnl: totalPnl / closedTrades.length,
         avgRMultiple: closedTrades.reduce((sum, t) => sum + (t.r_multiple || 0), 0) / closedTrades.length,
         profitFactor,
-        largestWin: winners.length > 0 ? Math.max(...winners.map(t => t.pnl)) : 0,
-        largestLoss: losers.length > 0 ? Math.abs(Math.min(...losers.map(t => t.pnl))) : 0,
+        largestWin: winners.length > 0 ? Math.max(...winners.map(t => t.pnl || 0)) : 0,
+        largestLoss: losers.length > 0 ? Math.abs(Math.min(...losers.map(t => t.pnl || 0))) : 0,
         avgWin,
         avgLoss,
         expectancy,
@@ -147,11 +147,11 @@ export async function getEquityCurve(
     ]
 
     for (const trade of trades) {
-        runningBalance += trade.pnl
+        runningBalance += (trade.pnl || 0)
         curve.push({
             date: trade.exit_date || trade.entry_date,
             balance: runningBalance,
-            pnl: trade.pnl,
+            pnl: trade.pnl || 0,
         })
     }
 
@@ -197,9 +197,9 @@ export async function getPerformanceByDay(propAccountId?: string | null): Promis
     for (const trade of trades) {
         const date = new Date(trade.entry_date)
         const dayName = dayNames[date.getDay()]
-        dayStats[dayName].pnl += trade.pnl
+        dayStats[dayName].pnl += (trade.pnl || 0)
         dayStats[dayName].trades++
-        if (trade.pnl > 0) dayStats[dayName].wins++
+        if ((trade.pnl || 0) > 0) dayStats[dayName].wins++
     }
 
     return dayNames.slice(1, 6).map(day => ({ // Mon-Fri only
@@ -251,9 +251,9 @@ export async function getMonthlyPerformance(propAccountId?: string | null): Prom
             monthStats[key] = { pnl: 0, trades: 0, wins: 0 }
         }
 
-        monthStats[key].pnl += trade.pnl
+        monthStats[key].pnl += (trade.pnl || 0)
         monthStats[key].trades++
-        if (trade.pnl > 0) monthStats[key].wins++
+        if ((trade.pnl || 0) > 0) monthStats[key].wins++
     }
 
     return Object.entries(monthStats).map(([key, stats]) => {
@@ -296,8 +296,8 @@ export async function getTodayStats(propAccountId?: string | null): Promise<{
     if (error) throw new Error(error.message)
 
     const closedTrades = (data || []) as { pnl: number }[]
-    const wins = closedTrades.filter(t => t.pnl > 0).length
-    const losses = closedTrades.filter(t => t.pnl < 0).length
+    const wins = closedTrades.filter(t => (t.pnl || 0) > 0).length
+    const losses = closedTrades.filter(t => (t.pnl || 0) < 0).length
 
     return {
         pnl: closedTrades.reduce((sum, t) => sum + t.pnl, 0),

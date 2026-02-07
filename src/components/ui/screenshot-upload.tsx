@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { X, Upload, Image as ImageIcon, Loader2 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface ScreenshotUploadProps {
@@ -28,11 +29,14 @@ export function ScreenshotUpload({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!disabled) setIsDragging(true);
-  }, [disabled]);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!disabled) setIsDragging(true);
+    },
+    [disabled],
+  );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -40,77 +44,89 @@ export function ScreenshotUpload({
     setIsDragging(false);
   }, []);
 
-  const processFiles = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0 || disabled) return;
+  const processFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0 || disabled) return;
 
-    setUploadError(null);
-    setIsUploading(true);
+      setUploadError(null);
+      setIsUploading(true);
 
-    try {
-      const newScreenshots: string[] = [...screenshots];
-      
-      for (let i = 0; i < files.length; i++) {
-        if (newScreenshots.length >= maxFiles) {
-          setUploadError(`Maximum ${maxFiles} screenshots allowed`);
-          break;
-        }
-
-        const file = files[i];
-        
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-          setUploadError(`${file.name} is not an image file`);
-          continue;
-        }
-
-        // Validate file size (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-          setUploadError(`${file.name} is too large (max 5MB)`);
-          continue;
-        }
-
-        const path = await onUpload(file);
-        newScreenshots.push(path);
-      }
-
-      onScreenshotsChange(newScreenshots);
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsUploading(false);
-    }
-  }, [screenshots, onUpload, onScreenshotsChange, maxFiles, disabled]);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    processFiles(e.dataTransfer.files);
-  }, [processFiles]);
-
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    processFiles(e.target.files);
-    // Reset input so same file can be selected again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [processFiles]);
-
-  const handleRemove = useCallback(async (index: number) => {
-    const path = screenshots[index];
-    
-    if (onDelete) {
       try {
-        await onDelete(path);
-      } catch (err) {
-        console.error("Failed to delete screenshot:", err);
-        // Continue with removal even if delete fails
-      }
-    }
+        const newScreenshots: string[] = [...screenshots];
 
-    const newScreenshots = screenshots.filter((_, i) => i !== index);
-    onScreenshotsChange(newScreenshots);
-  }, [screenshots, onScreenshotsChange, onDelete]);
+        for (let i = 0; i < files.length; i++) {
+          if (newScreenshots.length >= maxFiles) {
+            setUploadError(`Maximum ${maxFiles} screenshots allowed`);
+            break;
+          }
+
+          const file = files[i];
+
+          // Validate file type
+          if (!file.type.startsWith("image/")) {
+            setUploadError(`${file.name} is not an image file`);
+            continue;
+          }
+
+          // Validate file size (max 5MB)
+          if (file.size > 5 * 1024 * 1024) {
+            setUploadError(`${file.name} is too large (max 5MB)`);
+            continue;
+          }
+
+          const path = await onUpload(file);
+          newScreenshots.push(path);
+        }
+
+        onScreenshotsChange(newScreenshots);
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : "Upload failed");
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [screenshots, onUpload, onScreenshotsChange, maxFiles, disabled],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      processFiles(e.dataTransfer.files);
+    },
+    [processFiles],
+  );
+
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      processFiles(e.target.files);
+      // Reset input so same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+    [processFiles],
+  );
+
+  const handleRemove = useCallback(
+    async (index: number) => {
+      const path = screenshots[index];
+
+      if (onDelete) {
+        try {
+          await onDelete(path);
+        } catch (err) {
+          console.error("Failed to delete screenshot:", err);
+          // Continue with removal even if delete fails
+        }
+      }
+
+      const newScreenshots = screenshots.filter((_, i) => i !== index);
+      onScreenshotsChange(newScreenshots);
+    },
+    [screenshots, onScreenshotsChange, onDelete],
+  );
 
   const canUpload = !disabled && screenshots.length < maxFiles;
 
@@ -129,7 +145,7 @@ export function ScreenshotUpload({
             isDragging
               ? "border-cyan-500 bg-cyan-500/10"
               : "border-white/20 hover:border-white/40 hover:bg-white/5",
-            isUploading && "pointer-events-none opacity-60"
+            isUploading && "pointer-events-none opacity-60",
           )}
         >
           <input
@@ -141,11 +157,13 @@ export function ScreenshotUpload({
             className="hidden"
             disabled={disabled || isUploading}
           />
-          
+
           {isUploading ? (
             <>
               <Loader2 className="h-6 w-6 text-cyan-400 animate-spin" />
-              <span className="text-sm text-muted-foreground">Uploading...</span>
+              <span className="text-sm text-muted-foreground">
+                Uploading...
+              </span>
             </>
           ) : (
             <>
@@ -162,9 +180,7 @@ export function ScreenshotUpload({
       )}
 
       {/* Error Message */}
-      {uploadError && (
-        <p className="text-sm text-red-500">{uploadError}</p>
-      )}
+      {uploadError && <p className="text-sm text-red-500">{uploadError}</p>}
 
       {/* Screenshot Previews */}
       {screenshots.length > 0 && (
@@ -189,7 +205,11 @@ interface ScreenshotThumbnailProps {
   disabled?: boolean;
 }
 
-function ScreenshotThumbnail({ path, onRemove, disabled }: ScreenshotThumbnailProps) {
+function ScreenshotThumbnail({
+  path,
+  onRemove,
+  disabled,
+}: ScreenshotThumbnailProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -210,12 +230,13 @@ function ScreenshotThumbnail({ path, onRemove, disabled }: ScreenshotThumbnailPr
             <ImageIcon className="h-6 w-6 text-muted-foreground" />
           </div>
         ) : (
-          <img
+          <Image
             src={imageUrl}
             alt="Trade screenshot"
+            fill
             className={cn(
-              "w-full h-full object-cover transition-opacity",
-              isLoading ? "opacity-0" : "opacity-100"
+              "object-cover transition-opacity",
+              isLoading ? "opacity-0" : "opacity-100",
             )}
             onLoad={() => setIsLoading(false)}
             onError={() => {
@@ -225,7 +246,7 @@ function ScreenshotThumbnail({ path, onRemove, disabled }: ScreenshotThumbnailPr
           />
         )}
       </div>
-      
+
       {/* Remove Button */}
       {!disabled && (
         <button

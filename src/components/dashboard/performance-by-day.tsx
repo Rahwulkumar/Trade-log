@@ -1,35 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
   ResponsiveContainer,
   Cell,
-  TooltipProps
 } from "recharts";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { getPerformanceByDay, type DayPerformance } from "@/lib/api/analytics";
-
-const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
-  if (active && payload && payload.length) {
-    const value = payload[0].value as number;
-    const isPositive = value >= 0;
-    return (
-      <div className="rounded-lg bg-[#1a1a1a] border border-white/10 p-3 shadow-xl">
-        <p className="text-sm text-muted-foreground mb-1">{label}</p>
-        <p className={`text-lg font-semibold ${isPositive ? "profit" : "loss"}`}>
-          {isPositive ? "+" : ""}${value?.toLocaleString()}
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
+import { getPerformanceByDay } from "@/lib/api/analytics";
+import { ChartTooltip } from "@/components/ui/chart-tooltip";
 
 interface PerformanceByDayProps {
   propAccountId?: string | null;
@@ -49,7 +33,7 @@ export function PerformanceByDay({ propAccountId }: PerformanceByDayProps) {
 
       try {
         const dayData = await getPerformanceByDay(propAccountId);
-        const formattedData = dayData.map(d => ({
+        const formattedData = dayData.map((d) => ({
           day: d.day.slice(0, 3), // Mon, Tue, etc.
           pnl: d.totalPnl,
         }));
@@ -72,7 +56,7 @@ export function PerformanceByDay({ propAccountId }: PerformanceByDayProps) {
     );
   }
 
-  if (data.length === 0 || data.every(d => d.pnl === 0)) {
+  if (data.length === 0 || data.every((d) => d.pnl === 0)) {
     return (
       <div className="flex items-center justify-center h-[200px] text-muted-foreground">
         <p>Log trades to see daily performance</p>
@@ -89,22 +73,25 @@ export function PerformanceByDay({ propAccountId }: PerformanceByDayProps) {
         >
           <XAxis
             dataKey="day"
-            tick={{ fill: "#52525b", fontSize: 11 }}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
-            tick={{ fill: "#52525b", fontSize: 11 }}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             tickFormatter={(value) => `$${value}`}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.02)" }} />
+          <Tooltip
+            content={<ChartTooltip showSign={true} />}
+            cursor={{ fill: "rgba(255,255,255,0.02)" }}
+          />
           <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
             {data.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={entry.pnl >= 0 ? "#22c55e" : "#ef4444"} 
+                fill={entry.pnl >= 0 ? "var(--profit)" : "var(--loss)"}
               />
             ))}
           </Bar>

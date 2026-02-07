@@ -26,8 +26,9 @@ export async function POST(req: NextRequest) {
         }
 
         // Verify user owns this account
-        const { data: account, error: accountError } = await supabase
-            .from('prop_accounts')
+        const { data: account, error: accountError } = await (supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .from('prop_accounts') as any)
             .select('id, initial_balance, user_id')
             .eq('id', accountId)
             .single();
@@ -44,8 +45,9 @@ export async function POST(req: NextRequest) {
         const adminDb = createAdminClient();
 
         // Get all trades linked to this account
-        const { data: trades, error: tradesError } = await adminDb
-            .from('trades')
+        const { data: trades, error: tradesError } = await (adminDb
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .from('trades') as any)
             .select('pnl')
             .eq('prop_account_id', accountId);
 
@@ -61,8 +63,9 @@ export async function POST(req: NextRequest) {
         const totalDdCurrent = pnlPercent < 0 ? Math.abs(pnlPercent) : 0;
 
         // Update balance using admin client (bypasses RLS)
-        const { data: updatedAccount, error: updateError } = await (adminDb as any)
-            .from('prop_accounts')
+        const { error: updateError } = await (adminDb
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .from('prop_accounts') as any)
             .update({
                 current_balance: newBalance,
                 total_dd_current: totalDdCurrent,
