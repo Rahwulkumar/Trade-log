@@ -16,7 +16,7 @@ export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
 
     let query = supabase
         .from('trades')
-        .select('*')
+        .select('id, symbol, direction, entry_price, exit_price, position_size, pnl, r_multiple, entry_date, exit_date, status, playbook_id, prop_account_id, stop_loss, take_profit, notes, created_at')
         .order('entry_date', { ascending: false })
 
     if (filters?.status && filters.status !== 'all') {
@@ -61,7 +61,7 @@ export async function getTrade(id: string): Promise<Trade | null> {
 
     const { data, error } = await supabase
         .from('trades')
-        .select('*')
+        .select('id, symbol, direction, entry_price, exit_price, position_size, pnl, r_multiple, entry_date, exit_date, status, playbook_id, prop_account_id, stop_loss, take_profit, notes, feelings, observations, screenshots, created_at')
         .eq('id', id)
         .single()
 
@@ -148,7 +148,7 @@ export async function getTradesByDateRange(startDate: string, endDate: string, p
 
     let query = supabase
         .from('trades')
-        .select('*')
+        .select('id, symbol, direction, entry_price, exit_price, position_size, pnl, r_multiple, entry_date, exit_date, status, playbook_id, prop_account_id, created_at')
         .gte('entry_date', startDate)
         .lte('entry_date', endDate)
         .order('entry_date', { ascending: true })
@@ -171,7 +171,7 @@ export async function getOpenTrades(): Promise<Trade[]> {
 
     const { data, error } = await supabase
         .from('trades')
-        .select('*')
+        .select('id, symbol, direction, entry_price, position_size, pnl, entry_date, status, stop_loss, take_profit, created_at')
         .eq('status', 'open')
         .order('entry_date', { ascending: false })
 

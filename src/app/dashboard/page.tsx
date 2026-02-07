@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Zap, Loader2 } from "lucide-react";
 import { EquityCurve } from "@/components/dashboard/equity-curve"; 
 import { PerformanceByDay } from "@/components/dashboard/performance-by-day";
@@ -201,9 +202,9 @@ export default function DashboardPage() {
               <h2 className="headline-md">Top Strategies</h2>
               <p className="text-sm text-muted-foreground">Performance by playbook</p>
             </div>
-            <a href="/playbooks" className="text-sm text-muted-foreground hover:text-white transition-colors">
+            <Link href="/playbooks" className="text-sm text-muted-foreground hover:text-white transition-colors">
               View all →
-            </a>
+            </Link>
           </div>
           <TopPlaybooks propAccountId={selectedAccountId} />
         </div>
@@ -275,9 +276,9 @@ export default function DashboardPage() {
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <p>No active prop account</p>
-              <a href="/prop-firm" className="text-cyan-400 hover:underline mt-2 inline-block">
+              <Link href="/prop-firm" className="text-cyan-400 hover:underline mt-2 inline-block">
                 Add an account →
-              </a>
+              </Link>
             </div>
           )}
         </div>
@@ -290,9 +291,9 @@ export default function DashboardPage() {
             <h2 className="headline-md">Recent Trades</h2>
             <p className="text-sm text-muted-foreground">Your latest trading activity</p>
           </div>
-          <a href="/trades" className="btn-void text-sm">
+          <Link href="/trades" className="btn-void text-sm">
             View all trades
-          </a>
+          </Link>
         </div>
         <RecentTrades propAccountId={selectedAccountId} />
       </section>

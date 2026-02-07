@@ -197,7 +197,7 @@ export async function syncMT5Account(connectionId: string): Promise<SyncResult> 
         const endTime = new Date();
 
         // Fetch all deals with pagination (MetaAPI limits to 1000 per request)
-        let allDeals: MetaApiDeal[] = [];
+        const allDeals: MetaApiDeal[] = [];
         let offset = 0;
         const limit = 1000;
         let hasMore = true;

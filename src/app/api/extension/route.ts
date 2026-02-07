@@ -1,58 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { 
+    ExtensionRequestSchema, 
+    CreateTradeSchema, 
+    UpdateTradeSchema,
+    type CreateTradeInput,
+    type UpdateTradeInput 
+} from "@/lib/validation/extension-api";
+import type { TradeInsert, TradeUpdate } from "@/lib/supabase/types";
 
 export async function POST(req: NextRequest) {
-    // Use admin client in DEV mode to bypass RLS, otherwise use regular client
-    const isDevMode = req.headers.get("x-extension-mode") === "dev";
+    // Only allow admin client in development AND localhost
+    const isDevMode = process.env.NODE_ENV === "development" && 
+                      req.headers.get("x-extension-mode") === "dev" &&
+                      (req.headers.get("host")?.includes("localhost") || 
+                       req.headers.get("host")?.includes("127.0.0.1"));
+    
     const supabase = isDevMode ? createAdminClient() : await createClient();
+    
     try {
         const body = await req.json();
-        const { action, payload } = body;
+        
+        // Validate request structure
+        const requestValidation = ExtensionRequestSchema.safeParse(body);
+        if (!requestValidation.success) {
+            return NextResponse.json(
+                { error: "Invalid request format", details: requestValidation.error.errors },
+                { status: 400 }
+            );
+        }
+        
+        const { action, payload } = requestValidation.data;
 
-        // AUTH CHECK (For MVP we trust localhost, but ideally check session/key)
-        // AUTH CHECK (For MVP we trust localhost, but ideally check session/key)
-        let { data: { user } } = await supabase.auth.getUser();
+        // AUTH CHECK - Always require authentication
+        let { data: { user }, error: authError } = await supabase.auth.getUser();
 
-        // DEV MODE BYPASS: If no session, allow manual override for localhost testing
-        console.log("[Extension Auth] No user session. NODE_ENV:", process.env.NODE_ENV, "Header:", req.headers.get("x-extension-mode"));
-        if (!user && req.headers.get("x-extension-mode") === "dev") {
-            console.log("[Extension Auth] DEV bypass triggered");
-            // Try to find a user to impersonate: first from playbooks, then from profiles
-            let helper: { user_id: string } | null = null;
-            const { data: playbookHelper, error: playbookError } = await supabase
-                .from("playbooks")
-                .select("user_id")
-                .limit(1)
-                .single();
-
-            if (playbookHelper) {
-                helper = { user_id: (playbookHelper as any).user_id };
-            }
-
-            console.log("[Extension Auth] Playbooks query:", helper, playbookError?.message);
-
-            // Fallback to profiles if no playbooks
-            if (!helper) {
-                const { data: profileHelper, error: profileError } = await supabase
+        // DEV MODE: Only allow bypass in development AND localhost
+        if (!user && isDevMode) {
+            if (process.env.NODE_ENV === "development") {
+                // In dev mode, try to find a user for testing
+                const { data: profileHelper } = await supabase
                     .from("profiles")
                     .select("id")
                     .limit(1)
                     .single();
-                console.log("[Extension Auth] Profiles query:", profileHelper, profileError?.message);
+                
                 if (profileHelper) {
-                    helper = { user_id: (profileHelper as any).id };
+                    user = { id: profileHelper.id } as { id: string };
+                } else {
+                    return NextResponse.json(
+                        { error: "No authenticated user found. Please log in to the web app." },
+                        { status: 401 }
+                    );
                 }
-            }
-
-            if (helper) {
-                user = { id: helper.user_id } as any;
-                console.log("[Extension Auth] Impersonating user:", user!.id);
             } else {
-                // LAST RESORT: Create a mock user for truly empty databases
-                // This allows extension testing even when no users exist
-                console.log("[Extension Auth] No users found in database - using mock user");
-                user = { id: "00000000-0000-0000-0000-000000000000" } as any;
+                return NextResponse.json(
+                    { error: "Unauthorized. Please log in to the web app." },
+                    { status: 401 }
+                );
             }
         }
 
@@ -62,48 +68,55 @@ export async function POST(req: NextRequest) {
 
         switch (action) {
             case "get_strategies": {
-                // In DEV mode with mock/impersonated user, show ALL strategies
-                const isDevMode = req.headers.get("x-extension-mode") === "dev";
-                let query = supabase.from("playbooks").select("id, name, rules");
-
-                // Only filter by user_id if we have a real authenticated user
-                if (!isDevMode) {
-                    query = query.eq("user_id", user.id);
-                }
-
-                const { data: strategies, error } = await query;
+                // Always filter by user_id for security
+                const { data: strategies, error } = await supabase
+                    .from("playbooks")
+                    .select("id, name, rules")
+                    .eq("user_id", user.id);
 
                 if (error) throw error;
                 return NextResponse.json({ success: true, data: strategies });
             }
 
             case "create_trade": {
-                const { error } = await supabase.from("trades").insert({
+                // Validate payload with Zod schema
+                const validation = CreateTradeSchema.safeParse(payload);
+                if (!validation.success) {
+                    return NextResponse.json(
+                        { error: "Invalid trade data", details: validation.error.errors },
+                        { status: 400 }
+                    );
+                }
+
+                const tradeData: TradeInsert = {
                     user_id: user.id,
-                    ...payload,
-                    status: "open", // Default to open
-                });
+                    symbol: validation.data.symbol,
+                    direction: validation.data.direction,
+                    entry_price: validation.data.entry_price,
+                    position_size: validation.data.position_size,
+                    pnl: validation.data.pnl ?? 0,
+                    entry_date: validation.data.entry_date || new Date().toISOString(),
+                    exit_price: validation.data.exit_price ?? null,
+                    exit_date: validation.data.exit_date ?? null,
+                    stop_loss: validation.data.stop_loss ?? null,
+                    take_profit: validation.data.take_profit ?? null,
+                    commission: validation.data.commission ?? null,
+                    swap: validation.data.swap ?? null,
+                    notes: validation.data.comment ?? null,
+                    r_multiple: validation.data.r_multiple ?? null,
+                    status: "open",
+                };
+
+                const { error } = await supabase.from("trades").insert(tradeData);
 
                 if (error) throw error;
                 return NextResponse.json({ success: true });
             }
 
             case "seed_strategy": {
-                // Determine user_id (fallback for dev)
-                let targetUserId = user ? user.id : null;
+                const targetUserId: string = user.id;
 
-                // If no user session (e.g. curl), try to find ANY user for demo purposes in DEV only
-                if (!targetUserId && process.env.NODE_ENV === "development") {
-                    // We can't query auth.users directly easily from client.
-                    // IMPORTANT: The user MUST be logged in for this to work via Browser.
-                    // IF we are using curl, we have no session.
-                    // FAILSAFE: We will ask the user to trigger this via the Browser.
-                    return NextResponse.json({ error: "Please trigger this via the browser while logged in." }, { status: 401 });
-                }
-
-                if (!targetUserId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-                const { data, error } = await (supabase as any).from("playbooks").insert({
+                const { data, error } = await supabase.from("playbooks").insert({
                     user_id: targetUserId,
                     name: "ICT Silver Bullet (Demo)",
                     description: "A time-based liquidity run strategy.",
@@ -132,10 +145,41 @@ export async function POST(req: NextRequest) {
             }
 
             case "update_trade": {
-                const { id, ...updates } = payload;
-                const { error } = await (supabase as any)
+                // Validate payload with Zod schema
+                const validation = UpdateTradeSchema.safeParse(payload);
+                if (!validation.success) {
+                    return NextResponse.json(
+                        { error: "Invalid update data", details: validation.error.errors },
+                        { status: 400 }
+                    );
+                }
+
+                const { id, ...updates } = validation.data;
+                
+                // Map validated fields to TradeUpdate type
+                const tradeUpdate: TradeUpdate = {
+                    exit_price: updates.exit_price ?? undefined,
+                    pnl: updates.pnl ?? undefined,
+                    exit_date: updates.exit_date ?? undefined,
+                    status: updates.status ?? undefined,
+                    stop_loss: updates.stop_loss ?? undefined,
+                    take_profit: updates.take_profit ?? undefined,
+                    commission: updates.commission ?? undefined,
+                    swap: updates.swap ?? undefined,
+                    notes: updates.comment ?? undefined,
+                    r_multiple: updates.r_multiple ?? undefined,
+                };
+
+                // Remove undefined fields
+                Object.keys(tradeUpdate).forEach(key => {
+                    if (tradeUpdate[key as keyof TradeUpdate] === undefined) {
+                        delete tradeUpdate[key as keyof TradeUpdate];
+                    }
+                });
+
+                const { error } = await supabase
                     .from("trades")
-                    .update(updates)
+                    .update(tradeUpdate)
                     .eq("id", id)
                     .eq("user_id", user.id); // Security check
 
@@ -148,8 +192,13 @@ export async function POST(req: NextRequest) {
         }
 
     } catch (e) {
-        console.error("[Extension API Error]", e);
-        return NextResponse.json({ error: e instanceof Error ? e.message : "Internal Server Error" }, { status: 500 });
+        if (process.env.NODE_ENV === "development") {
+            console.error("[Extension API Error]", e);
+        }
+        return NextResponse.json(
+            { error: e instanceof Error ? e.message : "Internal Server Error" },
+            { status: 500 }
+        );
     }
 }
 

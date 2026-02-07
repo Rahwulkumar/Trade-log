@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Download, TrendingUp, TrendingDown, Target, DollarSign, Loader2 } from "lucide-react";
@@ -201,7 +202,7 @@ export default function AnalyticsPage() {
         <div className="card-void p-12 text-center">
           <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground mb-4">No trades to analyze yet. Start logging trades to see your analytics!</p>
-          <a href="/trades" className="btn-glow">Go to Trades</a>
+          <Link href="/trades" className="btn-glow">Go to Trades</Link>
         </div>
       )}
 
