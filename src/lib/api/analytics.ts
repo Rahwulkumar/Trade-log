@@ -26,7 +26,7 @@ export async function getAnalyticsSummary(
 
     let query = supabase
         .from('trades')
-        .select('*')
+        .select('pnl, r_multiple, entry_date, direction, status')
         .eq('status', 'closed')
 
     if (startDate) {
