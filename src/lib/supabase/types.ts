@@ -978,12 +978,15 @@ export const Constants = {
 // Type aliases for common tables
 export type Playbook = Database['public']['Tables']['playbooks']['Row'];
 export type PlaybookInsert = Database['public']['Tables']['playbooks']['Insert'];
+export type PlaybookUpdate = Database['public']['Tables']['playbooks']['Update'];
 export type Trade = Database['public']['Tables']['trades']['Row'];
 export type TradeInsert = Database['public']['Tables']['trades']['Insert'];
+export type TradeUpdate = Database['public']['Tables']['trades']['Update'];
 export type JournalEntry = Database['public']['Tables']['journal_entries']['Row'];
 export type JournalEntryInsert = Database['public']['Tables']['journal_entries']['Insert'];
 export type PropAccount = Database['public']['Tables']['prop_accounts']['Row'];
 export type PropAccountInsert = Database['public']['Tables']['prop_accounts']['Insert'];
+export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type MT5Account = Database['public']['Tables']['mt5_accounts']['Row'];
 
 // Manual interface - trade_screenshots table may not exist in remote schema

@@ -1,5 +1,7 @@
-import Link from "next/link";
+"use client";
+
 import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,6 +23,7 @@ import {
   format,
   startOfMonth,
   endOfMonth,
+  eachDayOfInterval,
   isSameMonth,
   isToday,
   addMonths,
@@ -28,7 +31,6 @@ import {
   getDay,
   startOfWeek,
   endOfWeek,
-  eachDayOfInterval,
 } from "date-fns";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
@@ -76,16 +78,11 @@ export function TradingCalendar() {
         setLoading(true);
         const start = format(startOfMonth(currentMonth), "yyyy-MM-dd");
         const end = format(endOfMonth(currentMonth), "yyyy-MM-dd");
-
+        
         // Apply global prop account filter
-        const propAccountIdFilter =
-          selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
-
-        const tradesData = await getTradesByDateRange(
-          start,
-          end,
-          propAccountIdFilter,
-        );
+        const propAccountIdFilter = selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
+        
+        const tradesData = await getTradesByDateRange(start, end, propAccountIdFilter);
         setTrades(tradesData);
       } catch (err) {
         console.error("Failed to load trades for calendar:", err);
@@ -102,35 +99,34 @@ export function TradingCalendar() {
   // Process trades into day data
   const monthData = useMemo(() => {
     const data = new Map<string, DayData>();
-
-    trades.forEach((trade) => {
+    
+    trades.forEach(trade => {
       const dateKey = format(new Date(trade.entry_date), "yyyy-MM-dd");
-
+      
+      const tradePnl = trade.pnl ?? 0;
       const dayTrade: DayTrade = {
         id: trade.id,
         symbol: trade.symbol,
-        direction: trade.direction as "LONG" | "SHORT",
-        pnl: trade.pnl || 0,
+        direction: trade.direction,
+        pnl: tradePnl,
         rMultiple: trade.r_multiple,
         entryTime: format(new Date(trade.entry_date), "HH:mm"),
-        exitTime: trade.exit_date
-          ? format(new Date(trade.exit_date), "HH:mm")
-          : null,
+        exitTime: trade.exit_date ? format(new Date(trade.exit_date), "HH:mm") : null,
       };
 
       if (data.has(dateKey)) {
         const existing = data.get(dateKey)!;
         existing.trades.push(dayTrade);
-        existing.totalPnl += trade.pnl || 0;
+        existing.totalPnl += tradePnl;
         existing.tradesCount++;
-        const wins = existing.trades.filter((t) => (t.pnl || 0) > 0).length;
+        const wins = existing.trades.filter(t => (t.pnl ?? 0) > 0).length;
         existing.winRate = Math.round((wins / existing.tradesCount) * 100);
       } else {
         data.set(dateKey, {
           date: new Date(trade.entry_date),
           trades: [dayTrade],
-          totalPnl: trade.pnl || 0,
-          winRate: (trade.pnl || 0) > 0 ? 100 : 0,
+          totalPnl: tradePnl,
+          winRate: tradePnl > 0 ? 100 : 0,
           tradesCount: 1,
         });
       }
@@ -144,7 +140,7 @@ export function TradingCalendar() {
     const monthEnd = endOfMonth(currentMonth);
     const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
     const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
-
+    
     return eachDayOfInterval({ start: startDate, end: endDate });
   }, [currentMonth]);
 
@@ -155,7 +151,7 @@ export function TradingCalendar() {
     let losingDays = 0;
     let tradingDays = 0;
 
-    monthData.forEach((day) => {
+    monthData.forEach(day => {
       totalPnl += day.totalPnl;
       totalTrades += day.tradesCount;
       tradingDays++;
@@ -169,8 +165,7 @@ export function TradingCalendar() {
       winningDays,
       losingDays,
       tradingDays,
-      winRate:
-        tradingDays > 0 ? Math.round((winningDays / tradingDays) * 100) : 0,
+      winRate: tradingDays > 0 ? Math.round((winningDays / tradingDays) * 100) : 0,
     };
   }, [monthData]);
 
@@ -193,13 +188,9 @@ export function TradingCalendar() {
   if (!authLoading && !isConfigured) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-8 text-center max-w-md">
-          <h2 className="text-xl font-semibold mb-2">
-            Supabase Not Configured
-          </h2>
-          <p className="text-muted-foreground">
-            Please add your Supabase credentials.
-          </p>
+        <div className="card-void p-8 text-center max-w-md">
+          <h2 className="text-xl font-semibold mb-2">Supabase Not Configured</h2>
+          <p className="text-muted-foreground">Please add your Supabase credentials.</p>
         </div>
       </div>
     );
@@ -208,17 +199,10 @@ export function TradingCalendar() {
   if (!authLoading && !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-8 text-center max-w-md">
+        <div className="card-void p-8 text-center max-w-md">
           <h2 className="text-xl font-semibold mb-2">Login Required</h2>
-          <p className="text-muted-foreground mb-4">
-            Please sign in to view your calendar.
-          </p>
-          <Link
-            href="/auth/login"
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-4 py-2 rounded-lg font-medium"
-          >
-            Sign In
-          </Link>
+          <p className="text-muted-foreground mb-4">Please sign in to view your calendar.</p>
+          <Link href="/auth/login" className="btn-glow">Sign In</Link>
         </div>
       </div>
     );
@@ -232,7 +216,7 @@ export function TradingCalendar() {
           <p className="text-label mb-1">Performance</p>
           <h1 className="headline-lg">Trading Calendar</h1>
         </div>
-
+        
         {/* Month Navigation */}
         <div className="flex items-center gap-3">
           <button
@@ -252,7 +236,7 @@ export function TradingCalendar() {
           </button>
           <button
             onClick={() => setCurrentMonth(new Date())}
-            className="bg-transparent border border-white/10 hover:bg-white/5 px-3 py-1.5 rounded-lg text-sm"
+            className="btn-void text-sm"
           >
             Today
           </button>
@@ -261,31 +245,25 @@ export function TradingCalendar() {
 
       {/* Monthly Stats */}
       <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-5 text-center">
+        <div className="card-void p-5 text-center">
           <p className="text-label mb-2">Monthly P&L</p>
-          <p
-            className={cn(
-              "stat-large",
-              monthlyStats.totalPnl >= 0 ? "profit" : "loss",
-            )}
-          >
-            {monthlyStats.totalPnl >= 0 ? "+" : ""}$
-            {monthlyStats.totalPnl.toLocaleString()}
+          <p className={cn("stat-large", monthlyStats.totalPnl >= 0 ? "profit" : "loss")}>
+            {monthlyStats.totalPnl >= 0 ? "+" : ""}${monthlyStats.totalPnl.toLocaleString()}
           </p>
         </div>
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-5 text-center">
+        <div className="card-void p-5 text-center">
           <p className="text-label mb-2">Total Trades</p>
           <p className="stat-large">{monthlyStats.totalTrades}</p>
         </div>
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-5 text-center">
+        <div className="card-void p-5 text-center">
           <p className="text-label mb-2">Winning Days</p>
           <p className="stat-large profit">{monthlyStats.winningDays}</p>
         </div>
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-5 text-center">
+        <div className="card-void p-5 text-center">
           <p className="text-label mb-2">Losing Days</p>
           <p className="stat-large loss">{monthlyStats.losingDays}</p>
         </div>
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-5 text-center">
+        <div className="card-void p-5 text-center">
           <p className="text-label mb-2">Win Rate</p>
           <p className="stat-large">{monthlyStats.winRate}%</p>
         </div>
@@ -300,10 +278,10 @@ export function TradingCalendar() {
 
       {/* Calendar Grid */}
       {!loading && (
-        <section className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl overflow-hidden">
+        <section className="card-void overflow-hidden">
           {/* Weekday Headers */}
           <div className="grid grid-cols-7 border-b border-white/5 bg-white/[0.02]">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
               <div
                 key={day}
                 className="py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider"
@@ -326,42 +304,32 @@ export function TradingCalendar() {
               return (
                 <div
                   key={index}
-                  onClick={() =>
-                    isCurrentMonth && dayData && handleDayClick(day)
-                  }
+                  onClick={() => isCurrentMonth && dayData && handleDayClick(day)}
                   className={cn(
                     "min-h-[100px] p-2 border-b border-r border-white/5 transition-colors",
                     !isCurrentMonth && "bg-white/[0.01] opacity-40",
-                    isCurrentMonth &&
-                      dayData &&
-                      "cursor-pointer hover:bg-white/[0.03]",
-                    isWeekend && isCurrentMonth && "bg-white/[0.01]",
+                    isCurrentMonth && dayData && "cursor-pointer hover:bg-white/[0.03]",
+                    isWeekend && isCurrentMonth && "bg-white/[0.01]"
                   )}
                 >
                   {/* Day Number */}
-                  <div
-                    className={cn(
-                      "inline-flex items-center justify-center h-7 w-7 rounded-full text-sm font-medium mb-1",
-                      isCurrentDay && "bg-blue-500 text-white",
-                      !isCurrentDay &&
-                        !isCurrentMonth &&
-                        "text-muted-foreground",
-                    )}
-                  >
+                  <div className={cn(
+                    "inline-flex items-center justify-center h-7 w-7 rounded-full text-sm font-medium mb-1",
+                    isCurrentDay && "bg-blue-500 text-white",
+                    !isCurrentDay && !isCurrentMonth && "text-muted-foreground"
+                  )}>
                     {format(day, "d")}
                   </div>
 
                   {/* Trade Summary */}
                   {dayData && isCurrentMonth && (
                     <div className="space-y-1">
-                      <div
-                        className={cn(
-                          "text-sm font-bold px-2 py-1 rounded border",
-                          getDayColor(dayData.totalPnl),
-                        )}
-                      >
-                        {dayData.totalPnl >= 0 ? "+" : ""}$
-                        {Math.abs(dayData.totalPnl).toFixed(0)}
+                      <div className={cn(
+                        "text-sm font-bold px-2 py-1 rounded border",
+                        getDayColor(dayData.totalPnl)
+                      )}>
+                        {dayData.totalPnl >= 0 ? "+" : ""}
+                        ${Math.abs(dayData.totalPnl).toFixed(0)}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <div className="flex items-center gap-0.5">
@@ -383,14 +351,8 @@ export function TradingCalendar() {
       {/* Empty State */}
       {!loading && trades.length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
-          <p>
-            No trades this month. Start logging trades to see them on your
-            calendar!
-          </p>
-          <Link
-            href="/trades"
-            className="text-cyan-400 hover:underline mt-2 inline-block"
-          >
+          <p>No trades this month. Start logging trades to see them on your calendar!</p>
+          <Link href="/trades" className="text-cyan-400 hover:underline mt-2 inline-block">
             Go to Trades →
           </Link>
         </div>
@@ -428,27 +390,20 @@ export function TradingCalendar() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
                   <div className="text-label">Total P&L</div>
-                  <div
-                    className={cn(
-                      "text-xl font-bold mt-1",
-                      selectedDay.totalPnl >= 0 ? "profit" : "loss",
-                    )}
-                  >
-                    {selectedDay.totalPnl >= 0 ? "+" : ""}$
-                    {selectedDay.totalPnl.toFixed(2)}
+                  <div className={cn(
+                    "text-xl font-bold mt-1",
+                    selectedDay.totalPnl >= 0 ? "profit" : "loss"
+                  )}>
+                    {selectedDay.totalPnl >= 0 ? "+" : ""}${selectedDay.totalPnl.toFixed(2)}
                   </div>
                 </div>
                 <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
                   <div className="text-label">Trades</div>
-                  <div className="text-xl font-bold mt-1">
-                    {selectedDay.tradesCount}
-                  </div>
+                  <div className="text-xl font-bold mt-1">{selectedDay.tradesCount}</div>
                 </div>
                 <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
                   <div className="text-label">Win Rate</div>
-                  <div className="text-xl font-bold mt-1">
-                    {selectedDay.winRate}%
-                  </div>
+                  <div className="text-xl font-bold mt-1">{selectedDay.winRate}%</div>
                 </div>
               </div>
 
@@ -456,21 +411,17 @@ export function TradingCalendar() {
               <div className="space-y-3">
                 <h4 className="font-semibold">Trades</h4>
                 <div className="space-y-2 max-h-[300px] overflow-auto">
-                  {selectedDay.trades.map((trade) => (
+                  {selectedDay.trades.map(trade => (
                     <div
                       key={trade.id}
                       className="flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/[0.02]"
                     >
                       <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            "h-10 w-10 rounded-lg flex items-center justify-center",
-                            trade.pnl >= 0
-                              ? "bg-green-500/10"
-                              : "bg-red-500/10",
-                          )}
-                        >
-                          {trade.pnl >= 0 ? (
+                        <div className={cn(
+                          "h-10 w-10 rounded-lg flex items-center justify-center",
+                          (trade.pnl ?? 0) >= 0 ? "bg-green-500/10" : "bg-red-500/10"
+                        )}>
+                          {(trade.pnl ?? 0) >= 0 ? (
                             <TrendingUp className="h-5 w-5 text-green-500" />
                           ) : (
                             <TrendingDown className="h-5 w-5 text-red-500" />
@@ -479,37 +430,29 @@ export function TradingCalendar() {
                         <div>
                           <div className="font-medium flex items-center gap-2">
                             {trade.symbol}
-                            <span
-                              className={cn(
-                                "badge-void text-[10px]",
-                                trade.direction === "LONG"
-                                  ? "badge-profit"
-                                  : "badge-loss",
-                              )}
-                            >
+                            <span className={cn(
+                              "badge-void text-[10px]",
+                              trade.direction === "LONG" ? "badge-profit" : "badge-loss"
+                            )}>
                               {trade.direction}
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground flex items-center gap-2">
                             <Clock className="h-3 w-3" />
-                            {trade.entryTime}{" "}
-                            {trade.exitTime ? `→ ${trade.exitTime}` : "(Open)"}
+                            {trade.entryTime} {trade.exitTime ? `→ ${trade.exitTime}` : "(Open)"}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div
-                          className={cn(
-                            "font-bold mono",
-                            trade.pnl >= 0 ? "profit" : "loss",
-                          )}
-                        >
-                          {trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)}
+                        <div className={cn(
+                          "font-bold mono",
+                          (trade.pnl ?? 0) >= 0 ? "profit" : "loss"
+                        )}>
+                          {(trade.pnl ?? 0) >= 0 ? "+" : ""}${(trade.pnl ?? 0).toFixed(2)}
                         </div>
                         {trade.rMultiple !== null && (
                           <div className="text-xs text-muted-foreground">
-                            {trade.rMultiple >= 0 ? "+" : ""}
-                            {trade.rMultiple.toFixed(1)}R
+                            {trade.rMultiple >= 0 ? "+" : ""}{trade.rMultiple.toFixed(1)}R
                           </div>
                         )}
                       </div>

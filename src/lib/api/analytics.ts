@@ -26,7 +26,7 @@ export async function getAnalyticsSummary(
 
     let query = supabase
         .from('trades')
-        .select('*')
+        .select('pnl, r_multiple, entry_date, direction, status')
         .eq('status', 'closed')
 
     if (startDate) {
@@ -116,7 +116,7 @@ export async function getEquityCurve(
 
     let query = supabase
         .from('trades')
-        .select('*')
+        .select('pnl, entry_date, exit_date')
         .eq('status', 'closed')
         .order('exit_date', { ascending: true })
 
@@ -170,7 +170,7 @@ export async function getPerformanceByDay(propAccountId?: string | null): Promis
 
     let query = supabase
         .from('trades')
-        .select('*')
+        .select('pnl, entry_date')
         .eq('status', 'closed')
 
     // Filter by prop account
@@ -184,7 +184,7 @@ export async function getPerformanceByDay(propAccountId?: string | null): Promis
 
     if (error) throw new Error(error.message)
 
-    const trades = (data || []) as Trade[]
+    const trades = (data || []) as { pnl: number; entry_date: string }[]
 
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const dayStats: Record<string, { pnl: number; trades: number; wins: number }> = {}
@@ -223,7 +223,7 @@ export async function getMonthlyPerformance(propAccountId?: string | null): Prom
 
     let query = supabase
         .from('trades')
-        .select('*')
+        .select('pnl, entry_date')
         .eq('status', 'closed')
         .order('entry_date', { ascending: true })
 
@@ -238,7 +238,7 @@ export async function getMonthlyPerformance(propAccountId?: string | null): Prom
 
     if (error) throw new Error(error.message)
 
-    const trades = (data || []) as Trade[]
+    const trades = (data || []) as { pnl: number; entry_date: string }[]
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     const monthStats: Record<string, { pnl: number; trades: number; wins: number }> = {}

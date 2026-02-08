@@ -1,7 +1,6 @@
 "use client";
-import Link from "next/link";
-
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -234,16 +233,8 @@ export default function AnalyticsPage() {
       {!loading && trades.length === 0 && (
         <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-12 text-center">
           <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground mb-4">
-            No trades to analyze yet. Start logging trades to see your
-            analytics!
-          </p>
-          <Link
-            href="/trades"
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-4 py-2 rounded-lg font-medium"
-          >
-            Go to Trades
-          </Link>
+          <p className="text-muted-foreground mb-4">No trades to analyze yet. Start logging trades to see your analytics!</p>
+          <Link href="/trades" className="btn-glow">Go to Trades</Link>
         </div>
       )}
 
