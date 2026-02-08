@@ -1,24 +1,34 @@
 # Static Analysis Audit Report
 ## Trade-log Repository
 
-**Date:** 2026-02-07  
-**Auditor:** Automated Static Analysis  
+**Date:** 2026-02-08  
+**Auditor:** Automated Static Analysis (v2 - Fresh Audit)  
 **Repository:** Rahwulkumar/Trade-log  
+**Branch:** copilot/audit-codebase-static-analysis
 
 ---
 
 ## Executive Summary
 
-This audit analyzed the Trade-log codebase (a Next.js 16 trading journal application with Supabase backend) for architectural flaws, security vulnerabilities, performance bottlenecks, and deviations from industry best practices. The codebase demonstrates good overall architecture with proper separation of concerns, but has several areas requiring attention.
+This is a **fresh comprehensive audit** of the Trade-log codebase (a Next.js 16 trading journal application with Supabase backend). The analysis covers architectural flaws, security vulnerabilities, performance bottlenecks, and deviations from industry best practices.
+
+### Current Status
+
+| Check | Status | Details |
+|-------|--------|---------|
+| ESLint | ❌ 3 errors, 2 warnings | `prefer-const`, `@typescript-eslint/no-explicit-any`, unused imports |
+| TypeScript | ❌ 28+ errors | Missing type exports, null safety, type mismatches |
+| npm Audit | ❌ 14 vulnerabilities | 4 low, 4 moderate, 4 high, 2 critical |
+| Build | ⚠️ Would fail | TypeScript errors block build |
 
 ### Issue Summary by Severity
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Critical | 4 | Security, Data Integrity |
-| High | 12 | Type Safety, API Validation, RLS |
-| Medium | 18 | Performance, Architecture, Best Practices |
-| Low | 15 | Code Quality, Accessibility, Naming |
+| Critical | 5 | npm Vulnerabilities, Security Bypasses, RLS |
+| High | 14 | TypeScript Errors, Type Safety, API Validation |
+| Medium | 16 | Architecture, Performance, Best Practices |
+| Low | 12 | Code Quality, Accessibility, Naming |
 
 ---
 
@@ -140,7 +150,18 @@ This audit analyzed the Trade-log codebase (a Next.js 16 trading journal applica
 | `src/app/api/webhook/terminal/trades/route.ts:17-19` | **Medium** | If `TERMINAL_WEBHOOK_SECRET` is not set, webhook accepts any request. | Require secret in production: `if (!expectedKey) throw new Error('Webhook secret not configured')`. |
 | `src/lib/supabase/admin.ts:13-18` | **Medium** | Fallback to anon key when service role key missing logs warning but continues. | In production, this should fail loudly rather than silently downgrade. |
 
-### 3.4 Secret Management
+### 3.4 npm Dependency Vulnerabilities
+
+| Package | Severity | Issue | Recommendation |
+|---------|----------|-------|----------------|
+| `crypto-js` <4.2.0 | **Critical** | Critical vulnerability in crypto-js used by metaapi.cloud-sdk. | Update or remove metaapi.cloud-sdk dependency. |
+| `axios` 1.0.0-1.11.0 | **Critical** | CSRF, SSRF, and DoS vulnerabilities in axios used by metaapi.cloud-sdk. | Run `npm audit fix --force` or update metaapi.cloud-sdk. |
+| `metaapi.cloud-sdk` 29.3.2 | **High** | Root cause of 10+ vulnerabilities. Depends on vulnerable axios, crypto-js, socket.io-client. | Consider removal since terminal-farm migration exists. If needed, update to latest version or find alternative. |
+| `socket.io-client` (transitive) | **Moderate** | Vulnerable version in metaapi.cloud-sdk dependency tree. | Update parent package. |
+
+**Total: 14 vulnerabilities (2 critical, 4 high, 4 moderate, 4 low)**
+
+### 3.5 Secret Management
 
 | Location | Severity | Issue | Recommendation |
 |----------|----------|-------|----------------|
@@ -237,31 +258,44 @@ This audit analyzed the Trade-log codebase (a Next.js 16 trading journal applica
 
 ---
 
-## 6. TypeScript Compilation Errors (from tsc_errors.txt)
+## 6. TypeScript Compilation Errors (Current State)
 
-The TypeScript compilation currently fails with **105 errors**. Key categories:
+The TypeScript compilation currently fails with **28+ errors**. Key categories:
 
 ### 6.1 Missing Type Exports (Blocking)
 
 | Issue | Files Affected | Fix Priority |
 |-------|---------------|--------------|
-| `Profile` not exported from types | auth-provider.tsx | **High** - Add export |
-| `PlaybookInsert`, `PlaybookUpdate` not exported | playbooks.ts | **High** - Add exports |
-| `TradeUpdate` not exported | trades.ts | **High** - Add export |
-| `PropAccountInsert` not exported | prop-accounts.ts | **High** - Add export |
-| `ChartData` not exported | pricing.ts | **High** - Add export |
+| `TradeUpdate` not exported | src/lib/api/trades.ts:2 | **High** - Add export |
+| `PlaybookUpdate` not exported | src/lib/api/playbooks.ts:2 | **High** - Add export |
+| `ChartData` not exported | src/lib/api/pricing.ts:14 | **High** - Add export |
 
-### 6.2 Null Safety Violations (Blocking)
+### 6.2 Zod v4 Breaking Changes (Blocking)
 
-Approximately 40+ TypeScript errors relate to possibly-null values being used without checks. All listed in Section 2.2 above.
+| Issue | Files Affected | Fix |
+|-------|---------------|-----|
+| `.error.errors` doesn't exist | webhook/terminal/candles/route.ts:35 | Change to `.error.issues` |
+| `.error.errors` doesn't exist | webhook/terminal/heartbeat/route.ts:38 | Change to `.error.issues` |
+| `.error.errors` doesn't exist | webhook/terminal/positions/route.ts:35 | Change to `.error.issues` |
+| `.error.errors` doesn't exist | webhook/terminal/trades/route.ts:35 | Change to `.error.issues` |
 
 ### 6.3 Type Incompatibilities (Blocking)
 
 | Issue | Location | Fix |
 |-------|----------|-----|
-| `TerminalCandlePayload[]` → `ChartCandle[]` | notebook/page.tsx | Add proper mapping function |
-| `string` → `"LONG" \| "SHORT"` | Multiple files | Use type guard or assertion |
-| `PropAccountWithChallenge` extends incompatible | prop-firms.ts | Fix interface definition |
+| `TerminalHeartbeatPayload` margin/freeMargin types | webhook/heartbeat/route.ts:45 | Make margin/freeMargin optional in type |
+| `ChartCandle` missing 'time' property | components/trade/trade-chart.tsx:113 | Add `time` to ChartCandle interface |
+| `TradeScreenshot` missing 'timestamp' property | components/journal/screenshot-gallery.tsx:151-170 | Add `timestamp` to TradeScreenshot interface |
+| `PropAccountWithChallenge` extends incompatible | lib/types/prop-firms.ts:48 | Change `current_phase_status` type to match base |
+| `t.pnl` possibly null | lib/api/gemini.ts:135-137 | Add null coalescing: `t.pnl ?? 0` |
+| `retry` function return type | lib/terminal-farm/service.ts:450-473 | Fix Promise return types |
+
+### 6.4 Null Safety Violations
+
+| Issue | Locations | Fix |
+|-------|-----------|-----|
+| `t.pnl` possibly null | lib/api/gemini.ts:135-137 | Filter trades or use `t.pnl ?? 0` |
+| `cached` property doesn't exist | lib/api/pricing.ts:48,59,71,91,97,103 | Add `cached?: boolean` to ChartDataResult |
 
 ---
 
@@ -269,48 +303,88 @@ Approximately 40+ TypeScript errors relate to possibly-null values being used wi
 
 ### Immediate (Critical/High)
 
-1. **Fix RLS policies** - Remove overly permissive `USING (true)` on prop_firms tables
-2. **Add API input validation** - Implement Zod schemas for extension API
-3. **Remove DEV bypass** - Eliminate authentication bypass in extension route
-4. **Fix null safety issues** - Add null coalescing to all nullable field accesses
-5. **Export missing types** - Add all missing type exports to `types.ts`
+1. **Fix npm Vulnerabilities** - Address 14 security vulnerabilities including 2 critical (crypto-js, axios in metaapi.cloud-sdk)
+2. **Fix TypeScript Errors** - 28+ compilation errors blocking builds (missing type exports, null safety)
+3. **Fix RLS policies** - Remove overly permissive `USING (true)` on prop_firms tables
+4. **Remove DEV bypass** - Eliminate authentication bypass in extension route
+5. **Add API input validation** - Implement Zod schemas for extension API
+6. **Export missing types** - Add `TradeUpdate`, `PlaybookUpdate`, `ChartData` to types.ts
 
 ### Short-term (Medium)
 
-1. **Refactor large components** - Split prop-firm, trades pages into smaller components
-2. **Optimize database queries** - Replace `select('*')` with specific columns
-3. **Add accessibility** - Implement aria-labels across interactive elements
-4. **Standardize error handling** - Create centralized error handling utility
-5. **Memoize expensive computations** - Add useMemo/useCallback where needed
+1. **Fix Zod v4 compatibility** - `.error.errors` → `.error.issues` for Zod error handling
+2. **Refactor large components** - Split prop-firm (1329 LOC), trades (1225 LOC) pages
+3. **Optimize database queries** - Replace 31 instances of `select('*')` with specific columns
+4. **Add accessibility** - Only 1 `aria-label` found in entire codebase
+5. **Standardize error handling** - Create centralized error handling utility
 
 ### Long-term (Low)
 
-1. **Remove dead code** - Clean up unused variables and commented code
-2. **Standardize naming** - Establish and enforce naming conventions
+1. **Remove any usage** - 18 instances of explicit `any` type usage
+2. **Remove unused imports** - `getTerminalStatus`, `TerminalSyncPayloadSchema`
 3. **Remove console statements** - Replace with proper logging
-4. **Bundle optimization** - Lazy-load heavy components
+4. **Bundle optimization** - Consider removing or replacing metaapi.cloud-sdk (large + vulnerable)
 5. **Add monitoring** - Implement error tracking service (Sentry, etc.)
 
 ---
 
-## Appendix A: Files Analyzed
+## Appendix A: Current Error Summary
+
+### ESLint Errors (3)
+```
+src/lib/terminal-farm/service.ts:283 - 'existingTradesMap' should be const
+src/lib/terminal-farm/service.ts:308 - Unexpected any type
+src/lib/terminal-farm/service.ts:309 - Unexpected any type
+```
+
+### ESLint Warnings (2)
+```
+src/app/prop-firm/page.tsx:37 - 'getTerminalStatus' defined but never used
+src/lib/terminal-farm/service.ts:21 - 'TerminalSyncPayloadSchema' defined but never used
+```
+
+### TypeScript Errors (28+)
+```
+- Missing exports: TradeUpdate, PlaybookUpdate, ChartData
+- Zod v4 breaking change: .error.errors → .error.issues
+- Type mismatches: TerminalHeartbeatPayload optional fields
+- Null safety: t.pnl possibly null in 3 locations
+- Interface extension: PropAccountWithChallenge incompatible types
+- Type mismatch: ChartCandle missing 'time' property
+- TradeScreenshot missing 'timestamp' property (5 locations)
+```
+
+### npm Vulnerabilities (14)
+```
+Critical (2): crypto-js <4.2.0, axios CSRF
+High (4): axios SSRF, DoS vulnerabilities
+Moderate (4): Various dependencies
+Low (4): Various dependencies
+
+Root cause: metaapi.cloud-sdk@29.3.2 depends on vulnerable packages
+```
+
+## Appendix B: Files Analyzed
 
 ```
 src/app/ - 18 route files
-src/components/ - 25+ component files
+src/components/ - 25+ component files  
 src/lib/ - 15+ utility/API files
 src/hooks/ - 1 hook file
-supabase/migrations/ - 18 migration files
+supabase/migrations/ - 19 migration files
 middleware.ts - 1 file
+Total: ~19,425 lines of TypeScript/TSX code
 ```
 
-## Appendix B: Tools Used
+## Appendix C: Tools Used
 
-- ESLint with Next.js and TypeScript plugins
-- TypeScript compiler (strict mode)
+- ESLint 9 with Next.js and TypeScript plugins
+- TypeScript 5 compiler (strict mode)
+- npm audit for vulnerability scanning
 - Manual code review
 - Pattern matching (grep) for security anti-patterns
+- Line count analysis (wc -l)
 
 ---
 
-*End of Report*
+*End of Report - Generated 2026-02-08*
