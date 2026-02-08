@@ -15,7 +15,13 @@ function validateApiKey(request: NextRequest): boolean {
     const apiKey = request.headers.get('x-api-key');
     const expectedKey = process.env.TERMINAL_WEBHOOK_SECRET;
 
-    if (!expectedKey) return true;
+    // In production, require secret to be set
+    if (!expectedKey) {
+        if (process.env.NODE_ENV === 'production') {
+            return false; // Require secret in production
+        }
+        return true; // Allow bypass in development if not set
+    }
     return apiKey === expectedKey;
 }
 
