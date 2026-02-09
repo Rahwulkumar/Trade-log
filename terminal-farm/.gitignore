@@ -1,0 +1,12 @@
+# MT5 installation files (must be provided separately)
+mt5-install.zip
+*.zip
+
+# Compiled EA files (will be generated)
+*.ex5
+
+# Logs
+*.log
+
+# WINE data (too large for git)
+.wine/
