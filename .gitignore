@@ -29,6 +29,7 @@ Thumbs.db
 *.md
 !README.md
 !CONTRIBUTING.md
+!docs/*.md
 tsc_errors.txt
 build_errors.log
 full_errors.txt

@@ -104,10 +104,15 @@ export function TradingCalendar() {
       const dateKey = format(new Date(trade.entry_date), "yyyy-MM-dd");
       
       const tradePnl = trade.pnl ?? 0;
+      // Type assertion: database ensures direction is 'LONG' | 'SHORT'
+      const direction = trade.direction === "LONG" || trade.direction === "SHORT" 
+        ? trade.direction 
+        : "LONG" as "LONG" | "SHORT"; // Fallback to LONG if invalid
+      
       const dayTrade: DayTrade = {
         id: trade.id,
         symbol: trade.symbol,
-        direction: trade.direction,
+        direction,
         pnl: tradePnl,
         rMultiple: trade.r_multiple,
         entryTime: format(new Date(trade.entry_date), "HH:mm"),
