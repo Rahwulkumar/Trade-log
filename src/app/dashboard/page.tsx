@@ -1,301 +1,650 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Zap, Loader2 } from "lucide-react";
-import { EquityCurve } from "@/components/dashboard/equity-curve"; 
-import { PerformanceByDay } from "@/components/dashboard/performance-by-day";
+import { CashflowChart } from "@/components/dashboard/cashflow-chart";
+import { StatisticsDonut } from "@/components/dashboard/statistics-donut";
 import { TopPlaybooks } from "@/components/dashboard/playbooks-widget";
 import { RecentTrades } from "@/components/dashboard/recent-trades";
+import { TradingCalendar } from "@/components/calendar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
-import { getAnalyticsSummary, getTodayStats, type AnalyticsSummary } from "@/lib/api/analytics";
-import { getActivePropAccounts, checkCompliance } from "@/lib/api/prop-accounts";
+import {
+  getAnalyticsSummary,
+  getTodayStats,
+  type AnalyticsSummary,
+} from "@/lib/api/analytics";
+import { checkCompliance } from "@/lib/api/prop-accounts";
 import type { PropAccount } from "@/lib/supabase/types";
+import {
+  IconAnalytics,
+  IconPropFirm,
+  IconArrowUp,
+  IconArrowDown,
+  IconPlus,
+} from "@/components/ui/icons";
+import { ArcProgress } from "@/components/ui/arc-progress";
+import { DrawdownGauge } from "@/components/ui/drawdown-gauge";
 
 interface PropAccountWithCompliance extends PropAccount {
-  compliance?: {
-    profitProgress: number | null;
-  };
+  compliance?: { profitProgress: number | null };
 }
 
+type ChartPeriod = "1W" | "1M" | "3M" | "YTD";
+const CHART_PERIODS: ChartPeriod[] = ["1W", "1M", "3M", "YTD"];
+
+function fmt(v: number | null | undefined) {
+  if (v == null) return "$0";
+  return `$${Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+function signedFmt(v: number) {
+  return `${v >= 0 ? "+" : "-"}${fmt(v)}`;
+}
+
+// ─── CONIYEST-style stat card (label → big number → trend badge) ───────────
+function StatCard({
+  label,
+  value,
+  secondaryValue,
+  trend,
+  trendLabel,
+  isGain,
+  isNeutral = false,
+}: {
+  label: string;
+  value: string;
+  secondaryValue?: string;
+  trend?: string;
+  trendLabel?: string;
+  isGain?: boolean;
+  isNeutral?: boolean;
+}) {
+  return (
+    <article className="surface p-5 flex flex-col gap-2.5">
+      {/* Eyebrow label */}
+      <p className="text-label">{label}</p>
+
+      {/* Big number */}
+      <p
+        className="stat-large leading-none"
+        style={{
+          color: isNeutral
+            ? "var(--text-primary)"
+            : isGain === true
+              ? "var(--profit-primary)"
+              : isGain === false
+                ? "var(--loss-primary)"
+                : "var(--text-primary)",
+        }}
+      >
+        {value}
+      </p>
+
+      {/* Secondary value (e.g. "last month $35,568") */}
+      {secondaryValue && (
+        <p
+          style={{
+            fontSize: "0.68rem",
+            color: "var(--text-tertiary)",
+            fontFamily: "var(--font-dm-sans)",
+          }}
+        >
+          {secondaryValue}
+        </p>
+      )}
+
+      {/* Trend badge + hint */}
+      {trend && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className={cn(
+              "badge-base flex items-center gap-1",
+              isGain ? "badge-profit" : "badge-loss",
+            )}
+            style={{
+              borderRadius: "999px",
+              fontSize: "0.64rem",
+              padding: "0.18rem 0.55rem",
+            }}
+          >
+            {isGain ? (
+              <IconArrowUp size={9} strokeWidth={2.5} />
+            ) : (
+              <IconArrowDown size={9} strokeWidth={2.5} />
+            )}
+            {trend}
+          </span>
+          {trendLabel && (
+            <span
+              style={{
+                fontSize: "0.68rem",
+                color: "var(--text-tertiary)",
+                fontFamily: "var(--font-dm-sans)",
+              }}
+            >
+              {trendLabel}
+            </span>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+// ─── AccountCard — JAMIE SMITH equivalent ──────────────────────────────────
+// Matches: account name + "Balance" label + big dollar + mini grid lines + ON badge
+function AccountCard({
+  account,
+  balance,
+  username,
+}: {
+  account: PropAccountWithCompliance | null;
+  balance: number;
+  username: string;
+}) {
+  return (
+    <article
+      className="surface p-5 flex flex-col justify-between"
+      style={{
+        background: `
+          radial-gradient(ellipse at 0% 100%, rgba(78,203,6,0.10) 0%, transparent 55%),
+          var(--surface)
+        `,
+        minHeight: "140px",
+      }}
+    >
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3">
+        {/* Name + account */}
+        <div>
+          <p
+            style={{
+              fontFamily: "var(--font-dm-sans)",
+              fontWeight: 600,
+              fontSize: "0.88rem",
+              color: "var(--text-primary)",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              lineHeight: 1,
+            }}
+          >
+            {username}
+          </p>
+          <p
+            style={{
+              fontSize: "0.62rem",
+              color: "var(--text-tertiary)",
+              marginTop: "2px",
+            }}
+          >
+            {account?.name ?? "All Accounts"}
+          </p>
+        </div>
+        {/* ON badge — like the green pill toggle in reference */}
+        <span className="badge-toggle-on">ON</span>
+      </div>
+
+      {/* Balance */}
+      <div>
+        <p className="text-label" style={{ marginBottom: "0.25rem" }}>
+          Balance
+        </p>
+        <p
+          style={{
+            fontFamily: "var(--font-jb-mono)",
+            fontSize: "1.7rem",
+            fontWeight: 600,
+            color: "var(--text-primary)",
+            lineHeight: 1,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {fmt(balance)}
+        </p>
+      </div>
+
+      {/* Mini chart lines — decorative, like in reference */}
+      <div className="mt-3 flex items-end gap-0.5 h-8">
+        {[0.4, 0.6, 0.5, 0.75, 0.55, 0.9, 0.7, 0.85, 1.0, 0.8, 0.95, 0.6].map(
+          (h, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-sm"
+              style={{
+                height: `${h * 100}%`,
+                background:
+                  i % 3 === 0 ? "rgba(78,203,6,0.6)" : "rgba(78,203,6,0.2)",
+              }}
+            />
+          ),
+        )}
+      </div>
+    </article>
+  );
+}
+
+// ─── Skeleton ──────────────────────────────────────────────────────────────
+function StatSkeleton() {
+  return (
+    <div className="surface p-5 flex flex-col gap-3">
+      <div className="skeleton h-2.5 w-14 rounded" />
+      <div className="skeleton h-7 w-24 rounded" />
+      <div className="skeleton h-5 w-18 rounded-full" />
+    </div>
+  );
+}
+
+// ─── Dashboard Page ────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
   const { selectedAccountId, propAccounts } = usePropAccount();
+
   const [stats, setStats] = useState<AnalyticsSummary | null>(null);
-  const [todayStats, setTodayStats] = useState<{ pnl: number; trades: number } | null>(null);
-  const [propAccount, setPropAccount] = useState<PropAccountWithCompliance | null>(null);
+  const [todayStats, setTodayStats] = useState<{
+    pnl: number;
+    trades: number;
+  } | null>(null);
+  const [propAccount, setPropAccount] =
+    useState<PropAccountWithCompliance | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("1M");
+
+  const username = user?.email ? user.email.split("@")[0] : "Trader";
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString()
+    .split("T")[0];
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    .toISOString()
+    .split("T")[0];
 
   useEffect(() => {
-    async function loadDashboardData() {
+    async function load() {
       if (!isConfigured || !user) {
         setLoading(false);
         return;
       }
-
       try {
-        // Get current month date range
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
-
-        // Pass selectedAccountId to analytics (use global context value)
-        const propAccountIdFilter = selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
-
+        const acct =
+          selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
         const [analyticsData, todayData] = await Promise.all([
-          getAnalyticsSummary(startOfMonth, endOfMonth, propAccountIdFilter),
-          getTodayStats(propAccountIdFilter),
+          getAnalyticsSummary(startOfMonth, endOfMonth, acct),
+          getTodayStats(acct),
         ]);
-
         setStats(analyticsData);
         setTodayStats(todayData);
 
-        // Handle Prop Firm card based on selection
-        if (selectedAccountId && selectedAccountId !== "unassigned") {
-          // Show selected account
-          const account = propAccounts.find((a: PropAccount) => a.id === selectedAccountId);
+        // Resolve prop account to show
+        const targetId =
+          selectedAccountId && selectedAccountId !== "unassigned"
+            ? selectedAccountId
+            : propAccounts[0]?.id;
+
+        if (targetId) {
+          const account = propAccounts.find(
+            (a: PropAccount) => a.id === targetId,
+          );
           if (account) {
             const compliance = await checkCompliance(account.id);
-            setPropAccount({ ...account, compliance: { profitProgress: compliance.profitProgress } });
-          } else {
-            setPropAccount(null);
-          }
-        } else if (selectedAccountId === "unassigned") {
-          // Hide prop card for unassigned trades
-          setPropAccount(null);
-        } else if (propAccounts.length > 0) {
-          // "All Accounts" - show first account as summary (or could aggregate)
-          const account = propAccounts[0];
-          const compliance = await checkCompliance(account.id);
-          setPropAccount({ ...account, compliance: { profitProgress: compliance.profitProgress } });
-        } else {
-          setPropAccount(null);
-        }
+            setPropAccount({
+              ...account,
+              compliance: { profitProgress: compliance.profitProgress },
+            });
+          } else setPropAccount(null);
+        } else setPropAccount(null);
       } catch (err) {
-        console.error("Failed to load dashboard data:", err);
+        console.error("Dashboard:", err);
       } finally {
         setLoading(false);
       }
     }
-
-    if (!authLoading) {
-      loadDashboardData();
-    }
+    if (!authLoading) load();
   }, [user, isConfigured, authLoading, selectedAccountId, propAccounts]);
 
-  const monthName = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
-
-  // Calculate week stats (last 7 days) - simplified for now
-  const weekPnl = stats ? stats.totalPnl : 0;
+  const totalPnl = stats?.totalPnl ?? 0;
+  const totalIncome = stats ? Math.abs(stats.avgWin) * stats.winningTrades : 0;
+  const totalExpense = stats ? Math.abs(stats.avgLoss) * stats.losingTrades : 0;
+  const winRate = stats?.winRate ?? 0;
+  const balance = propAccount?.current_balance ?? Math.max(totalPnl, 0);
 
   return (
-    <div className="space-y-12">
-      {/* Hero Stats - Fey style, huge and centered */}
-      <section className="text-center space-y-6 py-8">
-        <p className="text-label">{monthName} Performance</p>
+    <div className="p-4 sm:p-5 lg:p-6 space-y-4 lg:space-y-5 max-w-[1280px]">
+      {/* ───────── Row 1: Account card + 3 stat cards ───────── */}
+      <section className="stagger-1 grid grid-cols-1 sm:grid-cols-2 gap-4 lg:grid-cols-4">
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
         ) : (
           <>
-            <h1 className="headline-xl">
-              <span className={stats && stats.totalPnl >= 0 ? "profit" : "loss"}>
-                {stats && stats.totalPnl >= 0 ? "+" : ""}
-                ${stats ? Math.floor(Math.abs(stats.totalPnl)).toLocaleString() : "0"}
-              </span>
-              <span className="text-muted-foreground">
-                .{stats ? Math.abs(stats.totalPnl % 1).toFixed(2).slice(2) : "00"}
-              </span>
-            </h1>
-            <div className="flex items-center justify-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Win Rate</span>
-                <span className="font-semibold">{stats ? stats.winRate.toFixed(1) : "0"}%</span>
-              </div>
-              <div className="w-px h-4 bg-border" />
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Profit Factor</span>
-                <span className="font-semibold">
-                  {stats && stats.profitFactor !== Infinity ? stats.profitFactor.toFixed(1) : "∞"}
-                </span>
-              </div>
-              <div className="w-px h-4 bg-border" />
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Total Trades</span>
-                <span className="font-semibold">{stats?.totalTrades || 0}</span>
-              </div>
-            </div>
+            {/* JAMIE SMITH equivalent */}
+            <AccountCard
+              account={propAccount}
+              balance={balance}
+              username={username}
+            />
+
+            {/* Gross Profit */}
+            <StatCard
+              label="Gross Profit"
+              value={fmt(totalIncome)}
+              secondaryValue={
+                stats ? `last month ${fmt(totalIncome)}` : undefined
+              }
+              trend={winRate > 50 ? `${winRate.toFixed(0)}% WR` : undefined}
+              trendLabel={stats ? `${stats.winningTrades} wins` : undefined}
+              isGain={true}
+            />
+
+            {/* Gross Loss */}
+            <StatCard
+              label="Gross Loss"
+              value={fmt(totalExpense)}
+              secondaryValue={
+                stats ? `${stats.losingTrades} losing trades` : undefined
+              }
+              trend={
+                100 - winRate > 0
+                  ? `${(100 - winRate).toFixed(0)}% LR`
+                  : undefined
+              }
+              trendLabel={stats ? `${stats.losingTrades} losses` : undefined}
+              isGain={false}
+            />
+
+            {/* Net P&L */}
+            <StatCard
+              label="Net P&L"
+              value={fmt(Math.abs(totalPnl))}
+              secondaryValue={`profit factor ${stats?.profitFactor === Infinity ? "∞" : (stats?.profitFactor ?? 0).toFixed(2)}`}
+              trend={
+                totalPnl !== 0
+                  ? totalPnl >= 0
+                    ? `+${((totalPnl / Math.max(totalIncome, 1)) * 100).toFixed(1)}%`
+                    : `-${((Math.abs(totalPnl) / Math.max(totalExpense, 1)) * 100).toFixed(1)}%`
+                  : undefined
+              }
+              trendLabel="vs last month"
+              isGain={totalPnl >= 0}
+            />
           </>
         )}
       </section>
 
-      {/* Quick Stats Row */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card-void p-6 text-center">
-          <p className="text-label mb-2">Today</p>
-          <p className={cn("stat-large", (todayStats?.pnl || 0) >= 0 ? "profit" : "loss")}>
-            {(todayStats?.pnl || 0) >= 0 ? "+" : ""}${(todayStats?.pnl || 0).toFixed(0)}
-          </p>
-        </div>
-        <div className="card-void p-6 text-center">
-          <p className="text-label mb-2">This Month</p>
-          <p className={cn("stat-large", (stats?.totalPnl || 0) >= 0 ? "profit" : "loss")}>
-            {(stats?.totalPnl || 0) >= 0 ? "+" : ""}${(stats?.totalPnl || 0).toFixed(0).toLocaleString()}
-          </p>
-        </div>
-        <div className="card-void p-6 text-center">
-          <p className="text-label mb-2">Avg R:R</p>
-          <p className="stat-large">{stats?.avgRMultiple?.toFixed(1) || "0"}</p>
-        </div>
-        <div className="card-void p-6 text-center">
-          <p className="text-label mb-2">Best Trade</p>
-          <p className="stat-large profit">+${stats?.largestWin?.toFixed(0) || "0"}</p>
-        </div>
-      </section>
-
-      {/* Charts Row */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Equity Curve */}
-        <div className="card-void p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
+      {/* ───────── Row 2: Cashflow (bars) + Statistics (donut) ───────── */}
+      <section className="stagger-2 grid grid-cols-1 gap-5 lg:grid-cols-3">
+        {/* Cashflow chart — 2/3 width */}
+        <article className="surface p-6 lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between gap-4">
             <div>
-              <h2 className="headline-md">Equity Curve</h2>
-              <p className="text-sm text-muted-foreground">Account growth over time</p>
+              <h2 className="headline-md">Performance</h2>
+              <p
+                style={{
+                  color: "var(--text-tertiary)",
+                  fontSize: "0.73rem",
+                  marginTop: "0.2rem",
+                }}
+              >
+                Gross Profit vs Loss · {new Date().getFullYear()}
+              </p>
             </div>
-            <div className="flex gap-2">
-              {["1W", "1M", "3M", "YTD"].map((period) => (
+            {/* Period toggle */}
+            <div className="seg-control">
+              {CHART_PERIODS.map((p) => (
                 <button
-                  key={period}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all ${
-                    period === "1M"
-                      ? "bg-white/10 text-white"
-                      : "text-muted-foreground hover:text-white"
-                  }`}
+                  key={p}
+                  type="button"
+                  onClick={() => setChartPeriod(p)}
+                  className={cn("seg-item", chartPeriod === p && "active")}
                 >
-                  {period}
+                  {p}
                 </button>
               ))}
             </div>
           </div>
-          <div className="h-[300px]">
-            <EquityCurve propAccountId={selectedAccountId} />
-          </div>
-        </div>
+          <CashflowChart
+            propAccountId={selectedAccountId}
+            period={chartPeriod}
+          />
+        </article>
 
-        {/* Daily Performance */}
-        <div className="card-void p-6">
-          <h2 className="headline-md mb-2">Daily Performance</h2>
-          <p className="text-sm text-muted-foreground mb-6">P&L by weekday</p>
-          <PerformanceByDay propAccountId={selectedAccountId} />
-        </div>
+        {/* Statistics donut — 1/3 */}
+        <article className="surface p-6">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="headline-md">Trade Distribution</h2>
+              <p
+                style={{
+                  color: "var(--text-tertiary)",
+                  fontSize: "0.73rem",
+                  marginTop: "0.2rem",
+                }}
+              >
+                Win/Loss Ratio
+              </p>
+            </div>
+          </div>
+          <StatisticsDonut
+            propAccountId={selectedAccountId}
+            startDate={startOfMonth}
+            endDate={endOfMonth}
+          />
+        </article>
       </section>
 
-      {/* Bottom Row */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Playbooks */}
-        <div className="card-void p-6">
-          <div className="flex items-center justify-between mb-6">
+      {/* ───────── Row 3: Daily quick stats ───────── */}
+      <section className="stagger-3 grid grid-cols-2 gap-4 md:grid-cols-4">
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
+          : [
+              {
+                label: "Today's P&L",
+                value: signedFmt(todayStats?.pnl ?? 0),
+                isGain: (todayStats?.pnl ?? 0) >= 0,
+              },
+              {
+                label: "Win Rate",
+                value: `${winRate.toFixed(1)}%`,
+                isGain: winRate > 50,
+                isNeutral: winRate === 50,
+              },
+              {
+                label: "Avg R:R",
+                value: `${(stats?.avgRMultiple ?? 0).toFixed(2)}R`,
+                isGain: (stats?.avgRMultiple ?? 0) > 1,
+              },
+              {
+                label: "Best Trade",
+                value: fmt(stats?.largestWin ?? 0),
+                isGain: true,
+              },
+            ].map((item) => (
+              <StatCard
+                key={item.label}
+                label={item.label}
+                value={item.value}
+                isGain={item.isGain}
+                isNeutral={item.isNeutral}
+              />
+            ))}
+      </section>
+
+      {/* ───────── Row 4: Top Strategies + Prop Firm ───────── */}
+      <section className="stagger-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Top Strategies */}
+        <article className="surface p-6">
+          <div className="mb-5 flex items-center justify-between">
             <div>
               <h2 className="headline-md">Top Strategies</h2>
-              <p className="text-sm text-muted-foreground">Performance by playbook</p>
+              <p
+                style={{
+                  color: "var(--text-tertiary)",
+                  fontSize: "0.73rem",
+                  marginTop: "0.2rem",
+                }}
+              >
+                Performance by playbook
+              </p>
             </div>
-            <Link href="/playbooks" className="text-sm text-muted-foreground hover:text-white transition-colors">
+            <Link
+              href="/playbooks"
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 500,
+                color: "var(--accent-primary)",
+                opacity: 0.8,
+              }}
+              className="hover:opacity-100 transition-opacity"
+            >
               View all →
             </Link>
           </div>
           <TopPlaybooks propAccountId={selectedAccountId} />
-        </div>
+        </article>
 
-        {/* Prop Firm */}
-        <div className="card-glow p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <Zap className="w-5 h-5 text-blue-400" />
+        {/* Prop Firm card */}
+        <article className="surface-accent p-6">
+          <div className="mb-4 flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px]"
+                style={{
+                  background: "var(--accent-soft)",
+                  color: "var(--accent-primary)",
+                }}
+              >
+                <IconPropFirm size={15} strokeWidth={1.75} />
               </div>
               <div>
-                <h2 className="headline-md">{propAccount?.name || "No Active Account"}</h2>
-                <p className="text-sm text-muted-foreground">
-                  {propAccount ? `$${propAccount.initial_balance.toLocaleString()} Account` : "Add a prop account to track"}
+                <h2 className="headline-md">
+                  {propAccount?.name ?? "No Account"}
+                </h2>
+                <p
+                  style={{
+                    color: "var(--text-tertiary)",
+                    fontSize: "0.73rem",
+                    marginTop: "0.15rem",
+                  }}
+                >
+                  {propAccount
+                    ? `${fmt(propAccount.initial_balance)} funded`
+                    : "Add a prop account"}
                 </p>
               </div>
             </div>
             {propAccount && (
-              <span className="badge-void text-green-400 border-green-400/20 bg-green-400/10">
+              <span
+                className="badge-accent capitalize"
+                style={{ borderRadius: "999px", fontSize: "0.64rem" }}
+              >
                 {propAccount.status}
               </span>
             )}
           </div>
-          
-          {propAccount ? (
-            <div className="space-y-6">
-              <div className="flex justify-between items-end">
-                <div>
-                  <p className="text-label">Current Balance</p>
-                  <p className="stat-large mt-1">${propAccount.current_balance.toLocaleString()}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-label">Profit Target</p>
-                  <p className="stat-large mt-1 profit">${propAccount.profit_target?.toLocaleString() || "N/A"}</p>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Progress</span>
-                  <span className="font-medium">{(propAccount.compliance?.profitProgress || 0).toFixed(1)}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                  <div 
-                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" 
-                    style={{ width: `${Math.min(propAccount.compliance?.profitProgress || 0, 100)}%` }}
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                <div>
-                  <p className="text-label">Daily DD Used</p>
-                  <p className="text-lg font-semibold loss mt-1">
-                    -{propAccount.daily_dd_current.toFixed(1)}%
-                  </p>
-                  <p className="text-xs text-muted-foreground">of {propAccount.daily_dd_max}%</p>
+          {propAccount ? (
+            <div className="space-y-5">
+              <div className="flex items-center gap-5">
+                <ArcProgress
+                  percent={propAccount.compliance?.profitProgress ?? 0}
+                />
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <p className="text-label mb-0.5">Current Balance</p>
+                    <p className="stat-medium">
+                      {fmt(propAccount.current_balance)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-label mb-0.5">Profit Target</p>
+                    <p className="stat-medium profit">
+                      {propAccount.profit_target
+                        ? fmt(propAccount.profit_target)
+                        : "N/A"}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-label">Total DD Used</p>
-                  <p className="text-lg font-semibold loss mt-1">
-                    -{propAccount.total_dd_current.toFixed(1)}%
-                  </p>
-                  <p className="text-xs text-muted-foreground">of {propAccount.total_dd_max}%</p>
-                </div>
+              </div>
+              <div
+                className="space-y-3"
+                style={{
+                  borderTop: "1px solid var(--border-subtle)",
+                  paddingTop: "1rem",
+                }}
+              >
+                <DrawdownGauge
+                  label="Daily Drawdown"
+                  used={propAccount.daily_dd_current ?? 0}
+                  max={propAccount.daily_dd_max ?? 5}
+                />
+                <DrawdownGauge
+                  label="Total Drawdown"
+                  used={propAccount.total_dd_current ?? 0}
+                  max={propAccount.total_dd_max ?? 10}
+                />
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No active prop account</p>
-              <Link href="/prop-firm" className="text-cyan-400 hover:underline mt-2 inline-block">
-                Add an account →
+            <div className="py-8 text-center">
+              <div
+                className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
+                style={{ background: "var(--accent-soft)" }}
+              >
+                <IconAnalytics
+                  size={20}
+                  className="text-[var(--accent-primary)]"
+                />
+              </div>
+              <p
+                style={{ color: "var(--text-secondary)", fontSize: "0.83rem" }}
+              >
+                No prop account selected
+              </p>
+              <Link
+                href="/prop-firm"
+                className="btn-primary btn-base mt-4 inline-flex"
+              >
+                <IconPlus size={13} strokeWidth={2} />
+                Add Account
               </Link>
             </div>
           )}
-        </div>
+        </article>
       </section>
 
-      {/* Recent Trades */}
-      <section className="card-void p-6">
-        <div className="flex items-center justify-between mb-6">
+      {/* ───────── Row 5: Recent Transactions ───────── */}
+      <section className="stagger-5 surface p-6">
+        <div className="mb-5 flex items-center justify-between">
           <div>
-            <h2 className="headline-md">Recent Trades</h2>
-            <p className="text-sm text-muted-foreground">Your latest trading activity</p>
+            <h2 className="headline-md">Recent Transactions</h2>
+            <p
+              style={{
+                color: "var(--text-tertiary)",
+                fontSize: "0.73rem",
+                marginTop: "0.2rem",
+              }}
+            >
+              Latest trading activity
+            </p>
           </div>
-          <Link href="/trades" className="btn-void text-sm">
-            View all trades
+          <Link
+            href="/analytics"
+            className="btn-ghost btn-base flex items-center gap-1.5 text-[0.76rem]"
+          >
+            View analytics →
           </Link>
         </div>
         <RecentTrades propAccountId={selectedAccountId} />
+      </section>
+
+      {/* ───────── Row 6: Calendar ───────── */}
+      <section id="calendar" className="stagger-6 scroll-mt-8 surface p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="headline-md">Trading Calendar</h2>
+          <p style={{ color: "var(--text-tertiary)", fontSize: "0.73rem" }}>
+            Daily P&L overview
+          </p>
+        </div>
+        <TradingCalendar embedded />
       </section>
     </div>
   );

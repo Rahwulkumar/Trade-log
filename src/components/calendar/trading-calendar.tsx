@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
-  TrendingUp,
-  TrendingDown,
-  Calendar as CalendarIcon,
   Clock,
-  Target,
   Loader2,
+  Target,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -20,24 +20,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  format,
-  startOfMonth,
-  endOfMonth,
+  addMonths,
   eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  getDay,
   isSameMonth,
   isToday,
-  addMonths,
-  subMonths,
-  getDay,
+  startOfMonth,
   startOfWeek,
-  endOfWeek,
+  subMonths,
 } from "date-fns";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import { getTradesByDateRange } from "@/lib/api/trades";
 import type { Trade } from "@/lib/supabase/types";
 
-// Types
 interface DayTrade {
   id: string;
   symbol: string;
@@ -57,7 +56,11 @@ interface DayData {
   tradesCount: number;
 }
 
-export function TradingCalendar() {
+interface TradingCalendarProps {
+  embedded?: boolean;
+}
+
+export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
   const { user, isConfigured, loading: authLoading } = useAuth();
   const { selectedAccountId } = usePropAccount();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -66,7 +69,6 @@ export function TradingCalendar() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load trades for the current month
   useEffect(() => {
     async function loadTrades() {
       if (!isConfigured || !user) {
@@ -78,14 +80,16 @@ export function TradingCalendar() {
         setLoading(true);
         const start = format(startOfMonth(currentMonth), "yyyy-MM-dd");
         const end = format(endOfMonth(currentMonth), "yyyy-MM-dd");
-        
-        // Apply global prop account filter
-        const propAccountIdFilter = selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
-        
-        const tradesData = await getTradesByDateRange(start, end, propAccountIdFilter);
+        const propAccountIdFilter =
+          selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
+        const tradesData = await getTradesByDateRange(
+          start,
+          end,
+          propAccountIdFilter,
+        );
         setTrades(tradesData);
-      } catch (err) {
-        console.error("Failed to load trades for calendar:", err);
+      } catch (error) {
+        console.error("Failed to load trades for calendar:", error);
       } finally {
         setLoading(false);
       }
@@ -94,21 +98,19 @@ export function TradingCalendar() {
     if (!authLoading) {
       loadTrades();
     }
-  }, [user, isConfigured, authLoading, currentMonth, selectedAccountId]);
+  }, [authLoading, currentMonth, isConfigured, selectedAccountId, user]);
 
-  // Process trades into day data
   const monthData = useMemo(() => {
     const data = new Map<string, DayData>();
-    
-    trades.forEach(trade => {
+
+    trades.forEach((trade) => {
       const dateKey = format(new Date(trade.entry_date), "yyyy-MM-dd");
-      
       const tradePnl = trade.pnl ?? 0;
-      // Type assertion: database ensures direction is 'LONG' | 'SHORT'
-      const direction = trade.direction === "LONG" || trade.direction === "SHORT" 
-        ? trade.direction 
-        : "LONG" as "LONG" | "SHORT"; // Fallback to LONG if invalid
-      
+      const direction =
+        trade.direction === "LONG" || trade.direction === "SHORT"
+          ? trade.direction
+          : ("LONG" as const);
+
       const dayTrade: DayTrade = {
         id: trade.id,
         symbol: trade.symbol,
@@ -116,15 +118,17 @@ export function TradingCalendar() {
         pnl: tradePnl,
         rMultiple: trade.r_multiple,
         entryTime: format(new Date(trade.entry_date), "HH:mm"),
-        exitTime: trade.exit_date ? format(new Date(trade.exit_date), "HH:mm") : null,
+        exitTime: trade.exit_date
+          ? format(new Date(trade.exit_date), "HH:mm")
+          : null,
       };
 
       if (data.has(dateKey)) {
         const existing = data.get(dateKey)!;
         existing.trades.push(dayTrade);
         existing.totalPnl += tradePnl;
-        existing.tradesCount++;
-        const wins = existing.trades.filter(t => (t.pnl ?? 0) > 0).length;
+        existing.tradesCount += 1;
+        const wins = existing.trades.filter((item) => item.pnl > 0).length;
         existing.winRate = Math.round((wins / existing.tradesCount) * 100);
       } else {
         data.set(dateKey, {
@@ -145,7 +149,6 @@ export function TradingCalendar() {
     const monthEnd = endOfMonth(currentMonth);
     const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
     const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
-    
     return eachDayOfInterval({ start: startDate, end: endDate });
   }, [currentMonth]);
 
@@ -156,12 +159,12 @@ export function TradingCalendar() {
     let losingDays = 0;
     let tradingDays = 0;
 
-    monthData.forEach(day => {
+    monthData.forEach((day) => {
       totalPnl += day.totalPnl;
       totalTrades += day.tradesCount;
-      tradingDays++;
-      if (day.totalPnl > 0) winningDays++;
-      if (day.totalPnl < 0) losingDays++;
+      tradingDays += 1;
+      if (day.totalPnl > 0) winningDays += 1;
+      if (day.totalPnl < 0) losingDays += 1;
     });
 
     return {
@@ -170,7 +173,8 @@ export function TradingCalendar() {
       winningDays,
       losingDays,
       tradingDays,
-      winRate: tradingDays > 0 ? Math.round((winningDays / tradingDays) * 100) : 0,
+      winRate:
+        tradingDays > 0 ? Math.round((winningDays / tradingDays) * 100) : 0,
     };
   }, [monthData]);
 
@@ -184,18 +188,28 @@ export function TradingCalendar() {
   };
 
   const getDayColor = (pnl: number) => {
-    if (pnl > 0) return "bg-green-500/20 text-green-400 border-green-500/30";
-    if (pnl < 0) return "bg-red-500/20 text-red-400 border-red-500/30";
-    return "bg-white/5 text-muted-foreground";
+    if (pnl > 0)
+      return "border-[var(--profit-primary)]/30 bg-[var(--profit-bg)] text-[var(--profit-primary)]";
+    if (pnl < 0)
+      return "border-[var(--loss-primary)]/30 bg-[var(--loss-bg)] text-[var(--loss-primary)]";
+    return "border-border bg-muted text-muted-foreground";
   };
 
-  // Auth checks
   if (!authLoading && !isConfigured) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="card-void p-8 text-center max-w-md">
-          <h2 className="text-xl font-semibold mb-2">Supabase Not Configured</h2>
-          <p className="text-muted-foreground">Please add your Supabase credentials.</p>
+      <div
+        className={cn(
+          "flex flex-col items-center justify-center",
+          !embedded && "min-h-[60vh]",
+        )}
+      >
+        <div className="surface max-w-md p-8 text-center border border-border rounded-xl">
+          <h2 className="mb-2 text-xl font-semibold text-foreground">
+            Supabase Not Configured
+          </h2>
+          <p className="text-muted-foreground">
+            Please add your Supabase credentials.
+          </p>
         </div>
       </div>
     );
@@ -203,101 +217,129 @@ export function TradingCalendar() {
 
   if (!authLoading && !user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="card-void p-8 text-center max-w-md">
-          <h2 className="text-xl font-semibold mb-2">Login Required</h2>
-          <p className="text-muted-foreground mb-4">Please sign in to view your calendar.</p>
-          <Link href="/auth/login" className="btn-glow">Sign In</Link>
+      <div
+        className={cn(
+          "flex flex-col items-center justify-center",
+          !embedded && "min-h-[60vh]",
+        )}
+      >
+        <div className="surface max-w-md p-8 text-center border border-border rounded-xl">
+          <h2 className="mb-2 text-xl font-semibold text-foreground">
+            Login Required
+          </h2>
+          <p className="mb-4 text-muted-foreground">
+            Please sign in to view your calendar.
+          </p>
+          <Link
+            href="/auth/login"
+            className="inline-flex h-9 items-center justify-center rounded-md bg-[var(--accent-primary)] px-4 py-2 text-sm font-medium text-white shadow transition-colors hover:bg-[var(--accent-primary)]/90"
+          >
+            Sign In
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className={cn("space-y-8", embedded && "space-y-6")}>
+      <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <p className="text-label mb-1">Performance</p>
-          <h1 className="headline-lg">Trading Calendar</h1>
+          {!embedded && <p className="mb-1 text-label">Performance</p>}
+          {embedded ? (
+            <h2 className="headline-md">Trading Calendar</h2>
+          ) : (
+            <h1 className="headline-lg">Trading Calendar</h1>
+          )}
         </div>
-        
-        {/* Month Navigation */}
+
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-            className="p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-colors"
+            className="rounded-lg border border-border p-2 transition-colors hover:bg-accent text-accent-foreground"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <div className="min-w-[160px] text-center font-semibold">
+          <div className="min-w-[160px] text-center font-semibold text-foreground">
             {format(currentMonth, "MMMM yyyy")}
           </div>
           <button
+            type="button"
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-            className="p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-colors"
+            className="rounded-lg border border-border p-2 transition-colors hover:bg-accent text-accent-foreground"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={() => setCurrentMonth(new Date())}
-            className="btn-void text-sm"
+            className="h-9 px-3 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground text-sm font-medium transition-colors"
           >
             Today
           </button>
         </div>
       </section>
 
-      {/* Monthly Stats */}
-      <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="card-void p-5 text-center">
-          <p className="text-label mb-2">Monthly P&L</p>
-          <p className={cn("stat-large", monthlyStats.totalPnl >= 0 ? "profit" : "loss")}>
-            {monthlyStats.totalPnl >= 0 ? "+" : ""}${monthlyStats.totalPnl.toLocaleString()}
+      <section className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <div className="surface p-5 text-center border border-border rounded-xl">
+          <p className="mb-2 text-label">Monthly P&L</p>
+          <p
+            className={cn(
+              "stat-large",
+              monthlyStats.totalPnl >= 0
+                ? "text-[var(--profit-primary)]"
+                : "text-[var(--loss-primary)]",
+            )}
+          >
+            {monthlyStats.totalPnl >= 0 ? "+" : ""}$
+            {monthlyStats.totalPnl.toLocaleString()}
           </p>
         </div>
-        <div className="card-void p-5 text-center">
-          <p className="text-label mb-2">Total Trades</p>
-          <p className="stat-large">{monthlyStats.totalTrades}</p>
+        <div className="surface p-5 text-center border border-border rounded-xl">
+          <p className="mb-2 text-label">Total Trades</p>
+          <p className="stat-large text-foreground">
+            {monthlyStats.totalTrades}
+          </p>
         </div>
-        <div className="card-void p-5 text-center">
-          <p className="text-label mb-2">Winning Days</p>
-          <p className="stat-large profit">{monthlyStats.winningDays}</p>
+        <div className="surface p-5 text-center border border-border rounded-xl">
+          <p className="mb-2 text-label">Winning Days</p>
+          <p className="stat-large text-[var(--profit-primary)]">
+            {monthlyStats.winningDays}
+          </p>
         </div>
-        <div className="card-void p-5 text-center">
-          <p className="text-label mb-2">Losing Days</p>
-          <p className="stat-large loss">{monthlyStats.losingDays}</p>
+        <div className="surface p-5 text-center border border-border rounded-xl">
+          <p className="mb-2 text-label">Losing Days</p>
+          <p className="stat-large text-[var(--loss-primary)]">
+            {monthlyStats.losingDays}
+          </p>
         </div>
-        <div className="card-void p-5 text-center">
-          <p className="text-label mb-2">Win Rate</p>
-          <p className="stat-large">{monthlyStats.winRate}%</p>
+        <div className="surface p-5 text-center border border-border rounded-xl">
+          <p className="mb-2 text-label">Win Rate</p>
+          <p className="stat-large text-foreground">{monthlyStats.winRate}%</p>
         </div>
       </section>
 
-      {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       )}
 
-      {/* Calendar Grid */}
       {!loading && (
-        <section className="card-void overflow-hidden">
-          {/* Weekday Headers */}
-          <div className="grid grid-cols-7 border-b border-white/5 bg-white/[0.02]">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+        <section className="border border-border rounded-xl overflow-hidden bg-background shadow-sm">
+          <div className="grid grid-cols-7 border-b border-border bg-muted/30">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
               <div
                 key={day}
-                className="py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider"
+                className="py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground"
               >
                 {day}
               </div>
             ))}
           </div>
 
-          {/* Calendar Days */}
-          <div className="grid grid-cols-7">
+          <div className="grid grid-cols-7 divide-x divide-y divide-border border-l border-t border-border">
             {calendarDays.map((day, index) => {
               const dateKey = format(day, "yyyy-MM-dd");
               const dayData = monthData.get(dateKey);
@@ -309,39 +351,48 @@ export function TradingCalendar() {
               return (
                 <div
                   key={index}
-                  onClick={() => isCurrentMonth && dayData && handleDayClick(day)}
+                  onClick={() =>
+                    isCurrentMonth && dayData && handleDayClick(day)
+                  }
                   className={cn(
-                    "min-h-[100px] p-2 border-b border-r border-white/5 transition-colors",
-                    !isCurrentMonth && "bg-white/[0.01] opacity-40",
-                    isCurrentMonth && dayData && "cursor-pointer hover:bg-white/[0.03]",
-                    isWeekend && isCurrentMonth && "bg-white/[0.01]"
+                    "min-h-[100px] p-2 transition-colors relative bg-background",
+                    !isCurrentMonth && "bg-muted/10 opacity-40",
+                    isCurrentMonth &&
+                      dayData &&
+                      "cursor-pointer hover:bg-accent/40",
+                    isWeekend && isCurrentMonth && "bg-muted/5",
                   )}
                 >
-                  {/* Day Number */}
-                  <div className={cn(
-                    "inline-flex items-center justify-center h-7 w-7 rounded-full text-sm font-medium mb-1",
-                    isCurrentDay && "bg-blue-500 text-white",
-                    !isCurrentDay && !isCurrentMonth && "text-muted-foreground"
-                  )}>
+                  <div
+                    className={cn(
+                      "mb-1 inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium",
+                      isCurrentDay && "bg-[var(--accent-primary)] text-white",
+                      !isCurrentDay &&
+                        !isCurrentMonth &&
+                        "text-muted-foreground",
+                      !isCurrentDay && isCurrentMonth && "text-foreground",
+                    )}
+                  >
                     {format(day, "d")}
                   </div>
 
-                  {/* Trade Summary */}
                   {dayData && isCurrentMonth && (
                     <div className="space-y-1">
-                      <div className={cn(
-                        "text-sm font-bold px-2 py-1 rounded border",
-                        getDayColor(dayData.totalPnl)
-                      )}>
-                        {dayData.totalPnl >= 0 ? "+" : ""}
-                        ${Math.abs(dayData.totalPnl).toFixed(0)}
+                      <div
+                        className={cn(
+                          "rounded border px-2 py-1 text-sm font-bold",
+                          getDayColor(dayData.totalPnl),
+                        )}
+                      >
+                        {dayData.totalPnl >= 0 ? "+" : ""}$
+                        {Math.abs(dayData.totalPnl).toFixed(0)}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <div className="flex items-center gap-0.5">
                           <Target className="h-3 w-3" />
                           {dayData.tradesCount}
                         </div>
-                        <span>•</span>
+                        <span aria-hidden="true">|</span>
                         <span>{dayData.winRate}%</span>
                       </div>
                     </div>
@@ -353,111 +404,135 @@ export function TradingCalendar() {
         </section>
       )}
 
-      {/* Empty State */}
       {!loading && trades.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No trades this month. Start logging trades to see them on your calendar!</p>
-          <Link href="/trades" className="text-cyan-400 hover:underline mt-2 inline-block">
-            Go to Trades →
+        <div className="py-8 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+          <p>
+            No trades this month. Start logging trades to see them on your
+            calendar!
+          </p>
+          <Link
+            href="/trades"
+            className="mt-2 inline-block text-[var(--accent-primary)] hover:underline"
+          >
+            Go to Trades -&gt;
           </Link>
         </div>
       )}
 
-      {/* Legend */}
       <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-green-500/30 border border-green-500/50" />
+          <div className="h-3 w-3 rounded border border-[var(--profit-primary)]/50 bg-[var(--profit-bg)]" />
           <span>Winning Day</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-red-500/30 border border-red-500/50" />
+          <div className="h-3 w-3 rounded border border-[var(--loss-primary)]/50 bg-[var(--loss-bg)]" />
           <span>Losing Day</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-white/5 border border-white/10" />
+          <div className="h-3 w-3 rounded border border-border bg-muted" />
           <span>No Trades</span>
         </div>
       </div>
 
-      {/* Day Details Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl bg-void-surface border-white/10">
+        <DialogContent className="max-w-2xl border-border bg-background sm:rounded-xl">
           {selectedDay && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <CalendarIcon className="h-5 w-5 text-blue-400" />
+                <DialogTitle className="flex items-center gap-2 text-foreground">
+                  <CalendarIcon className="h-5 w-5 text-[var(--accent-primary)]" />
                   {format(selectedDay.date, "EEEE, MMMM d, yyyy")}
                 </DialogTitle>
               </DialogHeader>
 
-              {/* Day Summary */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
-                  <div className="text-label">Total P&L</div>
-                  <div className={cn(
-                    "text-xl font-bold mt-1",
-                    selectedDay.totalPnl >= 0 ? "profit" : "loss"
-                  )}>
-                    {selectedDay.totalPnl >= 0 ? "+" : ""}${selectedDay.totalPnl.toFixed(2)}
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="text-label">Total P&amp;L</div>
+                  <div
+                    className={cn(
+                      "mt-1 text-xl font-bold",
+                      selectedDay.totalPnl >= 0
+                        ? "text-[var(--profit-primary)]"
+                        : "text-[var(--loss-primary)]",
+                    )}
+                  >
+                    {selectedDay.totalPnl >= 0 ? "+" : ""}$
+                    {selectedDay.totalPnl.toFixed(2)}
                   </div>
                 </div>
-                <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
                   <div className="text-label">Trades</div>
-                  <div className="text-xl font-bold mt-1">{selectedDay.tradesCount}</div>
+                  <div className="mt-1 text-xl font-bold text-foreground">
+                    {selectedDay.tradesCount}
+                  </div>
                 </div>
-                <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
                   <div className="text-label">Win Rate</div>
-                  <div className="text-xl font-bold mt-1">{selectedDay.winRate}%</div>
+                  <div className="mt-1 text-xl font-bold text-foreground">
+                    {selectedDay.winRate}%
+                  </div>
                 </div>
               </div>
 
-              {/* Trades List */}
               <div className="space-y-3">
-                <h4 className="font-semibold">Trades</h4>
-                <div className="space-y-2 max-h-[300px] overflow-auto">
-                  {selectedDay.trades.map(trade => (
+                <h4 className="font-semibold text-foreground">Trades</h4>
+                <div className="max-h-[300px] space-y-2 overflow-auto custom-scrollbar pr-2">
+                  {selectedDay.trades.map((trade) => (
                     <div
                       key={trade.id}
-                      className="flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/[0.02]"
+                      className="flex items-center justify-between rounded-lg border border-border bg-muted/10 p-3 hover:bg-muted/20 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "h-10 w-10 rounded-lg flex items-center justify-center",
-                          (trade.pnl ?? 0) >= 0 ? "bg-green-500/10" : "bg-red-500/10"
-                        )}>
-                          {(trade.pnl ?? 0) >= 0 ? (
-                            <TrendingUp className="h-5 w-5 text-green-500" />
+                        <div
+                          className={cn(
+                            "flex h-10 w-10 items-center justify-center rounded-lg border",
+                            trade.pnl >= 0
+                              ? "bg-[var(--profit-bg)] border-[var(--profit-primary)]/20 text-[var(--profit-primary)]"
+                              : "bg-[var(--loss-bg)] border-[var(--loss-primary)]/20 text-[var(--loss-primary)]",
+                          )}
+                        >
+                          {trade.pnl >= 0 ? (
+                            <TrendingUp className="h-5 w-5" />
                           ) : (
-                            <TrendingDown className="h-5 w-5 text-red-500" />
+                            <TrendingDown className="h-5 w-5" />
                           )}
                         </div>
                         <div>
-                          <div className="font-medium flex items-center gap-2">
+                          <div className="flex items-center gap-2 font-medium text-foreground">
                             {trade.symbol}
-                            <span className={cn(
-                              "badge-void text-[10px]",
-                              trade.direction === "LONG" ? "badge-profit" : "badge-loss"
-                            )}>
+                            <span
+                              className={cn(
+                                "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border",
+                                trade.direction === "LONG"
+                                  ? "bg-[var(--profit-bg)] text-[var(--profit-primary)] border-[var(--profit-primary)]/20"
+                                  : "bg-[var(--loss-bg)] text-[var(--loss-primary)] border-[var(--loss-primary)]/20",
+                              )}
+                            >
                               {trade.direction}
                             </span>
                           </div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-2">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                             <Clock className="h-3 w-3" />
-                            {trade.entryTime} {trade.exitTime ? `→ ${trade.exitTime}` : "(Open)"}
+                            {trade.entryTime}{" "}
+                            {trade.exitTime ? `-> ${trade.exitTime}` : "(Open)"}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={cn(
-                          "font-bold mono",
-                          (trade.pnl ?? 0) >= 0 ? "profit" : "loss"
-                        )}>
-                          {(trade.pnl ?? 0) >= 0 ? "+" : ""}${(trade.pnl ?? 0).toFixed(2)}
+                        <div
+                          className={cn(
+                            "mono font-bold",
+                            trade.pnl >= 0
+                              ? "text-[var(--profit-primary)]"
+                              : "text-[var(--loss-primary)]",
+                          )}
+                        >
+                          {trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)}
                         </div>
                         {trade.rMultiple !== null && (
-                          <div className="text-xs text-muted-foreground">
-                            {trade.rMultiple >= 0 ? "+" : ""}{trade.rMultiple.toFixed(1)}R
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {trade.rMultiple >= 0 ? "+" : ""}
+                            {trade.rMultiple.toFixed(1)}R
                           </div>
                         )}
                       </div>

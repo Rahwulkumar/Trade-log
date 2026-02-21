@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { TradeScreenshot } from "@/lib/terminal-farm/types";
+import { TradeScreenshot } from "@/lib/supabase/types";
 import { ImageIcon, Upload, Clock } from "lucide-react";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -15,33 +15,36 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type Timeframe = "4H" | "1H" | "15M" | "Execution";
+export type Timeframe = "4H" | "1H" | "15M" | "Execution" | "1m" | "5m";
 
 interface ScreenshotGalleryProps {
   screenshots: TradeScreenshot[];
   onUpload: (timeframe: Timeframe) => void;
   onViewFullscreen: (url: string) => void;
   className?: string;
+  /** If provided, only show these timeframes in the upload dropdown */
+  timeframesFilter?: Timeframe[];
 }
+
+const ALL_TIMEFRAMES: Timeframe[] = ["4H", "1H", "15M", "Execution"];
 
 export function ScreenshotGallery({
   screenshots = [],
   onUpload,
   onViewFullscreen,
   className,
+  timeframesFilter,
 }: ScreenshotGalleryProps) {
+  const availableTimeframes = timeframesFilter ?? ALL_TIMEFRAMES;
+
   const grouped = useMemo(() => {
-    const groups: Record<Timeframe, TradeScreenshot[]> = {
-      "4H": [],
-      "1H": [],
-      "15M": [],
-      Execution: [],
-    };
+    const groups: Record<string, TradeScreenshot[]> = {};
+    ALL_TIMEFRAMES.forEach((tf) => (groups[tf] = []));
+    ["1m", "5m"].forEach((tf) => (groups[tf] = []));
 
     screenshots.forEach((s) => {
-      const tf = (
-        typeof s === "string" ? "Execution" : s.timeframe
-      ) as Timeframe;
+      const tf =
+        typeof s === "string" ? "Execution" : (s.timeframe ?? "Execution");
       const data =
         typeof s === "string"
           ? {
@@ -51,8 +54,7 @@ export function ScreenshotGallery({
               trade_id: "legacy",
             }
           : s;
-
-      if (groups[tf]) {
+      if (groups[tf] !== undefined) {
         groups[tf].push(data);
       } else {
         groups["Execution"].push(data);
@@ -65,8 +67,6 @@ export function ScreenshotGallery({
   const getValidUrl = (url: string) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("/")) return url;
-
-    // Fallback for legacy raw storage paths
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (supabaseUrl) {
       return `${supabaseUrl}/storage/v1/object/public/trade-screenshots/${url}`;
@@ -74,39 +74,41 @@ export function ScreenshotGallery({
     return url;
   };
 
-  const timeframes: Timeframe[] = ["4H", "1H", "15M", "Execution"];
+  const displayTimeframes = availableTimeframes;
 
   return (
-    <div className={cn("p-4 flex flex-col h-full bg-transparent", className)}>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-            Recorded Assets
-          </span>
-        </div>
+    <div className={cn("p-4 flex flex-col h-full", className)}>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-label" style={{ color: "var(--text-tertiary)" }}>
+          Recorded Assets
+        </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
               size="sm"
-              className="bg-zinc-950 border-white/10 text-zinc-400 hover:bg-zinc-900 text-[10px] h-7 px-3 rounded-md transition-all"
+              className="h-7 px-3 text-[10px] rounded-md transition-all"
             >
-              <Upload className="w-3 h-3 mr-2" />
-              Upload asset
+              <Upload className="w-3 h-3 mr-1.5" />
+              Upload
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="bg-zinc-950 border-white/10 min-w-[140px] p-1 rounded-md"
-          >
-            <div className="px-2 py-1.5 text-[9px] font-semibold text-zinc-600 uppercase tracking-wider border-b border-white/5 mb-1">
+          <DropdownMenuContent align="end" className="min-w-[140px] p-1">
+            <div
+              className="px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider mb-1"
+              style={{
+                color: "var(--text-tertiary)",
+                borderBottom: "1px solid var(--border-subtle)",
+              }}
+            >
               Select timeframe
             </div>
-            {timeframes.map((tf) => (
+            {availableTimeframes.map((tf) => (
               <DropdownMenuItem
                 key={tf}
                 onClick={() => onUpload(tf)}
-                className="text-xs text-zinc-400 focus:bg-white/5 focus:text-white rounded-sm cursor-pointer py-2"
+                className="text-xs cursor-pointer py-2 rounded-sm"
               >
                 <Clock className="w-3 h-3 mr-2 opacity-50" />
                 {tf}
@@ -119,43 +121,60 @@ export function ScreenshotGallery({
       <ScrollArea className="flex-1 pr-2">
         <div className="space-y-6">
           {screenshots.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-muted-foreground/30 py-10">
-              <div className="relative mb-4">
+            <div className="flex flex-col items-center justify-center py-10 gap-3">
+              <div
+                className="relative"
+                style={{ color: "var(--text-tertiary)", opacity: 0.4 }}
+              >
                 <ImageIcon className="w-12 h-12" />
                 <Upload className="absolute -bottom-1 -right-1 w-5 h-5" />
               </div>
-              <p className="text-xs font-medium">No screenshots recorded</p>
-              <p className="text-[10px] uppercase tracking-tighter mt-1 italic">
+              <p
+                className="text-xs font-medium"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                No screenshots recorded
+              </p>
+              <p
+                className="text-[10px] uppercase tracking-tighter italic"
+                style={{ color: "var(--text-tertiary)", opacity: 0.6 }}
+              >
                 Waiting for execution data...
               </p>
             </div>
           ) : (
-            timeframes.map(
+            displayTimeframes.map(
               (tf) =>
-                grouped[tf].length > 0 && (
+                grouped[tf]?.length > 0 && (
                   <div key={tf} className="space-y-3">
+                    {/* Timeframe divider */}
                     <div className="flex items-center gap-2">
-                      <div className="h-px flex-1 bg-white/5" />
-                      <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-[0.2em] px-2 italic">
+                      <div
+                        className="h-px flex-1"
+                        style={{ background: "var(--border-subtle)" }}
+                      />
+                      <span
+                        className="text-[10px] font-mono uppercase tracking-[0.2em] px-2 italic"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
                         [{tf}_SNAPSHOT]
                       </span>
-                      <div className="h-px flex-1 bg-white/5" />
+                      <div
+                        className="h-px flex-1"
+                        style={{ background: "var(--border-subtle)" }}
+                      />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       {grouped[tf].map((s, i) => (
                         <div
                           key={i}
-                          className="group relative aspect-video bg-black/40 rounded-lg overflow-hidden border border-white/5 cursor-pointer hover:border-blue-500/30 transition-all shadow-lg"
-                          onClick={() =>
-                            onViewFullscreen({
-                              url: s.url,
-                              timeframe: tf,
-                              timestamp: s.timestamp
-                                ? new Date(s.timestamp).toISOString()
-                                : new Date().toISOString(),
-                            } as unknown as TradeScreenshot)
-                          }
+                          className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer transition-all"
+                          style={{
+                            background: "var(--surface-elevated)",
+                            border: "1px solid var(--border-default)",
+                          }}
+                          onClick={() => onViewFullscreen(s.url)}
                         >
                           <Image
                             src={getValidUrl(s.url)}
@@ -163,11 +182,18 @@ export function ScreenshotGallery({
                             fill
                             className="object-cover transition-transform duration-500 group-hover:scale-110"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                            <div className="flex items-center gap-1.5 text-[9px] text-white/70 font-mono">
+                          {/* Hover overlay */}
+                          <div
+                            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2"
+                            style={{
+                              background:
+                                "linear-gradient(to top, rgba(0,0,0,0.75), transparent)",
+                            }}
+                          >
+                            <div className="flex items-center gap-1.5 text-[9px] font-mono text-white/80">
                               <Clock className="w-3 h-3" />
-                              {s.timestamp
-                                ? format(new Date(s.timestamp), "h:mm a")
+                              {s.created_at
+                                ? format(new Date(s.created_at), "h:mm a")
                                 : "RECORDED"}
                             </div>
                           </div>

@@ -1,6 +1,5 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import type { TooltipProps } from "recharts";
 
 interface ChartTooltipProps extends TooltipProps<number, string> {
@@ -24,10 +23,8 @@ export function ChartTooltip({
     <div className="rounded-lg bg-card border border-border p-3 shadow-xl backdrop-blur-sm">
       <p className="text-sm text-muted-foreground mb-1">{label}</p>
       <p
-        className={cn(
-          "text-lg font-semibold",
-          isPositive ? "text-green-500" : "text-red-500",
-        )}
+        className="text-lg font-semibold"
+        style={{ color: isPositive ? "var(--profit-primary)" : "var(--loss-primary)" }}
       >
         {showSign && isPositive ? "+" : ""}
         {valueFormatter(value)}

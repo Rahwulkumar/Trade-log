@@ -21,6 +21,21 @@ export function StatCard({
   icon: Icon,
   description,
 }: StatCardProps) {
+  const isPositive = changeType === "positive";
+  const isNegative = changeType === "negative";
+
+  const iconBg = isPositive
+    ? "rgba(78,203,6,0.1)"
+    : isNegative
+      ? "rgba(255,68,85,0.1)"
+      : undefined;
+
+  const iconColor = isPositive
+    ? "var(--profit-primary)"
+    : isNegative
+      ? "var(--loss-primary)"
+      : undefined;
+
   return (
     <Card className="relative overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -28,20 +43,12 @@ export function StatCard({
           {title}
         </CardTitle>
         <div
-          className={cn(
-            "rounded-lg p-2",
-            changeType === "positive" && "bg-[hsl(var(--primary))]/10",
-            changeType === "negative" && "bg-red-500/10",
-            changeType === "neutral" && "bg-muted",
-          )}
+          className={cn("rounded-lg p-2", !iconBg && "bg-muted")}
+          style={iconBg ? { background: iconBg } : undefined}
         >
           <Icon
-            className={cn(
-              "h-4 w-4",
-              changeType === "positive" && "text-[hsl(var(--primary))]",
-              changeType === "negative" && "text-red-500",
-              changeType === "neutral" && "text-muted-foreground",
-            )}
+            className="h-4 w-4"
+            style={iconColor ? { color: iconColor } : { color: "var(--text-tertiary)" }}
           />
         </div>
       </CardHeader>
@@ -49,18 +56,14 @@ export function StatCard({
         <div className="text-2xl font-bold">{value}</div>
         {change && (
           <div className="flex items-center gap-1 mt-1">
-            {changeType === "positive" ? (
-              <ArrowUpRight className="h-4 w-4 text-[hsl(var(--primary))]" />
-            ) : changeType === "negative" ? (
-              <ArrowDownRight className="h-4 w-4 text-red-500" />
+            {isPositive ? (
+              <ArrowUpRight className="h-4 w-4" style={{ color: "var(--profit-primary)" }} />
+            ) : isNegative ? (
+              <ArrowDownRight className="h-4 w-4" style={{ color: "var(--loss-primary)" }} />
             ) : null}
             <span
-              className={cn(
-                "text-sm",
-                changeType === "positive" && "text-[hsl(var(--primary))]",
-                changeType === "negative" && "text-red-500",
-                changeType === "neutral" && "text-muted-foreground",
-              )}
+              className={cn("text-sm", !iconColor && "text-muted-foreground")}
+              style={iconColor ? { color: iconColor } : undefined}
             >
               {change}
             </span>
@@ -74,15 +77,14 @@ export function StatCard({
       </CardContent>
       {/* Decorative gradient */}
       <div
-        className={cn(
-          "absolute bottom-0 left-0 right-0 h-1",
-          changeType === "positive" &&
-            "bg-gradient-to-r from-[hsl(var(--primary))] to-[#c9b89a]",
-          changeType === "negative" &&
-            "bg-gradient-to-r from-red-500 to-orange-500",
-          changeType === "neutral" &&
-            "bg-gradient-to-r from-gray-400 to-gray-500",
-        )}
+        className="absolute bottom-0 left-0 right-0 h-1"
+        style={{
+          background: isPositive
+            ? "linear-gradient(to right, var(--profit-primary), rgba(78,203,6,0.3))"
+            : isNegative
+              ? "linear-gradient(to right, var(--loss-primary), rgba(255,68,85,0.3))"
+              : "linear-gradient(to right, var(--text-tertiary), var(--border-default))",
+        }}
       />
     </Card>
   );

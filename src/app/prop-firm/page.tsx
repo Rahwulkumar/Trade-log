@@ -34,7 +34,6 @@ import {
 } from "lucide-react";
 import {
   enableAutoSync,
-  getTerminalStatus,
   getTerminalStatusByPropAccount,
   disableAutoSync,
   createMT5Account,
@@ -275,7 +274,12 @@ export default function PropFirmPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this account? This will also delete any linked MT5 accounts and cannot be undone.")) return;
+    if (
+      !confirm(
+        "Are you sure you want to delete this account? This will also delete any linked MT5 accounts and cannot be undone.",
+      )
+    )
+      return;
 
     setIsDeleting(id);
     setError(null);
@@ -285,32 +289,37 @@ export default function PropFirmPage() {
       try {
         const mt5Status = await getTerminalStatusByPropAccount(id);
         if (mt5Status.connected && mt5Status.mt5AccountId) {
-          console.log("[Delete] Disabling auto-sync for MT5 account:", mt5Status.mt5AccountId);
           await disableAutoSync(mt5Status.mt5AccountId);
           // Give orchestrator a moment to process the stop command
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       } catch (mt5Err) {
-        console.warn("[Delete] Error disabling MT5 auto-sync (continuing with delete):", mt5Err);
+        console.warn(
+          "[Delete] Error disabling MT5 auto-sync (continuing with delete):",
+          mt5Err,
+        );
         // Continue with deletion even if MT5 disable fails
       }
 
       // Delete the prop account
       await deletePropAccount(id);
-      
+
       // Clear selection if this was the selected account
       setSelectedAccount(null);
       if (selectedAccountId === id) setSelectedAccountId(null);
-      
+
       // Reload accounts list
       await loadAccounts();
-      
+
       // Clear any errors
       setError(null);
     } catch (err) {
       console.error("[Delete] Error deleting prop account:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to delete account";
-      setError(`Failed to delete account: ${errorMessage}. Please check the browser console for details.`);
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to delete account";
+      setError(
+        `Failed to delete account: ${errorMessage}. Please check the browser console for details.`,
+      );
     } finally {
       setIsDeleting(null);
     }
@@ -327,7 +336,7 @@ export default function PropFirmPage() {
   if (!authLoading && !isConfigured) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-8 text-center max-w-md">
+        <div className="surface p-8 text-center max-w-md">
           <h2 className="text-xl font-semibold mb-2">
             Supabase Not Configured
           </h2>
@@ -342,14 +351,14 @@ export default function PropFirmPage() {
   if (!authLoading && !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-8 text-center max-w-md">
+        <div className="surface p-8 text-center max-w-md">
           <h2 className="text-xl font-semibold mb-2">Login Required</h2>
           <p className="text-muted-foreground mb-4">
             Please sign in to manage your prop accounts.
           </p>
           <a
             href="/auth/login"
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-4 py-2 rounded-lg font-medium"
+            className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-medium hover:bg-[var(--accent-secondary)] transition-colors"
           >
             Sign In
           </a>
@@ -359,9 +368,9 @@ export default function PropFirmPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="p-4 sm:p-5 lg:p-6 space-y-6 lg:space-y-8 max-w-[1280px]">
       {/* Header */}
-      <section className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-label mb-1">Prop Firm</p>
           <h1 className="headline-lg">Account Tracker</h1>
@@ -373,7 +382,7 @@ export default function PropFirmPage() {
               value={selectedAccount?.id || "all"}
               onValueChange={handleAccountChange}
             >
-              <SelectTrigger className="w-[280px] bg-void-surface border-white/10">
+              <SelectTrigger className="w-full sm:w-[280px] bg-card border-border">
                 <SelectValue placeholder="Select account" />
               </SelectTrigger>
               <SelectContent>
@@ -387,7 +396,7 @@ export default function PropFirmPage() {
             </Select>
           )}
           <button
-            className="bg-transparent border border-white/10 hover:bg-white/5 p-2 rounded-lg"
+            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
             onClick={loadAccounts}
             title="Refresh"
           >
@@ -395,12 +404,12 @@ export default function PropFirmPage() {
           </button>
           <Dialog open={isNewAccountOpen} onOpenChange={setIsNewAccountOpen}>
             <DialogTrigger asChild>
-              <button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-4 py-2 rounded-lg font-medium">
+              <button className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-semibold hover:bg-[var(--accent-secondary)] transition-colors">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Account
               </button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] bg-void-surface border-white/10">
+            <DialogContent className="sm:max-w-[500px] bg-card border-border">
               <form onSubmit={handleSubmit}>
                 <DialogHeader>
                   <DialogTitle>Add Prop Account</DialogTitle>
@@ -415,7 +424,7 @@ export default function PropFirmPage() {
                       value={selectedFirmId}
                       onValueChange={setSelectedFirmId}
                     >
-                      <SelectTrigger className="bg-void border-white/10">
+                      <SelectTrigger className="bg-card border-border">
                         <SelectValue placeholder="Select Prop Firm" />
                       </SelectTrigger>
                       <SelectContent>
@@ -435,7 +444,7 @@ export default function PropFirmPage() {
                         value={selectedChallengeId}
                         onValueChange={setSelectedChallengeId}
                       >
-                        <SelectTrigger className="bg-void border-white/10">
+                        <SelectTrigger className="bg-card border-border">
                           <SelectValue placeholder="Select Challenge" />
                         </SelectTrigger>
                         <SelectContent>
@@ -457,7 +466,7 @@ export default function PropFirmPage() {
                       );
                       if (!challenge) return null;
                       return (
-                        <div className="p-4 rounded-lg bg-void border border-white/5 space-y-3">
+                        <div className="p-4 rounded-lg bg-card border border-border-subtle space-y-3">
                           <h4 className="text-sm font-medium text-muted-foreground mb-2">
                             Challenge Rules
                           </h4>
@@ -521,7 +530,7 @@ export default function PropFirmPage() {
                     <Label>Account Name</Label>
                     <Input
                       placeholder="e.g. My FTMO Account"
-                      className="bg-void border-white/10"
+                      className="bg-card border-border"
                       value={formData.name}
                       onChange={(e) =>
                         setFormData({ ...formData, name: e.target.value })
@@ -533,7 +542,7 @@ export default function PropFirmPage() {
                     <Label>Start Date</Label>
                     <Input
                       type="date"
-                      className="bg-void border-white/10"
+                      className="bg-card border-border"
                       value={formData.start_date}
                       onChange={(e) =>
                         setFormData({ ...formData, start_date: e.target.value })
@@ -544,14 +553,14 @@ export default function PropFirmPage() {
                 <DialogFooter>
                   <button
                     type="button"
-                    className="bg-transparent border border-white/10 hover:bg-white/5 rounded-lg px-4 py-2"
+                    className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-sm"
                     onClick={() => setIsNewAccountOpen(false)}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-4 py-2 rounded-lg font-medium"
+                    className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-semibold hover:bg-[var(--accent-secondary)] transition-colors disabled:opacity-50"
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
@@ -586,13 +595,13 @@ export default function PropFirmPage() {
 
       {/* Empty State */}
       {!loading && accounts.length === 0 && (
-        <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-12 text-center">
+        <div className="surface p-12 text-center">
           <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground mb-4">
             No prop accounts yet. Add one to start tracking!
           </p>
           <button
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-4 py-2 rounded-lg font-medium"
+            className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-semibold hover:bg-[var(--accent-secondary)] transition-colors"
             onClick={() => setIsNewAccountOpen(true)}
           >
             <Plus className="h-4 w-4" />
@@ -607,7 +616,7 @@ export default function PropFirmPage() {
           {accounts.map((account) => (
             <div
               key={account.id}
-              className="bg-black/60 backdrop-blur-xl border border-indigo-500/20 shadow-[0_0_30px_rgba(99,102,241,0.1)] rounded-xl p-6 cursor-pointer hover:border-blue-500/50 transition-all group"
+              className="card-glow p-6 cursor-pointer hover:border-blue-500/50 transition-all group"
               onClick={() => handleAccountChange(account.id)}
             >
               <div className="flex justify-between items-start mb-4">
@@ -621,10 +630,10 @@ export default function PropFirmPage() {
                 </div>
                 <span
                   className={cn(
-                    "badge-void px-2 py-0.5 text-xs capitalize",
+                    "inline-flex items-center rounded px-2 py-0.5 text-xs font-medium capitalize",
                     account.status === "active"
-                      ? "text-green-400 border-green-400/20"
-                      : "text-muted-foreground",
+                      ? "bg-[var(--profit-bg)] text-[var(--profit-primary)]"
+                      : "bg-muted text-muted-foreground",
                   )}
                 >
                   {account.status}
@@ -661,7 +670,7 @@ export default function PropFirmPage() {
 
                 {/* Drawdown Progress Mini */}
                 {account.daily_dd_max && (
-                  <div className="space-y-1 pt-2 border-t border-white/5">
+                  <div className="space-y-1 pt-2 border-t border-border-subtle">
                     <div className="flex justify-between text-xs">
                       <span className="text-muted-foreground">Daily DD</span>
                       <span
@@ -684,7 +693,7 @@ export default function PropFirmPage() {
                         %
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                       <div
                         className={cn(
                           "h-full rounded-full",
@@ -713,7 +722,7 @@ export default function PropFirmPage() {
       {!loading && selectedAccount && (
         <div className="grid gap-6 md:grid-cols-3">
           {/* Main Status Card */}
-          <div className="bg-black/60 backdrop-blur-xl border border-indigo-500/20 shadow-[0_0_30px_rgba(99,102,241,0.1)] rounded-xl p-6 md:col-span-2">
+          <div className="card-glow p-6 md:col-span-2">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-blue-500/10">
@@ -728,29 +737,16 @@ export default function PropFirmPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  className="bg-transparent border border-white/10 hover:bg-white/5 rounded-lg text-xs px-3 py-1 flex items-center gap-2 border-blue-500/20 text-blue-400 hover:bg-blue-500/10"
+                  className="btn-base btn-ghost rounded-lg text-xs px-3 py-1 flex items-center gap-2"
                   onClick={() => {
-                    console.log(
-                      "🟢 [BUTTON] Sync MT5 clicked, selectedAccount:",
-                      selectedAccount?.id,
-                    );
                     setIsSyncDialogOpen(true);
 
                     // Fetch status immediately since onOpenChange doesn't fire on open
                     if (selectedAccount) {
-                      console.log(
-                        "🟢 [BUTTON] Fetching Terminal status for account:",
-                        selectedAccount.id,
-                      );
                       setTerminalLoading(true);
                       setMt5Error(null);
                       getTerminalStatusByPropAccount(selectedAccount.id)
                         .then((result) => {
-                          console.log("🟢 [BUTTON] Terminal status result:", {
-                            connected: result.connected,
-                            terminalId: result.terminal?.terminalId,
-                            mt5AccountId: result.mt5AccountId,
-                          });
                           setTerminalStatus(
                             result.connected
                               ? {
@@ -763,14 +759,10 @@ export default function PropFirmPage() {
                                 }
                               : { connected: false },
                           );
-                          console.log(
-                            "🟢 [BUTTON] Set terminalStatus state:",
-                            result.connected ? "CONNECTED" : "NOT CONNECTED",
-                          );
                         })
                         .catch((error) => {
                           console.error(
-                            "🔴 [BUTTON] Error fetching Terminal status:",
+                            "Error fetching terminal status:",
                             error,
                           );
                           setMt5Error("Failed to check connection status");
@@ -784,10 +776,10 @@ export default function PropFirmPage() {
                 </button>
                 <span
                   className={cn(
-                    "badge-void px-3 py-1",
+                    "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium",
                     selectedAccount.compliance?.isCompliant
-                      ? "text-green-400 border-green-400/20 bg-green-400/10"
-                      : "text-red-400 border-red-400/20 bg-red-400/10",
+                      ? "bg-[var(--profit-bg)] text-[var(--profit-primary)]"
+                      : "bg-[var(--loss-bg)] text-[var(--loss-primary)]",
                   )}
                 >
                   {selectedAccount.compliance?.isCompliant ? (
@@ -815,7 +807,7 @@ export default function PropFirmPage() {
             </div>
 
             {/* Account Balance */}
-            <div className="flex justify-between items-center p-4 rounded-lg bg-white/[0.02] border border-white/5 mb-6">
+            <div className="flex justify-between items-center p-4 rounded-lg bg-muted/20 border border-border-subtle mb-6">
               <div>
                 <p className="text-label">Current Balance</p>
                 <p className="stat-huge mt-1">
@@ -850,7 +842,7 @@ export default function PropFirmPage() {
             <div className="grid gap-4 md:grid-cols-2">
               {/* Daily Drawdown */}
               {selectedAccount.daily_dd_max && (
-                <div className="space-y-3 p-4 rounded-lg bg-white/[0.02] border border-white/5">
+                <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border-subtle">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Daily Drawdown</span>
                     <span className="text-sm">
@@ -862,7 +854,7 @@ export default function PropFirmPage() {
                       %
                     </span>
                   </div>
-                  <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all",
@@ -893,7 +885,7 @@ export default function PropFirmPage() {
 
               {/* Total Drawdown */}
               {selectedAccount.total_dd_max && (
-                <div className="space-y-3 p-4 rounded-lg bg-white/[0.02] border border-white/5">
+                <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border-subtle">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Total Drawdown</span>
                     <span className="text-sm">
@@ -905,7 +897,7 @@ export default function PropFirmPage() {
                       %
                     </span>
                   </div>
-                  <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all",
@@ -938,7 +930,7 @@ export default function PropFirmPage() {
             {/* Profit Target */}
             {selectedAccount.profit_target &&
               selectedAccount.compliance?.profitProgress !== null && (
-                <div className="space-y-3 p-4 rounded-lg bg-white/[0.02] border border-white/5 mt-4">
+                <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border-subtle mt-4">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Profit Target</span>
                     <span className="text-sm">
@@ -953,7 +945,7 @@ export default function PropFirmPage() {
                       %
                     </span>
                   </div>
-                  <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
                       style={{
@@ -976,7 +968,7 @@ export default function PropFirmPage() {
 
           {/* Quick Stats */}
           <div className="space-y-4">
-            <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-6">
+            <div className="surface p-6">
               <div className="flex items-center gap-3">
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 <div>
@@ -987,7 +979,7 @@ export default function PropFirmPage() {
                 </div>
               </div>
             </div>
-            <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-6">
+            <div className="surface p-6">
               <div className="flex items-center gap-3">
                 <BarChart3 className="h-5 w-5 text-muted-foreground" />
                 <div>
@@ -998,7 +990,7 @@ export default function PropFirmPage() {
                 </div>
               </div>
             </div>
-            <div className="bg-black/60 backdrop-blur-xl border border-white/5 rounded-xl p-6">
+            <div className="surface p-6">
               <div className="flex items-center gap-3">
                 <Shield className="h-5 w-5 text-muted-foreground" />
                 <div>
@@ -1025,26 +1017,12 @@ export default function PropFirmPage() {
       <Dialog
         open={isSyncDialogOpen}
         onOpenChange={(open) => {
-          console.log("🔵 [FRONTEND] Dialog onOpenChange:", {
-            open,
-            hasSelectedAccount: !!selectedAccount,
-            selectedAccountId: selectedAccount?.id,
-          });
           setIsSyncDialogOpen(open);
           if (open && selectedAccount) {
-            console.log(
-              "🔵 [FRONTEND] Fetching Terminal status for account:",
-              selectedAccount.id,
-            );
             // Fetch connection status when dialog opens
             setTerminalLoading(true);
             getTerminalStatusByPropAccount(selectedAccount.id)
               .then((result) => {
-                console.log("🔵 [FRONTEND] Terminal status result:", {
-                  connected: result.connected,
-                  terminalId: result.terminal?.terminalId,
-                  mt5AccountId: result.mt5AccountId,
-                });
                 setTerminalStatus(
                   result.connected
                     ? {
@@ -1057,29 +1035,15 @@ export default function PropFirmPage() {
                       }
                     : { connected: false },
                 );
-                console.log(
-                  "🔵 [FRONTEND] Set terminalStatus state:",
-                  result.connected ? "CONNECTED" : "NOT CONNECTED",
-                );
               })
               .catch((error) => {
-                console.error(
-                  "🔴 [FRONTEND] Error fetching Terminal status:",
-                  error,
-                );
+                console.error("Error fetching terminal status:", error);
               })
               .finally(() => setTerminalLoading(false));
-          } else {
-            console.log(
-              "🔵 [FRONTEND] Skipping status fetch - open:",
-              open,
-              "selectedAccount:",
-              !!selectedAccount,
-            );
           }
         }}
       >
-        <DialogContent className="sm:max-w-[500px] bg-void-surface border-white/10">
+        <DialogContent className="sm:max-w-[500px] bg-card border-border">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Cloud className="h-5 w-5 text-blue-400" />
@@ -1166,7 +1130,9 @@ export default function PropFirmPage() {
                   );
                   if (confirmed) {
                     // Find MT5 account ID first
-                    const status = await getTerminalStatusByPropAccount(selectedAccount.id);
+                    const status = await getTerminalStatusByPropAccount(
+                      selectedAccount.id,
+                    );
                     if (status.mt5AccountId) {
                       await disableAutoSync(status.mt5AccountId);
                       setTerminalStatus({ connected: false });
@@ -1237,7 +1203,7 @@ export default function PropFirmPage() {
 
               <DialogFooter>
                 <button
-                  className="bg-transparent border border-white/10 hover:bg-white/5 rounded-lg w-full py-2.5 flex items-center justify-center gap-2"
+                  className="btn-base btn-primary w-full"
                   onClick={async () => {
                     if (!selectedAccount) return;
                     setTerminalLoading(true);

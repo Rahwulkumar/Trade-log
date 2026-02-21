@@ -4,7 +4,10 @@ import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
-import { getAllPlaybooksWithStats, type PlaybookStats } from "@/lib/api/playbooks";
+import {
+  getAllPlaybooksWithStats,
+  type PlaybookStats,
+} from "@/lib/api/playbooks";
 
 interface TopPlaybooksProps {
   propAccountId?: string | null;
@@ -58,26 +61,34 @@ export function TopPlaybooks({ propAccountId }: TopPlaybooksProps) {
       {playbooks.map((pb) => (
         <div
           key={pb.playbook.id}
-          className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors cursor-pointer border border-transparent hover:border-white/5"
+          className="flex cursor-pointer items-center justify-between rounded-lg border border-border-subtle bg-muted/20 p-4 transition-colors hover:bg-accent/40"
         >
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               {pb.totalPnl >= 0 ? (
-                <TrendingUp className="h-4 w-4 text-green-500" />
+                <TrendingUp className="h-4 w-4 text-[var(--profit-primary)]" />
               ) : (
-                <TrendingDown className="h-4 w-4 text-red-500" />
+                <TrendingDown className="h-4 w-4 text-[var(--loss-primary)]" />
               )}
               <span className="font-medium">{pb.playbook.name}</span>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-6">
             <div className="text-right">
-              <span className="text-sm text-muted-foreground">{pb.winRate.toFixed(1)}%</span>
+              <span className="text-sm text-muted-foreground">
+                {pb.winRate.toFixed(1)}%
+              </span>
             </div>
             <div className="text-right w-24">
-              <span className={cn("font-semibold mono", pb.totalPnl >= 0 ? "profit" : "loss")}>
-                {pb.totalPnl >= 0 ? "+" : ""}${Math.abs(pb.totalPnl).toLocaleString()}
+              <span
+                className={cn(
+                  "font-semibold mono",
+                  pb.totalPnl >= 0 ? "profit" : "loss",
+                )}
+              >
+                {pb.totalPnl >= 0 ? "+" : ""}$
+                {Math.abs(pb.totalPnl).toLocaleString()}
               </span>
             </div>
           </div>

@@ -652,19 +652,30 @@ export type Database = {
           checked_rules: string[] | null
           commission: number | null
           contract_size: number | null
+          conviction: number | null
           created_at: string | null
           direction: string
           entry_date: string
           entry_price: number
+          entry_rating: string | null
+          execution_arrays: Json | null
           execution_grade: string | null
+          execution_notes: string | null
           exit_date: string | null
           exit_price: number | null
+          exit_rating: string | null
           external_deal_id: string | null
           external_id: string | null
           external_ticket: string | null
           feelings: string | null
           id: string
+          lesson_learned: string | null
+          mae: number | null
           magic_number: number | null
+          management_rating: string | null
+          market_condition: string | null
+          mfe: number | null
+          mistake_tags: string[] | null
           mt5_account_id: string | null
           notes: string | null
           observations: string | null
@@ -674,12 +685,16 @@ export type Database = {
           prop_account_id: string | null
           r_multiple: number | null
           screenshots: Json | null
+          session: string | null
+          setup_tags: string[] | null
           status: string | null
           stop_loss: number | null
           swap: number | null
           symbol: string
           take_profit: number | null
+          tf_observations: Json | null
           user_id: string
+          would_take_again: boolean | null
         }
         Insert: {
           ai_setup_notes?: string | null
@@ -689,19 +704,30 @@ export type Database = {
           checked_rules?: string[] | null
           commission?: number | null
           contract_size?: number | null
+          conviction?: number | null
           created_at?: string | null
           direction: string
           entry_date: string
           entry_price: number
+          entry_rating?: string | null
+          execution_arrays?: Json | null
           execution_grade?: string | null
+          execution_notes?: string | null
           exit_date?: string | null
           exit_price?: number | null
+          exit_rating?: string | null
           external_deal_id?: string | null
           external_id?: string | null
           external_ticket?: string | null
           feelings?: string | null
           id?: string
+          lesson_learned?: string | null
+          mae?: number | null
           magic_number?: number | null
+          management_rating?: string | null
+          market_condition?: string | null
+          mfe?: number | null
+          mistake_tags?: string[] | null
           mt5_account_id?: string | null
           notes?: string | null
           observations?: string | null
@@ -711,12 +737,16 @@ export type Database = {
           prop_account_id?: string | null
           r_multiple?: number | null
           screenshots?: Json | null
+          session?: string | null
+          setup_tags?: string[] | null
           status?: string | null
           stop_loss?: number | null
           swap?: number | null
           symbol: string
           take_profit?: number | null
+          tf_observations?: Json | null
           user_id: string
+          would_take_again?: boolean | null
         }
         Update: {
           ai_setup_notes?: string | null
@@ -726,19 +756,30 @@ export type Database = {
           checked_rules?: string[] | null
           commission?: number | null
           contract_size?: number | null
+          conviction?: number | null
           created_at?: string | null
           direction?: string
           entry_date?: string
           entry_price?: number
+          entry_rating?: string | null
+          execution_arrays?: Json | null
           execution_grade?: string | null
+          execution_notes?: string | null
           exit_date?: string | null
           exit_price?: number | null
+          exit_rating?: string | null
           external_deal_id?: string | null
           external_id?: string | null
           external_ticket?: string | null
           feelings?: string | null
           id?: string
+          lesson_learned?: string | null
+          mae?: number | null
           magic_number?: number | null
+          management_rating?: string | null
+          market_condition?: string | null
+          mfe?: number | null
+          mistake_tags?: string[] | null
           mt5_account_id?: string | null
           notes?: string | null
           observations?: string | null
@@ -748,12 +789,16 @@ export type Database = {
           prop_account_id?: string | null
           r_multiple?: number | null
           screenshots?: Json | null
+          session?: string | null
+          setup_tags?: string[] | null
           status?: string | null
           stop_loss?: number | null
           swap?: number | null
           symbol?: string
           take_profit?: number | null
+          tf_observations?: Json | null
           user_id?: string
+          would_take_again?: boolean | null
         }
         Relationships: [
           {
@@ -999,6 +1044,13 @@ export interface TradeScreenshot {
     created_at?: string;
     updated_at?: string;
 }
+
+// TfObservations — per-timeframe top-down bias data stored in trade.tf_observations
+export type TfObservations = Record<string, {
+  bias?: "Bullish" | "Neutral" | "Bearish";
+  notes: string;
+  pd_arrays?: string[];
+}>
 
 // ChartCandle - manual interface (chart_data table may not exist in remote schema)
 export interface ChartCandle {

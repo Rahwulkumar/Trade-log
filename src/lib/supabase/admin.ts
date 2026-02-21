@@ -11,10 +11,9 @@ export function createAdminClient() {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!serviceRoleKey) {
-        console.warn('[Supabase Admin] SERVICE_ROLE_KEY not found, falling back to anon key (RLS enforced)')
-        return createSupabaseClient<Database>(
-            supabaseUrl,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        throw new Error(
+            '[Supabase Admin] SUPABASE_SERVICE_ROLE_KEY is not set. ' +
+            'The admin client requires the service role key to bypass RLS.'
         )
     }
 

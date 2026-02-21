@@ -35,8 +35,8 @@ export function JournalTabs({
                 value={symbol}
                 className={cn(
                   "relative flex flex-col items-center justify-center px-4 py-2 rounded-md transition-all duration-200 min-w-[100px] border h-auto",
-                  "data-[state=active]:bg-white/5 data-[state=active]:border-white/20 data-[state=active]:text-white",
-                  "data-[state=inactive]:bg-transparent data-[state=inactive]:border-transparent data-[state=inactive]:text-zinc-500 data-[state=inactive]:hover:text-zinc-300",
+                  "data-[state=active]:bg-[var(--accent-primary)]/10 data-[state=active]:border-[var(--accent-primary)]/20 data-[state=active]:text-[var(--accent-primary)]",
+                  "data-[state=inactive]:bg-transparent data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground",
                   "outline-none",
                 )}
               >
@@ -46,14 +46,15 @@ export function JournalTabs({
 
                 <div className="flex items-center gap-2 mt-0.5">
                   <span
-                    className={cn(
-                      "text-[9px] font-mono",
-                      totalPnl > 0
-                        ? "text-emerald-500/80"
-                        : totalPnl < 0
-                          ? "text-rose-500/80"
-                          : "text-zinc-600",
-                    )}
+                    className="text-[9px] font-mono"
+                    style={{
+                      color:
+                        totalPnl > 0
+                          ? "var(--profit-primary)"
+                          : totalPnl < 0
+                            ? "var(--loss-primary)"
+                            : "var(--text-tertiary)",
+                    }}
                   >
                     {totalPnl > 0 ? "+" : ""}
                     {totalPnl.toFixed(0)}

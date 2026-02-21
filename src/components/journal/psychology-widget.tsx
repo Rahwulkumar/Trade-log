@@ -21,11 +21,11 @@ export function PsychologyWidget({
   return (
     <div className={cn("p-4 space-y-8 h-full bg-transparent", className)}>
       <div className="space-y-3">
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 block px-1">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block px-1">
           Emotional State
         </label>
         <Textarea
-          className="w-full h-24 bg-zinc-950/50 border-white/5 rounded-md px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-white/20 transition-all resize-none placeholder:text-zinc-800"
+          className="w-full h-24 bg-muted/30 border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[var(--accent-primary)] transition-all resize-none placeholder:text-muted-foreground/50"
           placeholder="How did you feel during the trade? (Calm, FOMO, Anxious...)"
           value={feelings}
           onChange={(e) => onFeelingsChange(e.target.value)}
@@ -33,11 +33,11 @@ export function PsychologyWidget({
       </div>
 
       <div className="space-y-3">
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 block px-1">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block px-1">
           Market Observations
         </label>
         <Textarea
-          className="w-full h-24 bg-zinc-950/50 border-white/5 rounded-md px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-white/20 transition-all resize-none placeholder:text-zinc-800"
+          className="w-full h-24 bg-muted/30 border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[var(--accent-primary)] transition-all resize-none placeholder:text-muted-foreground/50"
           placeholder="What did you see in the price action? (Liquidity, Session bias...)"
           value={observations}
           onChange={(e) => onObservationsChange(e.target.value)}

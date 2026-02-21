@@ -19,18 +19,13 @@ export function CommandPanel({
   headerAction,
 }: CommandPanelProps) {
   return (
-    <Card
-      className={cn(
-        "bg-zinc-950 border-white/10 overflow-hidden flex flex-col h-full rounded-md",
-        className,
-      )}
-    >
+    <Card className={cn("overflow-hidden flex flex-col h-full", className)}>
       {(title || icon) && (
-        <CardHeader className="px-4 py-3 border-b border-white/5 flex flex-row items-center justify-between shrink-0 space-y-0">
+        <CardHeader className="px-4 py-3 border-b border-border flex flex-row items-center justify-between shrink-0 space-y-0">
           <div className="flex items-center gap-2">
-            {icon && <div className="text-blue-400">{icon}</div>}
+            {icon && <div className="text-[var(--accent-primary)]">{icon}</div>}
             {title && (
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {title}
               </CardTitle>
             )}
