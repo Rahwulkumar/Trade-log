@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
 import { getTrades } from "@/lib/api/trades";
-import { Badge } from "@/components/ui/badge";
+
 import type { Trade } from "@/lib/supabase/types";
 
 interface RecentTradesProps {
@@ -56,57 +56,74 @@ export function RecentTrades({ limit = 5, propAccountId }: RecentTradesProps) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="table-void w-full">
-        <thead>
+      <table className="w-full text-sm text-left">
+        <thead className="text-xs text-muted-foreground uppercase bg-muted/30 border-b border-border">
           <tr>
-            <th>Symbol</th>
-            <th>Direction</th>
-            <th className="text-right">Entry</th>
-            <th className="text-right">Exit</th>
-            <th className="text-right">P&L</th>
-            <th className="text-right">R-Multiple</th>
-            <th className="text-right">Date</th>
+            <th className="px-4 py-3 font-medium">Symbol</th>
+            <th className="px-4 py-3 font-medium">Direction</th>
+            <th className="px-4 py-3 font-medium text-right">Entry</th>
+            <th className="px-4 py-3 font-medium text-right">Exit</th>
+            <th className="px-4 py-3 font-medium text-right">P&L</th>
+            <th className="px-4 py-3 font-medium text-right">R-Multiple</th>
+            <th className="px-4 py-3 font-medium text-right">Date</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-border">
           {trades.map((trade) => (
-            <tr key={trade.id} className="cursor-pointer">
-              <td className="font-medium">{trade.symbol}</td>
-              <td>
-                <Badge variant={trade.direction === "LONG" ? "profit" : "loss"}>
+            <tr
+              key={trade.id}
+              className="group cursor-pointer hover:bg-muted/30 transition-colors"
+            >
+              <td className="px-4 py-3 font-medium text-foreground">
+                {trade.symbol}
+              </td>
+              <td className="px-4 py-3">
+                <div
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border",
+                    trade.direction === "LONG"
+                      ? "bg-[var(--profit-bg)] text-[var(--profit-primary)] border-[var(--profit-primary)]/20"
+                      : "bg-[var(--loss-bg)] text-[var(--loss-primary)] border-[var(--loss-primary)]/20",
+                  )}
+                >
                   {trade.direction === "LONG" ? (
                     <ArrowUp className="h-3 w-3" />
                   ) : (
                     <ArrowDown className="h-3 w-3" />
                   )}
                   {trade.direction}
-                </Badge>
+                </div>
               </td>
-              <td className="text-right mono text-muted-foreground">
+              <td className="px-4 py-3 text-right font-mono text-muted-foreground">
                 {trade.entry_price}
               </td>
-              <td className="text-right mono text-muted-foreground">
+              <td className="px-4 py-3 text-right font-mono text-muted-foreground">
                 {trade.exit_price || "-"}
               </td>
               <td
                 className={cn(
-                  "text-right font-medium mono",
-                  (trade.pnl || 0) >= 0 ? "text-green-500" : "text-red-500",
+                  "px-4 py-3 text-right font-mono font-medium",
+                  (trade.pnl || 0) >= 0
+                    ? "text-[var(--profit-primary)]"
+                    : "text-[var(--loss-primary)]",
                 )}
               >
-                {(trade.pnl || 0) >= 0 ? "+" : ""}${(trade.pnl || 0).toFixed(2)}
+                {(trade.pnl || 0) >= 0 ? "+" : ""}
+                {(trade.pnl || 0).toFixed(2)}
               </td>
               <td
                 className={cn(
-                  "text-right mono",
-                  (trade.r_multiple || 0) >= 0 ? "" : "text-red-500",
+                  "px-4 py-3 text-right font-mono",
+                  (trade.r_multiple || 0) >= 0
+                    ? "text-[var(--profit-primary)]"
+                    : "text-[var(--loss-primary)]",
                 )}
               >
                 {trade.r_multiple
                   ? `${trade.r_multiple >= 0 ? "+" : ""}${trade.r_multiple.toFixed(1)}R`
                   : "-"}
               </td>
-              <td className="text-right text-muted-foreground">
+              <td className="px-4 py-3 text-right text-muted-foreground">
                 {new Date(trade.entry_date).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",

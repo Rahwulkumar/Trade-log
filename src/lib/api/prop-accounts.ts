@@ -180,7 +180,8 @@ export async function checkCompliance(accountId: string): Promise<ComplianceStat
     // Calculate profit progress
     let profitProgress: number | null = null
     if (account.profit_target) {
-        const currentProfit = ((account.current_balance - account.initial_balance) / account.initial_balance) * 100
+        // Assume profit_target is an AMOUNT (e.g. 5000)
+        const currentProfit = account.current_balance - account.initial_balance
         profitProgress = (currentProfit / account.profit_target) * 100
     }
 

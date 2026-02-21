@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Trade } from '@/lib/supabase/types'
+import { withPropAccountFilter } from '@/lib/utils/query-helpers'
+import { todayString } from '@/lib/utils/format'
 
 export interface AnalyticsSummary {
     totalTrades: number
@@ -29,42 +31,20 @@ export async function getAnalyticsSummary(
         .select('pnl, r_multiple, entry_date, direction, status')
         .eq('status', 'closed')
 
-    if (startDate) {
-        query = query.gte('entry_date', startDate)
-    }
-
-    if (endDate) {
-        query = query.lte('entry_date', endDate)
-    }
-
-    // Filter by prop account
-    if (propAccountId === 'unassigned') {
-        query = query.is('prop_account_id', null)
-    } else if (propAccountId) {
-        query = query.eq('prop_account_id', propAccountId)
-    }
+    if (startDate) query = query.gte('entry_date', startDate)
+    if (endDate) query = query.lte('entry_date', endDate)
+    query = withPropAccountFilter(query, propAccountId)
 
     const { data, error } = await query
-
     if (error) throw new Error(error.message)
 
     const closedTrades = (data || []) as Trade[]
 
     if (closedTrades.length === 0) {
         return {
-            totalTrades: 0,
-            winningTrades: 0,
-            losingTrades: 0,
-            winRate: 0,
-            totalPnl: 0,
-            avgPnl: 0,
-            avgRMultiple: 0,
-            profitFactor: 0,
-            largestWin: 0,
-            largestLoss: 0,
-            avgWin: 0,
-            avgLoss: 0,
-            expectancy: 0,
+            totalTrades: 0, winningTrades: 0, losingTrades: 0, winRate: 0,
+            totalPnl: 0, avgPnl: 0, avgRMultiple: 0, profitFactor: 0,
+            largestWin: 0, largestLoss: 0, avgWin: 0, avgLoss: 0, expectancy: 0,
         }
     }
 
@@ -120,30 +100,18 @@ export async function getEquityCurve(
         .eq('status', 'closed')
         .order('exit_date', { ascending: true })
 
-    if (startDate) {
-        query = query.gte('entry_date', startDate)
-    }
-
-    if (endDate) {
-        query = query.lte('entry_date', endDate)
-    }
-
-    // Filter by prop account
-    if (propAccountId === 'unassigned') {
-        query = query.is('prop_account_id', null)
-    } else if (propAccountId) {
-        query = query.eq('prop_account_id', propAccountId)
-    }
+    if (startDate) query = query.gte('entry_date', startDate)
+    if (endDate) query = query.lte('entry_date', endDate)
+    query = withPropAccountFilter(query, propAccountId)
 
     const { data, error } = await query
-
     if (error) throw new Error(error.message)
 
     const trades = (data || []) as Trade[]
 
     let runningBalance = startingBalance
     const curve: EquityCurvePoint[] = [
-        { date: startDate || new Date().toISOString().split('T')[0], balance: startingBalance, pnl: 0 }
+        { date: startDate || todayString(), balance: startingBalance, pnl: 0 }
     ]
 
     for (const trade of trades) {
@@ -173,15 +141,9 @@ export async function getPerformanceByDay(propAccountId?: string | null): Promis
         .select('pnl, entry_date')
         .eq('status', 'closed')
 
-    // Filter by prop account
-    if (propAccountId === 'unassigned') {
-        query = query.is('prop_account_id', null)
-    } else if (propAccountId) {
-        query = query.eq('prop_account_id', propAccountId)
-    }
+    query = withPropAccountFilter(query, propAccountId)
 
     const { data, error } = await query
-
     if (error) throw new Error(error.message)
 
     const trades = (data || []) as { pnl: number; entry_date: string }[]
@@ -189,10 +151,7 @@ export async function getPerformanceByDay(propAccountId?: string | null): Promis
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const dayStats: Record<string, { pnl: number; trades: number; wins: number }> = {}
 
-    // Initialize all days
-    dayNames.forEach(day => {
-        dayStats[day] = { pnl: 0, trades: 0, wins: 0 }
-    })
+    dayNames.forEach(day => { dayStats[day] = { pnl: 0, trades: 0, wins: 0 } })
 
     for (const trade of trades) {
         const date = new Date(trade.entry_date)
@@ -202,7 +161,7 @@ export async function getPerformanceByDay(propAccountId?: string | null): Promis
         if ((trade.pnl || 0) > 0) dayStats[dayName].wins++
     }
 
-    return dayNames.slice(1, 6).map(day => ({ // Mon-Fri only
+    return dayNames.slice(1, 6).map(day => ({
         day,
         totalPnl: dayStats[day].pnl,
         trades: dayStats[day].trades,
@@ -227,15 +186,9 @@ export async function getMonthlyPerformance(propAccountId?: string | null): Prom
         .eq('status', 'closed')
         .order('entry_date', { ascending: true })
 
-    // Filter by prop account
-    if (propAccountId === 'unassigned') {
-        query = query.is('prop_account_id', null)
-    } else if (propAccountId) {
-        query = query.eq('prop_account_id', propAccountId)
-    }
+    query = withPropAccountFilter(query, propAccountId)
 
     const { data, error } = await query
-
     if (error) throw new Error(error.message)
 
     const trades = (data || []) as { pnl: number; entry_date: string }[]
@@ -246,11 +199,7 @@ export async function getMonthlyPerformance(propAccountId?: string | null): Prom
     for (const trade of trades) {
         const date = new Date(trade.entry_date)
         const key = `${date.getFullYear()}-${date.getMonth()}`
-
-        if (!monthStats[key]) {
-            monthStats[key] = { pnl: 0, trades: 0, wins: 0 }
-        }
-
+        if (!monthStats[key]) monthStats[key] = { pnl: 0, trades: 0, wins: 0 }
         monthStats[key].pnl += (trade.pnl || 0)
         monthStats[key].trades++
         if ((trade.pnl || 0) > 0) monthStats[key].wins++
@@ -268,7 +217,6 @@ export async function getMonthlyPerformance(propAccountId?: string | null): Prom
     })
 }
 
-// Get today's stats
 export async function getTodayStats(propAccountId?: string | null): Promise<{
     pnl: number
     trades: number
@@ -276,7 +224,7 @@ export async function getTodayStats(propAccountId?: string | null): Promise<{
     losses: number
 }> {
     const supabase = createClient()
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayString()
 
     let query = supabase
         .from('trades')
@@ -284,15 +232,9 @@ export async function getTodayStats(propAccountId?: string | null): Promise<{
         .eq('status', 'closed')
         .gte('exit_date', today)
 
-    // Filter by prop account
-    if (propAccountId === 'unassigned') {
-        query = query.is('prop_account_id', null)
-    } else if (propAccountId) {
-        query = query.eq('prop_account_id', propAccountId)
-    }
+    query = withPropAccountFilter(query, propAccountId)
 
     const { data, error } = await query
-
     if (error) throw new Error(error.message)
 
     const closedTrades = (data || []) as { pnl: number }[]

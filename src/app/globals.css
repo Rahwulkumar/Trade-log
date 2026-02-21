@@ -4,728 +4,501 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-plus-jakarta);
+  --font-mono: var(--font-jb-mono);
+  --font-display: var(--font-plus-jakarta);
+
+  --color-background: var(--app-bg);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--surface-elevated);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--accent-primary);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--surface-elevated);
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--surface-elevated);
+  --color-muted-foreground: var(--text-secondary);
+  --color-accent: var(--accent-soft);
+  --color-accent-foreground: var(--accent-primary);
+  --color-destructive: var(--loss-primary);
+  --color-border: var(--border-default);
+  --color-input: var(--surface-elevated);
+  --color-ring: var(--accent-primary);
+
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-foreground: var(--text-primary);
+  --color-sidebar-primary: var(--accent-primary);
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: var(--accent-soft);
+  --color-sidebar-accent-foreground: var(--accent-primary);
+  --color-sidebar-border: var(--border-subtle);
+  --color-sidebar-ring: var(--accent-primary);
 }
 
-/* =================================================================
-   ✦ FEY-INSPIRED THEME: "THE VOID"
-   Sophisticated Minimalism • Deep Black • Atmospheric Glow
-   ================================================================= */
-
+/* ─────────────────────────────────────────────────────────────────────────────
+   ROOT — CONIYEST LIGHT THEME (New Default)
+   Bg: Light Grey/White. Accent: Forest Green.
+   Reference: dribbble.com/shots/26855212
+───────────────────────────────────────────────────────────────────────────── */
 :root {
-  --radius: 0.375rem;
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-default: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 
-  /* Pure Void Palette */
-  --void: #000000;
-  --void-soft: #050505;
-  --void-surface: #0a0a0a;
-  --void-elevated: #111111;
+  /* ── Canvas & surfaces ── */
+  --app-bg:           #F1F7F6;   /* Anti-Flash White — Image 1 palette */
+  --sidebar-bg:       #051F20;   /* Darkest swatch — Image 2 */
 
-  /* Atmospheric Glow - Minimalist */
-  --glow-blue: #2563eb;
-  --glow-indigo: #4338ca;
-  --glow-cyan: #06b6d4;
+  --surface:          #FFFFFF;
+  --surface-elevated: #F1F7F6;   /* Anti-Flash White */
+  --surface-hover:    #E8F2F0;
+  --surface-active:   #DAF1DE;   /* Lightest green swatch — Image 2 */
 
-  /* Functional */
-  --profit: #10b981;
-  --loss: #ef4444;
+  /* ── Text (On Light) ── */
+  --text-primary:     #051F20;   /* Darkest swatch from Image 2 */
+  --text-secondary:   #235347;   /* Mid-green swatch — Image 2 */
+  --text-tertiary:    #8EB69B;   /* Light sage swatch — Image 2 */
+  --text-inverse:     #FFFFFF;
 
-  /* Typography */
-  --text-primary: #ffffff;
-  --text-secondary: #a1a1aa;
-  --text-muted: #52525b;
+  /* ── Borders (Light) ── */
+  --border-subtle:    rgba(5, 31, 32, 0.06);
+  --border-default:   rgba(5, 31, 32, 0.10);
+  --border-active:    rgba(5, 31, 32, 0.18);
 
-  /* Theme Mappings */
-  --background: var(--void);
-  --foreground: var(--text-primary);
-  --card: var(--void-soft);
-  --card-foreground: var(--text-primary);
-  --popover: var(--void-surface);
-  --popover-foreground: var(--text-primary);
-  --primary: var(--glow-blue);
-  --primary-foreground: #ffffff;
-  --secondary: var(--void-surface);
-  --secondary-foreground: var(--text-primary);
-  --muted: var(--void-surface);
-  --muted-foreground: var(--text-secondary);
-  --accent: rgba(255, 255, 255, 0.05);
-  --accent-foreground: var(--text-primary);
-  --destructive: var(--loss);
-  --border: rgba(255, 255, 255, 0.08);
-  --input: var(--void-surface);
-  --ring: var(--glow-blue);
+  /* ── Accents — Bangladesh Green + Mountain Meadow (Image 1) ── */
+  --accent-primary:   #03624C;   /* Bangladesh Green — calm, deep */
+  --accent-secondary: #2CC299;   /* Mountain Meadow — highlights */
+  --accent-soft:      rgba(3, 98, 76, 0.08);
+  --accent-muted:     rgba(3, 98, 76, 0.15);
+  --accent-glow:      rgba(3, 98, 76, 0.22);
 
-  /* Charts */
-  --chart-1: var(--glow-blue);
-  --chart-2: var(--profit);
-  --chart-3: var(--glow-indigo);
-  --chart-4: var(--glow-cyan);
-  --chart-5: var(--loss);
-  --chart-green: 142.1 76.2% 36.3%; /* hsl format for Tailwind */
-  --chart-red: 0 72.2% 50.6%;
+  /* ── Functional ── */
+  --profit-primary:   #03624C;   /* Bangladesh Green for profit */
+  --profit-secondary: #2CC299;   /* Mountain Meadow secondary */
+  --profit-bg:        rgba(3, 98, 76, 0.08);
+  --loss-primary:     #FF4455;
+  --loss-secondary:   #b81c2a;
+  --loss-bg:          rgba(255, 68, 85, 0.06);
+  --warning-primary:  #F0A500;
+  --warning-bg:       rgba(240, 165, 0, 0.08);
 
-  /* Sidebar */
-  --sidebar: var(--void);
-  --sidebar-foreground: var(--text-primary);
-  --sidebar-primary: var(--glow-blue);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(99, 102, 241, 0.08);
-  --sidebar-accent-foreground: var(--text-primary);
-  --sidebar-border: rgba(255, 255, 255, 0.04);
-  --sidebar-ring: var(--glow-blue);
+  /* ── Effects ── */
+  --shadow-sm:        0 1px 3px rgba(5, 31, 32, 0.06), 0 1px 2px rgba(5, 31, 32, 0.04);
+  --shadow-md:        0 4px 12px -2px rgba(5, 31, 32, 0.08), 0 2px 6px -1px rgba(5, 31, 32, 0.04);
+  --shadow-lg:        0 10px 24px -4px rgba(5, 31, 32, 0.10), 0 4px 10px -2px rgba(5, 31, 32, 0.05);
+  --shadow-elevated:  0 20px 40px -8px rgba(5, 31, 32, 0.12), 0 8px 16px -4px rgba(5, 31, 32, 0.06);
+  --glass-bg:         rgba(255, 255, 255, 0.75);
+  --glass-border:     rgba(255, 255, 255, 0.55);
+
+  /* Pattern opacity for light mode */
+  --pattern-opacity: 0.30;
 }
 
-.dark {
-  --background: var(--void);
-  --foreground: var(--text-primary);
-}
+/* ─── SIDEBAR DARK THEME OVERRIDE ────────────────────────────────────────── */
+/* Uses exact Image 2 dark green scale: #051F20 → #0B2B26 → #163832 → #235347 */
+.sidebar-theme {
+  --app-bg:           #051F20;   /* Richest dark — Image 2 darkest swatch */
+  --surface:          #051F20;
+  --surface-elevated: #0B2B26;   /* Second swatch */
+  --surface-hover:    #163832;   /* Third swatch */
+  --surface-active:   #235347;   /* Fourth swatch */
+
+  --text-primary:     #DAF1DE;   /* Lightest Image 2 swatch — high contrast */
+  --text-secondary:   #8EB69B;   /* Sage green swatch */
+  --text-tertiary:    #235347;   /* Mid swatch as tertiary */
+
+  --border-subtle:    rgba(218, 241, 222, 0.07);
+  --border-default:   rgba(218, 241, 222, 0.11);
+  --border-active:    rgba(218, 241, 222, 0.18);
+
+  --accent-soft:      rgba(44, 194, 153, 0.12);
 
-.light {
-  /* Light Mode Palette - Pure White */
-  --void: #ffffff;
-  --void-soft: #ffffff;
-  --void-surface: #f8f8f8;
-  --void-elevated: #f0f0f0;
-
-  /* Typography */
-  --text-primary: #111111;
-  --text-secondary: #444444;
-  --text-muted: #888888;
-
-  /* Theme Mappings - Clean White */
-  --background: #ffffff;
-  --foreground: #111111;
-  --card: #ffffff;
-  --card-foreground: #111111;
-  --popover: #ffffff;
-  --popover-foreground: #111111;
-  --primary: #2563eb;
-  --primary-foreground: #ffffff;
-  --secondary: #f5f5f5;
-  --secondary-foreground: #111111;
-  --muted: #f5f5f5;
-  --muted-foreground: #666666;
-  --accent: rgba(37, 99, 235, 0.08);
-  --accent-foreground: #2563eb;
-  --destructive: #dc2626;
-  --border: #e5e5e5;
-  --input: #ffffff;
-  --ring: #2563eb;
-
-  /* Sidebar */
-  --sidebar: #ffffff;
-  --sidebar-foreground: #111111;
-  --sidebar-primary: #2563eb;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(37, 99, 235, 0.06);
-  --sidebar-accent-foreground: #111111;
-  --sidebar-border: #e5e5e5;
-  --sidebar-ring: #2563eb;
-}
-
-/* =================================================================
-   LIGHT MODE COMPONENT OVERRIDES
-   Pure white, clean, no effects or animations
-   ================================================================= */
-
-/* Global reset for light mode - remove ALL glow effects */
-.light * {
-  box-shadow: none !important;
-  text-shadow: none !important;
-}
-
-/* Allow subtle shadows only where explicitly needed */
-.light .card-void,
-.light .card-glow {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
-}
-
-.light .card-void {
-  background: #ffffff;
-  border: 1px solid #e0e0e0;
-  backdrop-filter: none;
-}
-
-.light .card-void::before {
-  display: none;
-}
-
-.light .card-glow {
-  background: #ffffff;
-  border: 1px solid #e0e0e0;
-}
-
-.light .btn-void {
-  background: #ffffff;
-  border: 1px solid #e0e0e0;
-  color: #111111;
-}
-
-.light .btn-void:hover {
-  background: #f5f5f5;
-  border-color: #d0d0d0;
-}
-
-.light .btn-glow {
-  background: #2563eb;
-  color: #ffffff;
-  border: none;
-}
-
-.light .btn-glow:hover {
-  background: #1d4ed8;
-}
-
-.light .table-void {
-  background: #ffffff;
-  border: 1px solid #e5e5e5;
-}
-
-.light .table-void thead {
-  background: #f8f8f8;
-  border-bottom: 1px solid #e5e5e5;
-}
-
-.light .table-void th {
-  color: #444444;
-  border-bottom: 1px solid #e5e5e5;
-}
-
-.light .table-void td {
-  border-bottom: 1px solid #f0f0f0;
-  color: #111111;
-}
-
-.light .table-void tbody tr:hover {
-  background: #f8f8f8;
-}
-
-/* Override utility classes */
-.light .bg-void-soft,
-.light .bg-void {
-  background: #ffffff !important;
-}
-
-.light .border-white\/5,
-.light .border-white\/10 {
-  border-color: #e0e0e0 !important;
-}
-
-.light .bg-white\/5,
-.light .bg-white\/\[0\.02\],
-.light .bg-white\/\[0\.03\],
-.light .bg-white\/10 {
-  background: #f5f5f5 !important;
-}
-
-.light .text-white {
-  color: #111111 !important;
-}
-
-.light .text-muted-foreground {
-  color: #666666;
-}
-
-/* Hide all canvases and background elements in light mode */
-.light canvas {
-  display: none !important;
-  visibility: hidden !important;
-}
-
-.light .fixed.-z-10,
-.light [style*="z-index: -10"],
-.light [style*="z-index:-10"] {
-  background: #ffffff !important;
-}
-
-/* Remove all before/after pseudo-element glows */
-.light *::before,
-.light *::after {
-  filter: none !important;
-}
-
-/* Override blue/indigo gradients in light mode */
-.light .bg-gradient-to-r,
-.light .bg-gradient-to-br,
-.light .bg-gradient-to-b,
-.light [class*="from-blue-500"],
-.light [class*="from-indigo-500"] {
-  background: #2563eb !important;
-}
-
-/* Logo and icon backgrounds in light mode */
-.light .bg-blue-500\/10,
-.light .bg-indigo-500\/10,
-.light .bg-blue-500\/20,
-.light .bg-indigo-500\/20,
-.light .bg-blue-400\/10 {
-  background: rgba(37, 99, 235, 0.08) !important;
-}
-
-/* Icon colors in light mode */
-.light .text-blue-400,
-.light .text-indigo-400 {
-  color: #2563eb !important;
-}
-
-/* Ensure nav bar is clean white in light mode */
-.light .nav-top {
-  background: #ffffff !important;
-  border-bottom: 1px solid #e0e0e0 !important;
-}
-
-/* Theme toggle button */
-.light button[title*="Switch to"] {
-  color: #333333;
-}
-
-.light button[title*="Switch to"]:hover {
-  background: #f0f0f0 !important;
-}
-
-/* Hover states in light mode */
-.light .hover\:text-white:hover {
-  color: #111111 !important;
-}
-
-.light .hover\:bg-white\/5:hover {
-  background: #f0f0f0 !important;
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-}
-
-/* =================================================================
-   🌌 ATMOSPHERIC VOID BACKGROUND
-   Fey-style ambient glow, not distracting patterns
-   ================================================================= */
-
-.void-atmosphere {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: var(--void);
-  overflow: hidden;
-}
-
-/* Subtle corner glow - like Fey */
-.void-atmosphere::before {
-  content: '';
-  position: absolute;
-  width: 800px;
-  height: 800px;
-  top: -200px;
-  right: -200px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
-  filter: blur(60px);
-  pointer-events: none;
-}
-
-.void-atmosphere::after {
-  content: '';
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  bottom: -150px;
-  left: -150px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
-  filter: blur(80px);
-  pointer-events: none;
-}
-
-/* Light mode - no effects at all */
-.light .void-atmosphere {
-  display: none !important;
-  visibility: hidden !important;
-}
-
-.light .void-atmosphere::before,
-.light .void-atmosphere::after {
-  display: none !important;
-  content: none !important;
-  background: none !important;
-}
-
-/* =================================================================
-   📐 NAVIGATION - Minimal Top Bar (Fey-style)
-   ================================================================= */
-
-.nav-top {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  background: var(--background);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-}
-
-.dark .nav-top {
-  background: rgba(0, 0, 0, 0.8);
-}
-
-.light .nav-top {
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.nav-link {
-  color: var(--muted-foreground);
-  font-size: 0.875rem;
-  font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  transition: all 0.2s;
-}
-
-.nav-link:hover {
-  color: var(--foreground);
-  background: var(--accent);
-}
-
-.nav-link.active {
-  color: var(--foreground);
-}
-
-/* =================================================================
-   💎 CARD SYSTEM - Fey Glass Style
-   Ultra-subtle, 1px borders, minimal
-   ================================================================= */
-
-.card-void {
-  background: rgba(10, 10, 10, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 1rem;
-  backdrop-filter: blur(8px);
-  position: relative;
-  overflow: hidden;
-}
-
-.card-void::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 50%);
-  pointer-events: none;
-}
-
-/* Featured card with glow */
-.card-glow {
-  background: rgba(10, 10, 10, 0.8);
-  border: 1px solid rgba(99, 102, 241, 0.15);
-  border-radius: 1rem;
-  box-shadow:
-    0 0 80px rgba(99, 102, 241, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-/* =================================================================
-   🔤 TYPOGRAPHY - Fey Style (Tight, Bold Headlines)
-   ================================================================= */
-
-.headline-xl {
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-}
-
-.headline-lg {
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
-.headline-md {
-  font-size: 1.125rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.text-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-/* =================================================================
-   📊 DATA DISPLAY - Finance Grade
-   ================================================================= */
-
-.stat-huge {
-  font-size: 3rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-large {
-  font-size: 2rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-}
-
-.profit {
-  color: var(--profit);
-}
-
-.loss {
-  color: var(--loss);
-}
-
-.mono {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-/* =================================================================
-   🎯 BUTTONS - Fey Minimal Style
-   ================================================================= */
-
-.btn-void {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 9999px;
-  transition: all 0.2s;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
 }
 
-.btn-void:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.2);
+/* ─── DARK THEME OVERRIDE (html.dark) ────────────────────────────────────── */
+html.dark {
+  --app-bg:           #051F20;
+  --surface:          #0B2B26;
+  --surface-elevated: #163832;
+  --surface-hover:    rgba(44, 194, 153, 0.05);
+  --surface-active:   rgba(44, 194, 153, 0.09);
+
+  /* Borders */
+  --border-subtle:    rgba(218, 241, 222, 0.07);
+  --border-default:   rgba(218, 241, 222, 0.10);
+  --border-active:    rgba(44, 194, 153, 0.28);
+
+  /* Text */
+  --text-primary:     #DAF1DE;
+  --text-secondary:   #8EB69B;
+  --text-tertiary:    #235347;
+  --text-inverse:     #051F20;
+
+  /* Accent tints */
+  --accent-soft:      rgba(3, 98, 76, 0.14);
+  --accent-muted:     rgba(44, 194, 153, 0.20);
+  --accent-glow:      rgba(44, 194, 153, 0.28);
+
+  /* Functional bg tints */
+  --profit-bg:        rgba(3, 98, 76, 0.14);
+  --loss-bg:          rgba(255, 68, 85, 0.13);
+  --warning-bg:       rgba(240, 165, 0, 0.13);
+
+  /* Shadows */
+  --shadow-sm:        0 1px 4px rgba(0,0,0,0.45);
+  --shadow-md:        0 4px 16px rgba(0,0,0,0.55);
+  --shadow-lg:        0 8px 32px rgba(0,0,0,0.65);
+  --shadow-elevated:  0 20px 40px -8px rgba(0,0,0,0.80);
+
+  /* Glass */
+  --glass-bg:         rgba(11, 43, 38, 0.90);
+  --glass-border:     rgba(218, 241, 222, 0.08);
+
+  --pattern-opacity:  0.10;
+}
+/* accent-primary, profit-primary, loss-primary unchanged in dark mode */
+
+/* Badge profit text needs to be bright green on dark bg (not dark green #3aa803) */
+html.dark .badge-profit { color: var(--profit-secondary); }
+html.dark .badge-accent  { color: var(--accent-secondary); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLOBAL STYLES
+───────────────────────────────────────────────────────────────────────────── */
+html,
+body {
+  height: 100%;
+  background-color: var(--app-bg);
+  color: var(--text-primary);
+  font-family: var(--font-plus-jakarta), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 220ms ease, color 180ms ease;
 }
 
-/* Primary CTA - Subtle glass with accent */
-.btn-glow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.2s;
+/* New Light Mode Dot Grid */
+.bg-dot-grid {
+  background-image: radial-gradient(var(--border-active) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  background-attachment: fixed;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 100%);
+  opacity: var(--pattern-opacity);
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
 }
 
-.btn-glow:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+/* Utility to force white bg on cards */
+.surface {
+  background-color: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  transition: background-color 220ms ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.surface:hover {
+  border-color: var(--border-active);
+  box-shadow: var(--shadow-lg);
 }
 
-/* Accent CTA - For high-emphasis actions */
-.btn-accent {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 0.5rem;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
-  color: white;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  transition: all 0.2s;
+/* "Raised" surface for contrast — more prominent elevation */
+.surface-raised {
+  background-color: var(--surface);
+  border: 1px solid var(--border-active);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-xl);
+  transition: background-color 220ms ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.surface-raised:hover {
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-lg), 0 0 20px var(--accent-glow);
 }
 
-.btn-accent:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(99, 102, 241, 0.25) 100%);
-  border-color: rgba(59, 130, 246, 0.4);
+/* Accent surface (Green) */
+.surface-accent {
+  background: linear-gradient(145deg, #091509 0%, #050d06 100%);
+  color: #fff; /* Always dark bg, light text */
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+}
+/* Text inside surface-accent is handled at component level for contrast */
+
+/* ─── Typography ─── */
+.headline-lg {
+  font-family: var(--font-plus-jakarta);
+  font-weight: 700;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
-/* =================================================================
-   📱 SCROLLBAR - Minimal
-   ================================================================= */
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.headline-md {
+  font-family: var(--font-plus-jakarta);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-/* =================================================================
-   🏷️ BADGES
-   ================================================================= */
-
-.badge-void {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.badge-profit {
-  background: rgba(34, 197, 94, 0.1);
-  border-color: rgba(34, 197, 94, 0.2);
-  color: var(--profit);
-}
-
-.badge-loss {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.2);
-  color: var(--loss);
-}
-
-/* =================================================================
-   ✨ ANIMATIONS
-   ================================================================= */
-
-.fade-in {
-  animation: fadeIn 0.5s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Subtle pulse for live indicators */
-.pulse {
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.5;
-  }
-}
-
-/* Shimmer effect for innovative buttons */
-@keyframes shimmer {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    background-position: -200% 0;
-  }
-}
-
-.animate-shimmer {
-  animation: shimmer 2s linear infinite;
-}
-
-/* =================================================================
-   🔲 TABLE STYLES
-   ================================================================= */
-
-.table-void {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.table-void th {
-  padding: 0.75rem 1rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted);
+.text-label {
+  font-family: var(--font-plus-jakarta);
+  font-weight: 600;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
 }
 
-.table-void td {
+p.stat-large {
+  font-family: var(--font-dm-sans); 
+  font-weight: 700;
+  font-size: 2.1rem; /* ~34px */
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+}
+
+p.stat-medium {
+  font-family: var(--font-jb-mono);
+  font-weight: 600;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+p.stat-medium.profit { color: var(--profit-primary); }
+
+/* ─── Segments / Toggles ─── */
+.seg-control {
+  background: var(--surface-elevated); /* Light grey */
+  padding: 3px;
+  border-radius: 99px;
+  display: inline-flex;
+  border: 1px solid var(--border-default);
+}
+.seg-item {
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+.seg-item.active {
+  background: var(--surface); /* White */
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+}
+
+/* ─── Badges ─── */
+.badge-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+.badge-profit { background: var(--profit-bg); color: #3aa803; } /* darker text for contrast on light */
+.badge-loss { background: var(--loss-bg); color: var(--loss-primary); }
+.badge-accent { background: var(--accent-soft); color: var(--accent-secondary); }
+
+/* New Reference: The ON Toggle Badge */
+.badge-toggle-on {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  background: #03624C;
+  color: #DAF1DE;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  box-shadow: 0 2px 5px rgba(3, 98, 76, 0.35);
+}
+
+/* Sidebar Nav Item Active State - preserved dark mode feel if inside sidebar-theme */
+/* But we need to handle it globally or contextually */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-default);
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+.nav-item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: #03624C;           /* Bangladesh Green — calm active state */
+  color: #DAF1DE !important;     /* Lightest Image 2 swatch — readable on dark green */
+  box-shadow: 0 4px 14px rgba(3, 98, 76, 0.35);
+}
+.nav-item.active svg {
+  color: #DAF1DE !important;
+}
+
+/* Legend items */
+.legend-dot {
+  width: 8px; height: 8px; border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+/* Skeleton animation */
+.skeleton {
+  background: var(--surface-elevated);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+
+/* Stagger animations */
+.stagger-1 { animation: fadeUp 0.5s ease-out 0.00s backwards; }
+.stagger-2 { animation: fadeUp 0.5s ease-out 0.05s backwards; }
+.stagger-3 { animation: fadeUp 0.5s ease-out 0.10s backwards; }
+.stagger-4 { animation: fadeUp 0.5s ease-out 0.15s backwards; }
+.stagger-5 { animation: fadeUp 0.5s ease-out 0.20s backwards; }
+.stagger-6 { animation: fadeUp 0.5s ease-out 0.25s backwards; }
+
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Page Layout ─── */
+/* Responsive content wrapper: max-width + horizontal padding */
+.page-container {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+@media (min-width: 640px) {
+  .page-container { padding-left: 1.5rem; padding-right: 1.5rem; }
+}
+@media (min-width: 1024px) {
+  .page-container { padding-left: 2rem; padding-right: 2rem; }
+}
+
+/* ─── Button System ─── */
+.btn-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 2.25rem;
+  padding: 0 1rem;
+  border-radius: var(--radius-default);
+  font-size: 0.84rem;
+  font-weight: 500;
+  font-family: var(--font-plus-jakarta), sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  border: none;
+}
+.btn-primary {
+  background: #03624C;
+  color: #DAF1DE;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(3, 98, 76, 0.35);
+}
+.btn-primary:hover {
+  background: #02503D;
+  box-shadow: 0 4px 14px rgba(3, 98, 76, 0.45);
+  transform: translateY(-1px);
+}
+.btn-secondary {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+.btn-secondary:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-active);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.btn-ghost:hover {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+/* ─── Card Glow (green-accent bordered card) ─── */
+.card-glow {
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md), 0 0 0 1px var(--accent-muted) inset;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-glow:hover {
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-lg), 0 0 20px var(--accent-glow);
+}
+
+/* ─── Animations ─── */
+.fade-in {
+  animation: fadeIn 0.3s ease-out both;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ─── Mono / P&L text helpers ─── */
+.mono {
+  font-family: var(--font-jb-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+.profit { color: var(--profit-primary); }
+.loss { color: var(--loss-primary); }
+/* stat-huge alias for large stat display */
+p.stat-huge {
+  font-family: var(--font-jb-mono);
+  font-weight: 700;
+  font-size: 1.9rem;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+}
+
+/* ─── Page Spacing Tokens ─── */
+.page-root {
   padding: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  transition: background 0.2s;
+  max-width: 1280px;
 }
-
-.table-void tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+@media (min-width: 1024px) {
+  .page-root { padding: 1.25rem; }
+}
+.page-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+@media (min-width: 1024px) {
+  .page-sections { gap: 1.25rem; }
 }

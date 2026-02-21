@@ -16,15 +16,15 @@ export function StrategyLogic({
 }: StrategyLogicProps) {
   return (
     <div className={cn("flex flex-col h-full bg-transparent", className)}>
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 shrink-0">
-        <span className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
+        <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">
           Analysis & Thesis
         </span>
       </div>
 
       <div className="flex-1 p-4 relative overflow-hidden group">
         <Textarea
-          className="w-full h-full bg-transparent text-zinc-200 text-sm leading-relaxed resize-none focus:outline-none placeholder:text-zinc-700 border-0 focus-visible:ring-0 shadow-none ring-0 p-0"
+          className="w-full h-full bg-transparent text-foreground text-sm leading-relaxed resize-none focus:outline-none placeholder:text-muted-foreground/50 border-0 focus-visible:ring-0 shadow-none ring-0 p-0"
           placeholder="Enter your trade thesis, setup confirmation, and exit logic here..."
           value={notes}
           onChange={(e) => onNotesChange(e.target.value)}

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Hexagon, Mail, Lock, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle, ArrowRight, Loader2, Lock, Mail } from "lucide-react";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,35 +18,36 @@ export default function LoginPage() {
   const [isConfigured, setIsConfigured] = useState(true);
 
   useEffect(() => {
-    // Check if Supabase is configured
     const configured = !!(
-      process.env.NEXT_PUBLIC_SUPABASE_URL && 
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
     setIsConfigured(configured);
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (!isConfigured) {
-      setError("Supabase is not configured. Please add your credentials to .env.local");
+      setError(
+        "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      );
       return;
     }
-    
+
     setError(null);
     setLoading(true);
 
     const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error: loginError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
-      setError(error.message);
+    if (loginError) {
+      setError(loginError.message);
       setLoading(false);
       return;
     }
@@ -56,117 +57,92 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-void relative overflow-hidden">
-      {/* Background glow */}
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-indigo-500/5" />
-      
-      <div className="relative w-full max-w-md px-6">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="relative mb-4">
-            <div className="absolute inset-0 bg-cyan-500/30 blur-xl rounded-full" />
-            <div className="relative w-14 h-14 flex items-center justify-center">
-              <Hexagon className="w-14 h-14 text-cyan-400/80" strokeWidth={1.5} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse" />
-              </div>
-            </div>
+    <AuthShell
+      title="Sign in"
+      subtitle="Access your trading workspace and continue your review cycle."
+      alternateHref="/auth/signup"
+      alternateLabel="Need an account?"
+      alternateCta="Create one"
+    >
+      {!isConfigured && (
+        <div className="mb-5 rounded-md border border-warning-primary/40 bg-warning-bg p-4 text-sm text-foreground">
+          <div className="mb-2 flex items-center gap-2 font-medium">
+            <AlertCircle className="h-4 w-4 text-warning-primary" />
+            Configuration required
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-          <p className="text-muted-foreground mt-1">Sign in to your trading journal</p>
-        </div>
-
-        {/* Configuration Warning */}
-        {!isConfigured && (
-          <div className="mb-6 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 mt-0.5" />
-              <div>
-                <p className="font-medium">Supabase not configured</p>
-                <p className="text-sm mt-1 text-yellow-400/80">
-                  Please create a <code className="bg-yellow-500/20 px-1 rounded">.env.local</code> file with your Supabase credentials:
-                </p>
-                <pre className="mt-2 text-xs bg-void p-2 rounded overflow-x-auto">
+          <p className="text-muted-foreground">
+            Add Supabase credentials in `.env.local` before signing in.
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded-md border border-border-subtle bg-muted/30 p-2 text-xs text-muted-foreground">
 {`NEXT_PUBLIC_SUPABASE_URL=your_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key`}
-                </pre>
-              </div>
-            </div>
+          </pre>
+        </div>
+      )}
+
+      <form onSubmit={handleLogin} className="space-y-5">
+        {error && (
+          <div className="rounded-md border border-red-500/35 bg-red-500/10 p-3 text-sm text-red-300">
+            {error}
           </div>
         )}
 
-        {/* Login Form */}
-        <Card className="bg-black/60 backdrop-blur-xl border-white/5">
-          <CardContent className="p-8">
-          <form onSubmit={handleLogin} className="space-y-6">
-            {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-                {error}
-              </div>
-            )}
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <div className="relative">
+            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="email"
+              type="email"
+              placeholder="trader@example.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="pl-9"
+              required
+            />
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="trader@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 bg-void-surface border-white/10"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link href="/auth/forgot-password" className="text-xs text-cyan-400 hover:underline">
-                  Forgot password?
-                </Link>
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-void-surface border-white/10"
-                  required
-                />
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-white/5 border border-white/10 hover:bg-white/10"
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <Link
+              href="/auth/forgot-password"
+              className="text-xs font-medium text-accent-primary hover:underline"
             >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link href="/auth/signup" className="text-cyan-400 hover:underline">
-              Sign up
+              Forgot password?
             </Link>
           </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="password"
+              type="password"
+              placeholder="********"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="pl-9"
+              required
+            />
+          </div>
+        </div>
+
+        <Button
+          type="submit"
+          disabled={loading}
+          className="w-full"
+          aria-label={loading ? "Signing in" : "Sign in"}
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              Sign In
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

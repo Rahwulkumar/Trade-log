@@ -63,37 +63,50 @@ export function TradeChart({
       chartRef.current.remove();
     }
 
+    const rootStyles = getComputedStyle(document.documentElement);
+    const textColor = rootStyles.getPropertyValue("--text-secondary").trim() || "#b6c1d4";
+    const borderColor =
+      rootStyles.getPropertyValue("--border-default").trim() || "#354157";
+    const gridColor =
+      rootStyles.getPropertyValue("--border-subtle").trim() || "#2a3445";
+    const profitColor =
+      rootStyles.getPropertyValue("--profit-primary").trim() || "#19b980";
+    const lossColor =
+      rootStyles.getPropertyValue("--loss-primary").trim() || "#e06675";
+    const accentColor =
+      rootStyles.getPropertyValue("--accent-primary").trim() || "#4d8dff";
+
     const chart = createChart(containerRef.current, {
       width: dimensions.width,
       height: dimensions.height,
       layout: {
         background: { color: "transparent" },
-        textColor: "rgba(255, 255, 255, 0.6)",
+        textColor,
       },
       grid: {
-        vertLines: { color: "rgba(255, 255, 255, 0.05)" },
-        horzLines: { color: "rgba(255, 255, 255, 0.05)" },
+        vertLines: { color: gridColor },
+        horzLines: { color: gridColor },
       },
       crosshair: {
         mode: 1,
         vertLine: {
           width: 1,
-          color: "rgba(255, 255, 255, 0.3)",
+          color: borderColor,
           style: LineStyle.Dashed,
         },
         horzLine: {
           width: 1,
-          color: "rgba(255, 255, 255, 0.3)",
+          color: borderColor,
           style: LineStyle.Dashed,
         },
       },
       timeScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
+        borderColor,
         timeVisible: true,
         secondsVisible: false,
       },
       rightPriceScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
+        borderColor,
       },
     });
 
@@ -101,12 +114,12 @@ export function TradeChart({
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const candleSeries = (chart as any).addCandlestickSeries({
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      borderUpColor: "#22c55e",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
+      upColor: profitColor,
+      downColor: lossColor,
+      borderUpColor: profitColor,
+      borderDownColor: lossColor,
+      wickUpColor: profitColor,
+      wickDownColor: lossColor,
     });
 
     const chartData: CandlestickData<Time>[] = candles.map((c) => ({
@@ -122,7 +135,7 @@ export function TradeChart({
     if (stopLoss) {
       candleSeries.createPriceLine({
         price: stopLoss,
-        color: "#ef4444",
+        color: lossColor,
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
@@ -133,7 +146,7 @@ export function TradeChart({
     if (takeProfit) {
       candleSeries.createPriceLine({
         price: takeProfit,
-        color: "#22c55e",
+        color: profitColor,
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
@@ -143,7 +156,7 @@ export function TradeChart({
 
     candleSeries.createPriceLine({
       price: entryPrice,
-      color: "#3b82f6",
+      color: accentColor,
       lineWidth: 2,
       lineStyle: LineStyle.Solid,
       axisLabelVisible: true,
@@ -154,11 +167,11 @@ export function TradeChart({
       const exitColor =
         direction === "LONG"
           ? exitPrice > entryPrice
-            ? "#22c55e"
-            : "#ef4444"
+            ? profitColor
+            : lossColor
           : exitPrice < entryPrice
-            ? "#22c55e"
-            : "#ef4444";
+            ? profitColor
+            : lossColor;
 
       candleSeries.createPriceLine({
         price: exitPrice,
@@ -179,7 +192,7 @@ export function TradeChart({
       {
         time: entryTimestamp as Time,
         position: direction === "LONG" ? "belowBar" : "aboveBar",
-        color: "#3b82f6",
+        color: accentColor,
         shape: direction === "LONG" ? "arrowUp" : "arrowDown",
         text: "Entry",
       },
@@ -194,8 +207,8 @@ export function TradeChart({
                 exitPrice &&
                 ((direction === "LONG" && exitPrice > entryPrice) ||
                   (direction === "SHORT" && exitPrice < entryPrice))
-                  ? "#22c55e"
-                  : "#ef4444",
+                  ? profitColor
+                  : lossColor,
               shape: (direction === "LONG" ? "arrowDown" : "arrowUp") as
                 | "arrowUp"
                 | "arrowDown",
@@ -225,7 +238,7 @@ export function TradeChart({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full bg-white/[0.02] rounded-lg border border-white/10">
+      <div className="flex h-full items-center justify-center rounded-lg border border-border bg-muted/20">
         <div className="flex flex-col items-center gap-2 text-muted-foreground">
           <Loader2 className="w-6 h-6 animate-spin" />
           <span className="text-sm">Loading chart data...</span>
@@ -277,13 +290,13 @@ export function TradeChart({
 
   if (candles.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full bg-white/[0.02] rounded-lg border border-white/10">
+      <div className="flex h-full items-center justify-center rounded-lg border border-border bg-muted/20">
         <div className="flex flex-col items-center gap-2 text-muted-foreground">
           <span className="text-sm">No chart data available</span>
           {onRefresh && (
             <button
               onClick={onRefresh}
-              className="mt-2 px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 rounded-md transition-colors flex items-center gap-1"
+              className="mt-2 flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs transition-colors hover:bg-accent"
             >
               <RefreshCw className="w-3 h-3" /> Load Chart
             </button>

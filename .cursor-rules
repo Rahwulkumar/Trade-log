@@ -1,0 +1,99 @@
+# Trading Journal — Cursor Rules
+# These rules are enforced across the entire codebase.
+
+## React & Next.js
+
+- Server Components by default. Add `"use client"` only when using hooks, browser APIs, or event handlers.
+- Never use `useEffect` purely to fetch data in client components — prefer React Server Components or pass data as props.
+- `useCallback` and `useMemo` only when you can demonstrate a performance need. Premature memoization is dead weight.
+- Pages are thin coordinators — business logic belongs in hooks or `lib/`.
+- Never fetch data directly inside a component body at the module level — use `useEffect` with proper deps or RSC.
+
+## Components
+
+- Max 200 lines per component file. Split anything longer.
+- One component per file.
+- Props are always typed with an interface, never inline type literals.
+- No prop named `data` — be specific: `trades`, `account`, `playbook`.
+- Event handler props are named `on[Noun][Verb]`: `onTradeCreate`, `onAccountSelect`, `onFilterChange`.
+- Components live in the most specific directory:
+  - `components/ui/` — headless primitives and design-system atoms
+  - `components/trade/` — trade-specific UI
+  - `components/dashboard/` — dashboard-specific widgets
+  - `components/journal/` — journal editor components
+  - `components/layout/` — structural layout (sidebar, header)
+  - `components/prop-firm/` — prop firm components
+
+## Styling
+
+- No inline `style={{}}` objects unless the value is truly dynamic and cannot be expressed in Tailwind.
+- No hardcoded hex colors or Tailwind color literals for semantic colors (profit, loss, accent). Use CSS variables.
+  - Profit / positive: `text-[var(--profit-primary)]` or `var(--profit-primary)` in SVG/Recharts
+  - Loss / negative: `text-[var(--loss-primary)]` or `var(--loss-primary)` in SVG/Recharts
+  - Accent: `var(--accent-primary)`
+  - Text: `var(--text-primary)`, `var(--text-secondary)`, `var(--text-tertiary)`
+  - Borders: `var(--border-default)`, `var(--border-subtle)`
+  - Surfaces: `var(--surface-elevated)`, `var(--surface-hover)`, `var(--surface-active)`
+- Sidebar width: always `var(--sidebar-width)` from globals.css. Never hardcode `240px` or `280px`.
+- Use Tailwind spacing scale only. No `px-[17px]` arbitrary values.
+- No dynamic Tailwind class generation like `` `grid-cols-${n}` `` — JIT cannot scan these. Use inline style for computed values.
+
+## TypeScript
+
+- No `any` type. Use `unknown` if the type is genuinely unknown, then narrow with a type guard.
+- No `as any` casts. Fix the underlying type instead.
+- No `// @ts-ignore` or `// eslint-disable-next-line @typescript-eslint/no-explicit-any`. Fix the type.
+- All API response data validated with Zod before use in business logic.
+- No `JSON.parse()` without a surrounding `try-catch` and Zod validation of the result.
+- String literal unions for finite sets — prefer `'LONG' | 'SHORT'` over plain `string` for direction fields.
+
+## Dead Code
+
+- No commented-out code. Remove it.
+- No `console.log`, `console.warn`, `console.error` in components or `lib/` files.
+- No placeholder functions that do nothing and return nothing.
+- No `// TODO` comments that are older than the current sprint. Fix it or file an issue.
+- No import that is not used.
+
+## Hardcoded Values — Zero Tolerance
+
+- No magic numbers. Every numeric constant must be a named export from `lib/constants/`.
+- No magic strings for routes — import from `lib/constants/routes.ts`.
+- No magic strings for feature states — use a typed union or enum.
+- API keys and secrets in environment variables only — never in source.
+- Sidebar width → `SIDEBAR_WIDTH` from `lib/constants/app.ts`.
+- Breakpoints → `MOBILE_BREAKPOINT_PX` from `lib/constants/app.ts`.
+- Auto-save delay → `AUTOSAVE_DEBOUNCE_MS` from `lib/constants/app.ts`.
+
+## Duplicate Logic — Zero Tolerance
+
+- Prop account filter query logic lives only in `lib/utils/query-helpers.ts → withPropAccountFilter()`.
+- Currency/number formatters live only in `lib/utils/format.ts`.
+- P&L and direction color logic lives only in `lib/utils/trade-colors.ts`.
+- Date range helpers live only in `lib/utils/date-range.ts`.
+- Chart color constants live only in `lib/constants/chart-colors.ts`.
+- Any time you copy-paste a block of 3 or more lines, extract a function.
+
+## Backend / API Routes
+
+- Every route: authenticate first → authorize → validate input with Zod → process.
+- All inputs validated with Zod before use. Never trust request body shape.
+- All responses follow the shape: `{ data?, error?, message? }`.
+- No `console.log` debug statements.
+- Rate limiting applied to all AI and expensive endpoints via `lib/utils/rate-limit.ts`.
+- Service role Supabase client (`createAdminClient`) only for operations that require bypassing RLS. Never expose service role key to client.
+
+## File Naming
+
+- Pages: `page.tsx` (Next.js convention)
+- Components: `kebab-case.tsx`
+- Hooks: `use-kebab-case.ts`
+- Utilities: `kebab-case.ts`
+- Types: `kebab-case.ts`
+- Constants: `kebab-case.ts`
+
+## Imports
+
+- Import order: external packages → `@/lib/` → `@/hooks/` → `@/components/` → relative
+- Use `@/` alias for all non-relative imports within `src/`.
+- No barrel re-exports that only re-export a single item — import directly.

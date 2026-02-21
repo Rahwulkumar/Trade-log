@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Playbook, PlaybookInsert, PlaybookUpdate } from '@/lib/supabase/types'
+import { withPropAccountFilter } from '@/lib/utils/query-helpers'
 
 export async function getPlaybooks(): Promise<Playbook[]> {
     const supabase = createClient()
@@ -102,7 +103,6 @@ export async function togglePlaybookActive(id: string): Promise<Playbook> {
     return updatePlaybook(id, { is_active: !playbook.is_active })
 }
 
-// Get playbook performance stats (win rate, avg R, etc.)
 export interface PlaybookStats {
     playbook: Playbook
     totalTrades: number
@@ -125,15 +125,9 @@ export async function getPlaybookStats(playbookId: string, propAccountId?: strin
         .eq('playbook_id', playbookId)
         .eq('status', 'closed')
 
-    // Filter by prop account
-    if (propAccountId === 'unassigned') {
-        query = query.is('prop_account_id', null)
-    } else if (propAccountId) {
-        query = query.eq('prop_account_id', propAccountId)
-    }
+    query = withPropAccountFilter(query, propAccountId)
 
     const { data, error } = await query
-
     if (error) throw new Error(error.message)
 
     const closedTrades = (data || []) as { pnl: number; r_multiple: number | null }[]

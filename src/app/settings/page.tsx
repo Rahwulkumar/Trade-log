@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Download, Trash2, Moon, Sun, Monitor } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Download, Monitor, Moon, Sun, Trash2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -13,14 +13,85 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTheme } from "@/components/theme-provider";
+import { useAuth } from "@/components/auth-provider";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { AppPageHeader, AppPanel } from "@/components/ui/page-primitives";
+
+const SETTINGS_TABS = [
+  { id: "profile", label: "Profile" },
+  { id: "appearance", label: "Appearance" },
+  { id: "notifications", label: "Notifications" },
+  { id: "trading", label: "Trading" },
+  { id: "data", label: "Data" },
+] as const;
+
+const THEME_OPTIONS = [
+  { value: "light", icon: Sun, label: "Light" },
+  { value: "dark", icon: Moon, label: "Dark" },
+  { value: "system", icon: Monitor, label: "System" },
+] as const;
+
+const NOTIFICATION_OPTIONS = [
+  {
+    key: "email",
+    label: "Email Notifications",
+    description: "Receive account and workflow updates by email.",
+  },
+  {
+    key: "push",
+    label: "Push Notifications",
+    description: "Send browser notifications for important events.",
+  },
+  {
+    key: "weeklyReport",
+    label: "Weekly Report",
+    description: "Get a summary of your weekly performance.",
+  },
+  {
+    key: "drawdownAlert",
+    label: "Drawdown Alerts",
+    description: "Alert when account drawdown approaches limits.",
+  },
+] as const;
+
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+function SaveFeedback({ status, errorMessage }: { status: SaveStatus; errorMessage?: string }) {
+  if (status === "idle") return null;
+  if (status === "saving") return <p className="text-sm text-muted-foreground">Saving…</p>;
+  if (status === "saved") return <p className="text-sm text-[var(--profit-primary)]">Saved.</p>;
+  return <p className="text-sm text-[var(--loss-primary)]">{errorMessage ?? "Failed to save."}</p>;
+}
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const { user, profile, refreshProfile } = useAuth();
+
+  // Profile form state
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [timezone, setTimezone] = useState("utc");
+  const [profileSaveStatus, setProfileSaveStatus] = useState<SaveStatus>("idle");
+  const [profileSaveError, setProfileSaveError] = useState("");
+
+  // Password form state
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaveStatus, setPasswordSaveStatus] = useState<SaveStatus>("idle");
+  const [passwordSaveError, setPasswordSaveError] = useState("");
+
+  // Trading settings state
+  const [defaultRisk, setDefaultRisk] = useState("1");
+  const [defaultRR, setDefaultRR] = useState("2");
+  const [defaultTimeframe, setDefaultTimeframe] = useState("h4");
+  const [tradingSaveStatus, setTradingSaveStatus] = useState<SaveStatus>("idle");
+  const [tradingSaveError, setTradingSaveError] = useState("");
+
+  // Notifications state
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
@@ -28,378 +99,433 @@ export default function SettingsPage() {
     drawdownAlert: true,
   });
 
+  // Sync form from profile when it loads
+  useEffect(() => {
+    if (!profile) return;
+    setFirstName(profile.first_name ?? "");
+    setLastName(profile.last_name ?? "");
+    setTimezone(profile.timezone ?? "utc");
+    setDefaultRisk(String(profile.default_risk_percent ?? 1));
+    setDefaultRR(String(profile.default_rr_ratio ?? 2));
+  }, [profile]);
+
+  const avatarInitials = useMemo(() => {
+    const f = firstName.trim();
+    const l = lastName.trim();
+    if (f && l) return `${f[0]}${l[0]}`.toUpperCase();
+    if (f) return f[0].toUpperCase();
+    if (user?.email) return user.email[0].toUpperCase();
+    return "?";
+  }, [firstName, lastName, user]);
+
+  const notificationRows = useMemo(
+    () =>
+      NOTIFICATION_OPTIONS.map((item) => ({
+        ...item,
+        enabled: notifications[item.key],
+      })),
+    [notifications],
+  );
+
+  async function handleSaveProfile() {
+    if (!user) return;
+    setProfileSaveStatus("saving");
+    setProfileSaveError("");
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("profiles")
+        .update({ first_name: firstName.trim() || null, last_name: lastName.trim() || null, timezone })
+        .eq("id", user.id);
+      if (error) throw error;
+      await refreshProfile();
+      setProfileSaveStatus("saved");
+      setTimeout(() => setProfileSaveStatus("idle"), 3000);
+    } catch (err) {
+      setProfileSaveError(err instanceof Error ? err.message : "Unknown error");
+      setProfileSaveStatus("error");
+    }
+  }
+
+  async function handleUpdatePassword() {
+    if (!newPassword) return;
+    if (newPassword !== confirmPassword) {
+      setPasswordSaveStatus("error");
+      setPasswordSaveError("Passwords do not match.");
+      return;
+    }
+    setPasswordSaveStatus("saving");
+    setPasswordSaveError("");
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordSaveStatus("saved");
+      setTimeout(() => setPasswordSaveStatus("idle"), 3000);
+    } catch (err) {
+      setPasswordSaveError(err instanceof Error ? err.message : "Unknown error");
+      setPasswordSaveStatus("error");
+    }
+  }
+
+  async function handleSaveTrading() {
+    if (!user) return;
+    setTradingSaveStatus("saving");
+    setTradingSaveError("");
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          default_risk_percent: parseFloat(defaultRisk) || null,
+          default_rr_ratio: parseFloat(defaultRR) || null,
+        })
+        .eq("id", user.id);
+      if (error) throw error;
+      await refreshProfile();
+      setTradingSaveStatus("saved");
+      setTimeout(() => setTradingSaveStatus("idle"), 3000);
+    } catch (err) {
+      setTradingSaveError(err instanceof Error ? err.message : "Unknown error");
+      setTradingSaveStatus("error");
+    }
+  }
+
   return (
-    <div className="space-y-8 max-w-4xl">
-      {/* Header */}
-      <section>
-        <p className="text-label mb-1">Account</p>
-        <h1 className="headline-lg">Settings</h1>
-      </section>
+    <div className="mx-auto max-w-5xl space-y-8">
+      <AppPageHeader
+        eyebrow="Account"
+        title="Settings"
+        description="Manage profile, trading preferences, notifications, and data controls."
+      />
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="bg-void-surface border border-white/10">
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="appearance">Appearance</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="trading">Trading</TabsTrigger>
-          <TabsTrigger value="data">Data</TabsTrigger>
+        <TabsList className="h-auto flex-wrap gap-2 rounded-md border border-border bg-card p-1">
+          {SETTINGS_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className="rounded-md px-3 py-1.5 text-xs font-medium"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        {/* Profile Tab */}
         <TabsContent value="profile" className="space-y-6">
-          <Card className="bg-black/60 backdrop-blur-xl border-white/5">
-            <CardContent className="p-6">
-              <h3 className="headline-md mb-2">Profile Information</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Update your personal information
-              </p>
+          <AppPanel>
+            <h3 className="headline-md mb-2">Profile Information</h3>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Update your personal and account details.
+            </p>
 
-              <div className="flex items-center gap-6 mb-6">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src="/avatar.png" alt="User" />
-                  <AvatarFallback className="text-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
-                    TR
-                  </AvatarFallback>
-                </Avatar>
-                <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-transparent border-white/10 hover:bg-white/5"
-                  >
-                    Change Photo
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    JPG, PNG or GIF. Max 2MB.
-                  </p>
-                </div>
+            <div className="mb-6 flex flex-wrap items-center gap-5">
+              <Avatar className="h-20 w-20 border border-border-subtle">
+                <AvatarImage src={profile?.avatar_url ?? ""} alt="User profile" />
+                <AvatarFallback className="bg-accent text-accent-primary text-lg font-semibold">
+                  {avatarInitials}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <Button variant="outline" size="sm" disabled>
+                  Change Photo
+                </Button>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  JPG, PNG, or GIF. Max file size 2MB.
+                </p>
               </div>
+            </div>
 
-              <div className="grid gap-4 md:grid-cols-2 mb-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input
-                    id="firstName"
-                    defaultValue="Trader"
-                    className="bg-void border-white/10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    defaultValue="Pro"
-                    className="bg-void border-white/10"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-4">
-                <Label htmlFor="email">Email</Label>
+            <div className="mb-4 grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="first-name">First Name</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  defaultValue="trader@example.com"
-                  className="bg-void border-white/10"
+                  id="first-name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="First name"
                 />
               </div>
-
-              <div className="space-y-2 mb-6">
-                <Label htmlFor="timezone">Timezone</Label>
-                <Select defaultValue="utc">
-                  <SelectTrigger className="bg-void border-white/10">
-                    <SelectValue placeholder="Select timezone" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="utc">UTC (GMT+0)</SelectItem>
-                    <SelectItem value="est">Eastern Time (GMT-5)</SelectItem>
-                    <SelectItem value="pst">Pacific Time (GMT-8)</SelectItem>
-                    <SelectItem value="ist">
-                      India Standard Time (GMT+5:30)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2">
+                <Label htmlFor="last-name">Last Name</Label>
+                <Input
+                  id="last-name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Last name"
+                />
               </div>
+            </div>
 
-              <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+            <div className="mb-4 space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={user?.email ?? ""}
+                readOnly
+                className="opacity-60 cursor-not-allowed"
+              />
+              <p className="text-xs text-muted-foreground">
+                Email changes are managed through your authentication provider.
+              </p>
+            </div>
+
+            <div className="mb-6 space-y-2">
+              <Label htmlFor="timezone">Timezone</Label>
+              <Select value={timezone} onValueChange={setTimezone}>
+                <SelectTrigger id="timezone" className="max-w-[280px]">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="utc">UTC (GMT+0)</SelectItem>
+                  <SelectItem value="est">Eastern Time (GMT-5)</SelectItem>
+                  <SelectItem value="pst">Pacific Time (GMT-8)</SelectItem>
+                  <SelectItem value="ist">India Standard Time (GMT+5:30)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <Button onClick={handleSaveProfile} disabled={profileSaveStatus === "saving" || !user}>
                 Save Changes
               </Button>
-            </CardContent>
-          </Card>
+              <SaveFeedback status={profileSaveStatus} errorMessage={profileSaveError} />
+            </div>
+          </AppPanel>
 
-          <Card className="bg-black/60 backdrop-blur-xl border-white/5">
-            <CardContent className="p-6">
-              <h3 className="headline-md mb-2">Password</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Update your password
-              </p>
+          <AppPanel>
+            <h3 className="headline-md mb-2">Password</h3>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Change your password to keep your account secure.
+            </p>
 
-              <div className="space-y-2 mb-4">
-                <Label htmlFor="currentPassword">Current Password</Label>
+            <div className="mb-6 grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New Password</Label>
                 <Input
-                  id="currentPassword"
+                  id="new-password"
                   type="password"
-                  className="bg-void border-white/10"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                 />
               </div>
-              <div className="grid gap-4 md:grid-cols-2 mb-6">
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">New Password</Label>
-                  <Input
-                    id="newPassword"
-                    type="password"
-                    className="bg-void border-white/10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    className="bg-void border-white/10"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
               </div>
+            </div>
+
+            <div className="flex items-center gap-4">
               <Button
                 variant="outline"
-                className="bg-transparent border-white/10 hover:bg-white/5"
+                onClick={handleUpdatePassword}
+                disabled={passwordSaveStatus === "saving" || !newPassword}
               >
                 Update Password
               </Button>
-            </CardContent>
-          </Card>
+              <SaveFeedback status={passwordSaveStatus} errorMessage={passwordSaveError} />
+            </div>
+          </AppPanel>
         </TabsContent>
 
-        {/* Appearance Tab */}
         <TabsContent value="appearance" className="space-y-6">
-          <Card className="bg-black/60 backdrop-blur-xl border-white/5">
-            <CardContent className="p-6">
-              <h3 className="headline-md mb-2">Theme</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Choose your preferred color scheme
-              </p>
+          <AppPanel>
+            <h3 className="headline-md mb-2">Theme</h3>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Choose how the interface is rendered.
+            </p>
 
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { value: "light", icon: Sun, label: "Light" },
-                  { value: "dark", icon: Moon, label: "Dark" },
-                  { value: "system", icon: Monitor, label: "System" },
-                ].map(({ value, icon: Icon, label }) => (
-                  <button
-                    key={value}
-                    onClick={() =>
-                      setTheme(value as "light" | "dark" | "system")
+            <div className="grid grid-cols-3 gap-4">
+              {THEME_OPTIONS.map(({ value, icon: Icon, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTheme(value)}
+                  className={cn(
+                    "rounded-md border p-4 text-center transition-colors",
+                    theme === value
+                      ? "border-accent-primary bg-accent/70"
+                      : "border-border hover:bg-accent/40",
+                  )}
+                >
+                  <Icon className="mx-auto mb-2 h-5 w-5" />
+                  <span className="text-sm font-medium">{label}</span>
+                </button>
+              ))}
+            </div>
+          </AppPanel>
+
+          <AppPanel>
+            <h3 className="headline-md mb-2">Dashboard View</h3>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Select the default metric representation.
+            </p>
+            <Select defaultValue="dollars">
+              <SelectTrigger className="max-w-[240px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dollars">Dollars ($)</SelectItem>
+                <SelectItem value="percentage">Percentage (%)</SelectItem>
+                <SelectItem value="rmultiple">R-Multiple</SelectItem>
+                <SelectItem value="pips">Pips/Ticks</SelectItem>
+              </SelectContent>
+            </Select>
+          </AppPanel>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-6">
+          <AppPanel>
+            <h3 className="headline-md mb-2">Notification Preferences</h3>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Configure when and how you receive alerts.
+            </p>
+            <div className="divide-y divide-border-subtle">
+              {notificationRows.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between gap-3 py-4"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.description}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={item.enabled}
+                    onCheckedChange={(value) =>
+                      setNotifications((prev) => ({ ...prev, [item.key]: value }))
                     }
-                    className={cn(
-                      "p-4 rounded-lg border-2 transition-all",
-                      theme === value
-                        ? "border-blue-500 bg-blue-500/10"
-                        : "border-white/10 hover:border-white/20",
-                    )}
-                  >
-                    <Icon className="h-6 w-6 mx-auto mb-2" />
-                    <span className="text-sm font-medium">{label}</span>
-                  </button>
-                ))}
+                    aria-label={item.label}
+                  />
+                </div>
+              ))}
+            </div>
+          </AppPanel>
+        </TabsContent>
+
+        <TabsContent value="trading" className="space-y-6">
+          <AppPanel>
+            <h3 className="headline-md mb-2">Default Trading Settings</h3>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Set baseline values for new trades and journal entries.
+            </p>
+
+            <div className="mb-4 grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="default-risk">Default Risk %</Label>
+                <Input
+                  id="default-risk"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={defaultRisk}
+                  onChange={(e) => setDefaultRisk(e.target.value)}
+                />
               </div>
-            </CardContent>
-          </Card>
+              <div className="space-y-2">
+                <Label htmlFor="default-rr">Default R:R Ratio</Label>
+                <Input
+                  id="default-rr"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={defaultRR}
+                  onChange={(e) => setDefaultRR(e.target.value)}
+                />
+              </div>
+            </div>
 
-          <Card className="bg-black/60 backdrop-blur-xl border-white/5">
-            <CardContent className="p-6">
-              <h3 className="headline-md mb-2">Dashboard View</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Default view mode for your dashboard
-              </p>
-
-              <Select defaultValue="dollars">
-                <SelectTrigger className="w-[200px] bg-void border-white/10">
-                  <SelectValue placeholder="Select view" />
+            <div className="mb-6 space-y-2">
+              <Label htmlFor="default-timeframe">Default Timeframe</Label>
+              <Select value={defaultTimeframe} onValueChange={setDefaultTimeframe}>
+                <SelectTrigger id="default-timeframe" className="max-w-[200px]">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="dollars">Dollars ($)</SelectItem>
-                  <SelectItem value="percentage">Percentage (%)</SelectItem>
-                  <SelectItem value="rmultiple">R-Multiple</SelectItem>
-                  <SelectItem value="pips">Pips/Ticks</SelectItem>
+                  <SelectItem value="m15">M15</SelectItem>
+                  <SelectItem value="m30">M30</SelectItem>
+                  <SelectItem value="h1">H1</SelectItem>
+                  <SelectItem value="h4">H4</SelectItem>
+                  <SelectItem value="d1">D1</SelectItem>
                 </SelectContent>
               </Select>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
 
-        {/* Notifications Tab */}
-        <TabsContent value="notifications" className="space-y-6">
-          <Card className="bg-black/60 backdrop-blur-xl border-white/5">
-            <CardContent className="p-6">
-              <h3 className="headline-md mb-2">Notification Preferences</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Manage how you receive notifications
-              </p>
-
-              <div className="space-y-6">
-                {[
-                  {
-                    key: "email",
-                    label: "Email Notifications",
-                    desc: "Receive updates via email",
-                  },
-                  {
-                    key: "push",
-                    label: "Push Notifications",
-                    desc: "Browser push notifications",
-                  },
-                  {
-                    key: "weeklyReport",
-                    label: "Weekly Report",
-                    desc: "Receive weekly performance summary",
-                  },
-                  {
-                    key: "drawdownAlert",
-                    label: "Drawdown Alerts",
-                    desc: "Alert when approaching drawdown limits",
-                  },
-                ].map(({ key, label, desc }) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between py-3 border-b border-white/5 last:border-0"
-                  >
-                    <div>
-                      <Label>{label}</Label>
-                      <p className="text-sm text-muted-foreground">{desc}</p>
-                    </div>
-                    <Switch
-                      checked={notifications[key as keyof typeof notifications]}
-                      onCheckedChange={(v) =>
-                        setNotifications({ ...notifications, [key]: v })
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Trading Tab */}
-        <TabsContent value="trading" className="space-y-6">
-          <Card className="bg-black/60 backdrop-blur-xl border-white/5">
-            <CardContent className="p-6">
-              <h3 className="headline-md mb-2">Default Trading Settings</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Configure your default trade settings
-              </p>
-
-              <div className="grid gap-4 md:grid-cols-2 mb-4">
-                <div className="space-y-2">
-                  <Label>Default Risk %</Label>
-                  <Input
-                    type="number"
-                    defaultValue="1"
-                    step="0.1"
-                    className="bg-void border-white/10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Default R:R Ratio</Label>
-                  <Input
-                    type="number"
-                    defaultValue="2"
-                    step="0.5"
-                    className="bg-void border-white/10"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2 mb-6">
-                <Label>Default Timeframe</Label>
-                <Select defaultValue="h4">
-                  <SelectTrigger className="w-[200px] bg-void border-white/10">
-                    <SelectValue placeholder="Select timeframe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="m15">M15</SelectItem>
-                    <SelectItem value="m30">M30</SelectItem>
-                    <SelectItem value="h1">H1</SelectItem>
-                    <SelectItem value="h4">H4</SelectItem>
-                    <SelectItem value="d1">D1</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+            <div className="flex items-center gap-4">
+              <Button onClick={handleSaveTrading} disabled={tradingSaveStatus === "saving" || !user}>
                 Save Settings
               </Button>
-            </CardContent>
-          </Card>
+              <SaveFeedback status={tradingSaveStatus} errorMessage={tradingSaveError} />
+            </div>
+          </AppPanel>
         </TabsContent>
 
-        {/* Data Tab */}
         <TabsContent value="data" className="space-y-6">
-          <Card className="bg-black/60 backdrop-blur-xl border-white/5">
-            <CardContent className="p-6">
-              <h3 className="headline-md mb-2">Export Data</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Download your trading data
-              </p>
+          <AppPanel>
+            <h3 className="headline-md mb-2">Export Data</h3>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Download your account history and analytics snapshots.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export Trades (CSV)
+              </Button>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export Analytics (PDF)
+              </Button>
+            </div>
+          </AppPanel>
 
-              <div className="flex gap-4">
-                <Button
-                  variant="outline"
-                  className="bg-transparent border-white/10 hover:bg-white/5"
+          <section className="rounded-lg border border-red-500/30 bg-red-500/5 p-6">
+            <h3 className="headline-md mb-2 text-red-300">Danger Zone</h3>
+            <p className="mb-6 text-sm text-muted-foreground">
+              These actions are irreversible.
+            </p>
+
+            <div className="space-y-4">
+              {[
+                {
+                  title: "Delete All Trades",
+                  description: "Permanently remove all trade records.",
+                },
+                {
+                  title: "Delete Account",
+                  description: "Remove your profile and all stored data.",
+                },
+              ].map((action) => (
+                <div
+                  key={action.title}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-500/25 bg-red-500/10 p-4"
                 >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Trades (CSV)
-                </Button>
-                <Button
-                  variant="outline"
-                  className="bg-transparent border-white/10 hover:bg-white/5"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Analytics (PDF)
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-black/60 backdrop-blur-xl border-white/5 border-red-500/20">
-            <CardContent className="p-6">
-              <h3 className="headline-md text-red-500 mb-2">Danger Zone</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Irreversible actions
-              </p>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-lg bg-red-500/5 border border-red-500/10">
                   <div>
-                    <p className="font-medium">Delete All Trades</p>
+                    <p className="font-medium">{action.title}</p>
                     <p className="text-sm text-muted-foreground">
-                      Permanently delete all your trade data
+                      {action.description}
                     </p>
                   </div>
                   <Button
                     variant="outline"
-                    className="bg-transparent border-red-500/20 text-red-500 hover:bg-red-500/10"
+                    className="border-red-500/35 text-red-300 hover:bg-red-500/20 hover:text-red-200"
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
+                    <Trash2 className="mr-2 h-4 w-4" />
                     Delete
                   </Button>
                 </div>
-                <div className="flex items-center justify-between p-4 rounded-lg bg-red-500/5 border border-red-500/10">
-                  <div>
-                    <p className="font-medium">Delete Account</p>
-                    <p className="text-sm text-muted-foreground">
-                      Permanently delete your account and all data
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="bg-transparent border-red-500/20 text-red-500 hover:bg-red-500/10"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+          </section>
         </TabsContent>
       </Tabs>
     </div>

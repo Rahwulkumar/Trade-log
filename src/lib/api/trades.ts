@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Trade, TradeInsert, TradeUpdate } from '@/lib/supabase/types'
+import { withPropAccountFilter } from '@/lib/utils/query-helpers'
 
 export interface TradeFilters {
     status?: 'open' | 'closed' | 'all'
@@ -22,36 +23,19 @@ export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
     if (filters?.status && filters.status !== 'all') {
         query = query.eq('status', filters.status)
     }
-
     if (filters?.direction && filters.direction !== 'all') {
         query = query.eq('direction', filters.direction)
     }
-
     if (filters?.playbookId) {
         query = query.eq('playbook_id', filters.playbookId)
     }
+    if (filters?.startDate) query = query.gte('entry_date', filters.startDate)
+    if (filters?.endDate) query = query.lte('entry_date', filters.endDate)
+    if (filters?.search) query = query.ilike('symbol', `%${filters.search}%`)
 
-    // Filter by prop account
-    if (filters?.propAccountId === 'unassigned') {
-        query = query.is('prop_account_id', null)
-    } else if (filters?.propAccountId) {
-        query = query.eq('prop_account_id', filters.propAccountId)
-    }
-
-    if (filters?.startDate) {
-        query = query.gte('entry_date', filters.startDate)
-    }
-
-    if (filters?.endDate) {
-        query = query.lte('entry_date', filters.endDate)
-    }
-
-    if (filters?.search) {
-        query = query.ilike('symbol', `%${filters.search}%`)
-    }
+    query = withPropAccountFilter(query, filters?.propAccountId)
 
     const { data, error } = await query
-
     if (error) throw new Error(error.message)
     return (data || []) as Trade[]
 }
@@ -117,13 +101,13 @@ export async function closeTrade(id: string, exitPrice: number, exitDate: string
     const trade = await getTrade(id)
     if (!trade) throw new Error('Trade not found')
 
-    // Calculate PnL
+    if (trade.status === 'closed') throw new Error('Trade is already closed')
+
     const priceDiff = trade.direction === 'LONG'
         ? exitPrice - trade.entry_price
         : trade.entry_price - exitPrice
     const pnl = priceDiff * trade.position_size
 
-    // Calculate R-multiple if stop loss exists
     let rMultiple: number | null = null
     if (trade.stop_loss) {
         const risk = trade.direction === 'LONG'
@@ -153,15 +137,9 @@ export async function getTradesByDateRange(startDate: string, endDate: string, p
         .lte('entry_date', endDate)
         .order('entry_date', { ascending: true })
 
-    // Filter by prop account
-    if (propAccountId === 'unassigned') {
-        query = query.is('prop_account_id', null)
-    } else if (propAccountId) {
-        query = query.eq('prop_account_id', propAccountId)
-    }
+    query = withPropAccountFilter(query, propAccountId)
 
     const { data, error } = await query
-
     if (error) throw new Error(error.message)
     return (data || []) as Trade[]
 }

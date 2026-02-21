@@ -29,15 +29,13 @@ export function TradeTimeline({
               key={trade.id}
               onClick={() => onTradeSelect(trade.id)}
               className={cn(
-                "relative group px-4 py-3 transition-all duration-200 text-left border-b border-white/5",
-                isSelected
-                  ? "bg-zinc-900"
-                  : "bg-transparent hover:bg-zinc-900/50",
+                "relative group px-4 py-3 transition-all duration-200 text-left border-b border-border",
+                isSelected ? "bg-muted" : "bg-transparent hover:bg-muted/50",
               )}
             >
               {/* Timeline indicator line */}
               {isSelected && (
-                <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-zinc-200" />
+                <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[var(--accent-primary)]" />
               )}
 
               <div className="flex items-center justify-between mb-1">
@@ -46,21 +44,21 @@ export function TradeTimeline({
                     className={cn(
                       "w-6 h-6 rounded-sm flex items-center justify-center border",
                       trade.direction === "LONG"
-                        ? "bg-emerald-500/5 border-emerald-500/10"
-                        : "bg-rose-500/5 border-rose-500/10",
+                        ? "bg-[var(--profit-bg)] border-[var(--profit-primary)]/20"
+                        : "bg-[var(--loss-bg)] border-[var(--loss-primary)]/20",
                     )}
                   >
                     {trade.direction === "LONG" ? (
-                      <ArrowUp className="w-3 h-3 text-emerald-500/70" />
+                      <ArrowUp className="w-3 h-3 text-[var(--profit-primary)]" />
                     ) : (
-                      <ArrowDown className="w-3 h-3 text-rose-500/70" />
+                      <ArrowDown className="w-3 h-3 text-[var(--loss-primary)]" />
                     )}
                   </div>
                   <div>
-                    <span className="text-[11px] font-semibold text-zinc-100 uppercase tracking-tight">
+                    <span className="text-[11px] font-semibold text-foreground uppercase tracking-tight">
                       {trade.direction}
                     </span>
-                    <div className="text-[9px] text-zinc-500 tabular-nums">
+                    <div className="text-[9px] text-muted-foreground tabular-nums">
                       {format(entryDate, "MMM d, HH:mm")}
                     </div>
                   </div>
@@ -71,10 +69,10 @@ export function TradeTimeline({
                     className={cn(
                       "text-xs font-mono font-medium",
                       (trade.pnl || 0) > 0
-                        ? "text-emerald-500/80"
+                        ? "text-[var(--profit-primary)]"
                         : (trade.pnl || 0) < 0
-                          ? "text-rose-500/80"
-                          : "text-zinc-600",
+                          ? "text-[var(--loss-primary)]"
+                          : "text-muted-foreground",
                     )}
                   >
                     {(trade.pnl || 0) > 0 ? "+" : ""}

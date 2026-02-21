@@ -1,25 +1,36 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Syne, DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth-provider";
 import { PropAccountProvider } from "@/components/prop-account-provider";
-import { GalaxyBackground } from "@/components/ui/galaxy-background";
-import { TopNav } from "@/components/layout/top-nav";
+import { AppShell } from "@/components/layout/app-shell";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const syne = Syne({
+  variable: "--font-syne",
   subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const jbMono = JetBrains_Mono({
+  variable: "--font-jb-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "TradeLog - Professional Trading Journal",
-  description: "Track, analyze, and improve your trading performance.",
+  title: "CONIYEST — Professional Trading Journal",
+  description:
+    "Track, analyze, and improve your trading performance with deep analytics and a professional-grade journal.",
 };
 
 export default function RootLayout({
@@ -28,19 +39,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="dark">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Anti-FOUC: apply dark class before first paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark');})()`,
+          }}
+        />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${syne.variable} ${dmSans.variable} ${jbMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <ThemeProvider defaultTheme="dark" storageKey="trading-journal-theme">
+        <ThemeProvider defaultTheme="system" storageKey="theme">
           <AuthProvider>
             <PropAccountProvider>
-              <GalaxyBackground />
-              <TopNav />
-              <main className="relative z-10 pt-[80px] min-h-screen">
-                {children}
-              </main>
+              <AppShell>{children}</AppShell>
             </PropAccountProvider>
           </AuthProvider>
         </ThemeProvider>
@@ -48,4 +63,3 @@ export default function RootLayout({
     </html>
   );
 }
-

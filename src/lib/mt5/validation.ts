@@ -102,12 +102,3 @@ export function validateMT5Credentials(credentials: MT5Credentials): ValidationR
     };
 }
 
-/**
- * Sanitize input to prevent XSS and injection attacks
- */
-export function sanitizeInput(input: string): string {
-    return input
-        .trim()
-        .replace(/[<>]/g, '') // Remove angle brackets
-        .substring(0, 500); // Limit length
-}
