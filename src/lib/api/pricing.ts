@@ -11,8 +11,22 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin';
-import type { ChartData } from '@/lib/supabase/types';
-import type { ChartCandle, ChartDataResult } from '@/lib/terminal-farm/types';
+import type { ChartCandle } from '@/lib/terminal-farm/types';
+
+/** Shape of chart data cached in the `chart_data` column of the trades table. */
+interface ChartData {
+    candles: ChartCandle[];
+    symbol: string;
+    fetched_at: string;
+}
+
+/** Result returned by {@link getTradeChartData}. */
+interface ChartDataResult {
+    candles: ChartCandle[];
+    cached?: boolean;
+    error?: string;
+    rateLimited?: boolean;
+}
 
 const TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
 const PRECISION_WINDOW_HOURS = 1; // Hours before/after trade

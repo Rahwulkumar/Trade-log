@@ -47,7 +47,7 @@ export interface CreateAccountFromChallengeParams {
 
 export interface PropAccountWithChallenge extends PropAccount {
     challenge?: PropFirmChallenge;
-    current_phase_status?: 'in_progress' | 'passed' | 'failed';
+    current_phase_status: 'in_progress' | 'passed' | 'failed' | null;
 }
 
 // Re-export existing PropAccount for convenience

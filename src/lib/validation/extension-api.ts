@@ -57,7 +57,7 @@ export const UpdateTradeSchema = z.object({
  */
 export const ExtensionRequestSchema = z.object({
     action: z.enum(['get_strategies', 'create_trade', 'update_trade', 'get_open_trades', 'seed_strategy']),
-    payload: z.record(z.unknown()).optional(),
+    payload: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**

@@ -51,7 +51,7 @@ export function TradeDetailClient({ initialTrade }: TradeDetailClientProps) {
     return () => clearTimeout(timer);
   }, [trade, saveToSupabase, initialTrade]);
 
-  const handleTradeUpdate = (field: keyof EnrichedTrade, value: any) => {
+  const handleTradeUpdate = (field: keyof EnrichedTrade, value: unknown) => {
     setTrade((prev) => ({ ...prev, [field]: value }));
   };
 

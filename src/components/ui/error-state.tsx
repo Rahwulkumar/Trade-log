@@ -57,7 +57,7 @@ export function ErrorState({
       {/* Actions */}
       <div className="flex items-center gap-3">
         {onRetry && (
-          <Button onClick={onRetry} variant="danger">
+          <Button onClick={onRetry} variant="destructive">
             Try Again
           </Button>
         )}

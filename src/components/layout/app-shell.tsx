@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 
@@ -19,17 +19,14 @@ const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
  */
 export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  // Restore collapsed state from localStorage on mount
-  useEffect(() => {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
     try {
-      const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-      if (stored === "true") setSidebarCollapsed(true);
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
     } catch {
-      // localStorage unavailable (SSR / private browsing) — ignore
+      return false;
     }
-  }, []);
+  });
 
   const toggleCollapse = () => {
     setSidebarCollapsed((prev) => {

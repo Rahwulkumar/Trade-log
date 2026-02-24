@@ -7,7 +7,7 @@ import {
   Time,
   LineStyle,
 } from "lightweight-charts";
-import { ChartCandle } from "@/lib/supabase/types";
+import { ChartCandle } from "@/lib/terminal-farm/types";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 
 interface TradeChartProps {

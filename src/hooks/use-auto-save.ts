@@ -18,7 +18,10 @@ export function useAutoSave<T>(
   delay: number = AUTOSAVE_DEBOUNCE_MS,
 ): void {
   const fnRef = useRef(fn);
-  fnRef.current = fn;
+
+  useEffect(() => {
+    fnRef.current = fn;
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => {
