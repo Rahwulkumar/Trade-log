@@ -9,10 +9,11 @@ interface JournalCardProps {
 export function JournalCard({ children, className }: JournalCardProps) {
   return (
     <div
-      className={cn(
-        "bg-card border border-border rounded-xl p-6 shadow-sm overflow-hidden",
-        className,
-      )}
+      className={cn("rounded-xl p-6 overflow-hidden", className)}
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border-subtle)",
+      }}
     >
       {children}
     </div>

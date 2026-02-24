@@ -349,7 +349,7 @@ export function IconPlus(props: IconProps) {
 }
 
 // ─── Search — an angled magnifier with offset handle ─────────────────────
-export function IconSearch(props: IconProps) {
+export function IconSearch(props: IconProps & { style?: React.CSSProperties }) {
   return (
     <Icon {...props}>
       <circle cx="8.5" cy="8.5" r="5.5" />
@@ -611,6 +611,51 @@ export function IconUser(props: IconProps) {
     <Icon {...props}>
       <circle cx="10" cy="7" r="3.5" />
       <path d="M2.5 18 Q2.5 13 10 13 Q17.5 13 17.5 18" />
+    </Icon>
+  );
+}
+
+// ─── Arrow Left ───────────────────────────────────────────────────────────────
+export function IconArrowLeft(
+  props: IconProps & { style?: React.CSSProperties },
+) {
+  return (
+    <Icon {...props}>
+      <line x1="17" y1="10" x2="3" y2="10" />
+      <polyline points="8 5 3 10 8 15" />
+    </Icon>
+  );
+}
+
+// ─── Notebook / Journal ───────────────────────────────────────────────────────
+export function IconNotebook(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="5" y="2" width="12" height="17" rx="1.5" />
+      <line x1="3" y1="5" x2="5" y2="5" />
+      <line x1="3" y1="9" x2="5" y2="9" />
+      <line x1="3" y1="13" x2="5" y2="13" />
+      <line x1="9" y1="7" x2="13" y2="7" />
+      <line x1="9" y1="11" x2="15" y2="11" />
+      <line x1="9" y1="15" x2="12" y2="15" />
+    </Icon>
+  );
+}
+
+// ─── News — newspaper with a signal/wifi arc ──────────────────────────────────
+export function IconNews(props: IconProps) {
+  return (
+    <Icon {...props}>
+      {/* Newspaper body */}
+      <rect x="3" y="4" width="11" height="14" rx="1.5" />
+      {/* Fold corner */}
+      <rect x="14" y="6" width="4" height="12" rx="1" />
+      {/* Headline lines */}
+      <line x1="6" y1="8" x2="11" y2="8" />
+      <line x1="6" y1="11" x2="11" y2="11" />
+      <line x1="6" y1="14" x2="9" y2="14" />
+      {/* Live dot */}
+      <circle cx="16" cy="4.5" r="1.5" fill="currentColor" stroke="none" />
     </Icon>
   );
 }

@@ -12,17 +12,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Plus, Maximize2, TrendingUp } from "lucide-react";
+import { IconPlus } from "@/components/ui/icons";
 
 interface JournalSidebarProps {
   trade: EnrichedTrade;
   playbooks: Playbook[];
-  onUpdate: (field: keyof EnrichedTrade, value: any) => void;
+  onUpdate: (field: keyof EnrichedTrade, value: unknown) => void;
   isSaving?: boolean;
+}
+
+// ─── Section label ───────────────────────────────────────────────────────────
+function SidebarSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <span className="text-label block" style={{ fontSize: "0.6rem" }}>
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+// ─── Divider ─────────────────────────────────────────────────────────────────
+function Divider() {
+  return <div style={{ height: "1px", background: "var(--border-subtle)" }} />;
 }
 
 export function JournalSidebar({
@@ -31,16 +51,30 @@ export function JournalSidebar({
   onUpdate,
   isSaving,
 }: JournalSidebarProps) {
-  // Helper for PnL Color
-  const pnlColor = getPnLColorClass(trade.pnl);
-  const pnlPillStyle = useMemo(() => {
-    if (!trade.pnl || trade.pnl === 0)
-      return { background: "transparent", borderColor: "var(--border-default)" };
-    const rgb = trade.pnl > 0 ? "78,203,6" : "255,68,85";
-    return { background: `rgba(${rgb},0.1)`, borderColor: `rgba(${rgb},0.2)` };
-  }, [trade.pnl]);
+  // PnL pill
+  const pnl = trade.pnl ?? 0;
+  const isProfit = pnl > 0;
+  const isLoss = pnl < 0;
 
-  // Safe screenshots access
+  const pnlStyle = useMemo(() => {
+    if (!pnl || pnl === 0)
+      return {
+        background: "var(--surface-elevated)",
+        borderColor: "var(--border-default)",
+      };
+    return {
+      background: isProfit ? "var(--profit-bg)" : "var(--loss-bg)",
+      borderColor: isProfit ? "var(--profit-primary)" : "var(--loss-primary)",
+    };
+  }, [pnl, isProfit]);
+
+  const pnlTextColor = isProfit
+    ? "var(--profit-primary)"
+    : isLoss
+      ? "var(--loss-primary)"
+      : "var(--text-tertiary)";
+
+  // Screenshots
   const screenshots = useMemo(() => {
     if (!trade.screenshots) return [];
     if (Array.isArray(trade.screenshots)) {
@@ -50,70 +84,127 @@ export function JournalSidebar({
   }, [trade.screenshots]);
 
   return (
-    <div className="w-[340px] border-l border-border bg-card/20 backdrop-blur-sm flex flex-col h-full shadow-xl z-20">
-      {/* 1. HEADER: Symbol & PnL */}
-      <div className="p-4 border-b border-border space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
-              Asset
-            </span>
-            <span className="text-2xl font-black tracking-tight text-foreground">
-              {trade.symbol}
-            </span>
-          </div>
-
-          <div
-            className="flex flex-col items-end px-3 py-1.5 rounded-md border"
-            style={pnlPillStyle}
+    <div
+      className="w-[320px] flex flex-col h-full"
+      style={{
+        borderLeft: "1px solid var(--border-default)",
+        background: "var(--surface)",
+      }}
+    >
+      {/* ── Header: Symbol + PnL pill ── */}
+      <div
+        className="p-4 flex items-center justify-between shrink-0"
+        style={{ borderBottom: "1px solid var(--border-subtle)" }}
+      >
+        <div className="flex flex-col gap-0.5">
+          <span className="text-label" style={{ fontSize: "0.6rem" }}>
+            Asset
+          </span>
+          <span
+            style={{
+                            fontWeight: 700,
+              fontSize: "1.35rem",
+              color: "var(--text-primary)",
+              letterSpacing: "-0.02em",
+              lineHeight: 1,
+            }}
           >
-            <span className="text-[10px] uppercase tracking-widest text-muted-foreground/80 font-semibold mb-0.5">
-              Net PnL
-            </span>
-            <span className={cn("text-xl font-mono font-bold leading-none", pnlColor)}>
-              {typeof trade.pnl === "number"
-                ? formatCurrency(trade.pnl)
-                : "$0.00"}
-            </span>
-          </div>
+            {trade.symbol}
+          </span>
         </div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-muted/30 rounded border border-border p-2 flex flex-col">
-            <span className="text-[9px] uppercase text-muted-foreground font-mono">
-              R-Multiple
-            </span>
-            <span className="text-sm font-mono font-bold text-foreground">
-              {trade.r_multiple ? `${trade.r_multiple}R` : "-"}
-            </span>
-          </div>
-          <div className="bg-muted/30 rounded border border-border p-2 flex flex-col items-end">
-            <span className="text-[9px] uppercase text-muted-foreground font-mono">
-              Setup Quality
-            </span>
-            <div className="flex items-center gap-1">
-              {/* Placeholder for star rating or simplistic quality score */}
-              <span className="text-sm font-bold text-primary">A+</span>
-            </div>
-          </div>
+        <div
+          className="flex flex-col items-end px-3 py-2 rounded-[var(--radius-default)] border"
+          style={pnlStyle}
+        >
+          <span
+            className="text-label"
+            style={{ fontSize: "0.55rem", marginBottom: "2px" }}
+          >
+            Net PnL
+          </span>
+          <span
+            className={cn(
+              "mono font-bold leading-none",
+              getPnLColorClass(trade.pnl),
+            )}
+            style={{ fontSize: "1.05rem", color: pnlTextColor }}
+          >
+            {typeof trade.pnl === "number"
+              ? formatCurrency(trade.pnl)
+              : "$0.00"}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Stats row: R-Multiple + Quality ── */}
+      <div
+        className="grid grid-cols-2 gap-px shrink-0"
+        style={{
+          background: "var(--border-subtle)",
+          borderBottom: "1px solid var(--border-subtle)",
+        }}
+      >
+        <div
+          className="flex flex-col gap-0.5 p-3"
+          style={{ background: "var(--surface)" }}
+        >
+          <span className="text-label" style={{ fontSize: "0.55rem" }}>
+            R-Multiple
+          </span>
+          <span
+            className="mono font-bold"
+            style={{
+              fontSize: "0.9rem",
+              color:
+                (trade.r_multiple ?? 0) >= 0
+                  ? "var(--profit-primary)"
+                  : "var(--loss-primary)",
+            }}
+          >
+            {trade.r_multiple != null
+              ? `${trade.r_multiple >= 0 ? "+" : ""}${trade.r_multiple.toFixed(2)}R`
+              : "—"}
+          </span>
+        </div>
+        <div
+          className="flex flex-col gap-0.5 p-3 items-end"
+          style={{ background: "var(--surface)" }}
+        >
+          <span className="text-label" style={{ fontSize: "0.55rem" }}>
+            Grade
+          </span>
+          <span
+            className="font-bold"
+            style={{
+              fontSize: "0.9rem",
+              color: trade.execution_grade
+                ? "var(--accent-primary)"
+                : "var(--text-tertiary)",
+            }}
+          >
+            {trade.execution_grade ?? "—"}
+          </span>
         </div>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-6">
-          {/* 2. STRATEGY SELECTION */}
-          <div className="space-y-2">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-2">
-              <TrendingUp className="w-3 h-3" />
-              Strategy / Playbook
-            </label>
+        <div className="p-4 space-y-5">
+          {/* Strategy selection */}
+          <SidebarSection label="Strategy / Playbook">
             <Select
               value={trade.playbook_id ?? undefined}
               onValueChange={(val) => onUpdate("playbook_id", val)}
             >
-              <SelectTrigger className="h-9 bg-muted/20 border-border text-xs focus:ring-1 focus:ring-primary/50">
-                <SelectValue placeholder="Select Strategy..." />
+              <SelectTrigger
+                className="h-8 text-xs"
+                style={{
+                  background: "var(--surface-elevated)",
+                  borderColor: "var(--border-default)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                <SelectValue placeholder="Select strategy..." />
               </SelectTrigger>
               <SelectContent>
                 {playbooks?.map((pb) => (
@@ -123,92 +214,121 @@ export function JournalSidebar({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </SidebarSection>
 
-          <Separator className="bg-border/50" />
+          <Divider />
 
-          {/* 3. NOTES - "The Black Box" */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                Trade Notes
-              </label>
+          {/* Trade notes */}
+          <SidebarSection label="Trade Notes">
+            <div className="relative">
+              <textarea
+                placeholder="Capture your thoughts, reasoning, and observations..."
+                className="w-full rounded-[var(--radius-default)] p-2.5 text-xs resize-none focus:outline-none leading-relaxed border transition-colors"
+                style={{
+                  background: "var(--surface-elevated)",
+                  borderColor: "var(--border-default)",
+                  color: "var(--text-primary)",
+                  minHeight: "140px",
+                  fontFamily: "var(--font-jb-mono)",
+                }}
+                value={trade.notes ?? ""}
+                onChange={(e) => onUpdate("notes", e.target.value)}
+                onFocus={(e) =>
+                  (e.target.style.borderColor = "var(--accent-primary)")
+                }
+                onBlur={(e) =>
+                  (e.target.style.borderColor = "var(--border-default)")
+                }
+              />
               {isSaving && (
-                <span className="text-[9px] text-muted-foreground animate-pulse">
-                  Syncing...
+                <span
+                  className="absolute bottom-2 right-2 text-[0.6rem] animate-pulse"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  Saving...
                 </span>
               )}
             </div>
-            <Textarea
-              placeholder="Capture your thoughts..."
-              className="min-h-[150px] bg-muted/20 border-border text-xs resize-none focus-visible:ring-1 focus-visible:ring-primary/50 font-mono leading-relaxed"
-              value={trade.notes ?? ""}
-              onChange={(e) => onUpdate("notes", e.target.value)}
-            />
-          </div>
+          </SidebarSection>
 
-          <Separator className="bg-border/50" />
+          <Divider />
 
-          {/* 4. SCREENSHOTS - Minimal List */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                Evidence
-              </label>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 rounded-full hover:bg-muted"
+          {/* Screenshots */}
+          <SidebarSection label={`Evidence · ${screenshots.length} files`}>
+            {screenshots.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center gap-2 py-5 rounded-[var(--radius-default)] border border-dashed"
+                style={{
+                  borderColor: "var(--border-default)",
+                  background: "var(--surface-elevated)",
+                }}
               >
-                <Plus className="w-3 h-3" />
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              {/* Placeholder for empty state */}
-              {screenshots.length === 0 && (
-                <div className="h-20 border border-dashed border-border rounded-md flex items-center justify-center text-[10px] text-muted-foreground bg-muted/10">
-                  No screenshots
-                </div>
-              )}
-
-              {/* Mapping screenshots would go here */}
-              {screenshots.map((s, i) => (
                 <div
-                  key={i}
-                  className="group relative flex items-center gap-3 p-2 rounded-md border border-border bg-muted/10 hover:bg-muted/20 transition-colors"
+                  className="flex h-7 w-7 items-center justify-center rounded-full"
+                  style={{
+                    background: "var(--accent-soft)",
+                    color: "var(--accent-primary)",
+                  }}
                 >
-                  <div className="h-8 w-12 bg-black rounded overflow-hidden relative border border-border/50">
-                    {/* Thumbnail */}
-                  </div>
-                  <div className="flex-1 flex flex-col">
-                    <span className="text-[10px] font-mono font-medium text-foreground">
-                      {s.timeframe || "IMG"}
-                    </span>
-                    <span className="text-[9px] text-muted-foreground">
-                      {s.created_at
-                        ? new Date(s.created_at).toLocaleTimeString()
-                        : "Unknown"}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Maximize2 className="w-3 h-3" />
-                  </Button>
+                  <IconPlus size={12} strokeWidth={2} />
                 </div>
-              ))}
-            </div>
-          </div>
+                <span
+                  style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}
+                >
+                  No screenshots yet
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {screenshots.map((s, i) => (
+                  <div
+                    key={i}
+                    className="group flex items-center gap-2.5 p-2 rounded-[var(--radius-default)] border transition-colors"
+                    style={{
+                      background: "var(--surface-elevated)",
+                      borderColor: "var(--border-default)",
+                    }}
+                  >
+                    <div
+                      className="h-8 w-12 rounded overflow-hidden shrink-0 border"
+                      style={{
+                        borderColor: "var(--border-default)",
+                        background: "var(--surface-hover)",
+                      }}
+                    />
+                    <div className="flex-1 flex flex-col gap-0.5">
+                      <span
+                        className="mono text-[0.68rem] font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {s.timeframe ?? "Screenshot"}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "0.62rem",
+                          color: "var(--text-tertiary)",
+                        }}
+                      >
+                        {s.created_at
+                          ? new Date(s.created_at).toLocaleTimeString(
+                              undefined,
+                              { hour: "2-digit", minute: "2-digit" },
+                            )
+                          : "Unknown time"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SidebarSection>
         </div>
       </ScrollArea>
     </div>
   );
 }
 
-// Local helper if Utils doesn't have it
+// ─── Local helper ─────────────────────────────────────────────────────────────
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",

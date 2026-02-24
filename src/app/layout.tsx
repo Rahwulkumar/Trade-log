@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import { Syne, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { Syne, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth-provider";
 import { PropAccountProvider } from "@/components/prop-account-provider";
 import { AppShell } from "@/components/layout/app-shell";
 
+/**
+ * Syne — geometric display font, for headings and the logo wordmark
+ */
 const syne = Syne({
   variable: "--font-syne",
   subsets: ["latin"],
@@ -13,13 +16,19 @@ const syne = Syne({
   display: "swap",
 });
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+/**
+ * Inter — the cleanest, most neutral UI font in the industry
+ */
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
+/**
+ * JetBrains Mono — for trade numbers, prices, PnL values
+ */
 const jbMono = JetBrains_Mono({
   variable: "--font-jb-mono",
   subsets: ["latin"],
@@ -49,7 +58,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${syne.variable} ${dmSans.variable} ${jbMono.variable} antialiased`}
+        className={`${syne.variable} ${inter.variable} ${jbMono.variable} antialiased`}
         suppressHydrationWarning
       >
         <ThemeProvider defaultTheme="system" storageKey="theme">

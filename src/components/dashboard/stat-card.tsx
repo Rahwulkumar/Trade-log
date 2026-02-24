@@ -25,7 +25,7 @@ export function StatCard({
   const isNegative = changeType === "negative";
 
   const iconBg = isPositive
-    ? "rgba(78,203,6,0.1)"
+    ? "rgba(3,98,76,0.10)"
     : isNegative
       ? "rgba(255,68,85,0.1)"
       : undefined;
@@ -48,7 +48,11 @@ export function StatCard({
         >
           <Icon
             className="h-4 w-4"
-            style={iconColor ? { color: iconColor } : { color: "var(--text-tertiary)" }}
+            style={
+              iconColor
+                ? { color: iconColor }
+                : { color: "var(--text-tertiary)" }
+            }
           />
         </div>
       </CardHeader>
@@ -57,9 +61,15 @@ export function StatCard({
         {change && (
           <div className="flex items-center gap-1 mt-1">
             {isPositive ? (
-              <ArrowUpRight className="h-4 w-4" style={{ color: "var(--profit-primary)" }} />
+              <ArrowUpRight
+                className="h-4 w-4"
+                style={{ color: "var(--profit-primary)" }}
+              />
             ) : isNegative ? (
-              <ArrowDownRight className="h-4 w-4" style={{ color: "var(--loss-primary)" }} />
+              <ArrowDownRight
+                className="h-4 w-4"
+                style={{ color: "var(--loss-primary)" }}
+              />
             ) : null}
             <span
               className={cn("text-sm", !iconColor && "text-muted-foreground")}
@@ -80,7 +90,7 @@ export function StatCard({
         className="absolute bottom-0 left-0 right-0 h-1"
         style={{
           background: isPositive
-            ? "linear-gradient(to right, var(--profit-primary), rgba(78,203,6,0.3))"
+            ? "linear-gradient(to right, var(--profit-primary), rgba(3,98,76,0.25))"
             : isNegative
               ? "linear-gradient(to right, var(--loss-primary), rgba(255,68,85,0.3))"
               : "linear-gradient(to right, var(--text-tertiary), var(--border-default))",

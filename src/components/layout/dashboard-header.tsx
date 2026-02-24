@@ -25,6 +25,10 @@ const PAGE_TITLES: Record<string, string> = {
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
   // Resolve "system" to actual dark/light based on OS preference
   const isDark =
     theme === "dark" ||
@@ -39,9 +43,21 @@ function ThemeToggle() {
       onClick={toggle}
       className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-default)] transition-colors hover:bg-[var(--surface-elevated)] shrink-0"
       style={{ color: "var(--text-secondary)" }}
-      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      title={
+        mounted
+          ? isDark
+            ? "Switch to light mode"
+            : "Switch to dark mode"
+          : "Toggle theme"
+      }
     >
-      {isDark ? <Sun size={16} strokeWidth={1.7} /> : <Moon size={16} strokeWidth={1.7} />}
+      {/* Render nothing until mounted to avoid SSR/CSR mismatch */}
+      {mounted &&
+        (isDark ? (
+          <Sun size={16} strokeWidth={1.7} />
+        ) : (
+          <Moon size={16} strokeWidth={1.7} />
+        ))}
     </button>
   );
 }
@@ -98,7 +114,6 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
       <h1
         className="flex-1"
         style={{
-          fontFamily: "var(--font-syne), sans-serif",
           fontWeight: 700,
           fontSize: "1.15rem",
           letterSpacing: "-0.02em",

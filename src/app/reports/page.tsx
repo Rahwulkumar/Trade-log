@@ -1,9 +1,21 @@
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Download,
+  FileText,
+  BarChart3,
+  PieChart,
+  TrendingUp,
+} from "lucide-react";
+import {
+  AppPageHeader,
+  AppPanel,
+  PanelTitle,
+  SectionHeader,
+} from "@/components/ui/page-primitives";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, BarChart3, PieChart, TrendingUp } from "lucide-react";
-import { AppPageHeader } from "@/components/ui/page-primitives";
+import { Badge } from "@/components/ui/badge";
+import { REPORT_TYPE_COLORS } from "@/lib/data/dummy";
 
 const reports = [
   {
@@ -16,14 +28,16 @@ const reports = [
   {
     id: "2",
     title: "Playbook Analysis",
-    description: "Detailed analysis of each trading strategy",
+    description:
+      "Detailed analysis of each trading strategy by win rate and R-multiple",
     icon: PieChart,
     type: "Strategy",
   },
   {
     id: "3",
     title: "Risk Management Report",
-    description: "Review your risk metrics and drawdown history",
+    description:
+      "Review your risk metrics, drawdown history, and consistency score",
     icon: TrendingUp,
     type: "Risk",
   },
@@ -38,35 +52,63 @@ const reports = [
 
 export default function ReportsPage() {
   return (
-    <div className="space-y-6">
+    <div className="page-root page-sections">
       <AppPageHeader
         eyebrow="Analytics"
         title="Reports"
         description="Generate and download detailed reports of your trading activity."
+        icon={<FileText size={18} strokeWidth={1.8} color="#fff" />}
       />
 
+      <SectionHeader eyebrow="Available Reports" title="Export & Download" />
+
       <div className="grid gap-4 md:grid-cols-2">
-        {reports.map((report) => (
-          <Card key={report.id}>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[var(--accent-primary)]/10">
-                  <report.icon className="h-5 w-5 text-[var(--accent-primary)]" />
+        {reports.map((report) => {
+          const Icon = report.icon;
+          const accentColor =
+            REPORT_TYPE_COLORS[report.type] ?? "var(--accent-primary)";
+          return (
+            <AppPanel key={report.id}>
+              <div className="flex items-start gap-4 mb-5">
+                <div
+                  className="flex items-center justify-center w-10 h-10 rounded-[var(--radius-md)] shrink-0"
+                  style={{
+                    background: `${accentColor}18`,
+                    border: `1px solid ${accentColor}30`,
+                  }}
+                >
+                  <Icon size={18} style={{ color: accentColor }} />
                 </div>
                 <div>
-                  <CardTitle className="text-base">{report.title}</CardTitle>
-                  <CardDescription>{report.description}</CardDescription>
+                  <PanelTitle
+                    title={report.title}
+                    subtitle={report.description}
+                    className="mb-0"
+                  />
+                  <Badge
+                    className="mt-2"
+                    style={{
+                      background: `${accentColor}15`,
+                      color: accentColor,
+                      border: "none",
+                      fontSize: "0.6rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {report.type}
+                  </Badge>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" className="w-full" disabled>
-                <Download className="h-4 w-4 mr-2" />
+
+              <Button variant="outline" disabled className="w-full opacity-50">
+                <Download size={13} />
                 Coming Soon
               </Button>
-            </CardContent>
-          </Card>
-        ))}
+            </AppPanel>
+          );
+        })}
       </div>
     </div>
   );

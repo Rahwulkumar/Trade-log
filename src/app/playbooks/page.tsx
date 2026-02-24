@@ -229,7 +229,7 @@ export default function PlaybooksPage() {
 
   if (!authLoading && !isConfigured) {
     return (
-      <AppPanel className="mx-auto mt-8 max-w-xl text-center">
+      <AppPanel className="mt-8 max-w-xl">
         <h2 className="headline-md">Supabase Not Configured</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Add your Supabase credentials to enable playbooks.
@@ -240,7 +240,7 @@ export default function PlaybooksPage() {
 
   if (!authLoading && !user) {
     return (
-      <AppPanel className="mx-auto mt-8 max-w-xl text-center">
+      <AppPanel className="mt-8 max-w-xl">
         <h2 className="headline-md">Login Required</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Sign in to view and manage your strategy playbooks.
@@ -253,7 +253,7 @@ export default function PlaybooksPage() {
   }
 
   return (
-    <div className="p-4 sm:p-5 lg:p-6 space-y-6 lg:space-y-8 max-w-[1280px]">
+    <div className="page-root page-sections">
       <AppPageHeader
         eyebrow="Strategies"
         title="Playbooks"
@@ -422,8 +422,8 @@ export default function PlaybooksPage() {
       )}
 
       {!loading && playbooks.length === 0 && (
-        <AppPanel className="py-14 text-center">
-          <BookOpen className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+        <AppPanel className="py-14">
+          <BookOpen className="mb-4 h-10 w-10 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             No playbooks yet. Start by creating your first strategy template.
           </p>
@@ -443,7 +443,10 @@ export default function PlaybooksPage() {
           className="grid gap-5 md:grid-cols-2 xl:grid-cols-3"
           initial="hidden"
           animate="show"
-          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
+          variants={{
+            hidden: {},
+            show: { transition: { staggerChildren: 0.06 } },
+          }}
         >
           {filtered.map((playbook) => {
             const pnl = playbook.stats?.totalPnl ?? 0;
@@ -465,129 +468,211 @@ export default function PlaybooksPage() {
                 whileHover={{ y: -3, transition: { duration: 0.15 } }}
                 className="h-full"
               >
-              <article className="surface card-glow p-5 h-full flex flex-col">
-                {/* Gradient top stripe */}
-                <div
-                  className="h-[3px] rounded-t-[var(--radius-xl)] -mx-5 -mt-5 mb-5 shrink-0"
-                  style={{
-                    background: pnl >= 0
-                      ? "linear-gradient(90deg, var(--profit-primary), rgba(78,203,6,0.2))"
-                      : "linear-gradient(90deg, var(--loss-primary), rgba(255,68,85,0.2))",
-                  }}
-                />
+                <article className="surface card-glow p-5 h-full flex flex-col">
+                  {/* Gradient top stripe */}
+                  <div
+                    className="h-[3px] rounded-t-[var(--radius-xl)] -mx-5 -mt-5 mb-5 shrink-0"
+                    style={{
+                      background:
+                        pnl >= 0
+                          ? "linear-gradient(90deg, var(--profit-primary), rgba(78,203,6,0.2))"
+                          : "linear-gradient(90deg, var(--loss-primary), rgba(255,68,85,0.2))",
+                    }}
+                  />
 
-                {/* Header */}
-                <header className="mb-3 flex items-start justify-between gap-3 shrink-0">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className="rounded-md p-2 shrink-0"
-                      style={pnl >= 0
-                        ? { background: "var(--profit-bg)", color: "var(--profit-primary)" }
-                        : { background: "var(--loss-bg)", color: "var(--loss-primary)" }}
-                    >
-                      <BookOpen className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="font-semibold truncate">{playbook.name}</h3>
-                      <span
-                        className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                        style={playbook.is_active
-                          ? { background: "rgba(78,203,6,0.15)", color: "var(--profit-primary)" }
-                          : { background: "var(--surface-elevated)", color: "var(--text-tertiary)" }}
+                  {/* Header */}
+                  <header className="mb-3 flex items-start justify-between gap-3 shrink-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="rounded-md p-2 shrink-0"
+                        style={
+                          pnl >= 0
+                            ? {
+                                background: "var(--profit-bg)",
+                                color: "var(--profit-primary)",
+                              }
+                            : {
+                                background: "var(--loss-bg)",
+                                color: "var(--loss-primary)",
+                              }
+                        }
                       >
-                        {playbook.is_active ? "● Active" : "○ Paused"}
+                        <BookOpen className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold truncate">
+                          {playbook.name}
+                        </h3>
+                        <span
+                          className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                          style={
+                            playbook.is_active
+                              ? {
+                                  background: "rgba(78,203,6,0.15)",
+                                  color: "var(--profit-primary)",
+                                }
+                              : {
+                                  background: "var(--surface-elevated)",
+                                  color: "var(--text-tertiary)",
+                                }
+                          }
+                        >
+                          {playbook.is_active ? "● Active" : "○ Paused"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="rounded-md p-2 transition-colors hover:bg-[var(--surface-elevated)] shrink-0"
+                          style={{ color: "var(--text-tertiary)" }}
+                          aria-label={`Open actions for ${playbook.name}`}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => handleDuplicate(playbook.id)}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleToggleActive(playbook.id)}
+                        >
+                          {playbook.is_active ? "Deactivate" : "Activate"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => handleDelete(playbook.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </header>
+
+                  <p
+                    className="mb-4 line-clamp-2 text-sm shrink-0"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    {playbook.description || "No description provided."}
+                  </p>
+
+                  {/* Win rate bar */}
+                  <div className="mb-4 space-y-1.5 shrink-0">
+                    <div className="flex justify-between text-xs">
+                      <span style={{ color: "var(--text-tertiary)" }}>
+                        Win Rate
+                      </span>
+                      <span className="font-semibold mono">
+                        {winRate.toFixed(1)}%
                       </span>
                     </div>
-                  </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="rounded-md p-2 transition-colors hover:bg-[var(--surface-elevated)] shrink-0"
-                        style={{ color: "var(--text-tertiary)" }}
-                        aria-label={`Open actions for ${playbook.name}`}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleDuplicate(playbook.id)}>
-                        <Copy className="mr-2 h-4 w-4" />
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleToggleActive(playbook.id)}>
-                        {playbook.is_active ? "Deactivate" : "Activate"}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onClick={() => handleDelete(playbook.id)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </header>
-
-                <p className="mb-4 line-clamp-2 text-sm shrink-0" style={{ color: "var(--text-tertiary)" }}>
-                  {playbook.description || "No description provided."}
-                </p>
-
-                {/* Win rate bar */}
-                <div className="mb-4 space-y-1.5 shrink-0">
-                  <div className="flex justify-between text-xs">
-                    <span style={{ color: "var(--text-tertiary)" }}>Win Rate</span>
-                    <span className="font-semibold mono">{winRate.toFixed(1)}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
                     <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min(winRate, 100)}%`,
-                        background: winRate >= 50 ? "var(--profit-primary)" : "var(--loss-primary)",
-                      }}
-                    />
+                      className="h-1.5 rounded-full overflow-hidden"
+                      style={{ background: "var(--surface-elevated)" }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(winRate, 100)}%`,
+                          background:
+                            winRate >= 50
+                              ? "var(--profit-primary)"
+                              : "var(--loss-primary)",
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Stat grid */}
-                <div
-                  className="mb-4 grid grid-cols-3 gap-2 rounded-[var(--radius-md)] p-3 text-center shrink-0"
-                  style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}
-                >
-                  <div>
-                    <p className="text-xl font-bold mono">{totalTrades}</p>
-                    <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Trades</p>
+                  {/* Stat grid */}
+                  <div
+                    className="mb-4 grid grid-cols-3 gap-2 rounded-[var(--radius-md)] p-3 text-center shrink-0"
+                    style={{
+                      background: "var(--surface-elevated)",
+                      border: "1px solid var(--border-subtle)",
+                    }}
+                  >
+                    <div>
+                      <p className="text-xl font-bold mono">{totalTrades}</p>
+                      <p
+                        className="text-[10px]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Trades
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold mono">
+                        {avgR.toFixed(1)}R
+                      </p>
+                      <p
+                        className="text-[10px]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Avg R
+                      </p>
+                    </div>
+                    <div>
+                      <p
+                        className={cn(
+                          "text-xl font-bold mono",
+                          pnl >= 0 ? "profit" : "loss",
+                        )}
+                      >
+                        {pnl >= 0 ? "+" : "-"}${Math.abs(pnl).toLocaleString()}
+                      </p>
+                      <p
+                        className="text-[10px]"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        P&L
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xl font-bold mono">{avgR.toFixed(1)}R</p>
-                    <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Avg R</p>
-                  </div>
-                  <div>
-                    <p className={cn("text-xl font-bold mono", pnl >= 0 ? "profit" : "loss")}>
-                      {pnl >= 0 ? "+" : "-"}${Math.abs(pnl).toLocaleString()}
-                    </p>
-                    <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>P&L</p>
-                  </div>
-                </div>
 
-                {/* Rule count badge */}
-                <div className="mb-4 shrink-0">
-                  {ruleCount > 0
-                    ? <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "var(--surface-elevated)", color: "var(--text-secondary)" }}>
+                  {/* Rule count badge */}
+                  <div className="mb-4 shrink-0">
+                    {ruleCount > 0 ? (
+                      <span
+                        className="text-[10px] px-2 py-0.5 rounded-full"
+                        style={{
+                          background: "var(--surface-elevated)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
                         {ruleCount} rules
                       </span>
-                    : <span style={{ color: "var(--text-tertiary)", fontSize: "0.7rem" }}>No rules added</span>}
-                </div>
+                    ) : (
+                      <span
+                        style={{
+                          color: "var(--text-tertiary)",
+                          fontSize: "0.7rem",
+                        }}
+                      >
+                        No rules added
+                      </span>
+                    )}
+                  </div>
 
-                <button
-                  type="button"
-                  className="mt-auto flex w-full items-center justify-center gap-2 pt-3 text-sm transition-colors hover:text-[var(--accent-primary)]"
-                  style={{ borderTop: "1px solid var(--border-subtle)", color: "var(--text-tertiary)" }}
-                >
-                  View details
-                  <ArrowUpRight className="h-4 w-4" />
-                </button>
-              </article>
+                  <button
+                    type="button"
+                    className="mt-auto flex w-full items-center justify-center gap-2 pt-3 text-sm transition-colors hover:text-[var(--accent-primary)]"
+                    style={{
+                      borderTop: "1px solid var(--border-subtle)",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    View details
+                    <ArrowUpRight className="h-4 w-4" />
+                  </button>
+                </article>
               </motion.div>
             );
           })}

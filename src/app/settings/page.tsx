@@ -19,7 +19,11 @@ import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/components/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { AppPageHeader, AppPanel } from "@/components/ui/page-primitives";
+import {
+  AppPageHeader,
+  AppPanel,
+  PanelTitle,
+} from "@/components/ui/page-primitives";
 
 const SETTINGS_TABS = [
   { id: "profile", label: "Profile" },
@@ -60,11 +64,23 @@ const NOTIFICATION_OPTIONS = [
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-function SaveFeedback({ status, errorMessage }: { status: SaveStatus; errorMessage?: string }) {
+function SaveFeedback({
+  status,
+  errorMessage,
+}: {
+  status: SaveStatus;
+  errorMessage?: string;
+}) {
   if (status === "idle") return null;
-  if (status === "saving") return <p className="text-sm text-muted-foreground">Saving…</p>;
-  if (status === "saved") return <p className="text-sm text-[var(--profit-primary)]">Saved.</p>;
-  return <p className="text-sm text-[var(--loss-primary)]">{errorMessage ?? "Failed to save."}</p>;
+  if (status === "saving")
+    return <p className="text-sm text-muted-foreground">Saving…</p>;
+  if (status === "saved")
+    return <p className="text-sm text-[var(--profit-primary)]">Saved.</p>;
+  return (
+    <p className="text-sm text-[var(--loss-primary)]">
+      {errorMessage ?? "Failed to save."}
+    </p>
+  );
 }
 
 export default function SettingsPage() {
@@ -75,20 +91,23 @@ export default function SettingsPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [timezone, setTimezone] = useState("utc");
-  const [profileSaveStatus, setProfileSaveStatus] = useState<SaveStatus>("idle");
+  const [profileSaveStatus, setProfileSaveStatus] =
+    useState<SaveStatus>("idle");
   const [profileSaveError, setProfileSaveError] = useState("");
 
   // Password form state
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordSaveStatus, setPasswordSaveStatus] = useState<SaveStatus>("idle");
+  const [passwordSaveStatus, setPasswordSaveStatus] =
+    useState<SaveStatus>("idle");
   const [passwordSaveError, setPasswordSaveError] = useState("");
 
   // Trading settings state
   const [defaultRisk, setDefaultRisk] = useState("1");
   const [defaultRR, setDefaultRR] = useState("2");
   const [defaultTimeframe, setDefaultTimeframe] = useState("h4");
-  const [tradingSaveStatus, setTradingSaveStatus] = useState<SaveStatus>("idle");
+  const [tradingSaveStatus, setTradingSaveStatus] =
+    useState<SaveStatus>("idle");
   const [tradingSaveError, setTradingSaveError] = useState("");
 
   // Notifications state
@@ -135,7 +154,11 @@ export default function SettingsPage() {
       const supabase = createClient();
       const { error } = await supabase
         .from("profiles")
-        .update({ first_name: firstName.trim() || null, last_name: lastName.trim() || null, timezone })
+        .update({
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+          timezone,
+        })
         .eq("id", user.id);
       if (error) throw error;
       await refreshProfile();
@@ -158,14 +181,18 @@ export default function SettingsPage() {
     setPasswordSaveError("");
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
       if (error) throw error;
       setNewPassword("");
       setConfirmPassword("");
       setPasswordSaveStatus("saved");
       setTimeout(() => setPasswordSaveStatus("idle"), 3000);
     } catch (err) {
-      setPasswordSaveError(err instanceof Error ? err.message : "Unknown error");
+      setPasswordSaveError(
+        err instanceof Error ? err.message : "Unknown error",
+      );
       setPasswordSaveStatus("error");
     }
   }
@@ -194,7 +221,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="page-root page-sections">
       <AppPageHeader
         eyebrow="Account"
         title="Settings"
@@ -216,14 +243,17 @@ export default function SettingsPage() {
 
         <TabsContent value="profile" className="space-y-6">
           <AppPanel>
-            <h3 className="headline-md mb-2">Profile Information</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Update your personal and account details.
-            </p>
+            <PanelTitle
+              title="Profile Information"
+              subtitle="Update your personal and account details."
+            />
 
             <div className="mb-6 flex flex-wrap items-center gap-5">
               <Avatar className="h-20 w-20 border border-border-subtle">
-                <AvatarImage src={profile?.avatar_url ?? ""} alt="User profile" />
+                <AvatarImage
+                  src={profile?.avatar_url ?? ""}
+                  alt="User profile"
+                />
                 <AvatarFallback className="bg-accent text-accent-primary text-lg font-semibold">
                   {avatarInitials}
                 </AvatarFallback>
@@ -283,24 +313,32 @@ export default function SettingsPage() {
                   <SelectItem value="utc">UTC (GMT+0)</SelectItem>
                   <SelectItem value="est">Eastern Time (GMT-5)</SelectItem>
                   <SelectItem value="pst">Pacific Time (GMT-8)</SelectItem>
-                  <SelectItem value="ist">India Standard Time (GMT+5:30)</SelectItem>
+                  <SelectItem value="ist">
+                    India Standard Time (GMT+5:30)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex items-center gap-4">
-              <Button onClick={handleSaveProfile} disabled={profileSaveStatus === "saving" || !user}>
+              <Button
+                onClick={handleSaveProfile}
+                disabled={profileSaveStatus === "saving" || !user}
+              >
                 Save Changes
               </Button>
-              <SaveFeedback status={profileSaveStatus} errorMessage={profileSaveError} />
+              <SaveFeedback
+                status={profileSaveStatus}
+                errorMessage={profileSaveError}
+              />
             </div>
           </AppPanel>
 
           <AppPanel>
-            <h3 className="headline-md mb-2">Password</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Change your password to keep your account secure.
-            </p>
+            <PanelTitle
+              title="Password"
+              subtitle="Change your password to keep your account secure."
+            />
 
             <div className="mb-6 grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -331,17 +369,20 @@ export default function SettingsPage() {
               >
                 Update Password
               </Button>
-              <SaveFeedback status={passwordSaveStatus} errorMessage={passwordSaveError} />
+              <SaveFeedback
+                status={passwordSaveStatus}
+                errorMessage={passwordSaveError}
+              />
             </div>
           </AppPanel>
         </TabsContent>
 
         <TabsContent value="appearance" className="space-y-6">
           <AppPanel>
-            <h3 className="headline-md mb-2">Theme</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Choose how the interface is rendered.
-            </p>
+            <PanelTitle
+              title="Theme"
+              subtitle="Choose how the interface is rendered."
+            />
 
             <div className="grid grid-cols-3 gap-4">
               {THEME_OPTIONS.map(({ value, icon: Icon, label }) => (
@@ -364,10 +405,10 @@ export default function SettingsPage() {
           </AppPanel>
 
           <AppPanel>
-            <h3 className="headline-md mb-2">Dashboard View</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Select the default metric representation.
-            </p>
+            <PanelTitle
+              title="Dashboard View"
+              subtitle="Select the default metric representation."
+            />
             <Select defaultValue="dollars">
               <SelectTrigger className="max-w-[240px]">
                 <SelectValue />
@@ -384,10 +425,10 @@ export default function SettingsPage() {
 
         <TabsContent value="notifications" className="space-y-6">
           <AppPanel>
-            <h3 className="headline-md mb-2">Notification Preferences</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Configure when and how you receive alerts.
-            </p>
+            <PanelTitle
+              title="Notification Preferences"
+              subtitle="Configure when and how you receive alerts."
+            />
             <div className="divide-y divide-border-subtle">
               {notificationRows.map((item) => (
                 <div
@@ -403,7 +444,10 @@ export default function SettingsPage() {
                   <Switch
                     checked={item.enabled}
                     onCheckedChange={(value) =>
-                      setNotifications((prev) => ({ ...prev, [item.key]: value }))
+                      setNotifications((prev) => ({
+                        ...prev,
+                        [item.key]: value,
+                      }))
                     }
                     aria-label={item.label}
                   />
@@ -415,10 +459,10 @@ export default function SettingsPage() {
 
         <TabsContent value="trading" className="space-y-6">
           <AppPanel>
-            <h3 className="headline-md mb-2">Default Trading Settings</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Set baseline values for new trades and journal entries.
-            </p>
+            <PanelTitle
+              title="Default Trading Settings"
+              subtitle="Set baseline values for new trades and journal entries."
+            />
 
             <div className="mb-4 grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -447,7 +491,10 @@ export default function SettingsPage() {
 
             <div className="mb-6 space-y-2">
               <Label htmlFor="default-timeframe">Default Timeframe</Label>
-              <Select value={defaultTimeframe} onValueChange={setDefaultTimeframe}>
+              <Select
+                value={defaultTimeframe}
+                onValueChange={setDefaultTimeframe}
+              >
                 <SelectTrigger id="default-timeframe" className="max-w-[200px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -462,20 +509,26 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex items-center gap-4">
-              <Button onClick={handleSaveTrading} disabled={tradingSaveStatus === "saving" || !user}>
+              <Button
+                onClick={handleSaveTrading}
+                disabled={tradingSaveStatus === "saving" || !user}
+              >
                 Save Settings
               </Button>
-              <SaveFeedback status={tradingSaveStatus} errorMessage={tradingSaveError} />
+              <SaveFeedback
+                status={tradingSaveStatus}
+                errorMessage={tradingSaveError}
+              />
             </div>
           </AppPanel>
         </TabsContent>
 
         <TabsContent value="data" className="space-y-6">
           <AppPanel>
-            <h3 className="headline-md mb-2">Export Data</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Download your account history and analytics snapshots.
-            </p>
+            <PanelTitle
+              title="Export Data"
+              subtitle="Download your account history and analytics snapshots."
+            />
             <div className="flex flex-wrap gap-3">
               <Button variant="outline">
                 <Download className="mr-2 h-4 w-4" />
@@ -488,11 +541,17 @@ export default function SettingsPage() {
             </div>
           </AppPanel>
 
-          <section className="rounded-lg border border-red-500/30 bg-red-500/5 p-6">
-            <h3 className="headline-md mb-2 text-red-300">Danger Zone</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              These actions are irreversible.
-            </p>
+          <section
+            className="rounded-[var(--radius-lg)] p-6"
+            style={{
+              border: "1px solid var(--loss-primary)",
+              background: "rgba(255,68,85,0.04)",
+            }}
+          >
+            <PanelTitle
+              title="Danger Zone"
+              subtitle="These actions are permanent and irreversible."
+            />
 
             <div className="space-y-4">
               {[

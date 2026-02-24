@@ -1,718 +1,1503 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Calendar,
-  DollarSign,
-  Download,
-  Loader2,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  BarChart2,
-  Hash,
-} from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
+  ComposedChart,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
-  PieChart as RePieChart,
-  Pie,
-  Cell,
+  ScatterChart,
+  Scatter,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  Cell,
+  ReferenceLine,
+  Line,
 } from "recharts";
+import {
+  Activity,
+  AlertTriangle,
+  Award,
+  Clock,
+  Download,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+
+import {
+  AppPageHeader,
+  AppPanel,
+  SectionHeader,
+  PanelTitle,
+} from "@/components/ui/page-primitives";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { BarLoader } from "@/components/ui/loading";
+
+import { CHART_COLORS } from "@/lib/constants/chart-colors";
+
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import {
-  getAnalyticsSummary,
-  getMonthlyPerformance,
   getEquityCurve,
   getPerformanceByDay,
-  type AnalyticsSummary,
-  type MonthlyPerformance,
   type EquityCurvePoint,
   type DayPerformance,
 } from "@/lib/api/analytics";
 import { getTrades } from "@/lib/api/trades";
 import type { Trade } from "@/lib/supabase/types";
-import { cn } from "@/lib/utils";
+
+// ─── Dummy data ───────────────────────────────────────────────────────────────
 import {
-  AppMetricCard,
-  AppPageHeader,
-  AppPanel,
-} from "@/components/ui/page-primitives";
-import { CHART_COLORS } from "@/lib/constants/chart-colors";
-import { motion } from "framer-motion";
+  DUMMY_RISK,
+  DUMMY_EQUITY,
+  DUMMY_DRAWDOWN,
+  DUMMY_R_DIST,
+  DUMMY_PNL_DIST,
+  DUMMY_HOLD,
+  DUMMY_SESSIONS,
+  DUMMY_DOW,
+  DUMMY_HOURLY,
+  DUMMY_STREAKS,
+  DUMMY_CONSISTENCY,
+  DUMMY_MAE_MFE,
+  DUMMY_INSTRUMENTS,
+  DUMMY_STRATEGIES,
+} from "@/lib/data/dummy";
 
-interface MetricCard {
-  label: string;
-  value: string;
-  hint: string;
-  tone?: "default" | "profit" | "loss";
-  icon: React.ReactNode;
-}
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.25 } },
+// ─── Shared tooltip style ─────────────────────────────────────────────────────
+const TT = {
+  contentStyle: {
+    background: "var(--surface-elevated)",
+    border: "1px solid var(--border-default)",
+    borderRadius: 10,
+    fontSize: 12,
+    color: "var(--text-primary)",
+  },
+  labelStyle: { color: "var(--text-secondary)", fontWeight: 600 },
 };
 
+function RiskCard({
+  label,
+  value,
+  unit = "",
+  hint,
+  good,
+  excellent,
+}: {
+  label: string;
+  value: number;
+  unit?: string;
+  hint: string;
+  good: number;
+  excellent: number;
+}) {
+  const isRuin = label === "Risk of Ruin";
+  // For risk of ruin, lower is better
+  const q = isRuin
+    ? value <= excellent
+      ? "excellent"
+      : value <= good
+        ? "good"
+        : "poor"
+    : value >= excellent
+      ? "excellent"
+      : value >= good
+        ? "good"
+        : "poor";
+  const styles = {
+    excellent: {
+      color: "var(--profit-primary)",
+      bg: "rgba(8,168,120,0.1)",
+      tag: "Excellent",
+    },
+    good: { color: "#f7c36a", bg: "rgba(247,195,106,0.12)", tag: "Good" },
+    poor: {
+      color: "var(--loss-primary)",
+      bg: "rgba(255,68,85,0.1)",
+      tag: "Needs Work",
+    },
+  }[q];
+  return (
+    <article className="surface p-5 flex flex-col gap-3 card-enter">
+      <div className="flex items-start justify-between">
+        <span
+          className="text-[11px] font-medium"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          {label}
+        </span>
+        <Badge
+          style={{
+            fontSize: "0.6rem",
+            color: styles.color,
+            background: styles.bg,
+            border: "none",
+            padding: "2px 8px",
+          }}
+        >
+          {styles.tag}
+        </Badge>
+      </div>
+      <p
+        className="mono counter-pop"
+        style={{
+          fontSize: "2rem",
+          fontWeight: 700,
+          letterSpacing: "-0.04em",
+          lineHeight: 1,
+          color: styles.color,
+        }}
+      >
+        {value.toFixed(2)}
+        <span
+          className="text-base ml-1"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          {unit}
+        </span>
+      </p>
+      <p
+        className="text-[10px] leading-relaxed"
+        style={{ color: "var(--text-tertiary)" }}
+      >
+        {hint}
+      </p>
+    </article>
+  );
+}
+
+function SessionCard({
+  session,
+  range,
+  trades,
+  winRate,
+  pnl,
+  avgPnl,
+  color,
+}: (typeof DUMMY_SESSIONS)[0]) {
+  return (
+    <article className="surface p-4 relative overflow-hidden">
+      <div
+        className="absolute top-0 left-0 w-1 h-full rounded-l-xl"
+        style={{ background: color }}
+      />
+      <div className="pl-2">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h4 className="text-sm font-semibold">{session}</h4>
+            <p
+              className="text-[10px] mt-0.5"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              {range}
+            </p>
+          </div>
+          <span
+            className="mono text-[11px] font-semibold"
+            style={{
+              color: pnl >= 0 ? "var(--profit-primary)" : "var(--loss-primary)",
+            }}
+          >
+            {pnl >= 0 ? "+" : ""}${pnl.toLocaleString()}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          {[
+            ["Trades", String(trades), "var(--text-primary)"],
+            [
+              "Win Rate",
+              `${winRate.toFixed(1)}%`,
+              winRate >= 60 ? "var(--profit-primary)" : "var(--text-primary)",
+            ],
+            ["Avg P&L", `+$${avgPnl.toFixed(0)}`, "var(--profit-primary)"],
+          ].map(([l, v, c]) => (
+            <div key={l}>
+              <p
+                className="text-[9px] mb-0.5"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                {l}
+              </p>
+              <p
+                className="mono text-[11px] font-semibold"
+                style={{ color: c }}
+              >
+                {v}
+              </p>
+            </div>
+          ))}
+        </div>
+        <Progress
+          value={winRate}
+          className="h-1"
+          style={{ "--progress-fg": color } as React.CSSProperties}
+        />
+      </div>
+    </article>
+  );
+}
+
+function ConsistencyGauge({ score }: { score: number }) {
+  const r = 52;
+  const circ = Math.PI * r;
+  const offset = circ - (score / 100) * circ;
+  const color =
+    score >= 75
+      ? "var(--profit-primary)"
+      : score >= 50
+        ? "var(--accent-primary)"
+        : "#f7c36a";
+  const tag =
+    score >= 75 ? "Consistent" : score >= 50 ? "Moderate" : "Inconsistent";
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <svg width="124" height="70" viewBox="0 0 124 70">
+        <path
+          d="M 12 62 A 50 50 0 0 1 112 62"
+          fill="none"
+          stroke="var(--border-subtle)"
+          strokeWidth="12"
+          strokeLinecap="round"
+        />
+        <path
+          d="M 12 62 A 50 50 0 0 1 112 62"
+          fill="none"
+          stroke={color}
+          strokeWidth="12"
+          strokeLinecap="round"
+          strokeDasharray={`${circ}`}
+          strokeDashoffset={offset}
+        />
+        <text
+          x="62"
+          y="58"
+          textAnchor="middle"
+          fontSize="22"
+          fontWeight="700"
+          fill={color}
+          fontFamily="var(--font-jb-mono)"
+        >
+          {score}
+        </text>
+      </svg>
+      <span className="text-[11px] font-semibold" style={{ color }}>
+        {tag}
+      </span>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
   const { selectedAccountId } = usePropAccount();
-
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<AnalyticsSummary | null>(null);
-  const [monthlyData, setMonthlyData] = useState<MonthlyPerformance[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [equityCurve, setEquityCurve] = useState<EquityCurvePoint[]>([]);
   const [dayPerf, setDayPerf] = useState<DayPerformance[]>([]);
 
   useEffect(() => {
-    async function loadAnalytics() {
+    async function load() {
       if (!isConfigured || !user) {
         setLoading(false);
         return;
       }
-
       try {
         setLoading(true);
-        const propAccountIdFilter =
+        const id =
           selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
-
-        const [analyticsData, monthlyPerfData, tradesData, equityData, dayData] =
-          await Promise.all([
-            getAnalyticsSummary(undefined, undefined, propAccountIdFilter),
-            getMonthlyPerformance(propAccountIdFilter),
-            getTrades({ status: "closed", propAccountId: propAccountIdFilter }),
-            getEquityCurve(10000, undefined, undefined, propAccountIdFilter),
-            getPerformanceByDay(propAccountIdFilter),
-          ]);
-
-        setStats(analyticsData);
-        setMonthlyData(monthlyPerfData);
-        setTrades(tradesData);
-        setEquityCurve(equityData);
-        setDayPerf(dayData);
-      } catch (error) {
-        console.error("Failed to load analytics:", error);
+        const [t, eq, dp] = await Promise.all([
+          getTrades({ status: "closed", propAccountId: id }),
+          getEquityCurve(10000, undefined, undefined, id),
+          getPerformanceByDay(id),
+        ]);
+        setTrades(t);
+        setEquityCurve(eq);
+        setDayPerf(dp);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
     }
-
-    if (!authLoading) {
-      loadAnalytics();
-    }
+    if (!authLoading) load();
   }, [user, isConfigured, authLoading, selectedAccountId]);
 
-  const chartMonthlyData = useMemo(
-    () =>
-      monthlyData.map((month) => ({
-        month: month.month,
-        net: month.totalPnl,
-      })),
-    [monthlyData],
-  );
+  const useDummy = !loading && trades.length === 0;
+  const eqData = useDummy
+    ? DUMMY_EQUITY
+    : equityCurve.map((p) => ({
+        date: (p.date ?? "").slice(5),
+        balance: p.balance,
+      }));
+  const dowData = useDummy
+    ? DUMMY_DOW
+    : dayPerf.map((d) => ({
+        day: d.day,
+        trades: d.trades,
+        winRate: d.winRate ?? 0,
+        totalPnl: d.totalPnl,
+      }));
 
-  const winLossData = useMemo(
-    () => [
-      {
-        name: "Wins",
-        value: stats?.winningTrades ?? 0,
-        color: "var(--profit-primary)",
-      },
-      {
-        name: "Losses",
-        value: stats?.losingTrades ?? 0,
-        color: "var(--loss-primary)",
-      },
-    ],
-    [stats?.winningTrades, stats?.losingTrades],
-  );
-
-  const assetPerformance = useMemo(
-    () =>
-      trades
-        .reduce(
-          (acc, trade) => {
-            const existing = acc.find((item) => item.asset === trade.symbol);
-            if (existing) {
-              existing.trades += 1;
-              existing.pnl += trade.pnl || 0;
-              if ((trade.pnl || 0) > 0) existing.wins += 1;
-            } else {
-              acc.push({
-                asset: trade.symbol,
-                trades: 1,
-                wins: (trade.pnl || 0) > 0 ? 1 : 0,
-                pnl: trade.pnl || 0,
-              });
-            }
-            return acc;
-          },
-          [] as { asset: string; trades: number; wins: number; pnl: number }[],
-        )
-        .map((asset) => ({
-          ...asset,
-          winRate: asset.trades > 0 ? (asset.wins / asset.trades) * 100 : 0,
-        }))
-        .sort((a, b) => b.pnl - a.pnl)
-        .slice(0, 10),
-    [trades],
-  );
-
-  const sortedRDistribution = useMemo(() => {
-    const allRanges = ["-3R+", "-2R", "-1R", "0R", "+1R", "+2R", "+3R+"];
-    const reduced = trades.reduce(
-      (acc, trade) => {
-        if (trade.r_multiple === null) return acc;
-        const r = trade.r_multiple;
-        let range: string;
-        if (r <= -3) range = "-3R+";
-        else if (r <= -2) range = "-2R";
-        else if (r <= -1) range = "-1R";
-        else if (r < 1) range = "0R";
-        else if (r < 2) range = "+1R";
-        else if (r < 3) range = "+2R";
-        else range = "+3R+";
-
-        const existing = acc.find((item) => item.range === range);
-        if (existing) existing.count += 1;
-        else acc.push({ range, count: 1 });
-        return acc;
-      },
-      [] as { range: string; count: number }[],
+  if (!authLoading && !isConfigured)
+    return (
+      <AppPanel className="mt-8 max-w-md">
+        <h2 className="mb-2 text-xl font-semibold">Supabase Not Configured</h2>
+        <p className="text-muted-foreground">
+          Please add your Supabase credentials to continue.
+        </p>
+      </AppPanel>
     );
 
-    return allRanges.map((range) => {
-      const found = reduced.find((item) => item.range === range);
-      return found || { range, count: 0 };
-    });
-  }, [trades]);
-
-  // Row 1: overview stats
-  const row1Cards = useMemo<MetricCard[]>(
-    () => [
-      {
-        label: "Total Trades",
-        value: String(stats?.totalTrades ?? 0),
-        hint: `${stats?.winningTrades ?? 0}W · ${stats?.losingTrades ?? 0}L`,
-        icon: <Hash className="h-4 w-4" style={{ color: "var(--text-tertiary)" }} />,
-      },
-      {
-        label: "Win Rate",
-        value: `${(stats?.winRate ?? 0).toFixed(1)}%`,
-        hint: "Percentage of winning trades",
-        tone: (stats?.winRate ?? 0) >= 50 ? "profit" : "loss",
-        icon: <Target className="h-4 w-4" style={{ color: "var(--text-tertiary)" }} />,
-      },
-      {
-        label: "Avg Win",
-        value: `+$${(stats?.avgWin ?? 0).toFixed(2)}`,
-        hint: "Average profit per win",
-        tone: "profit",
-        icon: <TrendingUp className="h-4 w-4" style={{ color: "var(--text-tertiary)" }} />,
-      },
-      {
-        label: "Avg Loss",
-        value: `-$${(stats?.avgLoss ?? 0).toFixed(2)}`,
-        hint: "Average loss per losing trade",
-        tone: "loss",
-        icon: <TrendingDown className="h-4 w-4" style={{ color: "var(--text-tertiary)" }} />,
-      },
-    ],
-    [stats],
-  );
-
-  // Row 2: advanced stats
-  const row2Cards = useMemo<MetricCard[]>(
-    () => [
-      {
-        label: "Profit Factor",
-        value:
-          stats?.profitFactor === Infinity
-            ? "∞"
-            : (stats?.profitFactor ?? 0).toFixed(2),
-        hint: "Above 1.5 is healthy",
-        icon: <BarChart2 className="h-4 w-4" style={{ color: "var(--text-tertiary)" }} />,
-      },
-      {
-        label: "Expectancy",
-        value: `${(stats?.expectancy ?? 0) >= 0 ? "+" : ""}$${(stats?.expectancy ?? 0).toFixed(2)}`,
-        hint: "Average $ per closed trade",
-        tone: (stats?.expectancy ?? 0) >= 0 ? "profit" : "loss",
-        icon: <DollarSign className="h-4 w-4" style={{ color: "var(--text-tertiary)" }} />,
-      },
-      {
-        label: "Largest Win",
-        value: `+$${(stats?.largestWin ?? 0).toFixed(0)}`,
-        hint: "Best single trade",
-        tone: "profit",
-        icon: <TrendingUp className="h-4 w-4" style={{ color: "var(--text-tertiary)" }} />,
-      },
-      {
-        label: "Largest Loss",
-        value: `-$${(stats?.largestLoss ?? 0).toFixed(0)}`,
-        hint: "Worst single trade",
-        tone: "loss",
-        icon: <TrendingDown className="h-4 w-4" style={{ color: "var(--text-tertiary)" }} />,
-      },
-    ],
-    [stats],
-  );
-
-  if (!authLoading && !isConfigured) {
+  if (!authLoading && !user)
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <AppPanel className="max-w-md text-center">
-          <h2 className="mb-2 text-xl font-semibold">Supabase Not Configured</h2>
-          <p className="text-muted-foreground">
-            Please add your Supabase credentials to continue.
-          </p>
-        </AppPanel>
+      <AppPanel className="mt-8 max-w-md">
+        <h2 className="mb-2 text-xl font-semibold">Login Required</h2>
+        <p className="mb-4 text-muted-foreground">
+          Please sign in to view analytics.
+        </p>
+        <Button asChild className="mt-4">
+          <Link href="/auth/login">Sign In</Link>
+        </Button>
+      </AppPanel>
+    );
+
+  if (loading)
+    return (
+      <div className="flex items-center justify-center py-24">
+        <BarLoader />
       </div>
     );
-  }
-
-  if (!authLoading && !user) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <AppPanel className="max-w-md text-center">
-          <h2 className="mb-2 text-xl font-semibold">Login Required</h2>
-          <p className="mb-4 text-muted-foreground">
-            Please sign in to view analytics.
-          </p>
-          <Link href="/auth/login" className="btn-base btn-primary mt-4 inline-flex">
-            Sign In
-          </Link>
-        </AppPanel>
-      </div>
-    );
-  }
 
   return (
-    <div className="p-4 sm:p-5 lg:p-6 space-y-4 lg:space-y-5 max-w-[1280px]">
+    <div className="page-root page-sections">
+      {/* ── Page Header ── */}
       <AppPageHeader
-        eyebrow="Performance"
+        eyebrow="Deep Intelligence"
         title="Analytics"
+        description="Prop-firm grade performance intelligence — risk ratios, drawdown analysis, session patterns, streaks, and more."
+        icon={<Activity size={18} color="white" />}
         actions={
-          <>
-            <Select defaultValue="all">
-              <SelectTrigger className="w-[160px] border-border bg-card">
-                <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="Time range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1w">Last 7 Days</SelectItem>
-                <SelectItem value="1m">Last Month</SelectItem>
-                <SelectItem value="3m">Last 3 Months</SelectItem>
-                <SelectItem value="6m">Last 6 Months</SelectItem>
-                <SelectItem value="1y">Last Year</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-            <button type="button" className="btn-base btn-secondary">
-              <Download className="h-4 w-4" />
-              Export
-            </button>
-          </>
+          <Button variant="outline" size="sm">
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
         }
       />
 
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      {/* ── Dummy banner ── */}
+      {useDummy && (
+        <div
+          className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+          style={{
+            background: "rgba(247,195,106,0.1)",
+            border: "1px solid rgba(247,195,106,0.25)",
+            color: "#b8860b",
+          }}
+        >
+          <Zap size={14} />
+          <span>
+            Showing example data — log trades in your Journal to see your real
+            analytics.
+          </span>
         </div>
       )}
 
-      {!loading && trades.length === 0 && (
-        <AppPanel className="p-12 text-center">
-          <Target className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-          <p className="mb-4 text-muted-foreground">
-            No trades to analyze yet. Start logging trades to see analytics.
-          </p>
-          <Link href="/journal" className="btn-base btn-primary mt-4 inline-flex">
-            Go to Journal
-          </Link>
-        </AppPanel>
-      )}
+      {/* ══════════════════════════════════════════════════════
+          SECTION 1 — Risk-Adjusted Performance
+      ══════════════════════════════════════════════════════ */}
+      <section>
+        <SectionHeader
+          eyebrow="Risk Intelligence"
+          title="Risk-Adjusted Performance"
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <RiskCard
+            label="Sharpe Ratio"
+            value={DUMMY_RISK.sharpe}
+            hint="Return ÷ std deviation — 1.5+ is strong, 2.0+ is exceptional"
+            good={1.0}
+            excellent={1.5}
+          />
+          <RiskCard
+            label="Sortino Ratio"
+            value={DUMMY_RISK.sortino}
+            hint="Like Sharpe but only penalises downside volatility"
+            good={1.5}
+            excellent={2.0}
+          />
+          <RiskCard
+            label="Calmar Ratio"
+            value={DUMMY_RISK.calmar}
+            hint="Annual return ÷ max drawdown — measures drawdown-adjusted return"
+            good={2.0}
+            excellent={3.0}
+          />
+          <RiskCard
+            label="Recovery Factor"
+            value={DUMMY_RISK.recoveryFactor}
+            hint="Total net P&L ÷ max drawdown — how well you bounce back"
+            good={2.0}
+            excellent={4.0}
+          />
+          <RiskCard
+            label="Risk of Ruin"
+            value={DUMMY_RISK.riskOfRuin}
+            unit="%"
+            hint="Statistical probability of blowing the account at current risk"
+            good={5.0}
+            excellent={2.0}
+          />
+        </div>
+      </section>
 
-      {!loading && trades.length > 0 && (
-        <>
-          {/* ── Row 1: 4 overview metric cards ── */}
-          <motion.section
-            className="grid grid-cols-2 gap-4 lg:grid-cols-4"
-            initial="hidden"
-            animate="show"
-            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
-          >
-            {row1Cards.map((card) => (
-              <motion.div key={card.label} variants={cardVariants}>
-                <AppMetricCard
-                  label={card.label}
-                  value={card.value}
-                  hint={card.hint}
-                  tone={card.tone}
-                  icon={card.icon}
-                />
-              </motion.div>
-            ))}
-          </motion.section>
+      {/* ══════════════════════════════════════════════════════
+          SECTION 2 — Equity & Drawdown
+      ══════════════════════════════════════════════════════ */}
+      <section>
+        <SectionHeader
+          eyebrow="Capital Protection"
+          title="Equity & Drawdown Analysis"
+        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Equity curve — 2/3 */}
+          <AppPanel className="lg:col-span-2">
+            <PanelTitle
+              title="Equity Curve"
+              subtitle="Cumulative account balance — track your capital growth trajectory"
+            />
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={eqData}>
+                  <defs>
+                    <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop
+                        offset="10%"
+                        stopColor="var(--accent-primary)"
+                        stopOpacity={0.28}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--accent-primary)"
+                        stopOpacity={0}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={CHART_COLORS.grid}
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    {...TT}
+                    formatter={(v: number) => [
+                      `$${v.toLocaleString()}`,
+                      "Balance",
+                    ]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="balance"
+                    stroke="var(--accent-primary)"
+                    fill="url(#eqGrad)"
+                    strokeWidth={2.5}
+                    dot={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </AppPanel>
 
-          {/* ── Row 2: 4 advanced metric cards ── */}
-          <motion.section
-            className="grid grid-cols-2 gap-4 lg:grid-cols-4"
-            initial="hidden"
-            animate="show"
-            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.24 } } }}
-          >
-            {row2Cards.map((card) => (
-              <motion.div key={card.label} variants={cardVariants}>
-                <AppMetricCard
-                  label={card.label}
-                  value={card.value}
-                  hint={card.hint}
-                  tone={card.tone}
-                  icon={card.icon}
-                />
-              </motion.div>
-            ))}
-          </motion.section>
-
-          {/* ── Tabs ── */}
-          <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList className="border border-border bg-card">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="equity">Equity Curve</TabsTrigger>
-              <TabsTrigger value="breakdown">Breakdown</TabsTrigger>
-              <TabsTrigger value="assets">By Asset</TabsTrigger>
-            </TabsList>
-
-            {/* ── Overview: Monthly P&L + Win Rate donut ── */}
-            <TabsContent value="overview" className="space-y-4">
-              <div className="grid gap-4 lg:grid-cols-2">
-                <AppPanel>
-                  <h3 className="headline-md mb-1">Monthly P&L</h3>
-                  <p className="mb-5 text-sm" style={{ color: "var(--text-tertiary)" }}>
-                    Profit and loss by month
-                  </p>
-                  <div className="h-[280px]">
-                    {chartMonthlyData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartMonthlyData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-                          <XAxis
-                            dataKey="month"
-                            tick={{ fill: CHART_COLORS.textTertiary, fontSize: 11 }}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <YAxis
-                            tick={{ fill: CHART_COLORS.textTertiary, fontSize: 11 }}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(v) => `$${v}`}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              background: "var(--surface-elevated)",
-                              border: `1px solid ${CHART_COLORS.border}`,
-                              borderRadius: "10px",
-                            }}
-                            labelStyle={{ color: "var(--text-primary)" }}
-                          />
-                          <Bar dataKey="net" radius={[4, 4, 0, 0]}>
-                            {chartMonthlyData.map((entry, i) => (
-                              <Cell
-                                key={`${entry.month}-${i}`}
-                                fill={entry.net >= 0 ? "var(--profit-primary)" : "var(--loss-primary)"}
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="flex h-full items-center justify-center" style={{ color: "var(--text-tertiary)" }}>
-                        No monthly data yet
-                      </div>
-                    )}
+          {/* Drawdown stats — 1/3 */}
+          <AppPanel>
+            <PanelTitle
+              title="Drawdown Stats"
+              subtitle="Peak-to-trough risk metrics"
+            />
+            <div className="space-y-1">
+              {[
+                {
+                  label: "Max Drawdown",
+                  value: "-3.26%",
+                  sub: "-$412 from peak",
+                  bad: true,
+                },
+                {
+                  label: "Avg Drawdown Depth",
+                  value: "-1.8%",
+                  sub: "across all periods",
+                  bad: false,
+                },
+                {
+                  label: "Longest DD Period",
+                  value: "8 days",
+                  sub: "Mar 9 → Mar 16",
+                  bad: false,
+                },
+                {
+                  label: "Current from Peak",
+                  value: "-0.4%",
+                  sub: "-$52 below ATH",
+                  bad: false,
+                },
+                {
+                  label: "ATH Events",
+                  value: "14 times",
+                  sub: "new all-time highs hit",
+                  bad: false,
+                },
+                {
+                  label: "Recovery Time (avg)",
+                  value: "3.2 days",
+                  sub: "avg time back to peak",
+                  bad: false,
+                },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className="flex items-start justify-between py-2.5"
+                  style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                >
+                  <span
+                    className="text-[11px]"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {s.label}
+                  </span>
+                  <div className="text-right">
+                    <p
+                      className="mono text-sm font-semibold"
+                      style={{
+                        color: s.bad
+                          ? "var(--loss-primary)"
+                          : "var(--text-primary)",
+                      }}
+                    >
+                      {s.value}
+                    </p>
+                    <p
+                      className="text-[10px]"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {s.sub}
+                    </p>
                   </div>
-                </AppPanel>
-
-                <AppPanel>
-                  <h3 className="headline-md mb-1">Win / Loss Ratio</h3>
-                  <p className="mb-5 text-sm" style={{ color: "var(--text-tertiary)" }}>
-                    Winning vs losing trades
-                  </p>
-                  <div className="h-[280px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RePieChart>
-                        <Pie
-                          data={winLossData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={70}
-                          outerRadius={100}
-                          paddingAngle={3}
-                          dataKey="value"
-                        >
-                          {winLossData.map((entry, i) => (
-                            <Cell key={`${entry.name}-${i}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </RePieChart>
-                    </ResponsiveContainer>
-                    <div className="mt-2 flex justify-center gap-6">
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full" style={{ background: "var(--profit-primary)" }} />
-                        <span className="text-sm">Wins {(stats?.winRate ?? 0).toFixed(1)}%</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full" style={{ background: "var(--loss-primary)" }} />
-                        <span className="text-sm">Losses {(100 - (stats?.winRate ?? 0)).toFixed(1)}%</span>
-                      </div>
-                    </div>
-                  </div>
-                </AppPanel>
-              </div>
-            </TabsContent>
-
-            {/* ── Equity Curve ── */}
-            <TabsContent value="equity" className="space-y-4">
-              <AppPanel>
-                <h3 className="headline-md mb-1">Equity Curve</h3>
-                <p className="mb-5 text-sm" style={{ color: "var(--text-tertiary)" }}>
-                  Cumulative account balance over time
-                </p>
-                <div className="h-[360px]">
-                  {equityCurve.length > 1 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={equityCurve}>
-                        <defs>
-                          <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fill: CHART_COLORS.textTertiary, fontSize: 11 }}
-                          tickLine={false}
-                          axisLine={false}
-                          tickFormatter={(v) => v.slice(5)}
-                        />
-                        <YAxis
-                          tick={{ fill: CHART_COLORS.textTertiary, fontSize: 11 }}
-                          tickLine={false}
-                          axisLine={false}
-                          tickFormatter={(v) => `$${v.toLocaleString()}`}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            background: "var(--surface-elevated)",
-                            border: `1px solid ${CHART_COLORS.border}`,
-                            borderRadius: "10px",
-                          }}
-                          labelStyle={{ color: "var(--text-primary)" }}
-                          formatter={(v: number) => [`$${v.toFixed(2)}`, "Balance"]}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="balance"
-                          stroke="var(--accent-primary)"
-                          fill="url(#eqGrad)"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex h-full items-center justify-center" style={{ color: "var(--text-tertiary)" }}>
-                      Not enough data to draw equity curve
-                    </div>
-                  )}
                 </div>
-              </AppPanel>
-            </TabsContent>
+              ))}
+            </div>
+          </AppPanel>
+        </div>
 
-            {/* ── Breakdown: Day of week + R-distribution ── */}
-            <TabsContent value="breakdown" className="space-y-4">
-              <div className="grid gap-4 lg:grid-cols-2">
-                <AppPanel>
-                  <h3 className="headline-md mb-1">Performance by Day</h3>
-                  <p className="mb-5 text-sm" style={{ color: "var(--text-tertiary)" }}>
-                    Total P&L per weekday
-                  </p>
-                  <div className="h-[300px]">
-                    {dayPerf.some((d) => d.trades > 0) ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={dayPerf}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-                          <XAxis
-                            dataKey="day"
-                            tick={{ fill: CHART_COLORS.textTertiary, fontSize: 11 }}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(v) => v.slice(0, 3)}
-                          />
-                          <YAxis
-                            tick={{ fill: CHART_COLORS.textTertiary, fontSize: 11 }}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(v) => `$${v}`}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              background: "var(--surface-elevated)",
-                              border: `1px solid ${CHART_COLORS.border}`,
-                              borderRadius: "10px",
-                            }}
-                            labelStyle={{ color: "var(--text-primary)" }}
-                          />
-                          <Bar dataKey="totalPnl" radius={[4, 4, 0, 0]}>
-                            {dayPerf.map((entry, i) => (
-                              <Cell
-                                key={`${entry.day}-${i}`}
-                                fill={entry.totalPnl >= 0 ? "var(--profit-primary)" : "var(--loss-primary)"}
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="flex h-full items-center justify-center" style={{ color: "var(--text-tertiary)" }}>
-                        No trade data yet
-                      </div>
-                    )}
-                  </div>
-                </AppPanel>
+        {/* Underwater chart — full width below */}
+        <AppPanel className="mt-5">
+          <PanelTitle
+            title="Underwater Chart"
+            subtitle="Drawdown % from equity peak at each point in time — the FTMO compliance view"
+          />
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={DUMMY_DRAWDOWN}>
+                <defs>
+                  <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor="var(--loss-primary)"
+                      stopOpacity={0.35}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="var(--loss-primary)"
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={CHART_COLORS.grid}
+                />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: number) => `${v}%`}
+                />
+                <Tooltip
+                  {...TT}
+                  formatter={(v: number) => [`${v}%`, "Drawdown"]}
+                />
+                <ReferenceLine
+                  y={-5}
+                  stroke="var(--loss-primary)"
+                  strokeDasharray="4 3"
+                  opacity={0.4}
+                  label={{
+                    value: "–5% limit",
+                    fill: CHART_COLORS.textTertiary,
+                    fontSize: 9,
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="dd"
+                  stroke="var(--loss-primary)"
+                  fill="url(#ddGrad)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </AppPanel>
+      </section>
 
-                <AppPanel>
-                  <h3 className="headline-md mb-1">R-Multiple Distribution</h3>
-                  <p className="mb-5 text-sm" style={{ color: "var(--text-tertiary)" }}>
-                    Trade outcomes by R-multiple
-                  </p>
-                  <div className="h-[300px]">
-                    {sortedRDistribution.some((e) => e.count > 0) ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={sortedRDistribution}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-                          <XAxis
-                            dataKey="range"
-                            tick={{ fill: CHART_COLORS.textTertiary, fontSize: 11 }}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <YAxis
-                            tick={{ fill: CHART_COLORS.textTertiary, fontSize: 11 }}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              background: "var(--surface-elevated)",
-                              border: `1px solid ${CHART_COLORS.border}`,
-                              borderRadius: "10px",
-                            }}
-                          />
-                          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                            {sortedRDistribution.map((entry, i) => (
-                              <Cell
-                                key={`${entry.range}-${i}`}
-                                fill={entry.range.startsWith("-") ? "var(--loss-primary)" : "var(--profit-primary)"}
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="flex h-full items-center justify-center" style={{ color: "var(--text-tertiary)" }}>
-                        No R-multiple data. Add stop-loss to trades to calculate R.
-                      </div>
-                    )}
-                  </div>
-                </AppPanel>
-              </div>
-            </TabsContent>
-
-            {/* ── By Asset ── */}
-            <TabsContent value="assets" className="space-y-4">
-              <AppPanel>
-                <h3 className="headline-md mb-1">Performance by Asset</h3>
-                <p className="mb-5 text-sm" style={{ color: "var(--text-tertiary)" }}>
-                  Trading results by instrument
-                </p>
-                {assetPerformance.length > 0 ? (
-                  <div className="space-y-2">
-                    {assetPerformance.map((asset) => (
-                      <div
-                        key={asset.asset}
-                        className="flex items-center justify-between gap-4 rounded-[var(--radius-default)] p-3 transition-colors"
-                        style={{
-                          border: "1px solid var(--border-subtle)",
-                          background: "var(--surface-elevated)",
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="w-20 font-semibold text-sm">{asset.asset}</span>
-                          <span
-                            className="text-[10px] px-2 py-0.5 rounded-full"
-                            style={{
-                              background: "var(--surface-active)",
-                              color: "var(--text-secondary)",
-                            }}
-                          >
-                            {asset.trades} trades
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-6">
-                          <div className="text-center">
-                            <div className="text-[10px] mb-0.5" style={{ color: "var(--text-tertiary)" }}>
-                              Win Rate
-                            </div>
-                            <div className="text-sm font-semibold">{asset.winRate.toFixed(1)}%</div>
-                          </div>
-                          <div className="w-24 text-right">
-                            <div className="text-[10px] mb-0.5" style={{ color: "var(--text-tertiary)" }}>
-                              P&L
-                            </div>
-                            <div
-                              className={cn("mono text-sm font-semibold", asset.pnl >= 0 ? "profit" : "loss")}
-                            >
-                              {asset.pnl >= 0 ? "+" : ""}${asset.pnl.toFixed(0)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+      {/* ══════════════════════════════════════════════════════
+          SECTION 3 — Distribution Analysis
+      ══════════════════════════════════════════════════════ */}
+      <section>
+        <SectionHeader eyebrow="Trade Quality" title="Distribution Analysis" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* R-Multiple */}
+          <AppPanel>
+            <PanelTitle
+              title="R-Multiple Distribution"
+              subtitle="How many trades hit each risk-multiple outcome"
+            />
+            <div className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={DUMMY_R_DIST} barCategoryGap="18%">
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={CHART_COLORS.grid}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="range"
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip {...TT} formatter={(v: number) => [v, "Trades"]} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {DUMMY_R_DIST.map((e, i) => (
+                      <Cell
+                        key={i}
+                        fill={
+                          e.range.startsWith("-")
+                            ? "var(--loss-primary)"
+                            : e.range === "0R"
+                              ? "var(--text-tertiary)"
+                              : "var(--profit-primary)"
+                        }
+                      />
                     ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </AppPanel>
+
+          {/* P&L Distribution */}
+          <AppPanel>
+            <PanelTitle
+              title="P&L Distribution"
+              subtitle="Frequency histogram of individual trade outcomes"
+            />
+            <div className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={DUMMY_PNL_DIST} barCategoryGap="10%">
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={CHART_COLORS.grid}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="bucket"
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 9 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip {...TT} formatter={(v: number) => [v, "Trades"]} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {DUMMY_PNL_DIST.map((e, i) => (
+                      <Cell
+                        key={i}
+                        fill={
+                          e.bucket.startsWith("-")
+                            ? "var(--loss-primary)"
+                            : e.bucket === "$0"
+                              ? "var(--text-tertiary)"
+                              : "var(--profit-primary)"
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </AppPanel>
+
+          {/* Hold Time */}
+          <AppPanel>
+            <PanelTitle
+              title="Hold Time Breakdown"
+              subtitle="Trade duration distribution vs avg P&L earned"
+            />
+            <div className="space-y-4 mt-1">
+              {DUMMY_HOLD.map((h) => {
+                const max = Math.max(...DUMMY_HOLD.map((x) => x.count));
+                return (
+                  <div key={h.label}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div>
+                        <span className="text-[11px] font-semibold">
+                          {h.label}
+                        </span>
+                        <span
+                          className="text-[10px] ml-1.5"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          {h.sub}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-right">
+                        <span
+                          className="text-[10px]"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          {h.count} trades
+                        </span>
+                        <span
+                          className="mono text-[11px] font-semibold"
+                          style={{ color: "var(--profit-primary)" }}
+                        >
+                          +${h.avgPnl}
+                        </span>
+                      </div>
+                    </div>
+                    <Progress value={(h.count / max) * 100} className="h-1.5" />
                   </div>
-                ) : (
-                  <div className="py-8 text-center" style={{ color: "var(--text-tertiary)" }}>
-                    No asset data yet
+                );
+              })}
+              <div
+                className="flex items-center gap-2 pt-1"
+                style={{ borderTop: "1px solid var(--border-subtle)" }}
+              >
+                <Clock size={11} style={{ color: "var(--text-tertiary)" }} />
+                <span
+                  className="text-[10px]"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  Overall avg hold time:{" "}
+                  <span
+                    className="font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    1h 48m
+                  </span>
+                </span>
+              </div>
+            </div>
+          </AppPanel>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          SECTION 4 — Session & Time Intelligence
+      ══════════════════════════════════════════════════════ */}
+      <section>
+        <SectionHeader
+          eyebrow="Timing Intelligence"
+          title="Session & Time Analysis"
+        />
+
+        {/* 4 session cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+          {DUMMY_SESSIONS.map((s) => (
+            <SessionCard key={s.session} {...s} />
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Day of week — composed */}
+          <AppPanel>
+            <PanelTitle
+              title="Performance by Day of Week"
+              subtitle="Win rate (line) vs trade count (bars) — 50% threshold marked"
+            />
+            <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={dowData}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={CHART_COLORS.grid}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="day"
+                    tickFormatter={(v: string) => v.slice(0, 3)}
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    yAxisId="l"
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: number) => `${v}%`}
+                    domain={[0, 100]}
+                  />
+                  <YAxis
+                    yAxisId="r"
+                    orientation="right"
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip {...TT} />
+                  <Bar
+                    yAxisId="r"
+                    dataKey="trades"
+                    radius={[4, 4, 0, 0]}
+                    fill="var(--border-active)"
+                    opacity={0.45}
+                    name="Trades"
+                  />
+                  <Line
+                    yAxisId="l"
+                    type="monotone"
+                    dataKey="winRate"
+                    stroke="var(--accent-primary)"
+                    strokeWidth={2.5}
+                    dot={{
+                      fill: "var(--accent-primary)",
+                      r: 4,
+                      strokeWidth: 0,
+                    }}
+                    name="Win Rate %"
+                  />
+                  <ReferenceLine
+                    yAxisId="l"
+                    y={50}
+                    stroke="var(--loss-primary)"
+                    strokeDasharray="4 3"
+                    opacity={0.5}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </AppPanel>
+
+          {/* Hour-of-day heatmap */}
+          <AppPanel>
+            <PanelTitle
+              title="Hour-of-Day Heatmap"
+              subtitle="Average P&L by trading hour (UTC) — find your sharpest hours"
+            />
+            <div
+              className="grid gap-1.5"
+              style={{ gridTemplateColumns: "repeat(8, 1fr)" }}
+            >
+              {DUMMY_HOURLY.map((h) => {
+                const abs = Math.min(Math.abs(h.avgPnl) / 110, 1);
+                const isPos = h.avgPnl >= 0;
+                const alpha = 0.08 + abs * 0.72;
+                return (
+                  <div
+                    key={h.hour}
+                    title={`${h.label}: ${h.avgPnl >= 0 ? "+" : ""}$${h.avgPnl}`}
+                    className="rounded-[6px] flex flex-col items-center py-2.5 cursor-default transition-transform hover:scale-105"
+                    style={{
+                      background: isPos
+                        ? `rgba(8,168,120,${alpha})`
+                        : `rgba(255,68,85,${alpha})`,
+                      border: `1px solid ${isPos ? `rgba(8,168,120,${Math.min(alpha * 0.6, 0.4)})` : `rgba(255,68,85,${Math.min(alpha * 0.6, 0.4)})`}`,
+                    }}
+                  >
+                    <span
+                      className="text-[9px] font-semibold"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {String(h.hour).padStart(2, "0")}
+                    </span>
+                    <span
+                      className="text-[9px] font-bold mt-0.5"
+                      style={{
+                        color: isPos
+                          ? "var(--profit-primary)"
+                          : "var(--loss-primary)",
+                      }}
+                    >
+                      {h.avgPnl > 0 ? "+" : ""}
+                      {h.avgPnl}
+                    </span>
                   </div>
-                )}
-              </AppPanel>
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
+                );
+              })}
+            </div>
+            <div
+              className="mt-3 flex items-center gap-4 text-[10px]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="inline-block w-3 h-1.5 rounded-sm"
+                  style={{ background: "rgba(8,168,120,0.7)" }}
+                />
+                Profitable hour
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="inline-block w-3 h-1.5 rounded-sm"
+                  style={{ background: "rgba(255,68,85,0.7)" }}
+                />
+                Losing hour
+              </span>
+            </div>
+          </AppPanel>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          SECTION 5 — Streak, Consistency & MAE/MFE
+      ══════════════════════════════════════════════════════ */}
+      <section>
+        <SectionHeader
+          eyebrow="Behavioral Edge"
+          title="Streak, Consistency & Execution Quality"
+        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Streak tracker */}
+          <AppPanel>
+            <PanelTitle
+              title="Streak Tracker"
+              subtitle="Recent trade sequence and peak consecutive runs"
+            />
+            <div className="flex items-center gap-1 mb-4 flex-wrap">
+              {DUMMY_STREAKS.recentTrades.map((t, i) => (
+                <div
+                  key={i}
+                  className="w-6 h-6 rounded-[5px] flex items-center justify-center text-[10px] font-bold transition-opacity"
+                  style={{
+                    background:
+                      t === "W"
+                        ? "rgba(8,168,120,0.15)"
+                        : "rgba(255,68,85,0.12)",
+                    color:
+                      t === "W"
+                        ? "var(--profit-primary)"
+                        : "var(--loss-primary)",
+                    border: `1px solid ${t === "W" ? "rgba(8,168,120,0.3)" : "rgba(255,68,85,0.3)"}`,
+                  }}
+                >
+                  {t}
+                </div>
+              ))}
+              <span
+                className="text-[9px] ml-1"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                ← latest
+              </span>
+            </div>
+            <div
+              className="p-3 rounded-xl mb-4 flex items-center gap-4"
+              style={{
+                background:
+                  DUMMY_STREAKS.currentType === "win"
+                    ? "rgba(8,168,120,0.1)"
+                    : "rgba(255,68,85,0.1)",
+                border: `1px solid ${DUMMY_STREAKS.currentType === "win" ? "rgba(8,168,120,0.25)" : "rgba(255,68,85,0.25)"}`,
+              }}
+            >
+              {DUMMY_STREAKS.currentType === "win" ? (
+                <TrendingUp
+                  size={20}
+                  style={{ color: "var(--profit-primary)" }}
+                />
+              ) : (
+                <TrendingDown
+                  size={20}
+                  style={{ color: "var(--loss-primary)" }}
+                />
+              )}
+              <div>
+                <p
+                  className="text-[10px]"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  Current Streak
+                </p>
+                <p
+                  className="mono text-2xl font-bold"
+                  style={{
+                    color:
+                      DUMMY_STREAKS.currentType === "win"
+                        ? "var(--profit-primary)"
+                        : "var(--loss-primary)",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {DUMMY_STREAKS.current}{" "}
+                  <span className="text-sm">
+                    {DUMMY_STREAKS.currentType === "win" ? "wins" : "losses"}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                {
+                  label: "Longest Win Streak",
+                  value: DUMMY_STREAKS.longestWin,
+                  type: "win",
+                },
+                {
+                  label: "Longest Loss Streak",
+                  value: DUMMY_STREAKS.longestLoss,
+                  type: "loss",
+                },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className="p-3 rounded-xl flex items-center gap-2"
+                  style={{
+                    background:
+                      s.type === "win"
+                        ? "rgba(8,168,120,0.08)"
+                        : "rgba(255,68,85,0.08)",
+                    border: `1px solid ${s.type === "win" ? "rgba(8,168,120,0.2)" : "rgba(255,68,85,0.2)"}`,
+                  }}
+                >
+                  {s.type === "win" ? (
+                    <Award
+                      size={16}
+                      style={{ color: "var(--profit-primary)" }}
+                    />
+                  ) : (
+                    <AlertTriangle
+                      size={16}
+                      style={{ color: "var(--loss-primary)" }}
+                    />
+                  )}
+                  <div>
+                    <p
+                      className="mono text-xl font-bold"
+                      style={{
+                        color:
+                          s.type === "win"
+                            ? "var(--profit-primary)"
+                            : "var(--loss-primary)",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {s.value}
+                    </p>
+                    <p
+                      className="text-[9px]"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {s.label.split(" ").slice(1).join(" ")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </AppPanel>
+
+          {/* Consistency Score */}
+          <AppPanel>
+            <PanelTitle
+              title="Consistency Score"
+              subtitle="Behavioral consistency across 4 dimensions — FTMO style"
+            />
+            <div className="flex justify-center mb-5">
+              <ConsistencyGauge score={DUMMY_CONSISTENCY.score} />
+            </div>
+            <div className="space-y-3">
+              {[
+                {
+                  label: "Position Sizing",
+                  value: DUMMY_CONSISTENCY.positionSize,
+                  hint: "Variance in lot size / risk %",
+                },
+                {
+                  label: "Session Timing",
+                  value: DUMMY_CONSISTENCY.timing,
+                  hint: "Regularity of trading hours",
+                },
+                {
+                  label: "Win/Loss Balance",
+                  value: DUMMY_CONSISTENCY.winLossBalance,
+                  hint: "Ratio stability over time",
+                },
+                {
+                  label: "Stop Adherence",
+                  value: DUMMY_CONSISTENCY.stopAdherence,
+                  hint: "Following defined stop levels",
+                },
+              ].map((m) => (
+                <div key={m.label}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div>
+                      <span
+                        className="text-[11px] font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {m.label}
+                      </span>
+                      <p
+                        className="text-[9px] mt-0.5"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        {m.hint}
+                      </p>
+                    </div>
+                    <span
+                      className="mono text-sm font-bold ml-3"
+                      style={{
+                        color:
+                          m.value >= 75
+                            ? "var(--profit-primary)"
+                            : m.value >= 50
+                              ? "var(--accent-primary)"
+                              : "#f7c36a",
+                      }}
+                    >
+                      {m.value}
+                    </span>
+                  </div>
+                  <Progress
+                    value={m.value}
+                    className="h-1.5"
+                    style={
+                      {
+                        "--progress-fg":
+                          m.value >= 75
+                            ? "var(--profit-primary)"
+                            : m.value >= 50
+                              ? "var(--accent-primary)"
+                              : "#f7c36a",
+                      } as React.CSSProperties
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          </AppPanel>
+
+          {/* MAE vs MFE */}
+          <AppPanel>
+            <PanelTitle
+              title="MAE vs MFE"
+              subtitle="Max adverse vs favourable excursion — diagnose stop & target placement"
+            />
+            <div className="h-[270px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={CHART_COLORS.grid}
+                  />
+                  <XAxis
+                    dataKey="mae"
+                    name="MAE ($)"
+                    type="number"
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    label={{
+                      value: "MAE ($) →",
+                      position: "insideBottomRight",
+                      offset: 0,
+                      fill: CHART_COLORS.textTertiary,
+                      fontSize: 9,
+                    }}
+                  />
+                  <YAxis
+                    dataKey="mfe"
+                    name="MFE ($)"
+                    type="number"
+                    tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    label={{
+                      value: "MFE ($) →",
+                      angle: -90,
+                      position: "insideLeft",
+                      fill: CHART_COLORS.textTertiary,
+                      fontSize: 9,
+                    }}
+                  />
+                  <Tooltip
+                    {...TT}
+                    cursor={{ stroke: "var(--border-active)" }}
+                    formatter={(v: number, n: string) => [`$${v}`, n]}
+                  />
+                  <Scatter
+                    data={DUMMY_MAE_MFE.filter((d) => d.result === "win")}
+                    fill="var(--profit-primary)"
+                    opacity={0.75}
+                    name="Win"
+                  />
+                  <Scatter
+                    data={DUMMY_MAE_MFE.filter((d) => d.result === "loss")}
+                    fill="var(--loss-primary)"
+                    opacity={0.75}
+                    name="Loss"
+                  />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+            <div
+              className="flex items-center gap-4 mt-2 text-[10px]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-full inline-block"
+                  style={{ background: "var(--profit-primary)" }}
+                />
+                Winning trade
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-full inline-block"
+                  style={{ background: "var(--loss-primary)" }}
+                />
+                Losing trade
+              </span>
+              <span>Higher MFE/MAE = well-placed stops</span>
+            </div>
+          </AppPanel>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          SECTION 6 — Instrument & Strategy Breakdown
+      ══════════════════════════════════════════════════════ */}
+      <section>
+        <SectionHeader
+          eyebrow="Breakdown"
+          title="Instrument & Strategy Performance"
+        />
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          {/* By Instrument */}
+          <AppPanel>
+            <PanelTitle
+              title="By Instrument"
+              subtitle="Profit factor, win rate, avg hold time, and total P&L per symbol"
+            />
+            <div className="space-y-2">
+              <div
+                className="grid px-3 pb-2 text-[9px] font-bold uppercase tracking-wide"
+                style={{
+                  gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr",
+                  color: "var(--text-tertiary)",
+                  borderBottom: "1px solid var(--border-subtle)",
+                }}
+              >
+                <span>Symbol</span>
+                <span className="text-right">Trades</span>
+                <span className="text-right">Win%</span>
+                <span className="text-right">PF</span>
+                <span className="text-right">Avg P&L</span>
+                <span className="text-right">Total</span>
+              </div>
+              {DUMMY_INSTRUMENTS.map((ins) => (
+                <div
+                  key={ins.symbol}
+                  className="grid items-center px-3 py-2.5 rounded-lg transition-colors"
+                  style={{
+                    gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr",
+                    background: "var(--surface-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <div>
+                    <span className="text-[12px] font-bold">{ins.symbol}</span>
+                    <p
+                      className="text-[9px] mt-0.5"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      avg {ins.avgHold}
+                    </p>
+                  </div>
+                  <span
+                    className="mono text-right text-[11px]"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {ins.trades}
+                  </span>
+                  <span
+                    className="mono text-right text-[11px] font-semibold"
+                    style={{
+                      color:
+                        ins.winRate >= 60
+                          ? "var(--profit-primary)"
+                          : "var(--text-primary)",
+                    }}
+                  >
+                    {ins.winRate.toFixed(0)}%
+                  </span>
+                  <span
+                    className="mono text-right text-[11px]"
+                    style={{
+                      color:
+                        ins.pf >= 2
+                          ? "var(--profit-primary)"
+                          : "var(--text-primary)",
+                    }}
+                  >
+                    {ins.pf.toFixed(1)}x
+                  </span>
+                  <span
+                    className="mono text-right text-[11px]"
+                    style={{ color: "var(--profit-primary)" }}
+                  >
+                    +${ins.avgPnl}
+                  </span>
+                  <span
+                    className="mono text-right text-[12px] font-bold"
+                    style={{
+                      color:
+                        ins.totalPnl >= 0
+                          ? "var(--profit-primary)"
+                          : "var(--loss-primary)",
+                    }}
+                  >
+                    {ins.totalPnl >= 0 ? "+" : ""}$
+                    {ins.totalPnl.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </AppPanel>
+
+          {/* By Strategy */}
+          <AppPanel>
+            <PanelTitle
+              title="By Strategy"
+              subtitle="Playbook performance — which setups have genuine statistical edge"
+            />
+            <div className="space-y-2">
+              <div
+                className="grid px-3 pb-2 text-[9px] font-bold uppercase tracking-wide"
+                style={{
+                  gridTemplateColumns: "2.5fr 1fr 1fr 1fr 1fr",
+                  color: "var(--text-tertiary)",
+                  borderBottom: "1px solid var(--border-subtle)",
+                }}
+              >
+                <span>Strategy</span>
+                <span className="text-right">Trades</span>
+                <span className="text-right">Win%</span>
+                <span className="text-right">PF</span>
+                <span className="text-right">Total</span>
+              </div>
+              {DUMMY_STRATEGIES.map((s) => (
+                <div
+                  key={s.strategy}
+                  className="grid items-center px-3 py-3 rounded-lg transition-colors"
+                  style={{
+                    gridTemplateColumns: "2.5fr 1fr 1fr 1fr 1fr",
+                    background: "var(--surface-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <div>
+                    <span className="text-[11px] font-semibold">
+                      {s.strategy}
+                    </span>
+                    <Progress
+                      value={s.winRate}
+                      className="h-1 mt-1.5"
+                      style={
+                        {
+                          maxWidth: 120,
+                          "--progress-fg":
+                            s.winRate >= 65
+                              ? "var(--profit-primary)"
+                              : "var(--accent-primary)",
+                        } as React.CSSProperties
+                      }
+                    />
+                  </div>
+                  <span
+                    className="mono text-right text-[11px]"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {s.trades}
+                  </span>
+                  <span
+                    className="mono text-right text-[11px] font-semibold"
+                    style={{
+                      color:
+                        s.winRate >= 60
+                          ? "var(--profit-primary)"
+                          : "var(--text-primary)",
+                    }}
+                  >
+                    {s.winRate.toFixed(0)}%
+                  </span>
+                  <span
+                    className="mono text-right text-[11px]"
+                    style={{
+                      color:
+                        s.pf >= 2
+                          ? "var(--profit-primary)"
+                          : "var(--text-primary)",
+                    }}
+                  >
+                    {s.pf.toFixed(1)}x
+                  </span>
+                  <span
+                    className="mono text-right text-[12px] font-bold"
+                    style={{ color: "var(--profit-primary)" }}
+                  >
+                    +${s.totalPnl.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </AppPanel>
+        </div>
+      </section>
     </div>
   );
 }

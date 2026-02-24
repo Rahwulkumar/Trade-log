@@ -27,8 +27,8 @@ export const CHART_COLORS = {
  * These match the design-system profit/loss palette.
  */
 export const CHART_GRADIENT_RGB = {
-  /** Profit gradient base (matches --profit-primary green) */
-  profit: '78,203,6',
+  /** Profit gradient base (matches --profit-primary #03624C) */
+  profit: '3,98,76',
   /** Loss gradient base (matches --loss-primary red) */
   loss: '255,68,85',
 } as const;

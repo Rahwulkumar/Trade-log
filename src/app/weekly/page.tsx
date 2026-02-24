@@ -12,23 +12,24 @@ import {
   Save,
   Target,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getTradesByDateRange } from "@/lib/api/trades";
 import { usePropAccount } from "@/components/prop-account-provider";
 import { getCurrentWeekRange, formatWeekRange } from "@/lib/utils/date-range";
-import { toDateString, formatCurrency, formatSignedCurrency } from "@/lib/utils/format";
+import {
+  toDateString,
+  formatCurrency,
+  formatSignedCurrency,
+} from "@/lib/utils/format";
 import { getPnLColorClass } from "@/lib/utils/trade-colors";
 import type { Trade } from "@/lib/supabase/types";
+import {
+  AppPageHeader,
+  AppPanel,
+  PanelTitle,
+} from "@/components/ui/page-primitives";
 
 interface WeekStats {
   trades: number;
@@ -59,8 +60,12 @@ function buildWeekStats(trades: Trade[]): WeekStats {
     losers: losers.length,
     winRate: closed.length > 0 ? (winners.length / closed.length) * 100 : 0,
     netPnL,
-    bestTrade: bestTrade ? { symbol: bestTrade.symbol, pnl: bestTrade.pnl ?? 0 } : null,
-    worstTrade: worstTrade ? { symbol: worstTrade.symbol, pnl: worstTrade.pnl ?? 0 } : null,
+    bestTrade: bestTrade
+      ? { symbol: bestTrade.symbol, pnl: bestTrade.pnl ?? 0 }
+      : null,
+    worstTrade: worstTrade
+      ? { symbol: worstTrade.symbol, pnl: worstTrade.pnl ?? 0 }
+      : null,
   };
 }
 
@@ -102,183 +107,301 @@ export default function WeeklyAnalysisPage() {
   }, [loadWeekData]);
 
   return (
-    <div className="space-y-6">
-      {/* Week Navigation */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => setWeekOffset((o) => o - 1)}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-            <span className="text-lg font-semibold">{weekLabel}</span>
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setWeekOffset((o) => o + 1)}
-            disabled={weekOffset >= 0}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+    <div className="page-root page-sections">
+      {/* ── Header ───────────────────────────────────────────────────── */}
+      <AppPageHeader
+        eyebrow="Journal"
+        title="Weekly Analysis"
+        description="Plan your week ahead and review your trading performance."
+        icon={<Calendar size={18} strokeWidth={1.8} color="#fff" />}
+        actions={
+          <>
+            {/* Week nav */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setWeekOffset((o) => o - 1)}
+              >
+                <ChevronLeft size={14} />
+              </Button>
+              <span
+                className="mono text-[13px] font-semibold px-3"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {weekLabel}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setWeekOffset((o) => o + 1)}
+                disabled={weekOffset >= 0}
+              >
+                <ChevronRight size={14} />
+              </Button>
+            </div>
+            <Button>
+              <Save size={13} strokeWidth={2} />
+              Save Analysis
+            </Button>
+          </>
+        }
+      />
+
+      {/* ── Body grid ────────────────────────────────────────────────── */}
+      <div className="stagger-2 grid gap-5 lg:grid-cols-3">
+        {/* Left col — notes */}
+        <div className="lg:col-span-2 flex flex-col gap-5">
+          {/* Economic calendar */}
+          <AppPanel>
+            <PanelTitle
+              title="Economic Calendar — This Week"
+              subtitle="Key macro events and their expected market impact"
+            />
+            <div
+              className="flex items-center gap-2 mb-4"
+              style={{ color: "var(--accent-primary)" }}
+            >
+              <AlertCircle size={15} />
+              <span className="text-[11px] font-semibold uppercase tracking-wider">
+                Upcoming
+              </span>
+            </div>
+            <div
+              className="flex items-center justify-center py-8 text-[13px]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Economic calendar integration coming soon.
+            </div>
+          </AppPanel>
+
+          {/* Pre-week plan */}
+          <AppPanel>
+            <PanelTitle
+              title="Pre-Week Plan"
+              subtitle="Your trading plan and bias going into the week"
+            />
+            <div
+              className="flex items-center gap-2 mb-3"
+              style={{ color: "var(--accent-primary)" }}
+            >
+              <Target size={15} />
+            </div>
+            <Textarea
+              value={weeklyPlan}
+              onChange={(e) => setWeeklyPlan(e.target.value)}
+              rows={5}
+              className="resize-none text-[13px]"
+              placeholder="What's your trade plan for this week? Key levels, biases, news events to watch…"
+            />
+          </AppPanel>
+
+          {/* Weekly review */}
+          <AppPanel>
+            <PanelTitle
+              title="Weekly Review"
+              subtitle="Post-week reflection — what worked and what didn't"
+            />
+            <div
+              className="flex items-center gap-2 mb-3"
+              style={{ color: "var(--accent-primary)" }}
+            >
+              <FileText size={15} />
+            </div>
+            <Textarea
+              value={weeklyReview}
+              onChange={(e) => setWeeklyReview(e.target.value)}
+              rows={5}
+              className="resize-none text-[13px]"
+              placeholder="How did the week unfold vs your plan?"
+            />
+          </AppPanel>
+
+          {/* Lessons learned */}
+          <AppPanel>
+            <PanelTitle
+              title="Lessons Learned"
+              subtitle="Key takeaways to carry into next week"
+            />
+            <Textarea
+              value={lessonsLearned}
+              onChange={(e) => setLessonsLearned(e.target.value)}
+              rows={4}
+              className="resize-none text-[13px]"
+              placeholder="What do you want to remember and improve on?"
+            />
+          </AppPanel>
         </div>
-        <Button>
-          <Save className="h-4 w-4 mr-2" />
-          Save Analysis
-        </Button>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Economic Calendar placeholder */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-[var(--accent-primary)]" />
-                <CardTitle>Economic Calendar — This Week</CardTitle>
-              </div>
-              <CardDescription>Key economic events and their market impact</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-                Economic calendar integration coming soon.
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Weekly Notes */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-[var(--accent-primary)]" />
-                <CardTitle>Pre-Week Plan</CardTitle>
-              </div>
-              <CardDescription>Your trading plan for this week</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                value={weeklyPlan}
-                onChange={(e) => setWeeklyPlan(e.target.value)}
-                rows={5}
-                className="resize-none"
-                placeholder="What's your plan for this week?"
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-[var(--accent-primary)]" />
-                <CardTitle>Weekly Review</CardTitle>
-              </div>
-              <CardDescription>Post-week reflection and analysis</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                value={weeklyReview}
-                onChange={(e) => setWeeklyReview(e.target.value)}
-                rows={5}
-                className="resize-none"
-                placeholder="How did the week go?"
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Lessons Learned</CardTitle>
-              <CardDescription>Key takeaways for improvement</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                value={lessonsLearned}
-                onChange={(e) => setLessonsLearned(e.target.value)}
-                rows={4}
-                className="resize-none"
-                placeholder="What did you learn this week?"
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar — Live Performance */}
+        {/* Right col — live performance sidebar */}
         <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Performance</CardTitle>
-              <CardDescription>Summary of this week&apos;s trading</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {loading ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Loading…</p>
-              ) : !stats || stats.trades === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No closed trades this week.
-                </p>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-3 rounded-lg bg-muted/50">
-                      <div className="text-2xl font-bold">{stats.trades}</div>
-                      <div className="text-xs text-muted-foreground">Total Trades</div>
-                    </div>
-                    <div className="text-center p-3 rounded-lg bg-muted/50">
-                      <div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
-                      <div className="text-xs text-muted-foreground">Win Rate</div>
-                    </div>
-                  </div>
+          <AppPanel>
+            <PanelTitle
+              title="Weekly Performance"
+              subtitle="Live summary of this week's closed trades"
+            />
 
-                  <div className="p-4 rounded-lg bg-muted/40 border border-border text-center">
-                    <div className={cn("text-3xl font-bold", getPnLColorClass(stats.netPnL))}>
-                      {formatSignedCurrency(stats.netPnL)}
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-1">Net P&L</div>
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="skeleton h-10 rounded-lg" />
+                ))}
+              </div>
+            ) : !stats || stats.trades === 0 ? (
+              <p
+                className="text-[13px] py-6 text-center"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                No closed trades this week.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {/* Trades + Win Rate */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    className="rounded-[var(--radius-md)] p-3 text-center"
+                    style={{ background: "var(--surface-elevated)" }}
+                  >
+                    <p
+                      className="mono text-[1.4rem] font-bold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {stats.trades}
+                    </p>
+                    <p
+                      className="text-[10px] font-semibold uppercase tracking-wider mt-0.5"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Total Trades
+                    </p>
                   </div>
+                  <div
+                    className="rounded-[var(--radius-md)] p-3 text-center"
+                    style={{ background: "var(--surface-elevated)" }}
+                  >
+                    <p
+                      className="mono text-[1.4rem] font-bold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {stats.winRate.toFixed(1)}%
+                    </p>
+                    <p
+                      className="text-[10px] font-semibold uppercase tracking-wider mt-0.5"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Win Rate
+                    </p>
+                  </div>
+                </div>
 
-                  <div className="flex justify-between items-center">
+                {/* Net P&L hero */}
+                <div
+                  className="rounded-[var(--radius-md)] p-4 text-center"
+                  style={{
+                    background:
+                      stats.netPnL >= 0 ? "var(--profit-bg)" : "var(--loss-bg)",
+                    border: `1px solid ${stats.netPnL >= 0 ? "var(--profit-primary)" : "var(--loss-primary)"}22`,
+                  }}
+                >
+                  <p
+                    className={cn(
+                      "mono text-[2rem] font-bold leading-none",
+                      getPnLColorClass(stats.netPnL),
+                    )}
+                  >
+                    {formatSignedCurrency(stats.netPnL)}
+                  </p>
+                  <p
+                    className="text-[10px] font-semibold uppercase tracking-wider mt-1.5"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    Net P&L
+                  </p>
+                </div>
+
+                {/* Winners / Losers */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-[var(--profit-primary)]" />
-                      <span className="text-sm">Winners</span>
+                      <TrendingUp
+                        size={14}
+                        style={{ color: "var(--profit-primary)" }}
+                      />
+                      <span
+                        className="text-[13px]"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        Winners
+                      </span>
                     </div>
-                    <span className="font-medium text-[var(--profit-primary)]">{stats.winners}</span>
+                    <span
+                      className="mono text-[13px] font-semibold"
+                      style={{ color: "var(--profit-primary)" }}
+                    >
+                      {stats.winners}
+                    </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <TrendingDown className="h-4 w-4 text-[var(--loss-primary)]" />
-                      <span className="text-sm">Losers</span>
+                      <TrendingDown
+                        size={14}
+                        style={{ color: "var(--loss-primary)" }}
+                      />
+                      <span
+                        className="text-[13px]"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        Losers
+                      </span>
                     </div>
-                    <span className="font-medium text-[var(--loss-primary)]">{stats.losers}</span>
+                    <span
+                      className="mono text-[13px] font-semibold"
+                      style={{ color: "var(--loss-primary)" }}
+                    >
+                      {stats.losers}
+                    </span>
                   </div>
+                </div>
 
-                  {(stats.bestTrade || stats.worstTrade) && (
-                    <>
-                      <Separator />
-                      <div className="space-y-2">
-                        {stats.bestTrade && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Best Trade</span>
-                            <span className="text-[var(--profit-primary)]">
-                              {stats.bestTrade.symbol} (+{formatCurrency(stats.bestTrade.pnl)})
-                            </span>
-                          </div>
-                        )}
-                        {stats.worstTrade && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Worst Trade</span>
-                            <span className="text-[var(--loss-primary)]">
-                              {stats.worstTrade.symbol} ({formatCurrency(stats.worstTrade.pnl)})
-                            </span>
-                          </div>
-                        )}
+                {/* Best / Worst */}
+                {(stats.bestTrade || stats.worstTrade) && (
+                  <div
+                    className="pt-3 flex flex-col gap-2"
+                    style={{ borderTop: "1px solid var(--border-default)" }}
+                  >
+                    {stats.bestTrade && (
+                      <div className="flex justify-between text-[12px]">
+                        <span style={{ color: "var(--text-tertiary)" }}>
+                          Best Trade
+                        </span>
+                        <span
+                          className="mono font-semibold"
+                          style={{ color: "var(--profit-primary)" }}
+                        >
+                          {stats.bestTrade.symbol} (+
+                          {formatCurrency(stats.bestTrade.pnl)})
+                        </span>
                       </div>
-                    </>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
+                    )}
+                    {stats.worstTrade && (
+                      <div className="flex justify-between text-[12px]">
+                        <span style={{ color: "var(--text-tertiary)" }}>
+                          Worst Trade
+                        </span>
+                        <span
+                          className="mono font-semibold"
+                          style={{ color: "var(--loss-primary)" }}
+                        >
+                          {stats.worstTrade.symbol} (
+                          {formatCurrency(stats.worstTrade.pnl)})
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </AppPanel>
         </div>
       </div>
     </div>

@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import type { PropAccount } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 
@@ -395,19 +396,20 @@ export default function PropFirmPage() {
               </SelectContent>
             </Select>
           )}
-          <button
-            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          <Button
+            variant="outline"
+            size="icon"
             onClick={loadAccounts}
             title="Refresh"
           >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          </button>
+          </Button>
           <Dialog open={isNewAccountOpen} onOpenChange={setIsNewAccountOpen}>
             <DialogTrigger asChild>
-              <button className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-semibold hover:bg-[var(--accent-secondary)] transition-colors">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button>
+                <Plus className="h-4 w-4" />
                 Add Account
-              </button>
+              </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px] bg-card border-border">
               <form onSubmit={handleSubmit}>
@@ -580,9 +582,14 @@ export default function PropFirmPage() {
       {error && (
         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setError(null)}
+            className="ml-2 underline h-auto p-0"
+          >
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -595,8 +602,8 @@ export default function PropFirmPage() {
 
       {/* Empty State */}
       {!loading && accounts.length === 0 && (
-        <div className="surface p-12 text-center">
-          <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <div className="surface p-12">
+          <Zap className="h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-muted-foreground mb-4">
             No prop accounts yet. Add one to start tracking!
           </p>
@@ -736,8 +743,10 @@ export default function PropFirmPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  className="btn-base btn-ghost rounded-lg text-xs px-3 py-1 flex items-center gap-2"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-2 text-xs rounded-lg px-3"
                   onClick={() => {
                     setIsSyncDialogOpen(true);
 
@@ -773,7 +782,7 @@ export default function PropFirmPage() {
                 >
                   <Download className="h-3 w-3" />
                   Sync MT5
-                </button>
+                </Button>
                 <span
                   className={cn(
                     "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium",
@@ -1202,8 +1211,8 @@ export default function PropFirmPage() {
               {mt5Error && <p className="text-sm text-red-400">{mt5Error}</p>}
 
               <DialogFooter>
-                <button
-                  className="btn-base btn-primary w-full"
+                <Button
+                  className="w-full"
                   onClick={async () => {
                     if (!selectedAccount) return;
                     setTerminalLoading(true);
@@ -1280,7 +1289,7 @@ export default function PropFirmPage() {
                       Enable Auto-Sync
                     </>
                   )}
-                </button>
+                </Button>
               </DialogFooter>
 
               <p className="text-xs text-center text-muted-foreground">

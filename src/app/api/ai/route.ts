@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateStrategy, chatWithAI, analyzeTrades, type ChatMessage } from '@/lib/api/gemini';
+import { generateStrategy, chatWithAI, analyzeTrades, analyzeNews, type ChatMessage } from '@/lib/api/gemini';
 
 export async function POST(request: NextRequest) {
     try {
@@ -21,6 +21,11 @@ export async function POST(request: NextRequest) {
             case 'analyze-trades': {
                 const insights = await analyzeTrades(params.trades, params.focusAreas);
                 return NextResponse.json({ success: true, insights });
+            }
+
+            case 'analyze-news': {
+                const analysis = await analyzeNews(params.events, params.pair, params.question);
+                return NextResponse.json({ success: true, analysis });
             }
 
             default:

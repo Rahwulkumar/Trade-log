@@ -8,6 +8,9 @@ interface PageShellProps {
 }
 
 export function PageShell({ children, className }: PageShellProps) {
-  return <div className={cn("page-container py-8 fade-in", className)}>{children}</div>;
+  return (
+    <div className={cn("page-root page-sections py-8 fade-in", className)}>
+      {children}
+    </div>
+  );
 }
-

@@ -14,10 +14,12 @@ import {
   IconPlaybooks,
   IconStrategies,
   IconJournal,
+  IconNotebook,
   IconReports,
   IconPropFirm,
   IconSettings,
   IconChevronRight,
+  IconNews,
 } from "@/components/ui/icons";
 
 // ─── Nav items ──────────────────────────────────────────────────────────────
@@ -27,6 +29,8 @@ const NAV = [
   { href: "/playbooks", label: "Playbooks", Icon: IconPlaybooks },
   { href: "/strategies", label: "Strategies", Icon: IconStrategies },
   { href: "/journal", label: "Journal", Icon: IconJournal },
+  { href: "/notes", label: "Notebook", Icon: IconNotebook },
+  { href: "/news", label: "News", Icon: IconNews },
   { href: "/reports", label: "Reports", Icon: IconReports },
   { href: "/prop-firm", label: "Prop Firm", Icon: IconPropFirm },
 ];
@@ -278,8 +282,7 @@ function SidebarContent({
           style={{
             background: "#03624C",
             color: "#DAF1DE",
-            fontFamily: "var(--font-plus-jakarta)",
-            fontWeight: 900,
+                        fontWeight: 900,
             fontSize: "0.85rem",
             letterSpacing: "-0.02em",
           }}
@@ -290,8 +293,7 @@ function SidebarContent({
           <div>
             <span
               style={{
-                fontFamily: "var(--font-plus-jakarta)",
-                fontWeight: 800,
+                                fontWeight: 800,
                 fontSize: "0.92rem",
                 letterSpacing: "-0.04em",
                 color: "var(--text-primary)",

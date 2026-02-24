@@ -23,9 +23,12 @@ import {
   IconArrowUp,
   IconArrowDown,
   IconPlus,
+  IconDashboard,
 } from "@/components/ui/icons";
 import { ArcProgress } from "@/components/ui/arc-progress";
 import { DrawdownGauge } from "@/components/ui/drawdown-gauge";
+import { Button } from "@/components/ui/button";
+import { AppPanel, SectionHeader } from "@/components/ui/page-primitives";
 
 interface PropAccountWithCompliance extends PropAccount {
   compliance?: { profitProgress: number | null };
@@ -34,6 +37,7 @@ interface PropAccountWithCompliance extends PropAccount {
 type ChartPeriod = "1W" | "1M" | "3M" | "YTD";
 const CHART_PERIODS: ChartPeriod[] = ["1W", "1M", "3M", "YTD"];
 
+// ─── Formatting helpers ─────────────────────────────────────────────────────
 function fmt(v: number | null | undefined) {
   if (v == null) return "$0";
   return `$${Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -42,7 +46,53 @@ function signedFmt(v: number) {
   return `${v >= 0 ? "+" : "-"}${fmt(v)}`;
 }
 
-// ─── CONIYEST-style stat card (label → big number → trend badge) ───────────
+// ─── Stat Row — label + value with optional gain/loss color ─────────────────
+function StatRow({
+  label,
+  value,
+  isGain,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  isGain?: boolean;
+  mono?: boolean;
+}) {
+  const color =
+    isGain === true
+      ? "var(--profit-primary)"
+      : isGain === false
+        ? "var(--loss-primary)"
+        : "var(--text-primary)";
+
+  return (
+    <div
+      className="flex items-center justify-between py-2.5"
+      style={{ borderBottom: "1px solid var(--border-subtle)" }}
+    >
+      <span
+        className="text-label"
+        style={{
+          textTransform: "none",
+          letterSpacing: 0,
+          fontWeight: 500,
+          color: "var(--text-secondary)",
+          fontSize: "0.78rem",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        className={mono ? "mono" : ""}
+        style={{ fontSize: "0.84rem", fontWeight: 600, color }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ─── Stat Card (hero top-row cards) ─────────────────────────────────────────
 function StatCard({
   label,
   value,
@@ -61,11 +111,9 @@ function StatCard({
   isNeutral?: boolean;
 }) {
   return (
-    <article className="surface p-5 flex flex-col gap-2.5">
-      {/* Eyebrow label */}
+    <article className="surface p-5 flex flex-col gap-3">
       <p className="text-label">{label}</p>
 
-      {/* Big number */}
       <p
         className="stat-large leading-none"
         style={{
@@ -81,20 +129,17 @@ function StatCard({
         {value}
       </p>
 
-      {/* Secondary value (e.g. "last month $35,568") */}
       {secondaryValue && (
         <p
           style={{
-            fontSize: "0.68rem",
+            fontSize: "0.72rem",
             color: "var(--text-tertiary)",
-            fontFamily: "var(--font-dm-sans)",
           }}
         >
           {secondaryValue}
         </p>
       )}
 
-      {/* Trend badge + hint */}
       {trend && (
         <div className="flex items-center gap-2 flex-wrap">
           <span
@@ -104,8 +149,9 @@ function StatCard({
             )}
             style={{
               borderRadius: "999px",
-              fontSize: "0.64rem",
-              padding: "0.18rem 0.55rem",
+              fontSize: "0.63rem",
+              padding: "0.18rem 0.6rem",
+              fontWeight: 600,
             }}
           >
             {isGain ? (
@@ -117,11 +163,7 @@ function StatCard({
           </span>
           {trendLabel && (
             <span
-              style={{
-                fontSize: "0.68rem",
-                color: "var(--text-tertiary)",
-                fontFamily: "var(--font-dm-sans)",
-              }}
+              style={{ fontSize: "0.68rem", color: "var(--text-tertiary)" }}
             >
               {trendLabel}
             </span>
@@ -132,8 +174,7 @@ function StatCard({
   );
 }
 
-// ─── AccountCard — JAMIE SMITH equivalent ──────────────────────────────────
-// Matches: account name + "Balance" label + big dollar + mini grid lines + ON badge
+// ─── Account Card ───────────────────────────────────────────────────────────
 function AccountCard({
   account,
   balance,
@@ -148,19 +189,16 @@ function AccountCard({
       className="surface p-5 flex flex-col justify-between"
       style={{
         background: `
-          radial-gradient(ellipse at 0% 100%, rgba(78,203,6,0.10) 0%, transparent 55%),
+          radial-gradient(ellipse at 0% 100%, rgba(3,98,76,0.08) 0%, transparent 55%),
           var(--surface)
         `,
         minHeight: "140px",
       }}
     >
-      {/* Header row */}
       <div className="flex items-center justify-between mb-3">
-        {/* Name + account */}
         <div>
           <p
             style={{
-              fontFamily: "var(--font-dm-sans)",
               fontWeight: 600,
               fontSize: "0.88rem",
               color: "var(--text-primary)",
@@ -181,18 +219,16 @@ function AccountCard({
             {account?.name ?? "All Accounts"}
           </p>
         </div>
-        {/* ON badge — like the green pill toggle in reference */}
         <span className="badge-toggle-on">ON</span>
       </div>
 
-      {/* Balance */}
       <div>
         <p className="text-label" style={{ marginBottom: "0.25rem" }}>
           Balance
         </p>
         <p
+          className="mono"
           style={{
-            fontFamily: "var(--font-jb-mono)",
             fontSize: "1.7rem",
             fontWeight: 600,
             color: "var(--text-primary)",
@@ -204,7 +240,7 @@ function AccountCard({
         </p>
       </div>
 
-      {/* Mini chart lines — decorative, like in reference */}
+      {/* Decorative mini bars */}
       <div className="mt-3 flex items-end gap-0.5 h-8">
         {[0.4, 0.6, 0.5, 0.75, 0.55, 0.9, 0.7, 0.85, 1.0, 0.8, 0.95, 0.6].map(
           (h, i) => (
@@ -214,7 +250,7 @@ function AccountCard({
               style={{
                 height: `${h * 100}%`,
                 background:
-                  i % 3 === 0 ? "rgba(78,203,6,0.6)" : "rgba(78,203,6,0.2)",
+                  i % 3 === 0 ? "rgba(3,98,76,0.55)" : "rgba(3,98,76,0.18)",
               }}
             />
           ),
@@ -224,7 +260,36 @@ function AccountCard({
   );
 }
 
-// ─── Skeleton ──────────────────────────────────────────────────────────────
+// ─── Inline quick-stat strip inside a card ──────────────────────────────────
+function QuickStatStrip({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <p className="text-label" style={{ fontSize: "0.6rem" }}>
+        {label}
+      </p>
+      <p
+        className="mono"
+        style={{
+          fontSize: "0.92rem",
+          fontWeight: 600,
+          color: color ?? "var(--text-primary)",
+        }}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+// ─── Skeleton ───────────────────────────────────────────────────────────────
 function StatSkeleton() {
   return (
     <div className="surface p-5 flex flex-col gap-3">
@@ -235,7 +300,7 @@ function StatSkeleton() {
   );
 }
 
-// ─── Dashboard Page ────────────────────────────────────────────────────────
+// ─── Dashboard Page ─────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
   const { selectedAccountId, propAccounts } = usePropAccount();
@@ -259,6 +324,13 @@ export default function DashboardPage() {
     .toISOString()
     .split("T")[0];
 
+  const greeting = (() => {
+    const h = now.getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  })();
+
   useEffect(() => {
     async function load() {
       if (!isConfigured || !user) {
@@ -275,7 +347,6 @@ export default function DashboardPage() {
         setStats(analyticsData);
         setTodayStats(todayData);
 
-        // Resolve prop account to show
         const targetId =
           selectedAccountId && selectedAccountId !== "unassigned"
             ? selectedAccountId
@@ -300,6 +371,7 @@ export default function DashboardPage() {
       }
     }
     if (!authLoading) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isConfigured, authLoading, selectedAccountId, propAccounts]);
 
   const totalPnl = stats?.totalPnl ?? 0;
@@ -307,35 +379,80 @@ export default function DashboardPage() {
   const totalExpense = stats ? Math.abs(stats.avgLoss) * stats.losingTrades : 0;
   const winRate = stats?.winRate ?? 0;
   const balance = propAccount?.current_balance ?? Math.max(totalPnl, 0);
+  const profitFactor =
+    stats?.profitFactor === Infinity
+      ? "∞"
+      : (stats?.profitFactor ?? 0).toFixed(2);
 
   return (
-    <div className="p-4 sm:p-5 lg:p-6 space-y-4 lg:space-y-5 max-w-[1280px]">
-      {/* ───────── Row 1: Account card + 3 stat cards ───────── */}
-      <section className="stagger-1 grid grid-cols-1 sm:grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="page-root page-sections">
+      {/* ── HERO GREETING BAND ────────────────────────────────────── */}
+      <header className="stagger-1 flex items-center justify-between gap-4 py-1">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-[10px] shrink-0"
+            style={{
+              background: "var(--accent-soft)",
+              color: "var(--accent-primary)",
+            }}
+          >
+            <IconDashboard size={17} strokeWidth={1.8} />
+          </div>
+          <div>
+            <h1
+              style={{
+                fontWeight: 700,
+                fontSize: "1.25rem",
+                letterSpacing: "-0.025em",
+                color: "var(--text-primary)",
+                lineHeight: 1.1,
+              }}
+            >
+              {greeting}, {username}
+            </h1>
+            <p
+              className="text-label mt-0.5"
+              style={{ textTransform: "none", letterSpacing: 0 }}
+            >
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              })}
+            </p>
+          </div>
+        </div>
+        <Button asChild className="hidden sm:inline-flex">
+          <Link href="/analytics">
+            <IconAnalytics size={13} strokeWidth={2} />
+            Analytics
+          </Link>
+        </Button>
+      </header>
+
+      {/* ── ROW 1: Account card + 3 stat cards ────────────────────── */}
+      <section className="stagger-2 grid grid-cols-1 sm:grid-cols-2 gap-4 lg:grid-cols-4 2xl:grid-cols-5">
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
         ) : (
           <>
-            {/* JAMIE SMITH equivalent */}
             <AccountCard
               account={propAccount}
               balance={balance}
               username={username}
             />
 
-            {/* Gross Profit */}
             <StatCard
               label="Gross Profit"
               value={fmt(totalIncome)}
               secondaryValue={
-                stats ? `last month ${fmt(totalIncome)}` : undefined
+                stats ? `${stats.winningTrades} winning trades` : undefined
               }
               trend={winRate > 50 ? `${winRate.toFixed(0)}% WR` : undefined}
               trendLabel={stats ? `${stats.winningTrades} wins` : undefined}
               isGain={true}
             />
 
-            {/* Gross Loss */}
             <StatCard
               label="Gross Loss"
               value={fmt(totalExpense)}
@@ -351,11 +468,10 @@ export default function DashboardPage() {
               isGain={false}
             />
 
-            {/* Net P&L */}
             <StatCard
               label="Net P&L"
               value={fmt(Math.abs(totalPnl))}
-              secondaryValue={`profit factor ${stats?.profitFactor === Infinity ? "∞" : (stats?.profitFactor ?? 0).toFixed(2)}`}
+              secondaryValue={`PF ${profitFactor}`}
               trend={
                 totalPnl !== 0
                   ? totalPnl >= 0
@@ -370,139 +486,136 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ───────── Row 2: Cashflow (bars) + Statistics (donut) ───────── */}
-      <section className="stagger-2 grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {/* Cashflow chart — 2/3 width */}
-        <article className="surface p-6 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="headline-md">Performance</h2>
-              <p
-                style={{
-                  color: "var(--text-tertiary)",
-                  fontSize: "0.73rem",
-                  marginTop: "0.2rem",
-                }}
-              >
-                Gross Profit vs Loss · {new Date().getFullYear()}
-              </p>
+      {/* ── ROW 2: Quick stats strip ───────────────────────────────── */}
+      {!loading && (
+        <section className="stagger-3 surface p-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 divide-x divide-[var(--border-subtle)]">
+            <QuickStatStrip
+              label="Today's P&L"
+              value={signedFmt(todayStats?.pnl ?? 0)}
+              color={
+                (todayStats?.pnl ?? 0) >= 0
+                  ? "var(--profit-primary)"
+                  : "var(--loss-primary)"
+              }
+            />
+            <div className="pl-4">
+              <QuickStatStrip
+                label="Win Rate"
+                value={`${winRate.toFixed(1)}%`}
+                color={
+                  winRate > 50
+                    ? "var(--profit-primary)"
+                    : winRate < 50
+                      ? "var(--loss-primary)"
+                      : "var(--text-primary)"
+                }
+              />
             </div>
-            {/* Period toggle */}
-            <div className="seg-control">
-              {CHART_PERIODS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setChartPeriod(p)}
-                  className={cn("seg-item", chartPeriod === p && "active")}
-                >
-                  {p}
-                </button>
-              ))}
+            <div className="pl-4">
+              <QuickStatStrip
+                label="Avg R:R"
+                value={`${(stats?.avgRMultiple ?? 0).toFixed(2)}R`}
+                color={
+                  (stats?.avgRMultiple ?? 0) > 1
+                    ? "var(--profit-primary)"
+                    : "var(--text-secondary)"
+                }
+              />
+            </div>
+            <div className="pl-4">
+              <QuickStatStrip
+                label="Best Trade"
+                value={fmt(stats?.largestWin ?? 0)}
+                color="var(--profit-primary)"
+              />
             </div>
           </div>
+        </section>
+      )}
+
+      {/* ── ROW 3: Cashflow chart + Statistics donut ──────────────── */}
+      <section className="stagger-4 grid grid-cols-1 gap-5 lg:grid-cols-3">
+        {/* Cashflow — 2/3 */}
+        <AppPanel className="lg:col-span-2 p-6">
+          <SectionHeader
+            title="Performance"
+            subtitle={`Gross Profit vs Loss · ${new Date().getFullYear()}`}
+            action={
+              <div className="seg-control">
+                {CHART_PERIODS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setChartPeriod(p)}
+                    className={cn("seg-item", chartPeriod === p && "active")}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            }
+          />
           <CashflowChart
             propAccountId={selectedAccountId}
             period={chartPeriod}
           />
-        </article>
+        </AppPanel>
 
         {/* Statistics donut — 1/3 */}
-        <article className="surface p-6">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h2 className="headline-md">Trade Distribution</h2>
-              <p
-                style={{
-                  color: "var(--text-tertiary)",
-                  fontSize: "0.73rem",
-                  marginTop: "0.2rem",
-                }}
-              >
-                Win/Loss Ratio
-              </p>
-            </div>
-          </div>
+        <AppPanel className="p-6 flex flex-col">
+          <SectionHeader
+            title="Distribution"
+            subtitle="Win / Loss / Break-even"
+          />
           <StatisticsDonut
             propAccountId={selectedAccountId}
             startDate={startOfMonth}
             endDate={endOfMonth}
           />
-        </article>
-      </section>
-
-      {/* ───────── Row 3: Daily quick stats ───────── */}
-      <section className="stagger-3 grid grid-cols-2 gap-4 md:grid-cols-4">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
-          : [
-              {
-                label: "Today's P&L",
-                value: signedFmt(todayStats?.pnl ?? 0),
-                isGain: (todayStats?.pnl ?? 0) >= 0,
-              },
-              {
-                label: "Win Rate",
-                value: `${winRate.toFixed(1)}%`,
-                isGain: winRate > 50,
-                isNeutral: winRate === 50,
-              },
-              {
-                label: "Avg R:R",
-                value: `${(stats?.avgRMultiple ?? 0).toFixed(2)}R`,
-                isGain: (stats?.avgRMultiple ?? 0) > 1,
-              },
-              {
-                label: "Best Trade",
-                value: fmt(stats?.largestWin ?? 0),
-                isGain: true,
-              },
-            ].map((item) => (
-              <StatCard
-                key={item.label}
-                label={item.label}
-                value={item.value}
-                isGain={item.isGain}
-                isNeutral={item.isNeutral}
-              />
-            ))}
-      </section>
-
-      {/* ───────── Row 4: Top Strategies + Prop Firm ───────── */}
-      <section className="stagger-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Top Strategies */}
-        <article className="surface p-6">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h2 className="headline-md">Top Strategies</h2>
-              <p
-                style={{
-                  color: "var(--text-tertiary)",
-                  fontSize: "0.73rem",
-                  marginTop: "0.2rem",
-                }}
-              >
-                Performance by playbook
-              </p>
-            </div>
-            <Link
-              href="/playbooks"
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: 500,
-                color: "var(--accent-primary)",
-                opacity: 0.8,
-              }}
-              className="hover:opacity-100 transition-opacity"
-            >
-              View all →
-            </Link>
+          {/* Key metrics below donut */}
+          <div className="mt-4">
+            <StatRow
+              label="Profit Factor"
+              value={profitFactor}
+              isGain={(stats?.profitFactor ?? 0) > 1}
+              mono
+            />
+            <StatRow label="Avg Win" value={fmt(stats?.avgWin)} isGain mono />
+            <StatRow
+              label="Avg Loss"
+              value={fmt(Math.abs(stats?.avgLoss ?? 0))}
+              isGain={false}
+              mono
+            />
+            <StatRow
+              label="Largest Win"
+              value={fmt(stats?.largestWin)}
+              isGain
+              mono
+            />
           </div>
-          <TopPlaybooks propAccountId={selectedAccountId} />
-        </article>
+        </AppPanel>
+      </section>
 
-        {/* Prop Firm card */}
-        <article className="surface-accent p-6">
+      {/* ── ROW 4: Top Strategies + Prop Firm ────────────────────── */}
+      <section className="stagger-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Top Strategies */}
+        <AppPanel className="p-6">
+          <SectionHeader
+            title="Top Strategies"
+            subtitle="Performance by playbook"
+            action={
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/playbooks">View all →</Link>
+              </Button>
+            }
+          />
+          <TopPlaybooks propAccountId={selectedAccountId} />
+        </AppPanel>
+
+        {/* Prop Firm Card */}
+        <AppPanel className="p-6">
           <div className="mb-4 flex items-start justify-between">
             <div className="flex items-start gap-3">
               <div
@@ -516,18 +629,15 @@ export default function DashboardPage() {
               </div>
               <div>
                 <h2 className="headline-md">
-                  {propAccount?.name ?? "No Account"}
+                  {propAccount?.name ?? "Prop Firm"}
                 </h2>
                 <p
-                  style={{
-                    color: "var(--text-tertiary)",
-                    fontSize: "0.73rem",
-                    marginTop: "0.15rem",
-                  }}
+                  className="text-label mt-0.5"
+                  style={{ textTransform: "none", letterSpacing: 0 }}
                 >
                   {propAccount
-                    ? `${fmt(propAccount.initial_balance)} funded`
-                    : "Add a prop account"}
+                    ? `${fmt(propAccount.initial_balance)} funded account`
+                    : "Add a prop account below"}
                 </p>
               </div>
             </div>
@@ -584,9 +694,9 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="py-8 text-center">
+            <div className="py-8">
               <div
-                className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
+                className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
                 style={{ background: "var(--accent-soft)" }}
               >
                 <IconAnalytics
@@ -597,55 +707,47 @@ export default function DashboardPage() {
               <p
                 style={{ color: "var(--text-secondary)", fontSize: "0.83rem" }}
               >
-                No prop account selected
+                No prop account linked
               </p>
-              <Link
-                href="/prop-firm"
-                className="btn-primary btn-base mt-4 inline-flex"
+              <p
+                style={{
+                  color: "var(--text-tertiary)",
+                  fontSize: "0.72rem",
+                  marginTop: "0.25rem",
+                }}
               >
-                <IconPlus size={13} strokeWidth={2} />
-                Add Account
-              </Link>
+                Add your funded account to track compliance
+              </p>
+              <Button asChild className="mt-4">
+                <Link href="/prop-firm">
+                  <IconPlus size={13} strokeWidth={2} />
+                  Add Account
+                </Link>
+              </Button>
             </div>
           )}
-        </article>
+        </AppPanel>
       </section>
 
-      {/* ───────── Row 5: Recent Transactions ───────── */}
-      <section className="stagger-5 surface p-6">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="headline-md">Recent Transactions</h2>
-            <p
-              style={{
-                color: "var(--text-tertiary)",
-                fontSize: "0.73rem",
-                marginTop: "0.2rem",
-              }}
-            >
-              Latest trading activity
-            </p>
-          </div>
-          <Link
-            href="/analytics"
-            className="btn-ghost btn-base flex items-center gap-1.5 text-[0.76rem]"
-          >
-            View analytics →
-          </Link>
-        </div>
+      {/* ── ROW 5: Recent Trades ───────────────────────────────────── */}
+      <AppPanel className="p-6">
+        <SectionHeader
+          title="Recent Trades"
+          subtitle="Latest trading activity"
+          action={
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/analytics">View analytics →</Link>
+            </Button>
+          }
+        />
         <RecentTrades propAccountId={selectedAccountId} />
-      </section>
+      </AppPanel>
 
-      {/* ───────── Row 6: Calendar ───────── */}
-      <section id="calendar" className="stagger-6 scroll-mt-8 surface p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="headline-md">Trading Calendar</h2>
-          <p style={{ color: "var(--text-tertiary)", fontSize: "0.73rem" }}>
-            Daily P&L overview
-          </p>
-        </div>
+      {/* ── ROW 6: Trading Calendar ────────────────────────────────── */}
+      <AppPanel id="calendar" className="scroll-mt-8 p-6">
+        <SectionHeader title="Trading Calendar" subtitle="Daily P&L overview" />
         <TradingCalendar embedded />
-      </section>
+      </AppPanel>
     </div>
   );
 }

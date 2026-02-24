@@ -7,6 +7,23 @@ export interface Tag {
   user_id: string;
 }
 
+export async function getTags(): Promise<Tag[]> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("tags")
+    .select("id, name, color, user_id")
+    .eq("user_id", user.id)
+    .order("name");
+
+  if (error) return [];
+  return (data || []) as Tag[];
+}
+
 export async function createTag(
   name: string,
   color?: string | null

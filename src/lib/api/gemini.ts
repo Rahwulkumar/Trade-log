@@ -132,9 +132,9 @@ export async function analyzeTrades(
 
     const tradesSummary = {
         totalTrades: trades.length,
-        winners: trades.filter(t => t.pnl > 0).length,
-        losers: trades.filter(t => t.pnl < 0).length,
-        avgPnL: trades.reduce((sum, t) => sum + t.pnl, 0) / trades.length,
+        winners: trades.filter(t => (t.pnl ?? 0) > 0).length,
+        losers: trades.filter(t => (t.pnl ?? 0) < 0).length,
+        avgPnL: trades.reduce((sum, t) => sum + (t.pnl ?? 0), 0) / trades.length,
         bySymbol: trades.reduce((acc: Record<string, number>, t) => {
             acc[t.symbol] = (acc[t.symbol] || 0) + 1;
             return acc;
@@ -215,3 +215,77 @@ export async function scoreTradeSetup(
 
     return { score, grade, notes };
 }
+
+// ─── News Analysis ───────────────────────────────────────────────────────────
+export interface NewsAnalysisResult {
+    verdict: "TRADE" | "CAUTION" | "AVOID";
+    verdictReason: string;
+    riskLevel: "Low" | "Medium" | "High" | "Extreme";
+    pair: string;
+    direction: "LONG" | "SHORT" | "NEUTRAL";
+    eventAnalyses: Array<{
+        event: string;
+        currency: string;
+        impact: string;
+        explanation: string;
+        implication: string;
+    }>;
+    recommendation: string;
+    timingAdvice: string;
+    pairsToWatch: string[];
+}
+
+export async function analyzeNews(
+    events: Array<{ event: string; currency: string; impact: string; actual: string | null; forecast: string | null; previous: string | null; country: string }>,
+    pair: string,
+    question: string
+): Promise<NewsAnalysisResult> {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+    const eventsContext = events.map(e =>
+        `- ${e.currency} | ${e.impact} Impact | ${e.event} | Actual: ${e.actual ?? 'TBD'} | Forecast: ${e.forecast ?? 'N/A'} | Previous: ${e.previous ?? 'N/A'} (${e.country})`
+    ).join('\n');
+
+    const prompt = `You are an expert Forex/Futures macro analyst. A trader is asking whether they should trade ${pair || 'a currency pair'} given the following economic calendar events.
+
+Upcoming Economic Events:
+${eventsContext}
+
+Trader's Question: "${question || `Should I trade ${pair} based on today's news?`}"
+
+Provide a detailed analysis. Return a JSON object with this exact structure:
+{
+  "verdict": "TRADE" | "CAUTION" | "AVOID",
+  "verdictReason": "One-line summary explaining the verdict",
+  "riskLevel": "Low" | "Medium" | "High" | "Extreme",
+  "pair": "${pair || 'as requested'}",
+  "direction": "LONG" | "SHORT" | "NEUTRAL",
+  "eventAnalyses": [
+    {
+      "event": "event name",
+      "currency": "USD",
+      "impact": "High|Medium|Low",
+      "explanation": "What this event means and why it matters (2-3 sentences)",
+      "implication": "Direct implication for this currency pair (1-2 sentences)"
+    }
+  ],
+  "recommendation": "Detailed 3-4 sentence trading recommendation with context",
+  "timingAdvice": "Specific advice on timing — before/after release, how many minutes to wait, etc.",
+  "pairsToWatch": ["EURUSD", "GBPUSD"]
+}
+
+Rules:
+- TRADE = low volatility risk, clear directional bias, good risk/reward
+- CAUTION = tradeable but be selective, high-impact events present
+- AVOID = extreme volatility expected, news too uncertain to trade safely
+- Return ONLY the JSON, no markdown, no explanation outside the JSON.`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Failed to parse news analysis');
+
+    return JSON.parse(jsonMatch[0]) as NewsAnalysisResult;
+}
+

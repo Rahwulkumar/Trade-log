@@ -230,10 +230,9 @@ export default function StrategiesPage() {
     }
   }
 
-
   if (!authLoading && (!isConfigured || !user)) {
     return (
-      <AppPanel className="mx-auto mt-8 max-w-xl text-center">
+      <AppPanel className="mt-8 max-w-xl">
         <h2 className="headline-md">Login Required</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Sign in to generate and manage strategy playbooks.
@@ -246,7 +245,7 @@ export default function StrategiesPage() {
   }
 
   return (
-    <div className="p-4 sm:p-5 lg:p-6 grid min-h-[calc(100vh-9rem)] gap-4 grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)] max-w-[1280px]">
+    <div className="page-root grid min-h-[calc(100vh-9rem)] gap-4 grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)]">
       <aside className="surface flex min-h-0 flex-col p-3">
         <Button onClick={startCreating} className="mb-3 justify-start">
           <Plus className="mr-2 h-4 w-4" />
@@ -421,8 +420,8 @@ export default function StrategiesPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </AppPanel>
             ) : playbooks.length === 0 ? (
-              <AppPanel className="py-14 text-center">
-                <BookOpen className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+              <AppPanel className="py-14">
+                <BookOpen className="mb-4 h-10 w-10 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
                   No strategies in your library yet.
                 </p>
@@ -438,7 +437,9 @@ export default function StrategiesPage() {
                   const winRate = playbook.stats?.winRate ?? 0;
                   const trades = playbook.stats?.totalTrades ?? 0;
                   const avgR = playbook.stats?.avgRMultiple ?? 0;
-                  const ruleCount = Array.isArray(playbook.rules) ? playbook.rules.length : 0;
+                  const ruleCount = Array.isArray(playbook.rules)
+                    ? playbook.rules.length
+                    : 0;
 
                   return (
                     <article
@@ -449,9 +450,10 @@ export default function StrategiesPage() {
                       <div
                         className="h-[3px] rounded-t-[var(--radius-xl)] -mx-5 -mt-5 mb-5 shrink-0"
                         style={{
-                          background: pnl >= 0
-                            ? "linear-gradient(90deg, var(--profit-primary), rgba(78,203,6,0.2))"
-                            : "linear-gradient(90deg, var(--loss-primary), rgba(255,68,85,0.2))",
+                          background:
+                            pnl >= 0
+                              ? "linear-gradient(90deg, var(--profit-primary), rgba(78,203,6,0.2))"
+                              : "linear-gradient(90deg, var(--loss-primary), rgba(255,68,85,0.2))",
                         }}
                       />
 
@@ -460,19 +462,37 @@ export default function StrategiesPage() {
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className="rounded-md p-2 shrink-0"
-                            style={pnl >= 0
-                              ? { background: "var(--profit-bg)", color: "var(--profit-primary)" }
-                              : { background: "var(--loss-bg)", color: "var(--loss-primary)" }}
+                            style={
+                              pnl >= 0
+                                ? {
+                                    background: "var(--profit-bg)",
+                                    color: "var(--profit-primary)",
+                                  }
+                                : {
+                                    background: "var(--loss-bg)",
+                                    color: "var(--loss-primary)",
+                                  }
+                            }
                           >
                             <BookOpen className="h-4 w-4" />
                           </div>
                           <div className="min-w-0">
-                            <h3 className="font-semibold truncate">{playbook.name}</h3>
+                            <h3 className="font-semibold truncate">
+                              {playbook.name}
+                            </h3>
                             <span
                               className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                              style={playbook.is_active
-                                ? { background: "rgba(78,203,6,0.15)", color: "var(--profit-primary)" }
-                                : { background: "var(--surface-elevated)", color: "var(--text-tertiary)" }}
+                              style={
+                                playbook.is_active
+                                  ? {
+                                      background: "rgba(78,203,6,0.15)",
+                                      color: "var(--profit-primary)",
+                                    }
+                                  : {
+                                      background: "var(--surface-elevated)",
+                                      color: "var(--text-tertiary)",
+                                    }
+                              }
                             >
                               {playbook.is_active ? "● Active" : "○ Paused"}
                             </span>
@@ -491,15 +511,22 @@ export default function StrategiesPage() {
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleDuplicate(playbook.id)}>
+                            <DropdownMenuItem
+                              onClick={() => handleDuplicate(playbook.id)}
+                            >
                               <Copy className="mr-2 h-4 w-4" />
                               Duplicate
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleActive(playbook.id)}>
+                            <DropdownMenuItem
+                              onClick={() => handleToggleActive(playbook.id)}
+                            >
                               {playbook.is_active ? "Deactivate" : "Activate"}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem variant="destructive" onClick={() => remove(playbook.id)}>
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => remove(playbook.id)}
+                            >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
@@ -507,22 +534,35 @@ export default function StrategiesPage() {
                         </DropdownMenu>
                       </header>
 
-                      <p className="mb-4 line-clamp-2 text-sm shrink-0" style={{ color: "var(--text-tertiary)" }}>
+                      <p
+                        className="mb-4 line-clamp-2 text-sm shrink-0"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
                         {playbook.description || "No description provided."}
                       </p>
 
                       {/* Win rate bar */}
                       <div className="mb-4 space-y-1.5 shrink-0">
                         <div className="flex justify-between text-xs">
-                          <span style={{ color: "var(--text-tertiary)" }}>Win Rate</span>
-                          <span className="font-semibold mono">{winRate.toFixed(1)}%</span>
+                          <span style={{ color: "var(--text-tertiary)" }}>
+                            Win Rate
+                          </span>
+                          <span className="font-semibold mono">
+                            {winRate.toFixed(1)}%
+                          </span>
                         </div>
-                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
+                        <div
+                          className="h-1.5 rounded-full overflow-hidden"
+                          style={{ background: "var(--surface-elevated)" }}
+                        >
                           <div
                             className="h-full rounded-full transition-all duration-500"
                             style={{
                               width: `${Math.min(winRate, 100)}%`,
-                              background: winRate >= 50 ? "var(--profit-primary)" : "var(--loss-primary)",
+                              background:
+                                winRate >= 50
+                                  ? "var(--profit-primary)"
+                                  : "var(--loss-primary)",
                             }}
                           />
                         </div>
@@ -531,37 +571,81 @@ export default function StrategiesPage() {
                       {/* Stat grid */}
                       <div
                         className="mb-4 grid grid-cols-3 gap-2 rounded-[var(--radius-md)] p-3 text-center shrink-0"
-                        style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}
+                        style={{
+                          background: "var(--surface-elevated)",
+                          border: "1px solid var(--border-subtle)",
+                        }}
                       >
                         <div>
                           <p className="text-xl font-bold mono">{trades}</p>
-                          <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Trades</p>
-                        </div>
-                        <div>
-                          <p className="text-xl font-bold mono">{avgR.toFixed(1)}R</p>
-                          <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Avg R</p>
-                        </div>
-                        <div>
-                          <p className={cn("text-xl font-bold mono", pnl >= 0 ? "profit" : "loss")}>
-                            {pnl >= 0 ? "+" : "-"}${Math.abs(pnl).toLocaleString()}
+                          <p
+                            className="text-[10px]"
+                            style={{ color: "var(--text-tertiary)" }}
+                          >
+                            Trades
                           </p>
-                          <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>P&L</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold mono">
+                            {avgR.toFixed(1)}R
+                          </p>
+                          <p
+                            className="text-[10px]"
+                            style={{ color: "var(--text-tertiary)" }}
+                          >
+                            Avg R
+                          </p>
+                        </div>
+                        <div>
+                          <p
+                            className={cn(
+                              "text-xl font-bold mono",
+                              pnl >= 0 ? "profit" : "loss",
+                            )}
+                          >
+                            {pnl >= 0 ? "+" : "-"}$
+                            {Math.abs(pnl).toLocaleString()}
+                          </p>
+                          <p
+                            className="text-[10px]"
+                            style={{ color: "var(--text-tertiary)" }}
+                          >
+                            P&L
+                          </p>
                         </div>
                       </div>
 
                       {/* Rule count */}
                       <div className="mb-4 shrink-0">
-                        {ruleCount > 0
-                          ? <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "var(--surface-elevated)", color: "var(--text-secondary)" }}>
-                              {ruleCount} rules
-                            </span>
-                          : <span style={{ color: "var(--text-tertiary)", fontSize: "0.7rem" }}>No rules added</span>}
+                        {ruleCount > 0 ? (
+                          <span
+                            className="text-[10px] px-2 py-0.5 rounded-full"
+                            style={{
+                              background: "var(--surface-elevated)",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            {ruleCount} rules
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              color: "var(--text-tertiary)",
+                              fontSize: "0.7rem",
+                            }}
+                          >
+                            No rules added
+                          </span>
+                        )}
                       </div>
 
                       <button
                         type="button"
                         className="mt-auto flex w-full items-center justify-center gap-2 pt-3 text-sm transition-colors hover:text-[var(--accent-primary)]"
-                        style={{ borderTop: "1px solid var(--border-subtle)", color: "var(--text-tertiary)" }}
+                        style={{
+                          borderTop: "1px solid var(--border-subtle)",
+                          color: "var(--text-tertiary)",
+                        }}
                       >
                         View Details
                         <ArrowUpRight className="h-4 w-4" />
