@@ -43,8 +43,8 @@ export interface TerminalHeartbeatPayload {
     accountInfo?: {
         balance: number;
         equity: number;
-        margin: number;
-        freeMargin: number;
+        margin?: number;
+        freeMargin?: number;
     };
 }
 

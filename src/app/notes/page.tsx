@@ -251,20 +251,16 @@ function TagChip({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function NotesPage() {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Note[]>(loadNotes);
+  const [activeId, setActiveId] = useState<string | null>(() => {
+    const loaded = loadNotes();
+    return loaded.length > 0 ? loaded[0].id : null;
+  });
   const [search, setSearch] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Load on mount
-  useEffect(() => {
-    const loaded = loadNotes();
-    setNotes(loaded);
-    if (loaded.length > 0) setActiveId(loaded[0].id);
-  }, []);
 
   const activeNote = notes.find((n) => n.id === activeId) ?? null;
 

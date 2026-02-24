@@ -11,9 +11,9 @@ import { createClient } from "@/lib/supabase/client";
 import type {
   Trade,
   TradeScreenshot,
-  ChartCandle,
   Playbook,
 } from "@/lib/supabase/types";
+import type { ChartCandle } from "@/lib/terminal-farm/types";
 import { useAuth } from "@/components/auth-provider";
 import { TradeChart } from "@/components/trade/trade-chart";
 import { getActivePlaybooks } from "@/lib/api/playbooks";
@@ -55,6 +55,21 @@ import {
 type AnyTrade = Trade | DummyTrade;
 type Section = "details" | "analysis" | "notes" | "review";
 
+/** Extended Trade type for optional fields not yet in the Supabase schema. */
+type ExtendedTrade = Trade & {
+  market_condition?: string | null;
+  confluences?: string[] | null;
+  management_notes?: string | null;
+  observations?: string | null;
+  mistakes?: string[] | null;
+  what_went_well?: string | null;
+  what_went_wrong?: string | null;
+  risk_notes?: string | null;
+  setup_type?: string | null;
+  exit_reasoning?: string | null;
+  mistake_notes?: string | null;
+};
+
 const outcome = (t: AnyTrade) => {
   if (!t.exit_date) return "OPEN";
   return (t.pnl ?? 0) > 0 ? "WIN" : (t.pnl ?? 0) < 0 ? "LOSS" : "BE";
@@ -85,21 +100,21 @@ function getCompletion(t: AnyTrade): Record<Section, number> {
         t.session,
         t.conviction,
         t.playbook_id,
-        (t as Trade).market_condition,
+        (t as ExtendedTrade).market_condition,
       ].filter(has).length / 5,
     analysis:
       [
         (t.execution_arrays as string[])?.length,
         t.execution_notes,
-        (t as Trade).confluences,
-        (t as Trade).management_notes,
+        (t as ExtendedTrade).confluences,
+        (t as ExtendedTrade).management_notes,
       ].filter(has).length / 4,
     notes:
       [
         t.notes,
         t.feelings,
-        (t as Trade).observations,
-        (t as Trade).mistakes,
+        (t as ExtendedTrade).observations,
+        (t as ExtendedTrade).mistakes,
       ].filter(has).length / 4,
     review:
       [
@@ -107,8 +122,8 @@ function getCompletion(t: AnyTrade): Record<Section, number> {
         t.exit_rating,
         t.management_rating,
         t.lesson_learned,
-        (t as Trade).what_went_well,
-        (t as Trade).what_went_wrong,
+        (t as ExtendedTrade).what_went_well,
+        (t as ExtendedTrade).what_went_wrong,
       ].filter(has).length / 6,
   };
 }
@@ -793,11 +808,11 @@ function DetailsSection({
             <Label>Market Condition</Label>
             <ChipGroup
               options={MARKET_CONDITIONS}
-              value={(t as Trade).market_condition ?? null}
+              value={(t as ExtendedTrade).market_condition ?? null}
               onChange={(v) =>
                 updateField(
                   "market_condition",
-                  (t as Trade).market_condition === v ? null : v,
+                  (t as ExtendedTrade).market_condition === v ? null : v,
                 )
               }
               disabled={isDummy}
@@ -863,7 +878,7 @@ function AnalysisSection({
           <div>
             <Label>Setup Type</Label>
             <CompactInput
-              value={((t as Trade).setup_type as string) ?? ""}
+              value={((t as ExtendedTrade).setup_type as string) ?? ""}
               onChange={(v) => updateField("setup_type", v)}
               placeholder="e.g. AMD, 2022 Model..."
               disabled={isDummy}
@@ -890,9 +905,9 @@ function AnalysisSection({
             <Label>Confluences</Label>
             <ChipGroup
               options={CONFLUENCES}
-              value={((t as Trade).confluences as string[]) ?? []}
+              value={((t as ExtendedTrade).confluences as string[]) ?? []}
               onChange={(v) => {
-                const arr = ((t as Trade).confluences as string[]) ?? [];
+                const arr = ((t as ExtendedTrade).confluences as string[]) ?? [];
                 updateField(
                   "confluences",
                   arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v],
@@ -904,7 +919,7 @@ function AnalysisSection({
           <div>
             <Label>Risk Notes</Label>
             <CompactTextarea
-              value={((t as Trade).risk_notes as string) ?? ""}
+              value={((t as ExtendedTrade).risk_notes as string) ?? ""}
               onChange={(v) => updateField("risk_notes", v)}
               placeholder="Risk/reward reasoning, position sizing logic..."
               rows={2}
@@ -924,7 +939,7 @@ function AnalysisSection({
           <div>
             <Label>Management Notes</Label>
             <CompactTextarea
-              value={((t as Trade).management_notes as string) ?? ""}
+              value={((t as ExtendedTrade).management_notes as string) ?? ""}
               onChange={(v) => updateField("management_notes", v)}
               placeholder="Trail SL, partial TP, adjustments..."
               rows={4}
@@ -934,7 +949,7 @@ function AnalysisSection({
           <div>
             <Label>Exit Reasoning</Label>
             <CompactTextarea
-              value={((t as Trade).exit_reasoning as string) ?? ""}
+              value={((t as ExtendedTrade).exit_reasoning as string) ?? ""}
               onChange={(v) => updateField("exit_reasoning", v)}
               placeholder="Why did you exit when you did?"
               rows={3}
@@ -993,7 +1008,7 @@ function NotesSection({
                 ? t.feelings
                   ? [t.feelings]
                   : []
-                : ((t.feelings as string[]) ?? []);
+                : ((t.feelings as unknown as string[]) ?? []);
             updateField(
               "feelings",
               arr.includes(v)
@@ -1006,7 +1021,7 @@ function NotesSection({
         <div className="mt-3">
           <Label>Observations</Label>
           <CompactTextarea
-            value={((t as Trade).observations as string) ?? ""}
+            value={((t as ExtendedTrade).observations as string) ?? ""}
             onChange={(v) => updateField("observations", v)}
             placeholder="Session observations, external factors..."
             rows={3}
@@ -1022,9 +1037,9 @@ function NotesSection({
         <Label>Common Mistakes</Label>
         <ChipGroup
           options={MISTAKES}
-          value={((t as Trade).mistakes as string[]) ?? []}
+          value={((t as ExtendedTrade).mistakes as string[]) ?? []}
           onChange={(v) => {
-            const arr = ((t as Trade).mistakes as string[]) ?? [];
+            const arr = ((t as ExtendedTrade).mistakes as string[]) ?? [];
             updateField(
               "mistakes",
               arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v],
@@ -1035,7 +1050,7 @@ function NotesSection({
         <div className="mt-3">
           <Label>Notes</Label>
           <CompactTextarea
-            value={((t as Trade).mistake_notes as string) ?? ""}
+            value={((t as ExtendedTrade).mistake_notes as string) ?? ""}
             onChange={(v) => updateField("mistake_notes", v)}
             placeholder="What would you do differently?"
             rows={3}
@@ -1113,7 +1128,7 @@ function ReviewSection({
       <AppPanel className="p-4">
         <PanelTitle title="What Went Well" subtitle="Reinforce good habits" />
         <CompactTextarea
-          value={((t as Trade).what_went_well as string) ?? ""}
+          value={((t as ExtendedTrade).what_went_well as string) ?? ""}
           onChange={(v) => updateField("what_went_well", v)}
           placeholder="What did you do right?"
           rows={6}
@@ -1132,7 +1147,7 @@ function ReviewSection({
         <div className="mt-3">
           <Label>What Went Wrong</Label>
           <CompactTextarea
-            value={((t as Trade).what_went_wrong as string) ?? ""}
+            value={((t as ExtendedTrade).what_went_wrong as string) ?? ""}
             onChange={(v) => updateField("what_went_wrong", v)}
             placeholder="What could be improved?"
             rows={3}
@@ -1175,16 +1190,14 @@ function BottomBar({
     [t.entry_date, t.exit_date],
   );
   const [activeTf, setActiveTf] = useState(smartTFs[0]);
-  useEffect(() => {
-    if (!smartTFs.includes(activeTf)) setActiveTf(smartTFs[0]);
-  }, [smartTFs, activeTf]);
+  const effectiveActiveTf = smartTFs.includes(activeTf) ? activeTf : smartTFs[0];
 
   const tfObs =
     (t.tf_observations as Record<
       string,
       { bias?: string; notes?: string; pd_arrays?: string[] }
     >) ?? {};
-  const cur = tfObs[activeTf] ?? {};
+  const cur = tfObs[effectiveActiveTf] ?? {};
   const screenshots = (t.screenshots as unknown as TradeScreenshot[]) ?? [];
   const allBias = [
     ...ICT_BIAS,
@@ -1247,7 +1260,7 @@ function BottomBar({
               onClick={() => setActiveTf(tf)}
               className={cn(
                 "seg-item relative flex-1",
-                activeTf === tf && "active",
+                effectiveActiveTf === tf && "active",
               )}
             >
               {tf}
@@ -1276,7 +1289,7 @@ function BottomBar({
               onChange={(v) =>
                 updateField("tf_observations", {
                   ...tfObs,
-                  [activeTf]: { ...cur, bias: cur.bias === v ? undefined : v },
+                  [effectiveActiveTf]: { ...cur, bias: cur.bias === v ? undefined : v },
                 })
               }
               disabled={isDummy}
@@ -1294,7 +1307,7 @@ function BottomBar({
                 const arr = cur.pd_arrays ?? [];
                 updateField("tf_observations", {
                   ...tfObs,
-                  [activeTf]: {
+                  [effectiveActiveTf]: {
                     ...cur,
                     pd_arrays: arr.includes(v)
                       ? arr.filter((x) => x !== v)
@@ -1305,16 +1318,16 @@ function BottomBar({
             />
           </div>
           <div>
-            <Label>{activeTf} Notes</Label>
+            <Label>{effectiveActiveTf} Notes</Label>
             <CompactTextarea
               value={cur.notes ?? ""}
               onChange={(v) =>
                 updateField("tf_observations", {
                   ...tfObs,
-                  [activeTf]: { ...cur, notes: v },
+                  [effectiveActiveTf]: { ...cur, notes: v },
                 })
               }
-              placeholder={`${activeTf} observations...`}
+              placeholder={`${effectiveActiveTf} observations...`}
               rows={2}
               disabled={isDummy}
             />
@@ -1323,7 +1336,7 @@ function BottomBar({
             <Label>Screenshots</Label>
             <NamedScreenshotGrid
               screenshots={screenshots}
-              tf={activeTf}
+              tf={effectiveActiveTf}
               isDummy={isDummy}
               onUpload={() => {}}
               onView={() => {}}
@@ -1431,11 +1444,12 @@ export default function JournalPage() {
       else
         setChartCandles(
           (r.candles ?? []).map((c: Record<string, unknown>) => ({
-            ...c,
-            symbol: t.symbol,
-            datetime:
-              c.datetime ??
-              new Date(((c.time as number) ?? 0) * 1000).toISOString(),
+            time: (c.time as number) ?? Math.floor(new Date((c.datetime as string) ?? 0).getTime() / 1000),
+            open: c.open as number,
+            high: c.high as number,
+            low: c.low as number,
+            close: c.close as number,
+            volume: c.volume as number | undefined,
           })),
         );
     } catch {
@@ -1455,12 +1469,13 @@ export default function JournalPage() {
     if (cd?.candles?.length) {
       setChartCandles(
         cd.candles.map((c) => ({
-          ...c,
-          symbol: t.symbol,
-          datetime:
-            c.datetime ??
-            new Date(((c.time as number) ?? 0) * 1000).toISOString(),
-        })) as ChartCandle[],
+          time: (c.time as number) ?? Math.floor(new Date((c.datetime as string) ?? 0).getTime() / 1000),
+          open: c.open as number,
+          high: c.high as number,
+          low: c.low as number,
+          close: c.close as number,
+          volume: c.volume as number | undefined,
+        })),
       );
     } else {
       setChartCandles([]);

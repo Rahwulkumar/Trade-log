@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         const requestValidation = ExtensionRequestSchema.safeParse(body);
         if (!requestValidation.success) {
             return NextResponse.json(
-                { error: "Invalid request format", details: requestValidation.error.errors },
+                { error: "Invalid request format", details: requestValidation.error.issues },
                 { status: 400 }
             );
         }
@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
         const { action, payload } = requestValidation.data;
 
         // AUTH CHECK - Always require authentication
-        let { data: { user }, error: authError } = await supabase.auth.getUser();
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        let { user } = authData;
 
         // DEV MODE: Only allow bypass in development AND localhost
         if (!user && isDevMode) {
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
                     .single();
                 
                 if (profileHelper) {
-                    user = { id: profileHelper.id } as { id: string };
+                    user = { id: profileHelper.id } as unknown as typeof user;
                 } else {
                     return NextResponse.json(
                         { error: "No authenticated user found. Please log in to the web app." },
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
                 const validation = CreateTradeSchema.safeParse(payload);
                 if (!validation.success) {
                     return NextResponse.json(
-                        { error: "Invalid trade data", details: validation.error.errors },
+                        { error: "Invalid trade data", details: validation.error.issues },
                         { status: 400 }
                     );
                 }
@@ -120,11 +121,16 @@ export async function POST(req: NextRequest) {
                     user_id: targetUserId,
                     name: "ICT Silver Bullet (Demo)",
                     description: "A time-based liquidity run strategy.",
-                    rules: {
+                    rule_categories: {
                         "Entry": "Enter at 10:00 AM NY time on FVG retest",
                         "Stop": "Below the swing low of the displacement leg",
                         "Target": "Opposing liquidity pool (PDH/PDL)"
                     },
+                    rules: [
+                        "Enter at 10:00 AM NY time on FVG retest",
+                        "Below the swing low of the displacement leg",
+                        "Opposing liquidity pool (PDH/PDL)"
+                    ],
                     is_active: true
                 }).select().single();
 
@@ -149,7 +155,7 @@ export async function POST(req: NextRequest) {
                 const validation = UpdateTradeSchema.safeParse(payload);
                 if (!validation.success) {
                     return NextResponse.json(
-                        { error: "Invalid update data", details: validation.error.errors },
+                        { error: "Invalid update data", details: validation.error.issues },
                         { status: 400 }
                     );
                 }

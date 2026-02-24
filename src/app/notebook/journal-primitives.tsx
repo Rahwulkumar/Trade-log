@@ -371,7 +371,7 @@ export function NamedScreenshotGrid({
   onUpload,
   onView,
 }: {
-  screenshots: (TradeScreenshot & { caption?: string })[];
+  screenshots: (TradeScreenshot & { caption?: string | null })[];
   tf: string;
   isDummy: boolean;
   onUpload: (tf: string, name: string) => void;

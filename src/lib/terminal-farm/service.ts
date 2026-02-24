@@ -280,7 +280,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
         .filter(t => t.positionId)
         .map(t => t.positionId!.toString());
     
-    let existingTradesMap = new Map<string, { id: string; status: string; commission: number | null; swap: number | null; contract_size: number | null }>();
+    const existingTradesMap = new Map<string, { id: string; status: string; commission: number | null; swap: number | null; contract_size: number | null }>();
     
     if (positionIds.length > 0) {
         const { data: existingTrades, error: fetchError } = await supabase
@@ -305,8 +305,8 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
     }
 
     // Batch collect inserts and updates
-    const inserts: any[] = [];
-    const updates: Array<{ id: string; data: any }> = [];
+    const inserts: Record<string, unknown>[] = [];
+    const updates: Array<{ id: string; data: Record<string, unknown> }> = [];
 
     for (const trade of data.trades) {
         try {
@@ -448,7 +448,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
             const batch = inserts.slice(i, i + BATCH_SIZE);
             try {
                 const { error } = await retry(
-                    () => supabase.from('trades').insert(batch),
+                    async () => supabase.from('trades').insert(batch),
                     { maxAttempts: 3 }
                 );
 
@@ -470,7 +470,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
     for (const update of updates) {
         try {
             const { error } = await retry(
-                () => supabase
+                async () => supabase
                     .from('trades')
                     .update(update.data)
                     .eq('id', update.id),

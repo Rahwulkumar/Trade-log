@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         if (!validationResult.success) {
             console.error('[Webhook/Candles] Validation error:', validationResult.error);
             return NextResponse.json(
-                { success: false, error: 'Invalid payload', details: validationResult.error.errors },
+                { success: false, error: 'Invalid payload', details: validationResult.error.issues },
                 { status: 400 }
             );
         }
