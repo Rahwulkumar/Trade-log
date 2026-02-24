@@ -1444,7 +1444,7 @@ export default function JournalPage() {
       else
         setChartCandles(
           (r.candles ?? []).map((c: Record<string, unknown>) => ({
-            time: (c.time as number) ?? Math.floor(new Date((c.datetime as string) ?? 0).getTime() / 1000),
+            time: (c.time as number) ?? Math.floor((c.datetime ? new Date(c.datetime as string).getTime() : Date.now()) / 1000),
             open: c.open as number,
             high: c.high as number,
             low: c.low as number,
@@ -1469,7 +1469,7 @@ export default function JournalPage() {
     if (cd?.candles?.length) {
       setChartCandles(
         cd.candles.map((c) => ({
-          time: (c.time as number) ?? Math.floor(new Date((c.datetime as string) ?? 0).getTime() / 1000),
+          time: (c.time as number) ?? Math.floor((c.datetime ? new Date(c.datetime as string).getTime() : Date.now()) / 1000),
           open: c.open as number,
           high: c.high as number,
           low: c.low as number,

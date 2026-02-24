@@ -117,20 +117,17 @@ export async function POST(req: NextRequest) {
             case "seed_strategy": {
                 const targetUserId: string = user.id;
 
+                const demoRules = {
+                    "Entry": "Enter at 10:00 AM NY time on FVG retest",
+                    "Stop": "Below the swing low of the displacement leg",
+                    "Target": "Opposing liquidity pool (PDH/PDL)",
+                };
                 const { data, error } = await supabase.from("playbooks").insert({
                     user_id: targetUserId,
                     name: "ICT Silver Bullet (Demo)",
                     description: "A time-based liquidity run strategy.",
-                    rule_categories: {
-                        "Entry": "Enter at 10:00 AM NY time on FVG retest",
-                        "Stop": "Below the swing low of the displacement leg",
-                        "Target": "Opposing liquidity pool (PDH/PDL)"
-                    },
-                    rules: [
-                        "Enter at 10:00 AM NY time on FVG retest",
-                        "Below the swing low of the displacement leg",
-                        "Opposing liquidity pool (PDH/PDL)"
-                    ],
+                    rule_categories: demoRules,
+                    rules: Object.values(demoRules),
                     is_active: true
                 }).select().single();
 
