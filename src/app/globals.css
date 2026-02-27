@@ -120,6 +120,7 @@
 
   --accent-primary:   #2CC299;   /* Mountain Meadow — active accent */
   --accent-soft:      rgba(44, 194, 153, 0.12);
+  --accent-glow:      rgba(44, 194, 153, 0.35);
 
   color: var(--text-primary);
 }

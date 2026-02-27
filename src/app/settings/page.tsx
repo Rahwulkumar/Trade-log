@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Download, Monitor, Moon, Sun, Trash2 } from "lucide-react";
+import { Download, Monitor, Moon, ShieldCheck, Sun, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,6 +117,27 @@ export default function SettingsPage() {
     weeklyReport: true,
     drawdownAlert: true,
   });
+
+  // Activity log state
+  type AuditLog = { id: string; action: string; created_at: string; metadata: Record<string, unknown> | null };
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const supabase = createClient();
+
+  useEffect(() => {
+    if (!user) return;
+    setAuditLoading(true);
+    supabase
+      .from("audit_logs")
+      .select("id, action, created_at, metadata")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        setAuditLogs((data as AuditLog[]) ?? []);
+        setAuditLoading(false);
+      });
+  }, [user]); // eslint-disable-line
 
   // Sync form from profile when it loads
   useEffect(() => {
@@ -539,6 +560,46 @@ export default function SettingsPage() {
                 Export Analytics (PDF)
               </Button>
             </div>
+          </AppPanel>
+
+          {/* Activity Log */}
+          <AppPanel>
+            <PanelTitle
+              title="Activity Log"
+              subtitle="Your last 20 account actions and login events."
+            />
+            <div className="flex items-center gap-2 mb-3" style={{ color: "var(--accent-primary)" }}>
+              <ShieldCheck size={14} />
+              <span className="text-[0.68rem] font-semibold uppercase tracking-wider">Security History</span>
+            </div>
+            {auditLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-8 rounded-md skeleton" />
+                ))}
+              </div>
+            ) : auditLogs.length === 0 ? (
+              <p className="text-[0.75rem] py-4 text-center" style={{ color: "var(--text-tertiary)" }}>
+                No activity recorded yet.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {auditLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="flex items-center justify-between px-3 py-2 rounded-[var(--radius-sm)] text-[0.72rem]"
+                    style={{ background: "var(--surface-elevated)" }}
+                  >
+                    <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+                      {log.action}
+                    </span>
+                    <span className="mono" style={{ color: "var(--text-tertiary)" }}>
+                      {new Date(log.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </AppPanel>
 
           <section

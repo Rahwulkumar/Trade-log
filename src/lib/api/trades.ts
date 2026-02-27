@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/client'
+﻿import { createClient } from '@/lib/supabase/client'
 import type { Trade, TradeInsert, TradeUpdate } from '@/lib/supabase/types'
 import { withPropAccountFilter } from '@/lib/utils/query-helpers'
 
@@ -15,29 +15,39 @@ export interface TradeFilters {
 export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
     const supabase = createClient()
 
-    let query = supabase
-        .from('trades')
-        .select('id, symbol, direction, entry_price, exit_price, position_size, pnl, r_multiple, entry_date, exit_date, status, playbook_id, prop_account_id, stop_loss, take_profit, notes, created_at')
-        .order('entry_date', { ascending: false })
+    const buildQuery = (select: string) => {
+        let q = supabase
+            .from('trades')
+            .select(select)
+            .order('entry_date', { ascending: false })
 
-    if (filters?.status && filters.status !== 'all') {
-        query = query.eq('status', filters.status)
+        if (filters?.status && filters.status !== 'all') q = q.eq('status', filters.status)
+        if (filters?.direction && filters.direction !== 'all') q = q.eq('direction', filters.direction)
+        if (filters?.playbookId) q = q.eq('playbook_id', filters.playbookId)
+        if (filters?.startDate) q = q.gte('entry_date', filters.startDate)
+        if (filters?.endDate) q = q.lte('entry_date', filters.endDate)
+        if (filters?.search) q = q.ilike('symbol', `%${filters.search}%`)
+        q = withPropAccountFilter(q, filters?.propAccountId)
+        return q
     }
-    if (filters?.direction && filters.direction !== 'all') {
-        query = query.eq('direction', filters.direction)
-    }
-    if (filters?.playbookId) {
-        query = query.eq('playbook_id', filters.playbookId)
-    }
-    if (filters?.startDate) query = query.gte('entry_date', filters.startDate)
-    if (filters?.endDate) query = query.lte('entry_date', filters.endDate)
-    if (filters?.search) query = query.ilike('symbol', `%${filters.search}%`)
 
-    query = withPropAccountFilter(query, filters?.propAccountId)
+    // Try with journal columns first; fall back to core columns if any don't exist
+    const EXTENDED = 'id, symbol, direction, entry_price, exit_price, position_size, pnl, r_multiple, entry_date, exit_date, status, playbook_id, prop_account_id, stop_loss, take_profit, notes, feelings, observations, screenshots, tf_observations, setup_tags, mistake_tags, conviction, entry_rating, exit_rating, mae, mfe, execution_notes, execution_arrays, created_at'
+    const CORE     = 'id, symbol, direction, entry_price, exit_price, position_size, pnl, r_multiple, entry_date, exit_date, status, playbook_id, prop_account_id, stop_loss, take_profit, notes, created_at'
 
-    const { data, error } = await query
-    if (error) throw new Error(error.message)
-    return (data || []) as Trade[]
+    const { data, error } = await buildQuery(EXTENDED)
+
+    if (error) {
+        // Column doesn't exist in the live DB â€” fall back to core columns
+        if (error.code === '42703' || error.message.includes('does not exist')) {
+            const { data: fallback, error: fallbackError } = await buildQuery(CORE)
+            if (fallbackError) throw new Error(fallbackError.message)
+            return (fallback || []) as unknown as Trade[]
+        }
+        throw new Error(error.message)
+    }
+
+    return (data || []) as unknown as Trade[]
 }
 
 export async function getTrade(id: string): Promise<Trade | null> {
@@ -141,7 +151,7 @@ export async function getTradesByDateRange(startDate: string, endDate: string, p
 
     const { data, error } = await query
     if (error) throw new Error(error.message)
-    return (data || []) as Trade[]
+    return (data || []) as unknown as Trade[]
 }
 
 export async function getOpenTrades(): Promise<Trade[]> {
@@ -154,5 +164,6 @@ export async function getOpenTrades(): Promise<Trade[]> {
         .order('entry_date', { ascending: false })
 
     if (error) throw new Error(error.message)
-    return (data || []) as Trade[]
+    return (data || []) as unknown as Trade[]
 }
+

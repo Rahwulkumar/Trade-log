@@ -1,211 +1,322 @@
 "use client";
 
-import { useMemo } from "react";
-import { cn } from "@/lib/utils";
-import { TradeScreenshot } from "@/lib/supabase/types";
-import { ImageIcon, Upload, Clock } from "lucide-react";
+import { useState, useMemo } from "react";
 import Image from "next/image";
-import { format } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Camera, Upload, ZoomIn, X, Clock } from "lucide-react";
+import type { TradeScreenshot } from "@/lib/supabase/types";
 
 export type Timeframe = "4H" | "1H" | "15M" | "Execution" | "1m" | "5m";
+
+// Local display-only type (doesn't need to match DB exactly)
+interface ScreenshotItem {
+  url: string;
+  timeframe: string;
+  timestamp?: string; // display only — mapped from created_at
+}
+
+const ALL_TIMEFRAMES: Timeframe[] = ["4H", "1H", "15M", "Execution"];
 
 interface ScreenshotGalleryProps {
   screenshots: TradeScreenshot[];
   onUpload: (timeframe: Timeframe) => void;
   onViewFullscreen: (url: string) => void;
-  className?: string;
-  /** If provided, only show these timeframes in the upload dropdown */
+  onDelete?: (index: number) => void;
   timeframesFilter?: Timeframe[];
+  className?: string;
 }
 
-const ALL_TIMEFRAMES: Timeframe[] = ["4H", "1H", "15M", "Execution"];
+function parseScreenshot(s: TradeScreenshot): ScreenshotItem {
+  return {
+    url: s.url,
+    timeframe: s.timeframe ?? "Execution",
+    timestamp: s.created_at,
+  };
+}
+
+function ScreenshotCard({
+  ss,
+  onView,
+  onDelete,
+}: {
+  ss: ScreenshotItem;
+  onView: () => void;
+  onDelete?: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+
+  return (
+    <div
+      className="relative rounded-[8px] overflow-hidden group"
+      style={{
+        aspectRatio: "16/9",
+        background: "var(--surface-elevated)",
+        border: "1px solid var(--border-subtle)",
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <Image
+        src={ss.url}
+        alt={`${ss.timeframe} screenshot`}
+        fill
+        className="object-cover transition-transform duration-300"
+        style={{ transform: hover ? "scale(1.03)" : "scale(1)" }}
+        unoptimized
+      />
+
+      {/* Overlay */}
+      <div
+        className="absolute inset-0 flex flex-col justify-between p-2 transition-opacity duration-200"
+        style={{
+          background:
+            "linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 40%, transparent 60%, rgba(0,0,0,0.7) 100%)",
+          opacity: hover ? 1 : 0,
+        }}
+      >
+        <div className="flex justify-between">
+          <span
+            className="rounded-full px-2 py-0.5 font-bold"
+            style={{
+              fontSize: "0.58rem",
+              background: "rgba(0,0,0,0.6)",
+              color: "#2CC299",
+              border: "1px solid rgba(44,194,153,0.4)",
+            }}
+          >
+            {ss.timeframe}
+          </span>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="flex h-5 w-5 items-center justify-center rounded-full"
+              style={{ background: "rgba(224,82,82,0.7)", color: "#fff" }}
+            >
+              <X size={9} />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          {ss.timestamp && (
+            <span
+              className="flex items-center gap-1"
+              style={{ fontSize: "0.58rem", color: "rgba(255,255,255,0.6)" }}
+            >
+              <Clock size={9} />
+              {new Date(ss.timestamp).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onView}
+            className="flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold"
+            style={{
+              background: "rgba(44,194,153,0.8)",
+              color: "#051F20",
+              fontSize: "0.62rem",
+            }}
+          >
+            <ZoomIn size={10} />
+            View
+          </button>
+        </div>
+      </div>
+
+      {/* Always-visible TF badge */}
+      <div
+        className="absolute top-2 left-2 rounded-full px-2 py-0.5 font-bold"
+        style={{
+          fontSize: "0.58rem",
+          background: "rgba(5,31,32,0.8)",
+          color: "#2CC299",
+          border: "1px solid rgba(44,194,153,0.3)",
+          opacity: hover ? 0 : 1,
+          transition: "opacity 0.2s",
+        }}
+      >
+        {ss.timeframe}
+      </div>
+    </div>
+  );
+}
+
+function UploadSlot({
+  timeframe,
+  onUpload,
+}: {
+  timeframe: Timeframe;
+  onUpload: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onUpload}
+      className="relative rounded-[8px] flex flex-col items-center justify-center gap-2 transition-all duration-150 group"
+      style={{
+        aspectRatio: "16/9",
+        background: "var(--surface-elevated)",
+        border: "1px dashed var(--border-default)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "rgba(44,194,153,0.4)";
+        e.currentTarget.style.background = "rgba(44,194,153,0.04)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "var(--border-default)";
+        e.currentTarget.style.background = "var(--surface-elevated)";
+      }}
+    >
+      <Camera
+        size={18}
+        style={{ color: "var(--text-tertiary)", opacity: 0.5 }}
+      />
+      <div className="text-center">
+        <p
+          style={{
+            fontSize: "0.68rem",
+            color: "var(--text-tertiary)",
+            fontWeight: 600,
+          }}
+        >
+          {timeframe}
+        </p>
+        <p
+          style={{
+            fontSize: "0.6rem",
+            color: "var(--text-tertiary)",
+            opacity: 0.6,
+          }}
+        >
+          Click to upload
+        </p>
+      </div>
+    </button>
+  );
+}
 
 export function ScreenshotGallery({
   screenshots = [],
   onUpload,
   onViewFullscreen,
-  className,
+  onDelete,
   timeframesFilter,
 }: ScreenshotGalleryProps) {
   const availableTimeframes = timeframesFilter ?? ALL_TIMEFRAMES;
 
+  // Group screenshots by timeframe
   const grouped = useMemo(() => {
-    const groups: Record<string, TradeScreenshot[]> = {};
-    ALL_TIMEFRAMES.forEach((tf) => (groups[tf] = []));
-    ["1m", "5m"].forEach((tf) => (groups[tf] = []));
-
+    const map: Record<string, ScreenshotItem[]> = {};
+    availableTimeframes.forEach((tf) => (map[tf] = []));
     screenshots.forEach((s) => {
-      const tf =
-        typeof s === "string" ? "Execution" : (s.timeframe ?? "Execution");
-      const data =
-        typeof s === "string"
-          ? {
-              url: s,
-              timeframe: "Execution" as Timeframe,
-              id: "legacy",
-              trade_id: "legacy",
-            }
-          : s;
-      if (groups[tf] !== undefined) {
-        groups[tf].push(data);
+      const parsed = parseScreenshot(s);
+      const tf = parsed.timeframe as Timeframe;
+      if (availableTimeframes.includes(tf)) {
+        map[tf] = [...(map[tf] ?? []), parsed];
       } else {
-        groups["Execution"].push(data);
+        // Put unrecognised timeframes into first bucket
+        map[availableTimeframes[0]] = [
+          ...(map[availableTimeframes[0]] ?? []),
+          parsed,
+        ];
       }
     });
+    return map;
+  }, [screenshots, availableTimeframes]);
 
-    return groups;
-  }, [screenshots]);
-
-  const getValidUrl = (url: string) => {
-    if (!url) return "";
-    if (url.startsWith("http") || url.startsWith("/")) return url;
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (supabaseUrl) {
-      return `${supabaseUrl}/storage/v1/object/public/trade-screenshots/${url}`;
-    }
-    return url;
-  };
-
-  const displayTimeframes = availableTimeframes;
+  const totalScreenshots = screenshots.length;
 
   return (
-    <div className={cn("p-4 flex flex-col h-full", className)}>
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-label" style={{ color: "var(--text-tertiary)" }}>
-          Recorded Assets
+      <div className="flex items-center justify-between">
+        <span style={{ fontSize: "0.68rem", color: "var(--text-tertiary)" }}>
+          {totalScreenshots === 0
+            ? "No screenshots yet"
+            : `${totalScreenshots} screenshot${totalScreenshots !== 1 ? "s" : ""}`}
         </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-3 text-[10px] rounded-md transition-all"
-            >
-              <Upload className="w-3 h-3 mr-1.5" />
-              Upload
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[140px] p-1">
-            <div
-              className="px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider mb-1"
+        {/* Quick-upload for each timeframe */}
+        <div className="flex items-center gap-1.5">
+          {availableTimeframes.map((tf) => (
+            <button
+              key={tf}
+              type="button"
+              onClick={() => onUpload(tf)}
+              className="flex items-center gap-1 rounded-[6px] px-2 py-1 font-semibold transition-all"
               style={{
-                color: "var(--text-tertiary)",
-                borderBottom: "1px solid var(--border-subtle)",
+                fontSize: "0.65rem",
+                background: "var(--surface-elevated)",
+                color: "var(--accent-primary)",
+                border: "1px solid var(--border-subtle)",
               }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.borderColor = "rgba(44,194,153,0.4)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.borderColor = "var(--border-subtle)")
+              }
             >
-              Select timeframe
-            </div>
-            {availableTimeframes.map((tf) => (
-              <DropdownMenuItem
-                key={tf}
-                onClick={() => onUpload(tf)}
-                className="text-xs cursor-pointer py-2 rounded-sm"
-              >
-                <Clock className="w-3 h-3 mr-2 opacity-50" />
-                {tf}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <Upload size={9} strokeWidth={2} />
+              {tf}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <ScrollArea className="flex-1 pr-2">
-        <div className="space-y-6">
-          {screenshots.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-3">
+      {/* Grid per timeframe */}
+      {availableTimeframes.map((tf) => {
+        const items = grouped[tf] ?? [];
+        return (
+          <div key={tf} className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span
+                style={{
+                  fontSize: "0.6rem",
+                  color: "var(--text-tertiary)",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.12em",
+                }}
+              >
+                {tf}
+              </span>
               <div
-                className="relative"
-                style={{ color: "var(--text-tertiary)", opacity: 0.4 }}
-              >
-                <ImageIcon className="w-12 h-12" />
-                <Upload className="absolute -bottom-1 -right-1 w-5 h-5" />
-              </div>
-              <p
-                className="text-xs font-medium"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                No screenshots recorded
-              </p>
-              <p
-                className="text-[10px] uppercase tracking-tighter italic"
-                style={{ color: "var(--text-tertiary)", opacity: 0.6 }}
-              >
-                Waiting for execution data...
-              </p>
+                className="h-px flex-1"
+                style={{ background: "var(--border-subtle)" }}
+              />
+              {items.length > 0 && (
+                <span
+                  style={{
+                    fontSize: "0.58rem",
+                    color: "var(--accent-primary)",
+                  }}
+                >
+                  {items.length}
+                </span>
+              )}
             </div>
-          ) : (
-            displayTimeframes.map(
-              (tf) =>
-                grouped[tf]?.length > 0 && (
-                  <div key={tf} className="space-y-3">
-                    {/* Timeframe divider */}
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="h-px flex-1"
-                        style={{ background: "var(--border-subtle)" }}
-                      />
-                      <span
-                        className="text-[10px] font-mono uppercase tracking-[0.2em] px-2 italic"
-                        style={{ color: "var(--text-tertiary)" }}
-                      >
-                        [{tf}_SNAPSHOT]
-                      </span>
-                      <div
-                        className="h-px flex-1"
-                        style={{ background: "var(--border-subtle)" }}
-                      />
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      {grouped[tf].map((s, i) => (
-                        <div
-                          key={i}
-                          className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer transition-all"
-                          style={{
-                            background: "var(--surface-elevated)",
-                            border: "1px solid var(--border-default)",
-                          }}
-                          onClick={() => onViewFullscreen(s.url)}
-                        >
-                          <Image
-                            src={getValidUrl(s.url)}
-                            alt={`${tf} screenshot`}
-                            fill
-                            className="object-cover transition-transform duration-500 group-hover:scale-110"
-                          />
-                          {/* Hover overlay */}
-                          <div
-                            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2"
-                            style={{
-                              background:
-                                "linear-gradient(to top, rgba(0,0,0,0.75), transparent)",
-                            }}
-                          >
-                            <div className="flex items-center gap-1.5 text-[9px] font-mono text-white/80">
-                              <Clock className="w-3 h-3" />
-                              {s.created_at
-                                ? format(new Date(s.created_at), "h:mm a")
-                                : "RECORDED"}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ),
-            )
-          )}
-        </div>
-      </ScrollArea>
+            <div className="grid grid-cols-2 gap-2">
+              {items.map((ss, i) => (
+                <ScreenshotCard
+                  key={i}
+                  ss={ss}
+                  onView={() => onViewFullscreen(ss.url)}
+                  onDelete={onDelete ? () => onDelete(i) : undefined}
+                />
+              ))}
+              {/* Upload slot */}
+              <UploadSlot timeframe={tf} onUpload={() => onUpload(tf)} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

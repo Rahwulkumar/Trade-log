@@ -1,3 +1,4 @@
+import "@/lib/env"; // Validate required env vars on startup
 import type { Metadata } from "next";
 import { Syne, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";

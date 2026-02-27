@@ -6,16 +6,17 @@ interface MaeMfeCardProps {
   rMultiple: number | null;
   onMaeChange: (v: number | null) => void;
   onMfeChange: (v: number | null) => void;
-  /** compact = used inline in the stats strip */
   compact?: boolean;
 }
 
-function EditableR({
+function RInput({
   value,
   onChange,
+  color,
 }: {
   value: number | null;
   onChange: (v: number | null) => void;
+  color: string;
 }) {
   return (
     <input
@@ -26,11 +27,11 @@ function EditableR({
       onChange={(e) =>
         onChange(e.target.value === "" ? null : parseFloat(e.target.value))
       }
-      placeholder="—"
-      className="w-14 text-right focus:outline-none bg-transparent text-[13px] font-bold"
+      placeholder="0.00"
+      className="w-16 text-right focus:outline-none bg-transparent font-mono font-bold"
       style={{
-        fontFamily: "var(--font-jb-mono)",
-        color: "var(--text-primary)",
+        fontSize: "0.88rem",
+        color,
         borderBottom: "1px solid var(--border-default)",
       }}
       onFocus={(e) =>
@@ -43,13 +44,30 @@ function EditableR({
   );
 }
 
+function Bar({ pct, color }: { pct: number; color: string }) {
+  return (
+    <div
+      className="h-2 w-full rounded-full overflow-hidden"
+      style={{ background: "var(--surface-elevated)" }}
+    >
+      <div
+        className="h-full rounded-full transition-all duration-700"
+        style={{
+          width: `${pct}%`,
+          background: color,
+          boxShadow: pct > 0 ? `0 0 6px ${color}66` : "none",
+        }}
+      />
+    </div>
+  );
+}
+
 export function MaeMfeCard({
   mae,
   mfe,
   rMultiple,
   onMaeChange,
   onMfeChange,
-  compact = false,
 }: MaeMfeCardProps) {
   const maxR = Math.max(
     Math.abs(mae ?? 0),
@@ -61,182 +79,114 @@ export function MaeMfeCard({
   const mfePct = mfe != null ? Math.min(100, (Math.abs(mfe) / maxR) * 100) : 0;
   const rrPct =
     rMultiple != null ? Math.min(100, (Math.abs(rMultiple) / maxR) * 100) : 0;
-
   const efficiency =
     mfe != null && rMultiple != null && mfe > 0
       ? Math.min(100, Math.round((Math.abs(rMultiple) / mfe) * 100))
       : null;
 
-  if (compact) {
-    return (
-      <div className="flex flex-col gap-3 w-full">
-        {/* Three bars side by side */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            {
-              label: "MAE",
-              value: mae,
-              pct: maePct,
-              color: "var(--loss-primary)",
-              onChange: onMaeChange,
-              prefix: "−",
-            },
-            {
-              label: "MFE",
-              value: mfe,
-              pct: mfePct,
-              color: "var(--profit-primary)",
-              onChange: onMfeChange,
-              prefix: "+",
-            },
-            {
-              label: "P&L",
-              value: rMultiple,
-              pct: rrPct,
-              color: "var(--accent-primary)",
-              onChange: null,
-              prefix: "",
-            },
-          ].map(({ label, value, pct, color, onChange: oc, prefix }) => (
-            <div key={label} className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <span
-                  className="text-[8px] uppercase tracking-[0.2em] font-bold"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  {label}
-                </span>
-                {oc ? (
-                  <EditableR value={value} onChange={oc} />
-                ) : (
-                  <span
-                    className="text-[13px] font-bold"
-                    style={{ fontFamily: "var(--font-jb-mono)", color }}
-                  >
-                    {value != null
-                      ? `${prefix}${Math.abs(value).toFixed(2)}R`
-                      : "—"}
-                  </span>
-                )}
-              </div>
-              <div
-                className="h-2 rounded-full overflow-hidden"
-                style={{ background: "var(--surface-elevated)" }}
-              >
-                <div
-                  className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${pct}%`, background: color, opacity: 0.85 }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+  const rows = [
+    {
+      label: "MAE",
+      sublabel: "Max Adverse Excursion",
+      value: mae,
+      pct: maePct,
+      color: "var(--loss-primary)",
+      onChange: onMaeChange,
+      sign: "−",
+    },
+    {
+      label: "MFE",
+      sublabel: "Max Favorable Excursion",
+      value: mfe,
+      pct: mfePct,
+      color: "var(--profit-primary)",
+      onChange: onMfeChange,
+      sign: "+",
+    },
+  ];
 
-        {efficiency !== null && (
-          <div className="flex items-center justify-between">
-            <span
-              className="text-[9px] uppercase tracking-[0.2em] font-bold"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Efficiency
-            </span>
-            <span
-              className="text-[14px] font-black"
-              style={{
-                fontFamily: "var(--font-jb-mono)",
-                color:
-                  efficiency >= 70
-                    ? "var(--profit-primary)"
-                    : efficiency >= 40
-                      ? "var(--text-secondary)"
-                      : "var(--loss-primary)",
-              }}
-            >
-              {efficiency}%
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Full card mode (used in standalone section)
   return (
-    <div className="flex flex-col gap-4">
-      <span
-        className="text-[9px] uppercase tracking-[0.2em] font-bold"
-        style={{ color: "var(--text-tertiary)" }}
-      >
-        MAE / MFE
-      </span>
-      {[
-        {
-          label: "Max Against (MAE)",
-          value: mae,
-          pct: maePct,
-          color: "var(--loss-primary)",
-          onChange: onMaeChange,
-          sign: "−",
-        },
-        {
-          label: "Max Favorable (MFE)",
-          value: mfe,
-          pct: mfePct,
-          color: "var(--profit-primary)",
-          onChange: onMfeChange,
-          sign: "+",
-        },
-      ].map(({ label, value, pct, color, onChange: oc, sign }) => (
-        <div key={label} className="flex flex-col gap-2">
+    <div className="p-4 space-y-4">
+      {rows.map(({ label, sublabel, value, pct, color, onChange, sign }) => (
+        <div key={label} className="space-y-2">
           <div className="flex items-center justify-between">
-            <span
-              className="text-[10px]"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {label}
-            </span>
-            <div className="flex items-center gap-1">
+            <div>
               <span
-                className="text-[10px]"
-                style={{ color: "var(--text-tertiary)" }}
+                className="font-bold"
+                style={{ fontSize: "0.75rem", color: "var(--text-primary)" }}
+              >
+                {label}
+              </span>
+              <span
+                className="ml-2"
+                style={{ fontSize: "0.62rem", color: "var(--text-tertiary)" }}
+              >
+                {sublabel}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span
+                style={{ fontSize: "0.72rem", color: "var(--text-tertiary)" }}
               >
                 {sign}
               </span>
-              <EditableR value={value} onChange={oc} />
+              <RInput value={value} onChange={onChange} color={color} />
               <span
-                className="text-[10px]"
-                style={{ color: "var(--text-tertiary)" }}
+                style={{ fontSize: "0.72rem", color: "var(--text-tertiary)" }}
               >
                 R
               </span>
             </div>
           </div>
-          <div
-            className="h-2.5 rounded-full overflow-hidden"
-            style={{ background: "var(--surface-elevated)" }}
-          >
-            <div
-              className="h-full rounded-full transition-all duration-700"
-              style={{ width: `${pct}%`, background: color }}
-            />
-          </div>
+          <Bar pct={pct} color={color} />
         </div>
       ))}
-      {efficiency !== null && (
-        <div
-          className="flex items-center justify-between px-3 py-2 rounded-[var(--radius-default)]"
-          style={{ background: "var(--surface-elevated)" }}
-        >
+
+      {/* R displayed */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <span
-            className="text-[10px]"
-            style={{ color: "var(--text-tertiary)" }}
+            className="font-bold"
+            style={{ fontSize: "0.75rem", color: "var(--text-primary)" }}
           >
-            Profit Captured
+            P&amp;L
           </span>
           <span
-            className="text-[16px] font-black"
+            className="font-mono font-bold"
+            style={{ fontSize: "0.88rem", color: "var(--accent-primary)" }}
+          >
+            {rMultiple != null
+              ? `${rMultiple >= 0 ? "+" : ""}${rMultiple.toFixed(2)}R`
+              : "—"}
+          </span>
+        </div>
+        <Bar pct={rrPct} color="var(--accent-primary)" />
+      </div>
+
+      {/* Efficiency */}
+      {efficiency !== null && (
+        <div
+          className="flex items-center justify-between rounded-[8px] px-3 py-2.5"
+          style={{
+            background: "var(--surface-elevated)",
+            border: "1px solid var(--border-subtle)",
+          }}
+        >
+          <div>
+            <span
+              className="font-semibold"
+              style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}
+            >
+              Profit Captured
+            </span>
+            <p style={{ fontSize: "0.62rem", color: "var(--text-tertiary)" }}>
+              % of max favorable move realized
+            </p>
+          </div>
+          <span
+            className="font-black tabular-nums"
             style={{
-              fontFamily: "var(--font-jb-mono)",
+              fontSize: "1.4rem",
               color:
                 efficiency >= 70
                   ? "var(--profit-primary)"

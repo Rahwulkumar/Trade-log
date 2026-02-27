@@ -1,14 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { EnrichedTrade } from "@/domain/trade-types";
-import { TfObservations } from "@/lib/supabase/types";
-import { cn } from "@/lib/utils";
 import { ArrowUp, ArrowDown, Minus, type LucideIcon } from "lucide-react";
+import type { EnrichedTrade } from "@/domain/trade-types";
+import type { TfObservations } from "@/lib/supabase/types";
 
 type BiasValue = "Bullish" | "Bearish" | "Neutral" | undefined;
-type ObsField = "bias" | "notes";
-type ObsValue = string | BiasValue;
 
 interface BiasWidgetProps {
   trade: EnrichedTrade;
@@ -23,135 +20,163 @@ const TIMEFRAMES = [
   { id: "1H", label: "1h" },
 ];
 
-export function BiasWidget({ trade, onUpdate }: BiasWidgetProps) {
-  const observations = useMemo(() => {
-    return (trade.tf_observations as unknown as TfObservations) || {};
-  }, [trade.tf_observations]);
-
-  const handleUpdate = (tf: string, field: ObsField, value: ObsValue) => {
-    const current = observations[tf] || { notes: "", pd_arrays: [] };
-
-    // Toggle bias logic — click same = deselect
-    let finalValue = value;
-    if (field === "bias" && current.bias === value) {
-      finalValue = undefined;
-    }
-
-    const updated = {
-      ...observations,
-      [tf]: { ...current, [field]: finalValue },
-    };
-    onUpdate("tf_observations", updated);
-  };
-
-  return (
-    <div className="w-full flex flex-col gap-5">
-      {/* Section Header */}
-      <div className="flex items-center gap-3">
-        <span
-          className="text-[10px] uppercase tracking-[0.18em] font-semibold"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          Top Down Analysis
-        </span>
-        <div
-          className="h-px flex-1"
-          style={{ background: "var(--border-default)" }}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-        {TIMEFRAMES.map((tf) => {
-          const obs = observations[tf.id];
-          const currentBias = obs?.bias;
-          const currentNotes = obs?.notes || "";
-
-          return (
-            <div key={tf.id} className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                {/* Timeframe Label */}
-                <span
-                  className="text-[11px] font-semibold"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {tf.label}
-                </span>
-
-                {/* Bias Toggle */}
-                <div className="flex items-center gap-0.5">
-                  <BiasIcon
-                    active={currentBias === "Bullish"}
-                    onClick={() => handleUpdate(tf.id, "bias", "Bullish")}
-                    icon={ArrowUp}
-                    activeColor="var(--profit-primary)"
-                    activeBg="var(--profit-bg)"
-                  />
-                  <BiasIcon
-                    active={currentBias === "Neutral"}
-                    onClick={() => handleUpdate(tf.id, "bias", "Neutral")}
-                    icon={Minus}
-                    activeColor="var(--text-secondary)"
-                    activeBg="var(--surface-elevated)"
-                  />
-                  <BiasIcon
-                    active={currentBias === "Bearish"}
-                    onClick={() => handleUpdate(tf.id, "bias", "Bearish")}
-                    icon={ArrowDown}
-                    activeColor="var(--loss-primary)"
-                    activeBg="var(--loss-bg)"
-                  />
-                </div>
-              </div>
-
-              {/* Notes textarea */}
-              <textarea
-                placeholder="Analysis..."
-                className={cn(
-                  "w-full h-20 rounded-[var(--radius-default)] p-2.5 text-[11px]",
-                  "resize-none focus:outline-none leading-relaxed font-mono",
-                  "border transition-colors duration-150",
-                  "focus:border-[var(--accent-primary)]",
-                )}
-                style={{
-                  background: "var(--surface-elevated)",
-                  borderColor: "var(--border-default)",
-                  color: "var(--text-primary)",
-                }}
-                value={currentNotes}
-                onChange={(e) => handleUpdate(tf.id, "notes", e.target.value)}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function BiasIcon({
+function BiasBtn({
   active,
   onClick,
   icon: Icon,
   activeColor,
   activeBg,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
   icon: LucideIcon;
   activeColor: string;
   activeBg: string;
+  title: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="p-1 rounded-sm transition-all duration-150"
+      title={title}
+      className="flex h-8 w-8 items-center justify-center rounded-[6px] transition-all duration-150"
       style={{
         color: active ? activeColor : "var(--text-tertiary)",
-        background: active ? activeBg : "transparent",
+        background: active ? activeBg : "var(--surface-elevated)",
+        border: `1px solid ${active ? activeColor : "var(--border-subtle)"}`,
+        boxShadow: active ? `0 0 8px ${activeColor}33` : "none",
       }}
     >
-      <Icon className="w-3 h-3" strokeWidth={active ? 2.5 : 1.5} />
+      <Icon size={13} strokeWidth={active ? 2.5 : 1.8} />
     </button>
+  );
+}
+
+export function BiasWidget({ trade, onUpdate }: BiasWidgetProps) {
+  const observations = useMemo(() => {
+    return (trade.tf_observations as unknown as TfObservations) || {};
+  }, [trade.tf_observations]);
+
+  const handleBias = (tf: string, value: BiasValue) => {
+    const current = observations[tf] || { notes: "", pd_arrays: [] };
+    const finalValue = current.bias === value ? undefined : value;
+    onUpdate("tf_observations", {
+      ...observations,
+      [tf]: { ...current, bias: finalValue },
+    });
+  };
+
+  const handleNotes = (tf: string, notes: string) => {
+    const current = observations[tf] || {
+      notes: "",
+      pd_arrays: [],
+      bias: undefined,
+    };
+    onUpdate("tf_observations", {
+      ...observations,
+      [tf]: { ...current, notes },
+    });
+  };
+
+  return (
+    <div className="w-full flex flex-col gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        {TIMEFRAMES.map((tf) => {
+          const obs = observations[tf.id];
+          const currentBias = obs?.bias as BiasValue;
+          const notes = obs?.notes || "";
+
+          return (
+            <div
+              key={tf.id}
+              className="flex flex-col gap-2 rounded-[10px] p-3"
+              style={{
+                background: "var(--surface-elevated)",
+                border: "1px solid var(--border-subtle)",
+              }}
+            >
+              {/* TF header + bias buttons */}
+              <div className="flex items-center justify-between">
+                <span
+                  className="font-bold uppercase tracking-widest"
+                  style={{
+                    fontSize: "0.65rem",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {tf.label}
+                </span>
+                <div className="flex items-center gap-1">
+                  <BiasBtn
+                    active={currentBias === "Bullish"}
+                    onClick={() => handleBias(tf.id, "Bullish")}
+                    icon={ArrowUp}
+                    activeColor="var(--profit-primary)"
+                    activeBg="var(--profit-bg)"
+                    title="Bullish"
+                  />
+                  <BiasBtn
+                    active={currentBias === "Neutral"}
+                    onClick={() => handleBias(tf.id, "Neutral")}
+                    icon={Minus}
+                    activeColor="var(--text-secondary)"
+                    activeBg="var(--surface-active)"
+                    title="Neutral"
+                  />
+                  <BiasBtn
+                    active={currentBias === "Bearish"}
+                    onClick={() => handleBias(tf.id, "Bearish")}
+                    icon={ArrowDown}
+                    activeColor="var(--loss-primary)"
+                    activeBg="var(--loss-bg)"
+                    title="Bearish"
+                  />
+                </div>
+              </div>
+
+              {/* Bias indicator pill */}
+              {currentBias && (
+                <span
+                  className="self-start text-[0.58rem] font-bold uppercase tracking-wider rounded-full px-2 py-0.5"
+                  style={{
+                    background:
+                      currentBias === "Bullish"
+                        ? "var(--profit-bg)"
+                        : currentBias === "Bearish"
+                          ? "var(--loss-bg)"
+                          : "var(--surface-active)",
+                    color:
+                      currentBias === "Bullish"
+                        ? "var(--profit-primary)"
+                        : currentBias === "Bearish"
+                          ? "var(--loss-primary)"
+                          : "var(--text-secondary)",
+                  }}
+                >
+                  {currentBias}
+                </span>
+              )}
+
+              {/* Notes */}
+              <textarea
+                placeholder="Analysis…"
+                value={notes}
+                onChange={(e) => handleNotes(tf.id, e.target.value)}
+                className="w-full resize-none focus:outline-none leading-relaxed"
+                style={{
+                  minHeight: "72px",
+                  fontSize: "0.72rem",
+                  color: "var(--text-primary)",
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

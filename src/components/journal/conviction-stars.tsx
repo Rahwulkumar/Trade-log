@@ -11,15 +11,12 @@ const LABELS: Record<number, string> = {
 interface ConvictionStarsProps {
   value: number | null;
   onChange: (v: number | null) => void;
-  size?: "sm" | "md";
 }
 
-export function ConvictionStars({ value, onChange, size = "md" }: ConvictionStarsProps) {
-  const starSize = size === "sm" ? "w-4 h-4" : "w-5 h-5";
-
+export function ConvictionStars({ value, onChange }: ConvictionStarsProps) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-0.5">
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-1.5">
         {[1, 2, 3, 4, 5].map((star) => {
           const filled = value != null && star <= value;
           return (
@@ -27,19 +24,23 @@ export function ConvictionStars({ value, onChange, size = "md" }: ConvictionStar
               key={star}
               type="button"
               onClick={() => onChange(value === star ? null : star)}
-              className="transition-transform duration-100 hover:scale-125 p-0.5"
               title={LABELS[star]}
+              className="transition-transform duration-100 hover:scale-125"
             >
-              {/* Diamond shape using SVG for a more unique look */}
               <svg
-                className={starSize}
+                width="20"
+                height="20"
                 viewBox="0 0 20 20"
                 style={{
                   fill: filled ? "var(--accent-primary)" : "transparent",
-                  stroke: filled ? "var(--accent-primary)" : "var(--border-active)",
+                  stroke: filled
+                    ? "var(--accent-primary)"
+                    : "var(--border-active)",
                   strokeWidth: 1.5,
-                  transition: "fill 0.15s ease, stroke 0.15s ease",
-                  filter: filled ? "drop-shadow(0 0 3px var(--accent-glow))" : "none",
+                  filter: filled
+                    ? "drop-shadow(0 0 4px var(--accent-primary))"
+                    : "none",
+                  transition: "fill 0.15s, stroke 0.15s, filter 0.15s",
                 }}
               >
                 <polygon points="10,2 18,10 10,18 2,10" />
@@ -50,10 +51,8 @@ export function ConvictionStars({ value, onChange, size = "md" }: ConvictionStar
       </div>
       {value != null && (
         <span
-          className="text-[10px] font-bold uppercase tracking-[0.15em]"
-          style={{
-                        color: "var(--accent-primary)",
-          }}
+          className="font-bold uppercase tracking-widest"
+          style={{ fontSize: "0.62rem", color: "var(--accent-primary)" }}
         >
           {LABELS[value]}
         </span>

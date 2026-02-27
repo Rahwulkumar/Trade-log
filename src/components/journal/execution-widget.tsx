@@ -1,18 +1,13 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Search } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { ToggleBadge } from "@/components/ui/toggle-badge";
+import { Search, X, ChevronDown } from "lucide-react";
+import { ICT_PD_ARRAYS_EXECUTION } from "@/lib/constants/ict-pd-arrays";
+import type { TradeScreenshot } from "@/lib/supabase/types";
 import {
   ScreenshotGallery,
   type Timeframe,
 } from "@/components/journal/screenshot-gallery";
-import { ICT_PD_ARRAYS_EXECUTION } from "@/lib/constants/ict-pd-arrays";
-import type { TradeScreenshot } from "@/lib/supabase/types";
 
 const EXECUTION_TIMEFRAMES: Timeframe[] = ["1m", "5m"];
 
@@ -47,88 +42,90 @@ export function ExecutionWidget({
   onExecutionArraysChange,
   onScreenshotUpload,
   onViewFullscreen,
-  className,
 }: ExecutionWidgetProps) {
-  const [pdSearch, setPdSearch] = useState("");
-  const [pdOpen, setPdOpen] = useState(false);
-  const pdRef = useRef<HTMLDivElement>(null);
-
-  const addArray = (label: string) => {
-    if (executionArrays.includes(label)) return;
-    onExecutionArraysChange([...executionArrays, label]);
-    setPdSearch("");
-    setPdOpen(false);
-  };
-  const removeArray = (label: string) => {
-    onExecutionArraysChange(executionArrays.filter((x) => x !== label));
-  };
-
-  const filtered = useMemo(() => {
-    const q = pdSearch.trim().toLowerCase();
-    if (!q) return ICT_PD_ARRAYS_EXECUTION;
-    return ICT_PD_ARRAYS_EXECUTION.filter((s) => s.toLowerCase().includes(q));
-  }, [pdSearch]);
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onOutside = (e: MouseEvent) => {
-      if (pdRef.current && !pdRef.current.contains(e.target as Node))
-        setPdOpen(false);
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node))
+        setOpen(false);
     };
-    document.addEventListener("mousedown", onOutside);
-    return () => document.removeEventListener("mousedown", onOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  return (
-    <div className={cn("space-y-6", className)}>
-      <Label className="text-label" style={{ color: "var(--text-tertiary)" }}>
-        Execution Trigger
-      </Label>
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q
+      ? ICT_PD_ARRAYS_EXECUTION.filter((s) => s.toLowerCase().includes(q))
+      : ICT_PD_ARRAYS_EXECUTION;
+  }, [search]);
 
-      {/* Financial Metrics Grid (Read-Only) */}
+  const addArray = (label: string) => {
+    if (!executionArrays.includes(label))
+      onExecutionArraysChange([...executionArrays, label]);
+    setSearch("");
+    setOpen(false);
+  };
+  const removeArray = (label: string) =>
+    onExecutionArraysChange(executionArrays.filter((x) => x !== label));
+
+  const metrics = [
+    {
+      label: "Lot Size",
+      value: positionSize != null ? String(positionSize) : "—",
+      color: "var(--text-primary)",
+    },
+    {
+      label: "R-Result",
+      value:
+        rMultiple != null
+          ? `${rMultiple >= 0 ? "+" : ""}${rMultiple.toFixed(2)}R`
+          : "—",
+      color:
+        (rMultiple ?? 0) >= 0 ? "var(--profit-primary)" : "var(--loss-primary)",
+    },
+    {
+      label: "Commission",
+      value: commission != null ? `-$${Math.abs(commission).toFixed(2)}` : "—",
+      color: "var(--loss-primary)",
+    },
+    {
+      label: "Swap",
+      value:
+        swap != null ? (swap >= 0 ? `+$${swap}` : `-$${Math.abs(swap)}`) : "—",
+      color: (swap ?? 0) >= 0 ? "var(--profit-primary)" : "var(--loss-primary)",
+    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* Metrics strip */}
       <div
-        className="grid grid-cols-4 gap-2 text-center p-2 rounded-md"
+        className="grid grid-cols-4 gap-2 rounded-[10px] p-3"
         style={{
           background: "var(--surface-elevated)",
-          border: "1px solid var(--border-default)",
+          border: "1px solid var(--border-subtle)",
         }}
       >
-        {[
-          {
-            label: "Lot Size",
-            value: positionSize !== null ? String(positionSize) : "—",
-            tone: "neutral",
-          },
-          {
-            label: "Risk",
-            value: rMultiple !== null ? `${rMultiple}R` : "—",
-            tone: "neutral",
-          },
-          {
-            label: "Comm",
-            value: commission !== null ? `$${commission}` : "—",
-            tone: "loss",
-          },
-          {
-            label: "Swap",
-            value: swap !== null ? `$${swap}` : "—",
-            tone: "loss",
-          },
-        ].map(({ label, value, tone }) => (
-          <div key={label} className="flex flex-col gap-0.5">
+        {metrics.map(({ label, value, color }) => (
+          <div key={label} className="flex flex-col items-center gap-0.5">
             <span
-              className="text-[9px] uppercase font-mono tracking-wider"
-              style={{ color: "var(--text-tertiary)" }}
+              style={{
+                fontSize: "0.55rem",
+                color: "var(--text-tertiary)",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                fontWeight: 700,
+              }}
             >
               {label}
             </span>
             <span
-              className="text-xs font-medium font-mono"
-              style={{
-                color:
-                  tone === "loss"
-                    ? "var(--loss-primary)"
-                    : "var(--text-primary)",
-              }}
+              className="font-mono font-bold tabular-nums"
+              style={{ fontSize: "0.85rem", color }}
             >
               {value}
             </span>
@@ -136,120 +133,205 @@ export function ExecutionWidget({
         ))}
       </div>
 
-      <div className="space-y-2">
-        <Textarea
-          placeholder="Why did you pull the trigger?"
+      {/* Why did you pull the trigger */}
+      <div className="space-y-1.5">
+        <span
+          style={{
+            fontSize: "0.6rem",
+            color: "var(--text-tertiary)",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.15em",
+          }}
+        >
+          Execution Trigger
+        </span>
+        <textarea
           value={executionNotes}
           onChange={(e) => onExecutionNotesChange(e.target.value)}
-          className="min-h-[80px] text-sm resize-none placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-ring font-sans"
+          placeholder="Why did you pull the trigger? What precise signal confirmed the entry?"
+          className="w-full resize-none rounded-[10px] p-3 focus:outline-none leading-relaxed transition-all"
           style={{
-            background: "var(--surface-elevated)",
-            border: "1px solid var(--border-default)",
+            minHeight: "88px",
+            fontSize: "0.78rem",
             color: "var(--text-primary)",
+            background: "var(--surface-elevated)",
+            border: "1px solid var(--border-subtle)",
+            lineHeight: 1.7,
           }}
+          onFocus={(e) => (e.target.style.borderColor = "var(--border-active)")}
+          onBlur={(e) => (e.target.style.borderColor = "var(--border-subtle)")}
         />
       </div>
 
-      <div className="space-y-3" ref={pdRef}>
-        <Label className="text-label" style={{ color: "var(--text-tertiary)" }}>
-          Confluences
-        </Label>
+      {/* ICT PD Arrays / Confluences */}
+      <div className="space-y-2" ref={wrapRef}>
+        <span
+          style={{
+            fontSize: "0.6rem",
+            color: "var(--text-tertiary)",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.15em",
+          }}
+        >
+          Confluences / PD Arrays
+        </span>
 
+        {/* Selected tags */}
+        {executionArrays.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {executionArrays.map((label) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-medium"
+                style={{
+                  fontSize: "0.72rem",
+                  background: "var(--accent-soft)",
+                  color: "var(--accent-primary)",
+                  border: "1px solid var(--accent-primary)",
+                }}
+              >
+                {label}
+                <button
+                  type="button"
+                  onClick={() => removeArray(label)}
+                  style={{ color: "var(--accent-primary)", opacity: 0.7 }}
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Search */}
         <div className="relative">
-          <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+          <div
+            className="flex items-center gap-2 rounded-[8px] px-3"
+            style={{
+              background: "var(--surface-elevated)",
+              border: "1px solid var(--border-subtle)",
+            }}
+            onFocus={() => {
+              /* noop */
+            }}
+          >
             <Search
-              className="w-3.5 h-3.5"
-              style={{ color: "var(--text-tertiary)", opacity: 0.5 }}
+              size={12}
+              style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
+            />
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              placeholder="Search PD arrays & confluences…"
+              className="flex-1 bg-transparent outline-none py-2.5"
+              style={{ fontSize: "0.75rem", color: "var(--text-primary)" }}
+            />
+            <ChevronDown
+              size={12}
+              style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
             />
           </div>
-          <Input
-            value={pdSearch}
-            onChange={(e) => {
-              setPdSearch(e.target.value);
-              setPdOpen(true);
-            }}
-            onFocus={() => setPdOpen(true)}
-            placeholder="Add confluence..."
-            className="pl-8 h-8 text-xs"
-          />
-          {pdOpen && (
+
+          {open && (
             <div
-              className="absolute z-50 mt-1 w-full max-h-[220px] overflow-auto rounded-md shadow-xl py-1"
+              className="absolute z-50 mt-1 w-full max-h-[220px] overflow-auto rounded-[8px] py-1"
               style={{
                 background: "var(--surface-elevated)",
                 border: "1px solid var(--border-default)",
+                boxShadow: "0 16px 40px rgba(0,0,0,0.4)",
               }}
             >
               {filtered.length === 0 ? (
                 <div
-                  className="px-3 py-2 text-xs"
-                  style={{ color: "var(--text-tertiary)" }}
+                  className="px-3 py-2"
+                  style={{ fontSize: "0.72rem", color: "var(--text-tertiary)" }}
                 >
                   No matches
                 </div>
               ) : (
-                filtered.map((label) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => addArray(label)}
-                    className="w-full text-left px-3 py-1.5 text-xs flex items-center justify-between group transition-colors"
-                    style={{ color: "var(--text-secondary)" }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background =
-                        "var(--surface-hover)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
-                  >
-                    {label}
-                    {executionArrays.includes(label) && (
-                      <span
-                        className="text-[10px] font-mono"
-                        style={{ color: "var(--warning-primary)" }}
-                      >
-                        active
-                      </span>
-                    )}
-                  </button>
-                ))
+                filtered.map((label) => {
+                  const active = executionArrays.includes(label);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => addArray(label)}
+                      className="w-full text-left px-3 py-2 flex items-center justify-between transition-colors"
+                      style={{
+                        fontSize: "0.75rem",
+                        color: active
+                          ? "var(--accent-primary)"
+                          : "var(--text-secondary)",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background =
+                          "var(--surface-hover)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      {label}
+                      {active && (
+                        <span
+                          style={{
+                            fontSize: "0.6rem",
+                            color: "var(--accent-primary)",
+                            fontWeight: 700,
+                          }}
+                        >
+                          ✓ Added
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
               )}
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2 min-h-[40px]">
-          {executionArrays.map((label) => (
-            <ToggleBadge
-              key={label}
-              selected={true}
-              onToggle={() => removeArray(label)}
-            >
-              {label}
-            </ToggleBadge>
-          ))}
-          {executionArrays.length === 0 && (
-            <span
-              className="text-xs italic"
-              style={{ color: "var(--text-tertiary)", opacity: 0.5 }}
-            >
-              No confluences added
-            </span>
-          )}
-        </div>
+        {executionArrays.length === 0 && (
+          <p
+            style={{
+              fontSize: "0.68rem",
+              color: "var(--text-tertiary)",
+              fontStyle: "italic",
+            }}
+          >
+            No confluences added yet
+          </p>
+        )}
       </div>
 
+      {/* Entry snapshots */}
       <div
-        className="space-y-2 pt-2"
-        style={{ borderTop: "1px solid var(--border-subtle)" }}
+        className="space-y-2"
+        style={{
+          borderTop: "1px solid var(--border-subtle)",
+          paddingTop: "16px",
+        }}
       >
-        <Label className="text-label" style={{ color: "var(--text-tertiary)" }}>
-          Entry Snapshots
-        </Label>
+        <span
+          style={{
+            fontSize: "0.6rem",
+            color: "var(--text-tertiary)",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.15em",
+          }}
+        >
+          Entry Snapshots (1m / 5m)
+        </span>
         <ScreenshotGallery
           screenshots={screenshots as TradeScreenshot[]}
-          onUpload={(t) => onScreenshotUpload(t)}
+          onUpload={(tf) => onScreenshotUpload(tf)}
           onViewFullscreen={onViewFullscreen}
           timeframesFilter={EXECUTION_TIMEFRAMES}
         />

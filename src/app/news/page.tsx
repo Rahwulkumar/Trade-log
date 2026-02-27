@@ -403,9 +403,9 @@ export default function NewsPage() {
                 <span
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6rem] font-semibold"
                   style={{
-                    background: "rgba(245,158,11,0.12)",
-                    color: "#d97706",
-                    border: "1px solid rgba(245,158,11,0.3)",
+                    background: "var(--warning-bg)",
+                    color: "var(--warning-primary)",
+                    border: "1px solid color-mix(in srgb, var(--warning-primary) 30%, transparent)",
                   }}
                 >
                   <AlertTriangle size={9} />

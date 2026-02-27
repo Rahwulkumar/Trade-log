@@ -8,25 +8,24 @@ interface QualityRatingProps {
   onChange: (v: Rating | null) => void;
 }
 
-const OPTIONS: {
-  key: Rating;
-  activeColor: string;
-  activeBg: string;
-}[] = [
+const OPTIONS: { key: Rating; color: string; bg: string; border: string }[] = [
   {
     key: "Good",
-    activeColor: "var(--profit-primary)",
-    activeBg: "var(--profit-bg)",
+    color: "var(--profit-primary)",
+    bg: "var(--profit-bg)",
+    border: "var(--profit-primary)",
   },
   {
     key: "Neutral",
-    activeColor: "var(--text-secondary)",
-    activeBg: "var(--surface-elevated)",
+    color: "var(--text-secondary)",
+    bg: "var(--surface-active)",
+    border: "var(--border-default)",
   },
   {
     key: "Poor",
-    activeColor: "var(--loss-primary)",
-    activeBg: "var(--loss-bg)",
+    color: "var(--loss-primary)",
+    bg: "var(--loss-bg)",
+    border: "var(--loss-primary)",
   },
 ];
 
@@ -34,31 +33,36 @@ export function QualityRating({ label, value, onChange }: QualityRatingProps) {
   return (
     <div className="flex flex-col gap-2">
       <span
-        className="text-[9px] uppercase tracking-[0.2em] font-bold"
-        style={{ color: "var(--text-tertiary)" }}
+        style={{
+          fontSize: "0.6rem",
+          color: "var(--text-tertiary)",
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.15em",
+        }}
       >
         {label}
       </span>
       <div
-        className="flex overflow-hidden"
-        style={{
-          borderRadius: "var(--radius-default)",
-          border: "1px solid var(--border-default)",
-        }}
+        className="flex overflow-hidden rounded-[8px]"
+        style={{ border: "1px solid var(--border-subtle)" }}
       >
-        {OPTIONS.map(({ key, activeColor, activeBg }, i) => {
+        {OPTIONS.map(({ key, color, bg, border }, i) => {
           const active = value === key;
           return (
             <button
               key={key}
               type="button"
               onClick={() => onChange(active ? null : key)}
-              className="flex-1 py-2.5 text-[11px] font-bold uppercase tracking-wider transition-all duration-150"
+              className="flex-1 py-2.5 font-bold uppercase transition-all duration-150"
               style={{
-                background: active ? activeBg : "transparent",
-                color: active ? activeColor : "var(--text-tertiary)",
+                fontSize: "0.68rem",
+                letterSpacing: "0.08em",
+                background: active ? bg : "var(--surface-elevated)",
+                color: active ? color : "var(--text-tertiary)",
                 borderRight:
-                  i < 2 ? "1px solid var(--border-default)" : undefined,
+                  i < 2 ? "1px solid var(--border-subtle)" : undefined,
+                boxShadow: active ? `inset 0 -2px 0 ${border}` : "none",
               }}
             >
               {key}

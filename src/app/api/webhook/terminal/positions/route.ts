@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { processPositions } from '@/lib/terminal-farm/service';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { TerminalPositionsPayloadSchema } from '@/lib/terminal-farm/validation';
 
 // Validate webhook secret
@@ -15,7 +16,11 @@ function validateApiKey(request: NextRequest): boolean {
     const apiKey = request.headers.get('x-api-key');
     const expectedKey = process.env.TERMINAL_WEBHOOK_SECRET;
 
-    if (!expectedKey) return true;
+    if (!expectedKey) {
+        if (process.env.WEBHOOK_SECRET_OPTIONAL === 'true') return true;
+        console.warn('[Webhook/Positions] TERMINAL_WEBHOOK_SECRET is not set — rejecting request. Set WEBHOOK_SECRET_OPTIONAL=true to allow unauthenticated webhooks.');
+        return false;
+    }
     return apiKey === expectedKey;
 }
 
@@ -26,6 +31,16 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
+        const terminalId = (body as { terminalId?: string })?.terminalId;
+        if (terminalId) {
+            const rl = checkRateLimit('webhook:positions:' + terminalId, 60, 60_000);
+            if (!rl.allowed) {
+                return NextResponse.json(
+                    { success: false, error: 'Too many requests' },
+                    { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
+                );
+            }
+        }
 
         // Validate payload with Zod
         const validationResult = TerminalPositionsPayloadSchema.safeParse(body);

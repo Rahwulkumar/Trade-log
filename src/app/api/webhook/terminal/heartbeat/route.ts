@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { processHeartbeat } from '@/lib/terminal-farm/service';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { TerminalHeartbeatPayloadSchema } from '@/lib/terminal-farm/validation';
 
 // Validate webhook secret
@@ -15,9 +16,11 @@ function validateApiKey(request: NextRequest): boolean {
     const apiKey = request.headers.get('x-api-key');
     const expectedKey = process.env.TERMINAL_WEBHOOK_SECRET;
 
-    // If no secret configured, allow all (for development)
-    if (!expectedKey) return true;
-
+    if (!expectedKey) {
+        if (process.env.WEBHOOK_SECRET_OPTIONAL === 'true') return true;
+        console.warn('[Webhook/Heartbeat] TERMINAL_WEBHOOK_SECRET is not set — rejecting request. Set WEBHOOK_SECRET_OPTIONAL=true to allow unauthenticated webhooks.');
+        return false;
+    }
     return apiKey === expectedKey;
 }
 
@@ -29,6 +32,16 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
+        const terminalId = (body as { terminalId?: string })?.terminalId;
+        if (terminalId) {
+            const rl = checkRateLimit('webhook:heartbeat:' + terminalId, 4, 60_000);
+            if (!rl.allowed) {
+                return NextResponse.json(
+                    { success: false, error: 'Too many requests' },
+                    { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
+                );
+            }
+        }
 
         // Validate payload with Zod
         const validationResult = TerminalHeartbeatPayloadSchema.safeParse(body);

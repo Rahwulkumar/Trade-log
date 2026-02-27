@@ -1,12 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { encrypt } from '@/lib/mt5/encryption';
 import { NextRequest } from 'next/server';
 
-// Initialize Supabase client with service role for admin operations
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Use the shared admin client (avoids duplicating service role key access)
+const supabase = createAdminClient();
 
 export async function POST(request: NextRequest) {
     try {
