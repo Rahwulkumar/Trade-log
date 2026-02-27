@@ -9,6 +9,70 @@ import Image from "next/image";
 import { getScreenshotUrl } from "@/lib/api/storage";
 import type { TradeScreenshot } from "@/lib/supabase/types";
 
+/* ═══ JCard — premium journal card with strong visual header ════════════ */
+export function JCard({
+  title,
+  subtitle,
+  icon,
+  children,
+  accent,
+  className,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  accent?: string; // CSS color override for left border
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn("glow-card overflow-hidden flex flex-col", className)}
+      style={{ background: "var(--surface)" }}
+    >
+      {/* Card header */}
+      <div
+        className="flex items-center gap-3 px-4 py-3"
+        style={{
+          borderLeft: `3px solid ${accent ?? "var(--accent-primary)"}`,
+          borderBottom: "1px solid var(--border-subtle)",
+          background: "var(--surface-elevated)",
+        }}
+      >
+        {icon && (
+          <div
+            className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-sm)] shrink-0"
+            style={{
+              background: "var(--accent-soft)",
+              color: "var(--accent-primary)",
+            }}
+          >
+            {icon}
+          </div>
+        )}
+        <div className="min-w-0">
+          <h3
+            className="text-[0.82rem] font-bold leading-tight truncate"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {title}
+          </h3>
+          {subtitle && (
+            <p
+              className="text-[0.62rem] mt-0.5 truncate"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              {subtitle}
+            </p>
+          )}
+        </div>
+      </div>
+      {/* Card body */}
+      <div className="p-4 flex-1">{children}</div>
+    </section>
+  );
+}
+
 /* ═══ Mini label — consistent uppercase 0.58rem ═════════════════════════ */
 export function Label({
   children,

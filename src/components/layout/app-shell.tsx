@@ -40,7 +40,7 @@ export function AppShell({ children }: AppShellProps) {
     });
   };
 
-  const contentPadding = sidebarCollapsed ? "md:pl-[60px]" : "md:pl-[240px]";
+  const contentPadding = sidebarCollapsed ? "md:pl-[64px]" : "md:pl-[240px]";
 
   return (
     <div className="relative min-h-screen bg-background">

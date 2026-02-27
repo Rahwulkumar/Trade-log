@@ -25,7 +25,7 @@ export function StatCard({
   const isNegative = changeType === "negative";
 
   const iconBg = isPositive
-    ? "rgba(3,98,76,0.10)"
+    ? "rgba(13,155,110,0.10)"
     : isNegative
       ? "rgba(255,68,85,0.1)"
       : undefined;
@@ -90,7 +90,7 @@ export function StatCard({
         className="absolute bottom-0 left-0 right-0 h-1"
         style={{
           background: isPositive
-            ? "linear-gradient(to right, var(--profit-primary), rgba(3,98,76,0.25))"
+            ? "linear-gradient(to right, var(--profit-primary), rgba(13,155,110,0.25))"
             : isNegative
               ? "linear-gradient(to right, var(--loss-primary), rgba(255,68,85,0.3))"
               : "linear-gradient(to right, var(--text-tertiary), var(--border-default))",

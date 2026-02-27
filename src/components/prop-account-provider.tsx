@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { useAuth } from "@/components/auth-provider";
 import { getActivePropAccounts } from "@/lib/api/prop-accounts";
 import type { PropAccount } from "@/lib/supabase/types";
@@ -14,11 +20,15 @@ interface PropAccountContextType {
   loading: boolean;
 }
 
-const PropAccountContext = createContext<PropAccountContextType | undefined>(undefined);
+const PropAccountContext = createContext<PropAccountContextType | undefined>(
+  undefined,
+);
 
 export function PropAccountProvider({ children }: { children: ReactNode }) {
-  const { user, isConfigured } = useAuth();
-  const [selectedAccountId, setSelectedAccountIdState] = useState<string | null>(null);
+  const { user, isConfigured, loading: authLoading } = useAuth();
+  const [selectedAccountId, setSelectedAccountIdState] = useState<
+    string | null
+  >(null);
   const [propAccounts, setPropAccounts] = useState<PropAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
@@ -42,9 +52,10 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Fetch active prop accounts
+  // Fetch active prop accounts — wait for auth to fully resolve first
   useEffect(() => {
     async function loadAccounts() {
+      if (authLoading) return;
       if (!isConfigured || !user) {
         setLoading(false);
         return;
@@ -54,7 +65,9 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
         const accounts = await getActivePropAccounts();
         setPropAccounts(accounts);
       } catch (err) {
-        console.error("Failed to load prop accounts:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("Failed to fetch"))
+          console.error("Failed to load prop accounts:", err);
       } finally {
         setLoading(false);
       }
@@ -63,7 +76,7 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
     if (initialized) {
       loadAccounts();
     }
-  }, [user, isConfigured, initialized]);
+  }, [authLoading, user, isConfigured, initialized]);
 
   return (
     <PropAccountContext.Provider

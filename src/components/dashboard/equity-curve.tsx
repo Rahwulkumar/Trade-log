@@ -30,7 +30,7 @@ export function EquityCurve({
   propAccountId,
   period = "1M",
 }: EquityCurveProps) {
-  const { user, isConfigured } = useAuth();
+  const { user, isConfigured, loading: authLoading } = useAuth();
   const [allData, setAllData] = useState<
     { date: string; balance: number; rawDate: string }[]
   >([]);
@@ -38,6 +38,7 @@ export function EquityCurve({
 
   useEffect(() => {
     async function loadEquityCurve() {
+      if (authLoading) return;
       if (!isConfigured || !user) {
         setLoading(false);
         return;
@@ -59,13 +60,15 @@ export function EquityCurve({
         }));
         setAllData(formattedData);
       } catch (err) {
-        console.error("Failed to load equity curve:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("Failed to fetch"))
+          console.error("Failed to load equity curve:", err);
       } finally {
         setLoading(false);
       }
     }
     loadEquityCurve();
-  }, [user, isConfigured, startingBalance, propAccountId]);
+  }, [authLoading, user, isConfigured, startingBalance, propAccountId]);
 
   // Filter by selected period
   const data = useMemo(() => {
@@ -79,7 +82,9 @@ export function EquityCurve({
   const strokeColor = isProfit
     ? "var(--profit-primary)"
     : "var(--loss-primary)";
-  const gradientColor = isProfit ? CHART_GRADIENT_RGB.profit : CHART_GRADIENT_RGB.loss;
+  const gradientColor = isProfit
+    ? CHART_GRADIENT_RGB.profit
+    : CHART_GRADIENT_RGB.loss;
 
   if (loading) {
     return (

@@ -92,13 +92,14 @@ function CashflowTooltip({
 
 // ─── Main Component ───────────────────────────────────────────────────────
 export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
-  const { user, isConfigured } = useAuth();
+  const { user, isConfigured, loading: authLoading } = useAuth();
   const [data, setData] = useState<MonthBucket[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalPnl, setTotalPnl] = useState(0);
 
   useEffect(() => {
     async function load() {
+      if (authLoading) return;
       if (!isConfigured || !user) {
         setLoading(false);
         return;
@@ -186,13 +187,15 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
         const net = trades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
         setTotalPnl(net);
       } catch (err) {
-        console.error("CashflowChart load error:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("Failed to fetch"))
+          console.error("CashflowChart load error:", err);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [user, isConfigured, propAccountId, period]);
+  }, [authLoading, user, isConfigured, propAccountId, period]);
 
   const fmt = (v: number) => `$${(v / 1000).toFixed(0)}k`;
 

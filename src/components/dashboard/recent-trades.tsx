@@ -14,12 +14,13 @@ interface RecentTradesProps {
 }
 
 export function RecentTrades({ limit = 5, propAccountId }: RecentTradesProps) {
-  const { user, isConfigured } = useAuth();
+  const { user, isConfigured, loading: authLoading } = useAuth();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadTrades() {
+      if (authLoading) return;
       if (!isConfigured || !user) {
         setLoading(false);
         return;
@@ -29,14 +30,16 @@ export function RecentTrades({ limit = 5, propAccountId }: RecentTradesProps) {
         const data = await getTrades({ status: "closed", propAccountId });
         setTrades(data.slice(0, limit));
       } catch (err) {
-        console.error("Failed to load recent trades:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("Failed to fetch"))
+          console.error("Failed to load recent trades:", err);
       } finally {
         setLoading(false);
       }
     }
 
     loadTrades();
-  }, [user, isConfigured, limit, propAccountId]);
+  }, [authLoading, user, isConfigured, limit, propAccountId]);
 
   if (loading) {
     return (

@@ -64,7 +64,7 @@ export function StatisticsDonut({
   startDate,
   endDate,
 }: StatisticsProps) {
-  const { user, isConfigured } = useAuth();
+  const { user, isConfigured, loading: authLoading } = useAuth();
   const [stats, setStats] = useState<{
     wins: number;
     losses: number;
@@ -78,6 +78,7 @@ export function StatisticsDonut({
 
   useEffect(() => {
     async function load() {
+      if (authLoading) return;
       if (!isConfigured || !user) {
         setLoading(false);
         return;
@@ -110,13 +111,15 @@ export function StatisticsDonut({
           expense: Math.abs(data.avgLoss) * data.losingTrades,
         });
       } catch (err) {
-        console.error("StatisticsDonut:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("Failed to fetch"))
+          console.error("StatisticsDonut:", err);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [user, isConfigured, propAccountId, startDate, endDate]);
+  }, [authLoading, user, isConfigured, propAccountId, startDate, endDate]);
 
   const pieData = stats
     ? [

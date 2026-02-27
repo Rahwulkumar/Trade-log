@@ -14,12 +14,13 @@ interface TopPlaybooksProps {
 }
 
 export function TopPlaybooks({ propAccountId }: TopPlaybooksProps) {
-  const { user, isConfigured } = useAuth();
+  const { user, isConfigured, loading: authLoading } = useAuth();
   const [playbooks, setPlaybooks] = useState<PlaybookStats[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadPlaybooks() {
+      if (authLoading) return;
       if (!isConfigured || !user) {
         setLoading(false);
         return;
@@ -31,14 +32,16 @@ export function TopPlaybooks({ propAccountId }: TopPlaybooksProps) {
         const sorted = data.sort((a, b) => b.totalPnl - a.totalPnl).slice(0, 4);
         setPlaybooks(sorted);
       } catch (err) {
-        console.error("Failed to load playbooks:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("Failed to fetch"))
+          console.error("Failed to load playbooks:", err);
       } finally {
         setLoading(false);
       }
     }
 
     loadPlaybooks();
-  }, [user, isConfigured, propAccountId]);
+  }, [authLoading, user, isConfigured, propAccountId]);
 
   if (loading) {
     return (

@@ -20,12 +20,13 @@ interface PerformanceByDayProps {
 }
 
 export function PerformanceByDay({ propAccountId }: PerformanceByDayProps) {
-  const { user, isConfigured } = useAuth();
+  const { user, isConfigured, loading: authLoading } = useAuth();
   const [data, setData] = useState<{ day: string; pnl: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
+      if (authLoading) return;
       if (!isConfigured || !user) {
         setLoading(false);
         return;
@@ -39,14 +40,16 @@ export function PerformanceByDay({ propAccountId }: PerformanceByDayProps) {
         }));
         setData(formattedData);
       } catch (err) {
-        console.error("Failed to load performance by day:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("Failed to fetch"))
+          console.error("Failed to load performance by day:", err);
       } finally {
         setLoading(false);
       }
     }
 
     loadData();
-  }, [user, isConfigured, propAccountId]);
+  }, [authLoading, user, isConfigured, propAccountId]);
 
   if (loading) {
     return (
