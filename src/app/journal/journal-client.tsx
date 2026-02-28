@@ -18,6 +18,12 @@ import {
   Brain,
   Zap,
   Layers,
+  Edit3,
+  ChevronLeft,
+  PenLine,
+  Tag,
+  Camera,
+  Heart,
 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -80,6 +86,631 @@ function toEnriched(t: Trade): EnrichedTrade {
     formattedExitDate: t.exit_date ? fmtDate(t.exit_date) : undefined,
     formattedPnL: fmtCurrency(pnl),
   } as EnrichedTrade;
+}
+
+/** Returns true if the trade has any saved journal data */
+function isJournaled(t: Trade): boolean {
+  const r = t as unknown as Record<string, unknown>;
+  return (
+    !!(r.notes as string) ||
+    !!(r.feelings as string) ||
+    !!(r.observations as string) ||
+    !!(r.execution_notes as string) ||
+    (Array.isArray(r.setup_tags) && (r.setup_tags as string[]).length > 0) ||
+    (Array.isArray(r.mistake_tags) &&
+      (r.mistake_tags as string[]).length > 0) ||
+    (Array.isArray(r.screenshots) && (r.screenshots as unknown[]).length > 0) ||
+    (Array.isArray(r.execution_arrays) &&
+      (r.execution_arrays as string[]).length > 0) ||
+    !!r.conviction ||
+    (typeof r.tf_observations === "object" &&
+      r.tf_observations !== null &&
+      Object.keys(r.tf_observations as object).length > 0)
+  );
+}
+
+// ── Journal View Mode (read-only) ─────────────────────────────────────────────
+function JournalViewMode({
+  trade,
+  onEdit,
+}: {
+  trade: Trade;
+  onEdit: () => void;
+}) {
+  const r = trade as unknown as Record<string, unknown>;
+  const notes = (r.notes as string) || "";
+  const feelings = (r.feelings as string) || "";
+  const observations = (r.observations as string) || "";
+  const executionNotes = (r.execution_notes as string) || "";
+  const setupTags = Array.isArray(r.setup_tags)
+    ? (r.setup_tags as string[])
+    : [];
+  const mistakeTags = Array.isArray(r.mistake_tags)
+    ? (r.mistake_tags as string[])
+    : [];
+  const execArrays = Array.isArray(r.execution_arrays)
+    ? (r.execution_arrays as string[])
+    : [];
+  const screenshots = Array.isArray(r.screenshots)
+    ? (r.screenshots as { url: string; timeframe?: string }[])
+    : [];
+  const conviction = (r.conviction as number | null) ?? null;
+  const entryRating = (r.entry_rating as string | null) ?? null;
+  const exitRating = (r.exit_rating as string | null) ?? null;
+  const mae = (r.mae as number | null) ?? null;
+  const mfe = (r.mfe as number | null) ?? null;
+  const tfObs =
+    typeof r.tf_observations === "object" && r.tf_observations !== null
+      ? (r.tf_observations as Record<string, { bias?: string; notes?: string }>)
+      : {};
+  const tfEntries = Object.entries(tfObs).filter(
+    ([, v]) => v?.bias || v?.notes,
+  );
+
+  const ratingColor = (r: string | null) =>
+    r === "Good"
+      ? "var(--profit-primary)"
+      : r === "Poor"
+        ? "var(--loss-primary)"
+        : "var(--text-secondary)";
+  const ratingBg = (r: string | null) =>
+    r === "Good"
+      ? "var(--profit-bg)"
+      : r === "Poor"
+        ? "var(--loss-bg)"
+        : "var(--surface-active)";
+  const biasColor = (b?: string) =>
+    b === "Bullish"
+      ? "var(--profit-primary)"
+      : b === "Bearish"
+        ? "var(--loss-primary)"
+        : "var(--text-secondary)";
+  const biasBg = (b?: string) =>
+    b === "Bullish"
+      ? "var(--profit-bg)"
+      : b === "Bearish"
+        ? "var(--loss-bg)"
+        : "var(--surface-active)";
+
+  const hasContent =
+    notes ||
+    feelings ||
+    observations ||
+    executionNotes ||
+    setupTags.length ||
+    mistakeTags.length ||
+    execArrays.length ||
+    screenshots.length ||
+    conviction ||
+    entryRating ||
+    exitRating ||
+    mae != null ||
+    mfe != null ||
+    tfEntries.length;
+
+  if (!hasContent) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
+        <PenLine
+          size={32}
+          style={{ color: "var(--text-tertiary)", opacity: 0.35 }}
+        />
+        <p style={{ fontSize: "0.82rem", color: "var(--text-tertiary)" }}>
+          No journal entry yet
+        </p>
+        <button
+          onClick={onEdit}
+          className="flex items-center gap-1.5 rounded-[8px] px-4 py-2 font-semibold transition-all"
+          style={{ background: ACCENT, color: "#051F20", fontSize: "0.8rem" }}
+        >
+          <Edit3 size={12} /> Start Journaling
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-5 py-3 shrink-0"
+        style={{
+          borderBottom: "1px solid var(--border-subtle)",
+          background: "var(--surface)",
+        }}
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span
+            className="font-black tracking-tight"
+            style={{ fontSize: "1.15rem", color: "var(--text-primary)" }}
+          >
+            {trade.symbol}
+          </span>
+          <DirectionBadge d={trade.direction as "LONG" | "SHORT"} />
+          <OutcomeBadge outcome={getOutcome(trade)} />
+          <span style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>
+            {fmtDate(trade.entry_date)}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span
+            className="font-black tabular-nums"
+            style={{
+              fontSize: "1.15rem",
+              color:
+                (trade.pnl ?? 0) > 0
+                  ? PROFIT
+                  : (trade.pnl ?? 0) < 0
+                    ? LOSS
+                    : "var(--text-tertiary)",
+            }}
+          >
+            {fmtCurrency(trade.pnl)}
+          </span>
+          {trade.r_multiple != null && (
+            <span
+              className="font-mono font-bold"
+              style={{
+                fontSize: "0.8rem",
+                color: trade.r_multiple >= 0 ? PROFIT : LOSS,
+              }}
+            >
+              {fmtR(trade.r_multiple)}
+            </span>
+          )}
+          {/* Edit button */}
+          <button
+            onClick={onEdit}
+            className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0"
+            style={{
+              background: "var(--surface-elevated)",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-secondary)",
+              fontSize: "0.72rem",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = ACCENT)}
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.borderColor = "var(--border-default)")
+            }
+          >
+            <Edit3 size={11} strokeWidth={2.2} /> Edit
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-5 space-y-6">
+          {/* ── Quick stats row ── */}
+          <div className="flex flex-wrap gap-3">
+            {conviction != null && (
+              <div
+                className="flex items-center gap-2 rounded-[8px] px-3 py-2"
+                style={{
+                  background: "var(--surface-elevated)",
+                  border: "1px solid var(--border-subtle)",
+                }}
+              >
+                <SecLabel label="Conviction" />
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <svg
+                      key={s}
+                      width="12"
+                      height="12"
+                      viewBox="0 0 20 20"
+                      style={{
+                        fill: s <= conviction ? ACCENT : "transparent",
+                        stroke:
+                          s <= conviction ? ACCENT : "var(--border-active)",
+                        strokeWidth: 1.5,
+                      }}
+                    >
+                      <polygon points="10,2 18,10 10,18 2,10" />
+                    </svg>
+                  ))}
+                </div>
+              </div>
+            )}
+            {entryRating && (
+              <div
+                className="flex items-center gap-1.5 rounded-[8px] px-3 py-2"
+                style={{
+                  background: ratingBg(entryRating),
+                  border: `1px solid ${ratingColor(entryRating)}44`,
+                }}
+              >
+                <SecLabel label="Entry" />
+                <span
+                  style={{
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    color: ratingColor(entryRating),
+                  }}
+                >
+                  {entryRating}
+                </span>
+              </div>
+            )}
+            {exitRating && (
+              <div
+                className="flex items-center gap-1.5 rounded-[8px] px-3 py-2"
+                style={{
+                  background: ratingBg(exitRating),
+                  border: `1px solid ${ratingColor(exitRating)}44`,
+                }}
+              >
+                <SecLabel label="Exit" />
+                <span
+                  style={{
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    color: ratingColor(exitRating),
+                  }}
+                >
+                  {exitRating}
+                </span>
+              </div>
+            )}
+            {(mae != null || mfe != null) && (
+              <div
+                className="flex items-center gap-3 rounded-[8px] px-3 py-2"
+                style={{
+                  background: "var(--surface-elevated)",
+                  border: "1px solid var(--border-subtle)",
+                }}
+              >
+                {mae != null && (
+                  <>
+                    <SecLabel label="MAE" />
+                    <span
+                      className="font-mono font-bold"
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "var(--loss-primary)",
+                      }}
+                    >
+                      −{mae}R
+                    </span>
+                  </>
+                )}
+                {mfe != null && (
+                  <>
+                    <SecLabel label="MFE" />
+                    <span
+                      className="font-mono font-bold"
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "var(--profit-primary)",
+                      }}
+                    >
+                      +{mfe}R
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Notes ── */}
+          {notes && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <FileText size={11} style={{ color: ACCENT }} />
+                <SecLabel label="Journal Entry" />
+              </div>
+              <div
+                className="rounded-[10px] p-4 whitespace-pre-wrap leading-loose"
+                style={{
+                  background: "var(--surface-elevated)",
+                  border: "1px solid var(--border-subtle)",
+                  fontSize: "0.82rem",
+                  color: "var(--text-primary)",
+                  lineHeight: 1.8,
+                }}
+              >
+                {notes}
+              </div>
+            </div>
+          )}
+
+          {/* ── Bias ── */}
+          {tfEntries.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <BarChart2 size={11} style={{ color: ACCENT }} />
+                <SecLabel label="Multi-Timeframe Bias" />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                {tfEntries.map(([tf, v]) => (
+                  <div
+                    key={tf}
+                    className="flex flex-col gap-1.5 rounded-[10px] p-3"
+                    style={{
+                      background: "var(--surface-elevated)",
+                      border: "1px solid var(--border-subtle)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className="font-bold uppercase tracking-widest"
+                        style={{
+                          fontSize: "0.6rem",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {tf}
+                      </span>
+                      {v.bias && (
+                        <span
+                          className="text-[0.58rem] font-bold uppercase tracking-wider rounded-full px-2 py-0.5"
+                          style={{
+                            background: biasBg(v.bias),
+                            color: biasColor(v.bias),
+                          }}
+                        >
+                          {v.bias}
+                        </span>
+                      )}
+                    </div>
+                    {v.notes && (
+                      <p
+                        style={{
+                          fontSize: "0.68rem",
+                          color: "var(--text-secondary)",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {v.notes}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Setup & Mistake Tags ── */}
+          {(setupTags.length > 0 || mistakeTags.length > 0) && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Tag size={11} style={{ color: ACCENT }} />
+                <SecLabel label="Tags" />
+              </div>
+              {setupTags.length > 0 && (
+                <div>
+                  <p
+                    className="mb-1.5"
+                    style={{
+                      fontSize: "0.6rem",
+                      color: "var(--text-tertiary)",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    Setup
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {setupTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full px-3 py-1 font-medium"
+                        style={{
+                          fontSize: "0.72rem",
+                          background: "var(--accent-soft)",
+                          color: "var(--accent-primary)",
+                          border: "1px solid var(--accent-primary)",
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {mistakeTags.length > 0 && (
+                <div>
+                  <p
+                    className="mb-1.5"
+                    style={{
+                      fontSize: "0.6rem",
+                      color: "var(--text-tertiary)",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    Mistakes
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {mistakeTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full px-3 py-1 font-medium"
+                        style={{
+                          fontSize: "0.72rem",
+                          background: "var(--loss-bg)",
+                          color: "var(--loss-primary)",
+                          border: "1px solid var(--loss-primary)",
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Screenshots ── */}
+          {screenshots.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Camera size={11} style={{ color: ACCENT }} />
+                <SecLabel label="Screenshots" />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {screenshots.map((s, i) => {
+                  const url = typeof s === "string" ? s : s.url;
+                  const tf = typeof s === "string" ? null : s.timeframe;
+                  return (
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="relative group overflow-hidden rounded-[8px] aspect-video block"
+                      style={{
+                        background: "var(--surface-elevated)",
+                        border: "1px solid var(--border-subtle)",
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt={`Screenshot ${i + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      {tf && (
+                        <span
+                          className="absolute bottom-1 left-1 rounded px-1.5 py-0.5 font-bold"
+                          style={{
+                            fontSize: "0.55rem",
+                            background: "rgba(0,0,0,0.65)",
+                            color: "#fff",
+                          }}
+                        >
+                          {tf}
+                        </span>
+                      )}
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Execution ── */}
+          {(execArrays.length > 0 || executionNotes) && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Zap size={11} style={{ color: ACCENT }} />
+                <SecLabel label="Execution" />
+              </div>
+              {execArrays.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {execArrays.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full px-3 py-1 font-medium"
+                      style={{
+                        fontSize: "0.72rem",
+                        background: "var(--accent-soft)",
+                        color: "var(--accent-primary)",
+                        border: "1px solid var(--accent-primary)",
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {executionNotes && (
+                <div
+                  className="rounded-[10px] p-4 whitespace-pre-wrap"
+                  style={{
+                    background: "var(--surface-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                    fontSize: "0.78rem",
+                    color: "var(--text-primary)",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {executionNotes}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Psychology ── */}
+          {(feelings || observations) && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Heart size={11} style={{ color: ACCENT }} />
+                <SecLabel label="Psychology" />
+              </div>
+              {feelings && (
+                <div>
+                  <p
+                    className="mb-1.5"
+                    style={{
+                      fontSize: "0.6rem",
+                      color: "var(--text-tertiary)",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    Emotional State
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {feelings
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                      .map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full px-3 py-1 font-medium"
+                          style={{
+                            fontSize: "0.72rem",
+                            background: "var(--surface-elevated)",
+                            color: "var(--text-secondary)",
+                            border: "1px solid var(--border-subtle)",
+                          }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+              {observations && (
+                <div>
+                  <p
+                    className="mb-1.5"
+                    style={{
+                      fontSize: "0.6rem",
+                      color: "var(--text-tertiary)",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    Market Observations
+                  </p>
+                  <div
+                    className="rounded-[10px] p-4 whitespace-pre-wrap"
+                    style={{
+                      background: "var(--surface-elevated)",
+                      border: "1px solid var(--border-subtle)",
+                      fontSize: "0.78rem",
+                      color: "var(--text-primary)",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    {observations}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Section label ─────────────────────────────────────────────────────────────
@@ -420,10 +1051,12 @@ function TradeJournal({
   trade,
   userId,
   onSaved,
+  onBackToView,
 }: {
   trade: Trade;
   userId: string | undefined;
   onSaved: () => void;
+  onBackToView?: () => void;
 }) {
   const [state, setState] = useState<TradeJournalState>(() =>
     defaultState(trade),
@@ -606,6 +1239,26 @@ function TradeJournal({
               Saved
             </span>
           ) : null}
+          {/* Back to view — only shown when trade already has journal data */}
+          {onBackToView && (
+            <button
+              onClick={onBackToView}
+              className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0"
+              style={{
+                background: "var(--surface-elevated)",
+                border: "1px solid var(--border-default)",
+                color: "var(--text-secondary)",
+                fontSize: "0.72rem",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = ACCENT)}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.borderColor = "var(--border-default)")
+              }
+            >
+              <ChevronLeft size={11} strokeWidth={2.2} />
+              View
+            </button>
+          )}
           <button
             onClick={handleSave}
             className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0"
@@ -888,28 +1541,19 @@ export default function JournalPage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [loading, setLoading] = useState(true);
-  const [noteIds, setNoteIds] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<"view" | "edit">("view");
 
   // Filters
   const [search, setSearch] = useState("");
   const [outcome, setOutcome] = useState("all");
   const [direction, setDirection] = useState("all");
+  const [journaledOnly, setJournaledOnly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const supabase = createClient();
-      const [ts, { data: entries }] = await Promise.all([
-        getTrades({ propAccountId: selectedAccountId }),
-        supabase
-          .from("journal_entries")
-          .select("trade_id")
-          .not("trade_id", "is", null),
-      ]);
+      const ts = await getTrades({ propAccountId: selectedAccountId });
       setTrades(ts);
-      setNoteIds(
-        new Set((entries ?? []).map((e: { trade_id: string }) => e.trade_id)),
-      );
     } catch (e) {
       console.error(e);
     } finally {
@@ -921,15 +1565,22 @@ export default function JournalPage() {
     load();
   }, [load]);
 
+  // Select a trade — journaled ones open in view mode, un-journaled go to edit
+  const handleSelectTrade = (trade: Trade) => {
+    setSelectedTrade(trade);
+    setViewMode(isJournaled(trade) ? "view" : "edit");
+  };
+
   const filtered = useMemo(() => {
     return trades.filter((t) => {
+      if (journaledOnly && !isJournaled(t)) return false;
       if (search && !t.symbol.toLowerCase().includes(search.toLowerCase()))
         return false;
       if (outcome !== "all" && getOutcome(t) !== outcome) return false;
       if (direction !== "all" && t.direction !== direction) return false;
       return true;
     });
-  }, [trades, search, outcome, direction]);
+  }, [trades, search, outcome, direction, journaledOnly]);
 
   const stats = useMemo(() => {
     const closed = filtered.filter((t) => t.status === "closed");
@@ -1055,7 +1706,7 @@ export default function JournalPage() {
 
         {/* Filter chips row */}
         <div
-          className="flex items-center gap-2 px-3 pb-2 shrink-0"
+          className="flex flex-wrap items-center gap-1.5 px-3 pb-2 shrink-0"
           style={{ borderBottom: "1px solid var(--border-subtle)" }}
         >
           {/* Outcome toggles */}
@@ -1118,6 +1769,23 @@ export default function JournalPage() {
             ))}
           </div>
 
+          {/* Journaled filter */}
+          <button
+            onClick={() => setJournaledOnly((v) => !v)}
+            className="flex items-center gap-1 rounded-[6px] px-2 py-1 font-semibold transition-all shrink-0"
+            style={{
+              fontSize: "0.62rem",
+              background: journaledOnly
+                ? ACCENT + "22"
+                : "var(--surface-elevated)",
+              color: journaledOnly ? ACCENT : "var(--text-tertiary)",
+              border: `1px solid ${journaledOnly ? ACCENT + "55" : "var(--border-subtle)"}`,
+            }}
+          >
+            <FileText size={9} />
+            Journaled
+          </button>
+
           <span
             className="ml-auto shrink-0"
             style={{ fontSize: "0.6rem", color: "var(--text-tertiary)" }}
@@ -1150,8 +1818,8 @@ export default function JournalPage() {
                   key={trade.id}
                   trade={trade}
                   isSelected={selectedTrade?.id === trade.id}
-                  hasNote={noteIds.has(trade.id)}
-                  onClick={() => setSelectedTrade(trade)}
+                  hasNote={isJournaled(trade)}
+                  onClick={() => handleSelectTrade(trade)}
                 />
               ))}
             </div>
@@ -1184,18 +1852,34 @@ export default function JournalPage() {
         <AnimatePresence mode="wait">
           {selectedTrade ? (
             <motion.div
-              key={"journal-" + selectedTrade.id}
+              key={"journal-" + selectedTrade.id + "-" + viewMode}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
               className="h-full flex flex-col"
             >
-              <TradeJournal
-                trade={selectedTrade}
-                userId={user?.id}
-                onSaved={load}
-              />
+              {viewMode === "view" ? (
+                <JournalViewMode
+                  trade={selectedTrade}
+                  onEdit={() => setViewMode("edit")}
+                />
+              ) : (
+                <TradeJournal
+                  trade={selectedTrade}
+                  userId={user?.id}
+                  onSaved={() => {
+                    load();
+                    // After saving, switch back to view mode to read the entry
+                    setViewMode("view");
+                  }}
+                  onBackToView={
+                    isJournaled(selectedTrade)
+                      ? () => setViewMode("view")
+                      : undefined
+                  }
+                />
+              )}
             </motion.div>
           ) : (
             <motion.div
