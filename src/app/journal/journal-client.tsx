@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,14 +16,15 @@ import {
   Save,
   CheckCircle,
   Brain,
-  Zap,
-  Layers,
-  Edit3,
   ChevronLeft,
-  PenLine,
+  Edit3,
   Tag,
   Camera,
+  Zap,
   Heart,
+  Layers,
+  PenLine,
+  Library,
 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -34,7 +35,14 @@ import { usePropAccount } from "@/components/prop-account-provider";
 import type { Trade, TradeScreenshot } from "@/lib/supabase/types";
 import type { EnrichedTrade } from "@/domain/trade-types";
 
-// ── Existing journal widgets ──────────────────────────────────────────────────
+// â”€â”€ Journal library view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+import {
+  JournalLibrary,
+  isJournaled,
+  type JournalTrade,
+} from "@/components/journal/journal-library";
+
+// â”€â”€ Existing journal widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 import { BiasWidget } from "@/components/journal/bias-widget";
 import { MaeMfeCard } from "@/components/journal/mae-mfe-card";
 import { PsychologyWidget } from "@/components/journal/psychology-widget";
@@ -44,22 +52,22 @@ import { QualityRating } from "@/components/journal/quality-rating";
 import { ConvictionStars } from "@/components/journal/conviction-stars";
 import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 
-// ─── Color palette ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Color palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PROFIT = "#0D9B6E"; // matches --profit-primary
 const LOSS = "#FF4455"; // matches --loss-primary
 const ACCENT = "#2CC299"; // matches --accent-secondary
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function fmtCurrency(n: number | null | undefined) {
-  if (n == null) return "—";
+  if (n == null) return "â€”";
   return (n >= 0 ? "+" : "") + "$" + Math.abs(n).toFixed(2);
 }
 function fmtR(n: number | null | undefined) {
-  if (n == null) return "—";
+  if (n == null) return "â€”";
   return (n >= 0 ? "+" : "") + n.toFixed(2) + "R";
 }
 function fmtDate(d: string | null | undefined) {
-  if (!d) return "—";
+  if (!d) return "â€”";
   return new Date(d).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -88,632 +96,9 @@ function toEnriched(t: Trade): EnrichedTrade {
   } as EnrichedTrade;
 }
 
-/** Returns true if the trade has any saved journal data */
-function isJournaled(t: Trade): boolean {
-  const r = t as unknown as Record<string, unknown>;
-  return (
-    !!(r.notes as string) ||
-    !!(r.feelings as string) ||
-    !!(r.observations as string) ||
-    !!(r.execution_notes as string) ||
-    (Array.isArray(r.setup_tags) && (r.setup_tags as string[]).length > 0) ||
-    (Array.isArray(r.mistake_tags) &&
-      (r.mistake_tags as string[]).length > 0) ||
-    (Array.isArray(r.screenshots) && (r.screenshots as unknown[]).length > 0) ||
-    (Array.isArray(r.execution_arrays) &&
-      (r.execution_arrays as string[]).length > 0) ||
-    !!r.conviction ||
-    (typeof r.tf_observations === "object" &&
-      r.tf_observations !== null &&
-      Object.keys(r.tf_observations as object).length > 0)
-  );
-}
+// ðŸ”– Read mode â†’ see JournalLibrary in @/components/journal/journal-library.tsx
 
-// ── Journal View Mode (read-only) ─────────────────────────────────────────────
-function JournalViewMode({
-  trade,
-  onEdit,
-}: {
-  trade: Trade;
-  onEdit: () => void;
-}) {
-  const r = trade as unknown as Record<string, unknown>;
-  const notes = (r.notes as string) || "";
-  const feelings = (r.feelings as string) || "";
-  const observations = (r.observations as string) || "";
-  const executionNotes = (r.execution_notes as string) || "";
-  const setupTags = Array.isArray(r.setup_tags)
-    ? (r.setup_tags as string[])
-    : [];
-  const mistakeTags = Array.isArray(r.mistake_tags)
-    ? (r.mistake_tags as string[])
-    : [];
-  const execArrays = Array.isArray(r.execution_arrays)
-    ? (r.execution_arrays as string[])
-    : [];
-  const screenshots = Array.isArray(r.screenshots)
-    ? (r.screenshots as { url: string; timeframe?: string }[])
-    : [];
-  const conviction = (r.conviction as number | null) ?? null;
-  const entryRating = (r.entry_rating as string | null) ?? null;
-  const exitRating = (r.exit_rating as string | null) ?? null;
-  const mae = (r.mae as number | null) ?? null;
-  const mfe = (r.mfe as number | null) ?? null;
-  const tfObs =
-    typeof r.tf_observations === "object" && r.tf_observations !== null
-      ? (r.tf_observations as Record<string, { bias?: string; notes?: string }>)
-      : {};
-  const tfEntries = Object.entries(tfObs).filter(
-    ([, v]) => v?.bias || v?.notes,
-  );
-
-  const ratingColor = (r: string | null) =>
-    r === "Good"
-      ? "var(--profit-primary)"
-      : r === "Poor"
-        ? "var(--loss-primary)"
-        : "var(--text-secondary)";
-  const ratingBg = (r: string | null) =>
-    r === "Good"
-      ? "var(--profit-bg)"
-      : r === "Poor"
-        ? "var(--loss-bg)"
-        : "var(--surface-active)";
-  const biasColor = (b?: string) =>
-    b === "Bullish"
-      ? "var(--profit-primary)"
-      : b === "Bearish"
-        ? "var(--loss-primary)"
-        : "var(--text-secondary)";
-  const biasBg = (b?: string) =>
-    b === "Bullish"
-      ? "var(--profit-bg)"
-      : b === "Bearish"
-        ? "var(--loss-bg)"
-        : "var(--surface-active)";
-
-  const hasContent =
-    notes ||
-    feelings ||
-    observations ||
-    executionNotes ||
-    setupTags.length ||
-    mistakeTags.length ||
-    execArrays.length ||
-    screenshots.length ||
-    conviction ||
-    entryRating ||
-    exitRating ||
-    mae != null ||
-    mfe != null ||
-    tfEntries.length;
-
-  if (!hasContent) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-3">
-        <PenLine
-          size={32}
-          style={{ color: "var(--text-tertiary)", opacity: 0.35 }}
-        />
-        <p style={{ fontSize: "0.82rem", color: "var(--text-tertiary)" }}>
-          No journal entry yet
-        </p>
-        <button
-          onClick={onEdit}
-          className="flex items-center gap-1.5 rounded-[8px] px-4 py-2 font-semibold transition-all"
-          style={{ background: ACCENT, color: "#051F20", fontSize: "0.8rem" }}
-        >
-          <Edit3 size={12} /> Start Journaling
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-5 py-3 shrink-0"
-        style={{
-          borderBottom: "1px solid var(--border-subtle)",
-          background: "var(--surface)",
-        }}
-      >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span
-            className="font-black tracking-tight"
-            style={{ fontSize: "1.15rem", color: "var(--text-primary)" }}
-          >
-            {trade.symbol}
-          </span>
-          <DirectionBadge d={trade.direction as "LONG" | "SHORT"} />
-          <OutcomeBadge outcome={getOutcome(trade)} />
-          <span style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>
-            {fmtDate(trade.entry_date)}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <span
-            className="font-black tabular-nums"
-            style={{
-              fontSize: "1.15rem",
-              color:
-                (trade.pnl ?? 0) > 0
-                  ? PROFIT
-                  : (trade.pnl ?? 0) < 0
-                    ? LOSS
-                    : "var(--text-tertiary)",
-            }}
-          >
-            {fmtCurrency(trade.pnl)}
-          </span>
-          {trade.r_multiple != null && (
-            <span
-              className="font-mono font-bold"
-              style={{
-                fontSize: "0.8rem",
-                color: trade.r_multiple >= 0 ? PROFIT : LOSS,
-              }}
-            >
-              {fmtR(trade.r_multiple)}
-            </span>
-          )}
-          {/* Edit button */}
-          <button
-            onClick={onEdit}
-            className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0"
-            style={{
-              background: "var(--surface-elevated)",
-              border: "1px solid var(--border-default)",
-              color: "var(--text-secondary)",
-              fontSize: "0.72rem",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = ACCENT)}
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.borderColor = "var(--border-default)")
-            }
-          >
-            <Edit3 size={11} strokeWidth={2.2} /> Edit
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-5 space-y-6">
-          {/* ── Quick stats row ── */}
-          <div className="flex flex-wrap gap-3">
-            {conviction != null && (
-              <div
-                className="flex items-center gap-2 rounded-[8px] px-3 py-2"
-                style={{
-                  background: "var(--surface-elevated)",
-                  border: "1px solid var(--border-subtle)",
-                }}
-              >
-                <SecLabel label="Conviction" />
-                <div className="flex gap-0.5">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <svg
-                      key={s}
-                      width="12"
-                      height="12"
-                      viewBox="0 0 20 20"
-                      style={{
-                        fill: s <= conviction ? ACCENT : "transparent",
-                        stroke:
-                          s <= conviction ? ACCENT : "var(--border-active)",
-                        strokeWidth: 1.5,
-                      }}
-                    >
-                      <polygon points="10,2 18,10 10,18 2,10" />
-                    </svg>
-                  ))}
-                </div>
-              </div>
-            )}
-            {entryRating && (
-              <div
-                className="flex items-center gap-1.5 rounded-[8px] px-3 py-2"
-                style={{
-                  background: ratingBg(entryRating),
-                  border: `1px solid ${ratingColor(entryRating)}44`,
-                }}
-              >
-                <SecLabel label="Entry" />
-                <span
-                  style={{
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    color: ratingColor(entryRating),
-                  }}
-                >
-                  {entryRating}
-                </span>
-              </div>
-            )}
-            {exitRating && (
-              <div
-                className="flex items-center gap-1.5 rounded-[8px] px-3 py-2"
-                style={{
-                  background: ratingBg(exitRating),
-                  border: `1px solid ${ratingColor(exitRating)}44`,
-                }}
-              >
-                <SecLabel label="Exit" />
-                <span
-                  style={{
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    color: ratingColor(exitRating),
-                  }}
-                >
-                  {exitRating}
-                </span>
-              </div>
-            )}
-            {(mae != null || mfe != null) && (
-              <div
-                className="flex items-center gap-3 rounded-[8px] px-3 py-2"
-                style={{
-                  background: "var(--surface-elevated)",
-                  border: "1px solid var(--border-subtle)",
-                }}
-              >
-                {mae != null && (
-                  <>
-                    <SecLabel label="MAE" />
-                    <span
-                      className="font-mono font-bold"
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "var(--loss-primary)",
-                      }}
-                    >
-                      −{mae}R
-                    </span>
-                  </>
-                )}
-                {mfe != null && (
-                  <>
-                    <SecLabel label="MFE" />
-                    <span
-                      className="font-mono font-bold"
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "var(--profit-primary)",
-                      }}
-                    >
-                      +{mfe}R
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* ── Notes ── */}
-          {notes && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <FileText size={11} style={{ color: ACCENT }} />
-                <SecLabel label="Journal Entry" />
-              </div>
-              <div
-                className="rounded-[10px] p-4 whitespace-pre-wrap leading-loose"
-                style={{
-                  background: "var(--surface-elevated)",
-                  border: "1px solid var(--border-subtle)",
-                  fontSize: "0.82rem",
-                  color: "var(--text-primary)",
-                  lineHeight: 1.8,
-                }}
-              >
-                {notes}
-              </div>
-            </div>
-          )}
-
-          {/* ── Bias ── */}
-          {tfEntries.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <BarChart2 size={11} style={{ color: ACCENT }} />
-                <SecLabel label="Multi-Timeframe Bias" />
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                {tfEntries.map(([tf, v]) => (
-                  <div
-                    key={tf}
-                    className="flex flex-col gap-1.5 rounded-[10px] p-3"
-                    style={{
-                      background: "var(--surface-elevated)",
-                      border: "1px solid var(--border-subtle)",
-                    }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span
-                        className="font-bold uppercase tracking-widest"
-                        style={{
-                          fontSize: "0.6rem",
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        {tf}
-                      </span>
-                      {v.bias && (
-                        <span
-                          className="text-[0.58rem] font-bold uppercase tracking-wider rounded-full px-2 py-0.5"
-                          style={{
-                            background: biasBg(v.bias),
-                            color: biasColor(v.bias),
-                          }}
-                        >
-                          {v.bias}
-                        </span>
-                      )}
-                    </div>
-                    {v.notes && (
-                      <p
-                        style={{
-                          fontSize: "0.68rem",
-                          color: "var(--text-secondary)",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {v.notes}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Setup & Mistake Tags ── */}
-          {(setupTags.length > 0 || mistakeTags.length > 0) && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-1.5">
-                <Tag size={11} style={{ color: ACCENT }} />
-                <SecLabel label="Tags" />
-              </div>
-              {setupTags.length > 0 && (
-                <div>
-                  <p
-                    className="mb-1.5"
-                    style={{
-                      fontSize: "0.6rem",
-                      color: "var(--text-tertiary)",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                    }}
-                  >
-                    Setup
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {setupTags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full px-3 py-1 font-medium"
-                        style={{
-                          fontSize: "0.72rem",
-                          background: "var(--accent-soft)",
-                          color: "var(--accent-primary)",
-                          border: "1px solid var(--accent-primary)",
-                        }}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {mistakeTags.length > 0 && (
-                <div>
-                  <p
-                    className="mb-1.5"
-                    style={{
-                      fontSize: "0.6rem",
-                      color: "var(--text-tertiary)",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                    }}
-                  >
-                    Mistakes
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {mistakeTags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full px-3 py-1 font-medium"
-                        style={{
-                          fontSize: "0.72rem",
-                          background: "var(--loss-bg)",
-                          color: "var(--loss-primary)",
-                          border: "1px solid var(--loss-primary)",
-                        }}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Screenshots ── */}
-          {screenshots.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <Camera size={11} style={{ color: ACCENT }} />
-                <SecLabel label="Screenshots" />
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {screenshots.map((s, i) => {
-                  const url = typeof s === "string" ? s : s.url;
-                  const tf = typeof s === "string" ? null : s.timeframe;
-                  return (
-                    <a
-                      key={i}
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="relative group overflow-hidden rounded-[8px] aspect-video block"
-                      style={{
-                        background: "var(--surface-elevated)",
-                        border: "1px solid var(--border-subtle)",
-                      }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url}
-                        alt={`Screenshot ${i + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                      {tf && (
-                        <span
-                          className="absolute bottom-1 left-1 rounded px-1.5 py-0.5 font-bold"
-                          style={{
-                            fontSize: "0.55rem",
-                            background: "rgba(0,0,0,0.65)",
-                            color: "#fff",
-                          }}
-                        >
-                          {tf}
-                        </span>
-                      )}
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── Execution ── */}
-          {(execArrays.length > 0 || executionNotes) && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-1.5">
-                <Zap size={11} style={{ color: ACCENT }} />
-                <SecLabel label="Execution" />
-              </div>
-              {execArrays.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {execArrays.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full px-3 py-1 font-medium"
-                      style={{
-                        fontSize: "0.72rem",
-                        background: "var(--accent-soft)",
-                        color: "var(--accent-primary)",
-                        border: "1px solid var(--accent-primary)",
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {executionNotes && (
-                <div
-                  className="rounded-[10px] p-4 whitespace-pre-wrap"
-                  style={{
-                    background: "var(--surface-elevated)",
-                    border: "1px solid var(--border-subtle)",
-                    fontSize: "0.78rem",
-                    color: "var(--text-primary)",
-                    lineHeight: 1.7,
-                  }}
-                >
-                  {executionNotes}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Psychology ── */}
-          {(feelings || observations) && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-1.5">
-                <Heart size={11} style={{ color: ACCENT }} />
-                <SecLabel label="Psychology" />
-              </div>
-              {feelings && (
-                <div>
-                  <p
-                    className="mb-1.5"
-                    style={{
-                      fontSize: "0.6rem",
-                      color: "var(--text-tertiary)",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                    }}
-                  >
-                    Emotional State
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {feelings
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean)
-                      .map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full px-3 py-1 font-medium"
-                          style={{
-                            fontSize: "0.72rem",
-                            background: "var(--surface-elevated)",
-                            color: "var(--text-secondary)",
-                            border: "1px solid var(--border-subtle)",
-                          }}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                  </div>
-                </div>
-              )}
-              {observations && (
-                <div>
-                  <p
-                    className="mb-1.5"
-                    style={{
-                      fontSize: "0.6rem",
-                      color: "var(--text-tertiary)",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                    }}
-                  >
-                    Market Observations
-                  </p>
-                  <div
-                    className="rounded-[10px] p-4 whitespace-pre-wrap"
-                    style={{
-                      background: "var(--surface-elevated)",
-                      border: "1px solid var(--border-subtle)",
-                      fontSize: "0.78rem",
-                      color: "var(--text-primary)",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    {observations}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Section label ─────────────────────────────────────────────────────────────
+// â”€â”€ Section label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SecLabel({ label }: { label: string }) {
   return (
     <span
@@ -730,7 +115,7 @@ function SecLabel({ label }: { label: string }) {
   );
 }
 
-// ── Outcome badge ─────────────────────────────────────────────────────────────
+// â”€â”€ Outcome badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function OutcomeBadge({
   outcome,
 }: {
@@ -753,7 +138,7 @@ function OutcomeBadge({
   );
 }
 
-// ── Direction badge ───────────────────────────────────────────────────────────
+// â”€â”€ Direction badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DirectionBadge({ d }: { d: "LONG" | "SHORT" }) {
   return d === "LONG" ? (
     <span
@@ -774,7 +159,7 @@ function DirectionBadge({ d }: { d: "LONG" | "SHORT" }) {
   );
 }
 
-// ── Stat pill ─────────────────────────────────────────────────────────────────
+// â”€â”€ Stat pill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StatPill({
   label,
   value,
@@ -816,7 +201,7 @@ function StatPill({
   );
 }
 
-// ── Trade row ─────────────────────────────────────────────────────────────────
+// â”€â”€ Trade row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function TradeRow({
   trade,
   isSelected,
@@ -896,7 +281,7 @@ function TradeRow({
   );
 }
 
-// ─── Journal tab types ────────────────────────────────────────────────────────
+// â”€â”€â”€ Journal tab types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type JournalTab = "notes" | "bias" | "setup" | "execution" | "psychology";
 
 const TABS: { id: JournalTab; label: string; Icon: React.ElementType }[] = [
@@ -907,7 +292,7 @@ const TABS: { id: JournalTab; label: string; Icon: React.ElementType }[] = [
   { id: "psychology", label: "Psychology", Icon: Brain },
 ];
 
-// ─── TradeState: all mutable journal fields for one trade ─────────────────────
+// â”€â”€â”€ TradeState: all mutable journal fields for one trade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface TradeJournalState {
   notes: string;
   feelings: string;
@@ -950,7 +335,7 @@ function defaultState(trade: Trade): TradeJournalState {
   };
 }
 
-// ─── Screenshot uploader (hidden file input) ──────────────────────────────────
+// â”€â”€â”€ Screenshot uploader (hidden file input) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function useScreenshotUpload(
   tradeId: string,
   userId: string | undefined,
@@ -1004,7 +389,7 @@ function useScreenshotUpload(
   return { trigger, uploading, inputEl };
 }
 
-// ─── Fullscreen image overlay ─────────────────────────────────────────────────
+// â”€â”€â”€ Fullscreen image overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function FullscreenImage({
   url,
   onClose,
@@ -1046,7 +431,7 @@ function FullscreenImage({
   );
 }
 
-// ─── The journaling workspace for a selected trade ────────────────────────────
+// â”€â”€â”€ The journaling workspace for a selected trade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function TradeJournal({
   trade,
   userId,
@@ -1079,7 +464,7 @@ function TradeJournal({
     dirty.current = true;
   };
 
-  // Enrich for BiasWidget — cast tf_observations through unknown to satisfy Json
+  // Enrich for BiasWidget â€” cast tf_observations through unknown to satisfy Json
   const enriched: EnrichedTrade = useMemo(
     () => ({
       ...toEnriched(trade),
@@ -1176,7 +561,7 @@ function TradeJournal({
     <div className="flex flex-col h-full overflow-hidden">
       {inputEl}
 
-      {/* ── Trade header bar ─────────────────────────────────────────── */}
+      {/* â”€â”€ Trade header bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div
         className="flex items-center gap-3 px-5 py-3 shrink-0"
         style={{
@@ -1228,7 +613,7 @@ function TradeJournal({
             <span
               style={{ fontSize: "0.68rem", color: "var(--text-tertiary)" }}
             >
-              Saving…
+              Savingâ€¦
             </span>
           ) : savedAt ? (
             <span
@@ -1239,7 +624,7 @@ function TradeJournal({
               Saved
             </span>
           ) : null}
-          {/* Back to view — only shown when trade already has journal data */}
+          {/* Back to view â€” only shown when trade already has journal data */}
           {onBackToView && (
             <button
               onClick={onBackToView}
@@ -1276,7 +661,7 @@ function TradeJournal({
         </div>
       </div>
 
-      {/* ── Tab bar ──────────────────────────────────────────────────── */}
+      {/* â”€â”€ Tab bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div
         className="flex shrink-0 px-5 gap-1"
         style={{
@@ -1305,7 +690,7 @@ function TradeJournal({
         ))}
       </div>
 
-      {/* ── Tab content ──────────────────────────────────────────────── */}
+      {/* â”€â”€ Tab content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex-1 overflow-y-auto">
         <AnimatePresence mode="wait">
           <motion.div
@@ -1316,7 +701,7 @@ function TradeJournal({
             transition={{ duration: 0.14 }}
             className="h-full"
           >
-            {/* ── NOTES ──────────────────────────────────────────────── */}
+            {/* â”€â”€ NOTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             {activeTab === "notes" && (
               <div className="p-5 space-y-5">
                 {/* Main notes textarea */}
@@ -1325,7 +710,7 @@ function TradeJournal({
                   <textarea
                     value={state.notes}
                     onChange={(e) => update({ notes: e.target.value })}
-                    placeholder={`Write about this trade…\n\n• What was the setup and did it match your playbook?\n• How did you manage the position — any deviations?\n• What was your psychology like during the trade?\n• Key lessons and what you'd do differently.`}
+                    placeholder={`Write about this tradeâ€¦\n\nâ€¢ What was the setup and did it match your playbook?\nâ€¢ How did you manage the position â€” any deviations?\nâ€¢ What was your psychology like during the trade?\nâ€¢ Key lessons and what you'd do differently.`}
                     className="w-full resize-none rounded-[10px] p-4 font-mono leading-loose outline-none transition-all"
                     style={{
                       minHeight: "240px",
@@ -1388,7 +773,7 @@ function TradeJournal({
               </div>
             )}
 
-            {/* ── BIAS ───────────────────────────────────────────────── */}
+            {/* â”€â”€ BIAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             {activeTab === "bias" && (
               <div className="p-5">
                 <div className="mb-4">
@@ -1408,7 +793,7 @@ function TradeJournal({
               </div>
             )}
 
-            {/* ── SETUP ──────────────────────────────────────────────── */}
+            {/* â”€â”€ SETUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             {activeTab === "setup" && (
               <div className="p-5 space-y-6">
                 {/* Screenshots */}
@@ -1427,7 +812,7 @@ function TradeJournal({
                   />
                   {uploading && (
                     <p style={{ fontSize: "0.68rem", color: ACCENT }}>
-                      Uploading screenshot…
+                      Uploading screenshotâ€¦
                     </p>
                   )}
                 </div>
@@ -1454,7 +839,7 @@ function TradeJournal({
               </div>
             )}
 
-            {/* ── EXECUTION ──────────────────────────────────────────── */}
+            {/* â”€â”€ EXECUTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             {activeTab === "execution" && (
               <div className="p-5">
                 <div className="mb-4">
@@ -1492,7 +877,7 @@ function TradeJournal({
               </div>
             )}
 
-            {/* ── PSYCHOLOGY ─────────────────────────────────────────── */}
+            {/* â”€â”€ PSYCHOLOGY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             {activeTab === "psychology" && (
               <div className="p-5">
                 <div className="mb-4">
@@ -1541,13 +926,14 @@ export default function JournalPage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"view" | "edit">("view");
 
-  // Filters
+  // Page mode: "log" = write new entries | "library" = read saved entries
+  const [pageMode, setPageMode] = useState<"log" | "library">("library");
+
+  // Log-mode filters (only relevant in log mode)
   const [search, setSearch] = useState("");
   const [outcome, setOutcome] = useState("all");
   const [direction, setDirection] = useState("all");
-  const [journaledOnly, setJournaledOnly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1565,399 +951,228 @@ export default function JournalPage() {
     load();
   }, [load]);
 
-  // Select a trade — journaled ones open in view mode, un-journaled go to edit
-  const handleSelectTrade = (trade: Trade) => {
-    setSelectedTrade(trade);
-    setViewMode(isJournaled(trade) ? "view" : "edit");
-  };
-
-  const filtered = useMemo(() => {
+  // In log mode we only show UN-journaled trades
+  const pendingTrades = useMemo(() => {
     return trades.filter((t) => {
-      if (journaledOnly && !isJournaled(t)) return false;
-      if (search && !t.symbol.toLowerCase().includes(search.toLowerCase()))
-        return false;
+      if (isJournaled(t)) return false;
+      if (search && !t.symbol.toLowerCase().includes(search.toLowerCase())) return false;
       if (outcome !== "all" && getOutcome(t) !== outcome) return false;
       if (direction !== "all" && t.direction !== direction) return false;
       return true;
     });
-  }, [trades, search, outcome, direction, journaledOnly]);
+  }, [trades, search, outcome, direction]);
 
   const stats = useMemo(() => {
-    const closed = filtered.filter((t) => t.status === "closed");
+    const closed = pendingTrades.filter((t) => t.status === "closed");
     const wins = closed.filter((t) => (t.pnl ?? 0) > 0);
     const total = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
     return {
       total,
-      winRate: closed.length
-        ? Math.round((wins.length / closed.length) * 100)
-        : 0,
+      winRate: closed.length ? Math.round((wins.length / closed.length) * 100) : 0,
       tradeCount: closed.length,
-      openCount: filtered.filter((t) => t.status === "open").length,
+      openCount: pendingTrades.filter((t) => t.status === "open").length,
     };
-  }, [filtered]);
+  }, [pendingTrades]);
 
   return (
-    <div
-      className="flex h-[calc(100vh-52px)] overflow-hidden"
-      style={{ background: "var(--app-bg)" }}
-    >
-      {/* ═══ LEFT — Trade List ═══════════════════════════════════════════════ */}
-      <aside
-        className="hidden md:flex flex-col shrink-0 min-h-0"
-        style={{
-          width: "280px",
-          minWidth: "280px",
-          maxWidth: "280px",
-          borderRight: "1px solid var(--border-subtle)",
-          background: "var(--surface)",
-        }}
+    <div className="flex flex-col h-[calc(100vh-52px)] overflow-hidden" style={{ background: "var(--app-bg)" }}>
+
+      {/* === TOP BAR - Mode Switch === */}
+      <div
+        className="flex items-center justify-between px-5 py-2.5 shrink-0"
+        style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface)" }}
       >
-        {/* Header */}
+        <div className="flex items-center gap-2">
+          <BookOpen size={14} style={{ color: ACCENT }} />
+          <span className="font-bold" style={{ fontSize: "0.9rem", color: "var(--text-primary)" }}>
+            Journal
+          </span>
+        </div>
+
         <div
-          className="flex items-center justify-between px-4 py-3 shrink-0"
-          style={{ borderBottom: "1px solid var(--border-subtle)" }}
+          className="flex rounded-[10px] overflow-hidden"
+          style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)", padding: 3 }}
         >
-          <div className="flex items-center gap-2">
-            <BookOpen size={13} style={{ color: ACCENT }} />
-            <span
-              className="font-bold"
-              style={{ fontSize: "0.85rem", color: "var(--text-primary)" }}
-            >
-              Journal
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
+          {([
+            { id: "library" as const, label: "Journal Library", Icon: Library },
+            { id: "log"     as const, label: "Log a Trade",    Icon: PenLine },
+          ]).map(({ id, label, Icon }) => (
             <button
-              onClick={load}
-              className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors"
-              style={{ color: "var(--text-tertiary)" }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "var(--surface-hover)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
-            >
-              <RefreshCw size={11} strokeWidth={1.8} />
-            </button>
-            <Link
-              href="/trades?new=true"
-              className="flex items-center gap-1 rounded-[6px] px-2 py-1 font-semibold"
+              key={id}
+              onClick={() => { setPageMode(id); setSelectedTrade(null); }}
+              className="flex items-center gap-1.5 rounded-[7px] px-4 py-1.5 font-semibold transition-all"
               style={{
-                background: ACCENT,
-                color: "#051F20",
-                fontSize: "0.68rem",
+                fontSize: "0.72rem",
+                background: pageMode === id ? "var(--surface)" : "transparent",
+                color: pageMode === id ? "var(--text-primary)" : "var(--text-tertiary)",
+                boxShadow: pageMode === id ? "var(--shadow-sm)" : "none",
               }}
             >
-              <Plus size={10} strokeWidth={2.5} />
-              New
-            </Link>
-          </div>
+              <Icon size={11} />
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Stats strip */}
-        <div
-          className="flex gap-1.5 px-3 py-2 shrink-0"
-          style={{ borderBottom: "1px solid var(--border-subtle)" }}
+        <Link
+          href="/trades?new=true"
+          className="flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 font-semibold transition-all"
+          style={{ background: ACCENT, color: "#051F20", fontSize: "0.72rem" }}
         >
-          <StatPill
-            label="P&L"
-            value={fmtCurrency(stats.total)}
-            color={stats.total >= 0 ? PROFIT : LOSS}
-          />
-          <StatPill
-            label="Win %"
-            value={`${stats.winRate}%`}
-            color={stats.winRate >= 50 ? PROFIT : LOSS}
-          />
-          <StatPill label="Trades" value={String(stats.tradeCount)} />
-        </div>
+          <Plus size={11} strokeWidth={2.5} />
+          New Trade
+        </Link>
+      </div>
 
-        {/* Search row */}
-        <div className="flex items-center gap-2 px-3 pt-2 pb-1.5 shrink-0">
-          <div
-            className="flex items-center gap-1.5 flex-1 min-w-0 rounded-[7px] px-2.5"
-            style={{
-              background: "var(--surface-elevated)",
-              border: "1px solid var(--border-subtle)",
-            }}
-          >
-            <Search
-              size={10}
-              style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
+      {/* === BODY === */}
+      <div className="flex-1 overflow-hidden flex">
+
+        {/* LIBRARY MODE */}
+        {pageMode === "library" && (
+          <div className="flex-1 overflow-hidden">
+            <JournalLibrary
+              trades={trades}
+              onEditTrade={(trade) => {
+                setPageMode("log");
+                setSelectedTrade(trade as unknown as Trade);
+              }}
             />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search symbol…"
-              className="flex-1 min-w-0 bg-transparent outline-none py-1.5"
-              style={{ fontSize: "0.73rem", color: "var(--text-primary)" }}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
-              >
-                <X size={9} />
-              </button>
-            )}
           </div>
-        </div>
+        )}
 
-        {/* Filter chips row */}
-        <div
-          className="flex flex-wrap items-center gap-1.5 px-3 pb-2 shrink-0"
-          style={{ borderBottom: "1px solid var(--border-subtle)" }}
-        >
-          {/* Outcome toggles */}
-          <div
-            className="flex rounded-[6px] overflow-hidden shrink-0"
-            style={{ border: "1px solid var(--border-subtle)" }}
-          >
-            {(["all", "WIN", "LOSS", "OPEN"] as const).map((val, i) => (
-              <button
-                key={val}
-                onClick={() => setOutcome(val)}
-                className="font-semibold transition-colors"
-                style={{
-                  fontSize: "0.62rem",
-                  padding: "4px 7px",
-                  background:
-                    outcome === val ? ACCENT + "22" : "var(--surface-elevated)",
-                  color: outcome === val ? ACCENT : "var(--text-tertiary)",
-                  borderRight:
-                    i < 3 ? "1px solid var(--border-subtle)" : undefined,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {val === "all"
-                  ? "All"
-                  : val === "WIN"
-                    ? "W"
-                    : val === "LOSS"
-                      ? "L"
-                      : "O"}
-              </button>
-            ))}
-          </div>
-
-          {/* Direction toggles */}
-          <div
-            className="flex rounded-[6px] overflow-hidden shrink-0"
-            style={{ border: "1px solid var(--border-subtle)" }}
-          >
-            {(["all", "LONG", "SHORT"] as const).map((val, i) => (
-              <button
-                key={val}
-                onClick={() => setDirection(val)}
-                className="font-semibold transition-colors"
-                style={{
-                  fontSize: "0.62rem",
-                  padding: "4px 7px",
-                  background:
-                    direction === val
-                      ? ACCENT + "22"
-                      : "var(--surface-elevated)",
-                  color: direction === val ? ACCENT : "var(--text-tertiary)",
-                  borderRight:
-                    i < 2 ? "1px solid var(--border-subtle)" : undefined,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {val === "all" ? "All" : val === "LONG" ? "L" : "S"}
-              </button>
-            ))}
-          </div>
-
-          {/* Journaled filter */}
-          <button
-            onClick={() => setJournaledOnly((v) => !v)}
-            className="flex items-center gap-1 rounded-[6px] px-2 py-1 font-semibold transition-all shrink-0"
-            style={{
-              fontSize: "0.62rem",
-              background: journaledOnly
-                ? ACCENT + "22"
-                : "var(--surface-elevated)",
-              color: journaledOnly ? ACCENT : "var(--text-tertiary)",
-              border: `1px solid ${journaledOnly ? ACCENT + "55" : "var(--border-subtle)"}`,
-            }}
-          >
-            <FileText size={9} />
-            Journaled
-          </button>
-
-          <span
-            className="ml-auto shrink-0"
-            style={{ fontSize: "0.6rem", color: "var(--text-tertiary)" }}
-          >
-            {filtered.length}/{trades.length}
-          </span>
-        </div>
-
-        {/* List */}
-        <div className="flex-1 overflow-y-auto px-2 py-1">
-          {loading ? (
-            <div
-              className="flex items-center justify-center h-32"
-              style={{ color: "var(--text-tertiary)" }}
+        {/* LOG MODE */}
+        {pageMode === "log" && (
+          <>
+            {/* LEFT sidebar */}
+            <aside
+              className="hidden md:flex flex-col shrink-0 min-h-0"
+              style={{
+                width: "280px",
+                minWidth: "280px",
+                maxWidth: "280px",
+                borderRight: "1px solid var(--border-subtle)",
+                background: "var(--surface)",
+              }}
             >
-              <Activity size={20} style={{ opacity: 0.3 }} />
-            </div>
-          ) : filtered.length === 0 ? (
-            <div
-              className="flex flex-col items-center justify-center h-32 gap-2"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              <FileText size={20} style={{ opacity: 0.3 }} />
-              <p style={{ fontSize: "0.72rem" }}>No trades match</p>
-            </div>
-          ) : (
-            <div className="space-y-0.5 py-1">
-              {filtered.map((trade) => (
-                <TradeRow
-                  key={trade.id}
-                  trade={trade}
-                  isSelected={selectedTrade?.id === trade.id}
-                  hasNote={isJournaled(trade)}
-                  onClick={() => handleSelectTrade(trade)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div
-          className="px-4 py-2 shrink-0 flex justify-between"
-          style={{ borderTop: "1px solid var(--border-subtle)" }}
-        >
-          <span style={{ fontSize: "0.62rem", color: "var(--text-tertiary)" }}>
-            {filtered.length} of {trades.length} trades
-          </span>
-          {stats.openCount > 0 && (
-            <span
-              style={{ fontSize: "0.62rem", color: ACCENT, fontWeight: 600 }}
-            >
-              {stats.openCount} open
-            </span>
-          )}
-        </div>
-      </aside>
-
-      {/* ═══ CENTER — Journal Workspace ══════════════════════════════════════ */}
-      <main
-        className="flex-1 overflow-hidden"
-        style={{ background: "var(--surface)" }}
-      >
-        <AnimatePresence mode="wait">
-          {selectedTrade ? (
-            <motion.div
-              key={"journal-" + selectedTrade.id + "-" + viewMode}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="h-full flex flex-col"
-            >
-              {viewMode === "view" ? (
-                <JournalViewMode
-                  trade={selectedTrade}
-                  onEdit={() => setViewMode("edit")}
-                />
-              ) : (
-                <TradeJournal
-                  trade={selectedTrade}
-                  userId={user?.id}
-                  onSaved={() => {
-                    load();
-                    // After saving, switch back to view mode to read the entry
-                    setViewMode("view");
-                  }}
-                  onBackToView={
-                    isJournaled(selectedTrade)
-                      ? () => setViewMode("view")
-                      : undefined
-                  }
-                />
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center h-full gap-5"
-            >
-              <div
-                className="flex items-center justify-center rounded-full"
-                style={{
-                  width: 72,
-                  height: 72,
-                  background: "rgba(44,194,153,0.08)",
-                  border: "1px solid rgba(44,194,153,0.15)",
-                }}
-              >
-                <BookOpen size={28} style={{ color: ACCENT, opacity: 0.7 }} />
-              </div>
-              <div className="text-center max-w-sm">
-                <p
-                  className="font-bold mb-1.5"
-                  style={{ fontSize: "1rem", color: "var(--text-primary)" }}
+              <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-bold" style={{ fontSize: "0.82rem", color: "var(--text-primary)" }}>Pending Trades</span>
+                  <span style={{ fontSize: "0.6rem", color: "var(--text-tertiary)" }}>{pendingTrades.length} un-journaled</span>
+                </div>
+                <button onClick={load} className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors" style={{ color: "var(--text-tertiary)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  Select a trade to journal
-                </p>
-                <p
-                  style={{
-                    fontSize: "0.78rem",
-                    color: "var(--text-tertiary)",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  Choose any trade from the left panel to write notes, track
-                  your bias, rate execution quality, tag ICT setups, and reflect
-                  on your psychology.
-                </p>
+                  <RefreshCw size={11} strokeWidth={1.8} />
+                </button>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-2 max-w-sm">
-                {TABS.map(({ id, label, Icon }) => (
-                  <span
-                    key={id}
-                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
-                    style={{
-                      background: "var(--surface-elevated)",
-                      border: "1px solid var(--border-subtle)",
-                      fontSize: "0.72rem",
-                      color: "var(--text-secondary)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    <Icon size={11} style={{ color: ACCENT }} />
-                    {label}
-                  </span>
-                ))}
+
+              <div className="flex gap-1.5 px-3 py-2 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                <StatPill label="P&L" value={fmtCurrency(stats.total)} color={stats.total >= 0 ? PROFIT : LOSS} />
+                <StatPill label="Win %" value={`${stats.winRate}%`} color={stats.winRate >= 50 ? PROFIT : LOSS} />
+                <StatPill label="Trades" value={String(stats.tradeCount)} />
               </div>
-              <Link
-                href="/trades?new=true"
-                className="flex items-center gap-2 rounded-[8px] px-4 py-2 font-semibold transition-all"
-                style={{
-                  background: ACCENT,
-                  color: "#051F20",
-                  fontSize: "0.8rem",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "#3DD4AA")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = ACCENT)
-                }
-              >
-                <Plus size={13} />
-                Log a Trade
-              </Link>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
+
+              <div className="flex items-center gap-2 px-3 pt-2 pb-1.5 shrink-0">
+                <div className="flex items-center gap-1.5 flex-1 min-w-0 rounded-[7px] px-2.5" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
+                  <Search size={10} style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search symbol..." className="flex-1 min-w-0 bg-transparent outline-none py-1.5" style={{ fontSize: "0.73rem", color: "var(--text-primary)" }} />
+                  {search && <button onClick={() => setSearch("")} style={{ color: "var(--text-tertiary)", flexShrink: 0 }}><X size={9} /></button>}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                <div className="flex rounded-[6px] overflow-hidden shrink-0" style={{ border: "1px solid var(--border-subtle)" }}>
+                  {(["all", "WIN", "LOSS", "OPEN"] as const).map((val, i) => (
+                    <button key={val} onClick={() => setOutcome(val)} className="font-semibold transition-colors"
+                      style={{ fontSize: "0.62rem", padding: "4px 7px", background: outcome === val ? ACCENT + "22" : "var(--surface-elevated)", color: outcome === val ? ACCENT : "var(--text-tertiary)", borderRight: i < 3 ? "1px solid var(--border-subtle)" : undefined }}>
+                      {val === "all" ? "All" : val === "WIN" ? "W" : val === "LOSS" ? "L" : "O"}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex rounded-[6px] overflow-hidden shrink-0" style={{ border: "1px solid var(--border-subtle)" }}>
+                  {(["all", "LONG", "SHORT"] as const).map((val, i) => (
+                    <button key={val} onClick={() => setDirection(val)} className="font-semibold transition-colors"
+                      style={{ fontSize: "0.62rem", padding: "4px 7px", background: direction === val ? ACCENT + "22" : "var(--surface-elevated)", color: direction === val ? ACCENT : "var(--text-tertiary)", borderRight: i < 2 ? "1px solid var(--border-subtle)" : undefined }}>
+                      {val === "all" ? "All" : val === "LONG" ? "L" : "S"}
+                    </button>
+                  ))}
+                </div>
+                <span className="ml-auto shrink-0" style={{ fontSize: "0.6rem", color: "var(--text-tertiary)" }}>{pendingTrades.length}/{trades.length}</span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-2 py-1">
+                {loading ? (
+                  <div className="flex items-center justify-center h-32" style={{ color: "var(--text-tertiary)" }}>
+                    <Activity size={20} style={{ opacity: 0.3 }} />
+                  </div>
+                ) : pendingTrades.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-40 gap-3 px-4">
+                    <CheckCircle size={24} style={{ color: ACCENT, opacity: 0.5 }} />
+                    <p className="text-center" style={{ fontSize: "0.72rem", color: "var(--text-tertiary)", lineHeight: 1.5 }}>
+                      All trades journaled!<br />
+                      <span style={{ color: ACCENT, cursor: "pointer" }} onClick={() => setPageMode("library")}>View them in Library</span>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-0.5 py-1">
+                    {pendingTrades.map((trade) => (
+                      <TradeRow key={trade.id} trade={trade} isSelected={selectedTrade?.id === trade.id} hasNote={false} onClick={() => setSelectedTrade(trade)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="px-4 py-2 shrink-0 flex justify-between" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                <span style={{ fontSize: "0.62rem", color: "var(--text-tertiary)" }}>
+                  {pendingTrades.length} pending Â· {trades.filter(isJournaled).length} journaled
+                </span>
+                {stats.openCount > 0 && <span style={{ fontSize: "0.62rem", color: ACCENT, fontWeight: 600 }}>{stats.openCount} open</span>}
+              </div>
+            </aside>
+
+            {/* RIGHT - Editor */}
+            <main className="flex-1 overflow-hidden" style={{ background: "var(--surface)" }}>
+              <AnimatePresence mode="wait">
+                {selectedTrade ? (
+                  <motion.div key={"journal-" + selectedTrade.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full flex flex-col">
+                    <TradeJournal
+                      trade={selectedTrade}
+                      userId={user?.id}
+                      onSaved={() => {
+                        load();
+                        setPageMode("library");
+                        setSelectedTrade(null);
+                      }}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full gap-5">
+                    <div className="flex items-center justify-center rounded-full" style={{ width: 72, height: 72, background: "rgba(44,194,153,0.08)", border: "1px solid rgba(44,194,153,0.15)" }}>
+                      <BookOpen size={28} style={{ color: ACCENT, opacity: 0.7 }} />
+                    </div>
+                    <div className="text-center max-w-sm">
+                      <p className="font-bold mb-1.5" style={{ fontSize: "1rem", color: "var(--text-primary)" }}>Select a trade to journal</p>
+                      <p style={{ fontSize: "0.78rem", color: "var(--text-tertiary)", lineHeight: 1.6 }}>
+                        Pick any pending trade from the left to write notes, track bias, rate execution, and reflect on your psychology.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-2 max-w-sm">
+                      {TABS.map(({ id, label, Icon }) => (
+                        <span key={id} className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                          style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)", fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                          <Icon size={11} style={{ color: ACCENT }} />
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </main>
+          </>
+        )}
+      </div>
     </div>
   );
 }
