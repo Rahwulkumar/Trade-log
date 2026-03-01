@@ -1,6 +1,12 @@
 ﻿"use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import {
+  createChart,
+  LineStyle,
+  CandlestickSeries,
+  type IChartApi,
+} from "lightweight-charts";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowUpRight,
@@ -151,7 +157,13 @@ export const DUMMY_JOURNAL_TRADES: JournalTrade[] = [
       "15m": { bias: "Bullish", notes: "Entry candle â€” FVG fill + sweep" },
       "5m": { bias: "Neutral", notes: "Execution timeframe" },
     },
-    screenshots: [],
+    screenshots: [
+      { url: "https://picsum.photos/seed/eurusd-4h/1600/900", timeframe: "4H" },
+      {
+        url: "https://picsum.photos/seed/eurusd-15m/1600/900",
+        timeframe: "15M",
+      },
+    ],
     execution_arrays: ["FVG", "OB", "Liquidity Grab", "Displacement"],
     created_at: "2026-02-24T09:15:00Z",
   },
@@ -324,7 +336,7 @@ function QualityBadge({
       className="text-[0.58rem] font-bold rounded-full px-2 py-0.5 uppercase tracking-wider"
       style={{ background: bg, color }}
     >
-      {label} Â· {value}
+      {label} Â. {value}
     </span>
   );
 }
@@ -388,7 +400,7 @@ function JournalCard({
               className="font-bold uppercase tracking-widest text-white opacity-70"
               style={{ fontSize: "0.55rem" }}
             >
-              {trade.direction} Â· {fmtDateShort(trade.entry_date)}
+              {trade.direction} Â. {fmtDateShort(trade.entry_date)}
             </span>
           </div>
           <div className="flex flex-col items-end gap-1">
@@ -496,7 +508,417 @@ function JournalCard({
   );
 }
 
-// â”€â”€â”€ Full journal entry view â€” editorial bento layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€â”€ Dummy candle data shaped as lightweight-charts expects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+type LC = {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
+function makeDummyCandles(
+  base: number,
+  count: number,
+  step: number,
+  seed: number,
+): LC[] {
+  const candles: LC[] = [];
+  let price = base;
+  const t0 = 1708761600; // Feb 24 2026 08:00 UTC
+  for (let i = 0; i < count; i++) {
+    const r =
+      Math.sin(seed * (i + 1) * 7.3) * 0.0005 +
+      Math.cos(seed * i * 3.7) * 0.0003;
+    const open = price;
+    const close = price + r * step;
+    const high = Math.max(open, close) + Math.abs(r) * step * 0.4;
+    const low = Math.min(open, close) - Math.abs(r) * step * 0.4;
+    candles.push({ time: t0 + i * 900, open, high, low, close });
+    price = close;
+  }
+  return candles;
+}
+
+const CHART_DATA: Record<string, LC[]> = {
+  EURUSD: [
+    {
+      time: 1708761600,
+      open: 1.0898,
+      high: 1.0904,
+      low: 1.0891,
+      close: 1.0895,
+    },
+    {
+      time: 1708762500,
+      open: 1.0895,
+      high: 1.0902,
+      low: 1.0887,
+      close: 1.0899,
+    },
+    {
+      time: 1708763400,
+      open: 1.0899,
+      high: 1.0912,
+      low: 1.0893,
+      close: 1.0907,
+    },
+    { time: 1708764300, open: 1.0907, high: 1.0915, low: 1.09, close: 1.0903 },
+    {
+      time: 1708765200,
+      open: 1.0903,
+      high: 1.0908,
+      low: 1.0894,
+      close: 1.0897,
+    },
+    { time: 1708766100, open: 1.0897, high: 1.09, low: 1.0888, close: 1.089 },
+    { time: 1708767000, open: 1.089, high: 1.0921, low: 1.0886, close: 1.0919 },
+    {
+      time: 1708767900,
+      open: 1.0919,
+      high: 1.0928,
+      low: 1.0914,
+      close: 1.0925,
+    },
+    { time: 1708768800, open: 1.0925, high: 1.0936, low: 1.092, close: 1.0932 },
+    {
+      time: 1708769700,
+      open: 1.0932,
+      high: 1.0941,
+      low: 1.0928,
+      close: 1.0938,
+    },
+    { time: 1708770600, open: 1.0938, high: 1.095, low: 1.0934, close: 1.0947 },
+    {
+      time: 1708771500,
+      open: 1.0947,
+      high: 1.0955,
+      low: 1.0942,
+      close: 1.0953,
+    },
+    {
+      time: 1708772400,
+      open: 1.0953,
+      high: 1.0961,
+      low: 1.0948,
+      close: 1.0958,
+    },
+    {
+      time: 1708773300,
+      open: 1.0958,
+      high: 1.0966,
+      low: 1.0952,
+      close: 1.0964,
+    },
+    {
+      time: 1708774200,
+      open: 1.0964,
+      high: 1.0972,
+      low: 1.0959,
+      close: 1.0969,
+    },
+    { time: 1708775100, open: 1.0969, high: 1.0974, low: 1.096, close: 1.0963 },
+    {
+      time: 1708776000,
+      open: 1.0963,
+      high: 1.0968,
+      low: 1.0953,
+      close: 1.0956,
+    },
+    { time: 1708776900, open: 1.0956, high: 1.096, low: 1.0948, close: 1.0951 },
+    {
+      time: 1708777800,
+      open: 1.0951,
+      high: 1.0957,
+      low: 1.0944,
+      close: 1.0953,
+    },
+    { time: 1708778700, open: 1.0953, high: 1.096, low: 1.0948, close: 1.0957 },
+  ],
+  GBPJPY: [
+    { time: 1708588800, open: 192.8, high: 192.95, low: 192.7, close: 192.9 },
+    { time: 1708589700, open: 192.9, high: 193.05, low: 192.82, close: 192.98 },
+    { time: 1708590600, open: 192.98, high: 193.12, low: 192.9, close: 193.05 },
+    { time: 1708591500, open: 193.05, high: 193.2, low: 193.0, close: 193.15 },
+    { time: 1708592400, open: 193.15, high: 193.25, low: 193.08, close: 193.1 },
+    { time: 1708593300, open: 193.1, high: 193.18, low: 192.95, close: 193.0 },
+    { time: 1708594200, open: 193.0, high: 193.08, low: 192.92, close: 193.05 },
+    { time: 1708595100, open: 193.05, high: 193.2, low: 193.02, close: 193.15 },
+    { time: 1708596000, open: 193.15, high: 193.28, low: 193.1, close: 193.22 },
+    { time: 1708596900, open: 193.22, high: 193.35, low: 193.18, close: 193.3 },
+    { time: 1708597800, open: 193.3, high: 193.38, low: 193.22, close: 193.25 },
+    { time: 1708598700, open: 193.25, high: 193.3, low: 193.15, close: 193.18 },
+    {
+      time: 1708599600,
+      open: 193.18,
+      high: 193.22,
+      low: 193.08,
+      close: 193.12,
+    },
+    {
+      time: 1708600500,
+      open: 193.12,
+      high: 193.18,
+      low: 193.02,
+      close: 193.06,
+    },
+    { time: 1708601400, open: 193.06, high: 193.1, low: 192.95, close: 192.98 },
+    { time: 1708602300, open: 192.98, high: 193.02, low: 192.85, close: 192.9 },
+    { time: 1708603200, open: 192.9, high: 192.96, low: 192.8, close: 192.85 },
+    { time: 1708604100, open: 192.85, high: 192.9, low: 192.75, close: 192.8 },
+    { time: 1708605000, open: 192.8, high: 192.88, low: 192.72, close: 192.82 },
+    { time: 1708605900, open: 192.82, high: 192.9, low: 192.75, close: 192.86 },
+  ],
+};
+
+function getDummyCandles(trade: JournalTrade): LC[] {
+  const key = trade.symbol ?? "";
+  if (CHART_DATA[key]) return CHART_DATA[key];
+  // Generic fallback for other symbols
+  const base = trade.entry_price ?? 1.0;
+  return makeDummyCandles(
+    base,
+    20,
+    base > 100 ? 1 : 0.001,
+    parseFloat(trade.id?.slice(-4) ?? "1") || 1,
+  );
+}
+
+// â”€â”€â”€ Compact Lightweight-Charts candlestick â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function CompactChart({
+  candles,
+  entryPrice,
+  exitPrice,
+  stopLoss,
+  takeProfit,
+  direction,
+  entryTime,
+  exitTime,
+}: {
+  candles: LC[];
+  entryPrice?: number | null;
+  exitPrice?: number | null;
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  direction?: string;
+  entryTime?: string;
+  exitTime?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+
+  useEffect(() => {
+    if (!ref.current || candles.length === 0) return;
+
+    const root = getComputedStyle(document.documentElement);
+    const get = (v: string, fallback: string) =>
+      root.getPropertyValue(v).trim() || fallback;
+
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+    }
+
+    const chart = createChart(ref.current, {
+      width: ref.current.clientWidth,
+      height: ref.current.clientHeight,
+      layout: {
+        background: { color: "transparent" },
+        textColor: get("--text-tertiary", "#6b7280"),
+        fontSize: 10,
+      },
+      grid: {
+        vertLines: { color: "rgba(255,255,255,0.03)" },
+        horzLines: { color: "rgba(255,255,255,0.04)" },
+      },
+      crosshair: {
+        vertLine: { color: "rgba(255,255,255,0.15)", style: LineStyle.Dashed },
+        horzLine: { color: "rgba(255,255,255,0.15)", style: LineStyle.Dashed },
+      },
+      rightPriceScale: { borderColor: "rgba(255,255,255,0.06)" },
+      timeScale: {
+        borderColor: "rgba(255,255,255,0.06)",
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      handleScroll: { mouseWheel: false, pressedMouseMove: false },
+      handleScale: { mouseWheel: false, pinch: false },
+    });
+
+    chartRef.current = chart;
+
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: get("--profit-primary", "#19b980"),
+      downColor: get("--loss-primary", "#e06675"),
+      borderUpColor: get("--profit-primary", "#19b980"),
+      borderDownColor: get("--loss-primary", "#e06675"),
+      wickUpColor: get("--profit-primary", "#19b980"),
+      wickDownColor: get("--loss-primary", "#e06675"),
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    series.setData(candles as any);
+
+    // Price lines
+    if (stopLoss)
+      series.createPriceLine({
+        price: stopLoss,
+        color: get("--loss-primary", "#e06675"),
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        title: "SL",
+        axisLabelVisible: true,
+      });
+    if (takeProfit)
+      series.createPriceLine({
+        price: takeProfit,
+        color: get("--profit-primary", "#19b980"),
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        title: "TP",
+        axisLabelVisible: true,
+      });
+    if (entryPrice)
+      series.createPriceLine({
+        price: entryPrice,
+        color: get("--accent-primary", "#4d8dff"),
+        lineWidth: 1,
+        lineStyle: LineStyle.Solid,
+        title: "Entry",
+        axisLabelVisible: true,
+      });
+    if (exitPrice)
+      series.createPriceLine({
+        price: exitPrice,
+        color: get("--text-secondary", "#9ca3af"),
+        lineWidth: 1,
+        lineStyle: LineStyle.Solid,
+        title: "Exit",
+        axisLabelVisible: true,
+      });
+
+    // Markers
+    const markers = [];
+    if (entryTime) {
+      const t = Math.floor(new Date(entryTime).getTime() / 1000);
+      markers.push({
+        time: t,
+        position: direction === "SHORT" ? "aboveBar" : "belowBar",
+        color: get("--accent-primary", "#4d8dff"),
+        shape: direction === "SHORT" ? "arrowDown" : "arrowUp",
+        text: "E",
+      });
+    }
+    if (exitTime) {
+      const t = Math.floor(new Date(exitTime).getTime() / 1000);
+      const isWin =
+        (direction === "LONG" && (exitPrice ?? 0) > (entryPrice ?? 0)) ||
+        (direction === "SHORT" && (exitPrice ?? 0) < (entryPrice ?? 0));
+      markers.push({
+        time: t,
+        position: direction === "SHORT" ? "belowBar" : "aboveBar",
+        color: isWin
+          ? get("--profit-primary", "#19b980")
+          : get("--loss-primary", "#e06675"),
+        shape: direction === "SHORT" ? "arrowUp" : "arrowDown",
+        text: "X",
+      });
+    }
+    chart.timeScale().fitContent();
+
+    const ro = new ResizeObserver(() => {
+      if (ref.current && chartRef.current) {
+        chartRef.current.resize(
+          ref.current.clientWidth,
+          ref.current.clientHeight,
+        );
+      }
+    });
+    ro.observe(ref.current);
+
+    return () => {
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [
+    candles,
+    entryPrice,
+    exitPrice,
+    stopLoss,
+    takeProfit,
+    direction,
+    entryTime,
+    exitTime,
+  ]);
+
+  return <div ref={ref} className="w-full h-full" />;
+}
+
+// â”€â”€â”€ Stat row used in the sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function StatRow({
+  label,
+  value,
+  valueColor,
+}: {
+  label: string;
+  value: React.ReactNode;
+  valueColor?: string;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between py-2.5"
+      style={{ borderBottom: "1px solid var(--border-subtle)" }}
+    >
+      <span
+        style={{
+          fontSize: "0.7rem",
+          color: "var(--text-tertiary)",
+          fontWeight: 500,
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: "0.78rem",
+          fontWeight: 700,
+          color: valueColor ?? "var(--text-primary)",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// â”€â”€â”€ Section heading in prose area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function ProseSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p
+        style={{
+          fontSize: "0.6rem",
+          fontWeight: 800,
+          textTransform: "uppercase",
+          letterSpacing: "0.2em",
+          color: "var(--text-tertiary)",
+        }}
+      >
+        {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+// â”€â”€â”€ Main Journal Entry View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function JournalEntryView({
   trade,
   onBack,
@@ -509,13 +931,16 @@ function JournalEntryView({
   const outcome = getOutcome(trade);
   const isWin = outcome === "WIN";
   const isLoss = outcome === "LOSS";
+  const pnlColor = isWin ? PROFIT : isLoss ? LOSS : "var(--text-secondary)";
+  const accent = isWin ? PROFIT : isLoss ? LOSS : ACCENT;
+
   const notes = trade.notes || "";
-  const feelings = trade.feelings || "";
   const obs = trade.observations || "";
   const exNotes = trade.execution_notes || "";
+  const feelings = trade.feelings || "";
   const setupTags = trade.setup_tags ?? [];
   const mistakeTags = trade.mistake_tags ?? [];
-  const execArrays = trade.execution_arrays ?? [];
+  const execArr = trade.execution_arrays ?? [];
   const screenshots = (trade.screenshots ?? []) as (
     | string
     | { url: string; timeframe?: string }
@@ -523,839 +948,333 @@ function JournalEntryView({
   const tfObs = trade.tf_observations ?? {};
   const tfEntries = Object.entries(tfObs).filter(
     ([, v]) => v?.bias || v?.notes,
-  );
+  ) as [string, { bias?: string; notes?: string }][];
 
-  const accentCol = isWin ? "#0D9B6E" : isLoss ? "#FF4455" : ACCENT;
-  const heroBg = isWin
-    ? "linear-gradient(135deg, #021a13 0%, #033d28 50%, #044d33 100%)"
-    : isLoss
-      ? "linear-gradient(135deg, #1a0208 0%, #3d0210 50%, #550316 100%)"
-      : "linear-gradient(135deg, #0a0a12 0%, #13131f 100%)";
-
-  const biasColor = (b?: string) =>
-    b === "Bullish" ? PROFIT : b === "Bearish" ? LOSS : "var(--text-tertiary)";
+  const candles = getDummyCandles(trade);
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.18 }}
-      className="flex flex-col h-full overflow-hidden"
+      transition={{ duration: 0.12 }}
+      className="flex h-full overflow-hidden"
       style={{ background: "var(--app-bg)" }}
     >
-      {/* â”€â”€ NAV BAR â”€â”€ */}
-      <div
-        className="flex items-center justify-between px-6 py-2.5 shrink-0"
-        style={{
-          background: "var(--surface)",
-          borderBottom: "1px solid var(--border-subtle)",
-        }}
-      >
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 rounded-[7px] px-3 py-1.5 font-semibold transition-all"
-          style={{
-            background: "var(--surface-elevated)",
-            border: "1px solid var(--border-default)",
-            color: "var(--text-secondary)",
-            fontSize: "0.73rem",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = accentCol;
-            e.currentTarget.style.color = accentCol;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "var(--border-default)";
-            e.currentTarget.style.color = "var(--text-secondary)";
-          }}
-        >
-          <ChevronLeft size={14} strokeWidth={2.5} />
-          All Journals
-        </button>
-
-        <div
-          className="flex items-center gap-1.5 text-xs"
-          style={{ color: "var(--text-tertiary)", fontSize: "0.65rem" }}
-        >
-          <span
-            style={{
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-            }}
-          >
-            Journal Library
-          </span>
-          <span>/</span>
-          <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-            {trade.symbol}
-          </span>
-          <span style={{ color: "var(--text-tertiary)", marginLeft: 2 }}>
-            {fmtDateShort(trade.entry_date)}
-          </span>
-        </div>
-
-        <button
-          onClick={onEdit}
-          className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all"
-          style={{
-            background: accentCol + "22",
-            border: `1px solid ${accentCol}55`,
-            color: accentCol,
-            fontSize: "0.72rem",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = accentCol + "33")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = accentCol + "22")
-          }
-        >
-          <Edit3 size={11} />
-          Edit Entry
-        </button>
-      </div>
-
-      {/* â”€â”€ SCROLLABLE BODY â”€â”€ */}
+      {/* â•â• LEFT: Scrollable prose content â•â• */}
       <div className="flex-1 overflow-y-auto">
-        {/* â•â• HERO BANNER â•â• */}
+        {/* Hero header â€” full width, no color blobs */}
         <div
-          className="relative px-8 py-7 overflow-hidden"
-          style={{ background: heroBg }}
-        >
-          {/* Large ghost symbol watermark */}
-          <span
-            className="absolute right-6 top-1/2 select-none pointer-events-none font-black tracking-tighter"
-            style={{
-              fontSize: "9rem",
-              lineHeight: 1,
-              transform: "translateY(-50%)",
-              color: isWin ? "#0D9B6E" : isLoss ? "#FF4455" : ACCENT,
-              opacity: 0.06,
-            }}
-          >
-            {trade.symbol}
-          </span>
-
-          <div className="relative flex flex-col gap-4">
-            {/* Row 1: Symbol + badge */}
-            <div className="flex items-center gap-3">
-              <span
-                className="font-black tracking-tight text-white"
-                style={{ fontSize: "3.2rem", lineHeight: 1 }}
-              >
-                {trade.symbol}
-              </span>
-              <div className="flex flex-col gap-1 mt-1">
-                <span
-                  className="rounded-full px-2.5 py-0.5 font-black text-white"
-                  style={{
-                    fontSize: "0.58rem",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    background: "rgba(255,255,255,0.12)",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                  }}
-                >
-                  {trade.direction}
-                </span>
-                <span
-                  className="rounded-full px-2.5 py-0.5 font-black text-white"
-                  style={{
-                    fontSize: "0.58rem",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    background: isWin
-                      ? "rgba(13,155,110,0.4)"
-                      : isLoss
-                        ? "rgba(255,68,85,0.4)"
-                        : "rgba(44,194,153,0.3)",
-                    border: `1px solid ${accentCol}66`,
-                  }}
-                >
-                  {outcome}
-                </span>
-              </div>
-            </div>
-
-            {/* Row 2: PnL metrics row */}
-            <div className="flex items-end gap-8 flex-wrap">
-              <div>
-                <p
-                  style={{
-                    fontSize: "0.58rem",
-                    color: "rgba(255,255,255,0.45)",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.15em",
-                    marginBottom: 2,
-                  }}
-                >
-                  Profit / Loss
-                </p>
-                <span
-                  className="font-black text-white tabular-nums"
-                  style={{ fontSize: "2.4rem", lineHeight: 1 }}
-                >
-                  {fmtCurrency(trade.pnl)}
-                </span>
-                {fmtR(trade.r_multiple) && (
-                  <span
-                    className="block font-mono font-bold mt-0.5"
-                    style={{ fontSize: "1rem", color: accentCol }}
-                  >
-                    {fmtR(trade.r_multiple)}
-                  </span>
-                )}
-              </div>
-
-              {/* Vertical divider */}
-              <div
-                style={{
-                  width: 1,
-                  height: 48,
-                  background: "rgba(255,255,255,0.1)",
-                  flexShrink: 0,
-                }}
-              />
-
-              {/* Entry / Exit */}
-              <div className="flex gap-6">
-                {trade.entry_price && (
-                  <div>
-                    <p
-                      style={{
-                        fontSize: "0.55rem",
-                        color: "rgba(255,255,255,0.4)",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        marginBottom: 3,
-                      }}
-                    >
-                      Entry
-                    </p>
-                    <span
-                      className="font-bold text-white"
-                      style={{ fontSize: "1.05rem" }}
-                    >
-                      {trade.entry_price}
-                    </span>
-                  </div>
-                )}
-                {trade.exit_price && (
-                  <div>
-                    <p
-                      style={{
-                        fontSize: "0.55rem",
-                        color: "rgba(255,255,255,0.4)",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        marginBottom: 3,
-                      }}
-                    >
-                      Exit
-                    </p>
-                    <span
-                      className="font-bold text-white"
-                      style={{ fontSize: "1.05rem" }}
-                    >
-                      {trade.exit_price}
-                    </span>
-                  </div>
-                )}
-                {trade.position_size && (
-                  <div>
-                    <p
-                      style={{
-                        fontSize: "0.55rem",
-                        color: "rgba(255,255,255,0.4)",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        marginBottom: 3,
-                      }}
-                    >
-                      Size
-                    </p>
-                    <span
-                      className="font-bold text-white"
-                      style={{ fontSize: "1.05rem" }}
-                    >
-                      {trade.position_size}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Vertical divider */}
-              <div
-                style={{
-                  width: 1,
-                  height: 48,
-                  background: "rgba(255,255,255,0.1)",
-                  flexShrink: 0,
-                }}
-              />
-
-              {/* Date */}
-              <div>
-                <p
-                  style={{
-                    fontSize: "0.55rem",
-                    color: "rgba(255,255,255,0.4)",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.12em",
-                    marginBottom: 3,
-                  }}
-                >
-                  Date
-                </p>
-                <span
-                  className="font-semibold text-white"
-                  style={{ fontSize: "0.85rem" }}
-                >
-                  {fmtDate(trade.entry_date)}
-                </span>
-              </div>
-            </div>
-
-            {/* Row 3: Conviction */}
-            {trade.conviction != null && (
-              <div className="flex items-center gap-2">
-                <span
-                  style={{
-                    fontSize: "0.58rem",
-                    color: "rgba(255,255,255,0.4)",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.15em",
-                  }}
-                >
-                  Conviction
-                </span>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Star
-                      key={i}
-                      size={13}
-                      fill={
-                        i <= (trade.conviction ?? 0) ? "#fff" : "transparent"
-                      }
-                      stroke={
-                        i <= (trade.conviction ?? 0)
-                          ? "#fff"
-                          : "rgba(255,255,255,0.3)"
-                      }
-                      strokeWidth={1.5}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* â•â• METRIC STRIP (horizontal scrollable row) â•â• */}
-        <div
-          className="flex items-stretch gap-0 shrink-0 overflow-x-auto"
+          className="px-8 py-6"
           style={{
             borderBottom: "1px solid var(--border-subtle)",
             background: "var(--surface)",
           }}
         >
-          {/* Entry quality */}
-          {trade.entry_rating && (
-            <MetricCell label="Entry Quality">
-              <span
+          <div className="flex items-start justify-between gap-4">
+            {/* Symbol + trade details */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <h1
+                  className="font-black tracking-tight"
+                  style={{
+                    fontSize: "2.4rem",
+                    lineHeight: 1,
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {trade.symbol}
+                </h1>
+                <div className="flex flex-col gap-1 mt-1">
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.15em",
+                      padding: "3px 9px",
+                      borderRadius: 5,
+                      background: "var(--surface-elevated)",
+                      color: "var(--text-secondary)",
+                      border: "1px solid var(--border-default)",
+                    }}
+                  >
+                    {trade.direction === "LONG" ? (
+                      <span>â–² LONG</span>
+                    ) : (
+                      <span>â–¼ SHORT</span>
+                    )}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.55rem",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.15em",
+                      padding: "3px 9px",
+                      borderRadius: 5,
+                      textAlign: "center",
+                      background: isWin
+                        ? "var(--profit-bg)"
+                        : isLoss
+                          ? "var(--loss-bg)"
+                          : "var(--surface-elevated)",
+                      color: pnlColor,
+                      border: `1px solid ${pnlColor}30`,
+                    }}
+                  >
+                    {outcome}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-5">
+                {trade.entry_date && (
+                  <span
+                    className="flex items-center gap-1.5"
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    <Calendar size={11} />
+                    {fmtDate(trade.entry_date)}
+                  </span>
+                )}
+                {trade.entry_price != null && (
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    Entry{" "}
+                    <span
+                      style={{
+                        color: "var(--text-secondary)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {trade.entry_price}
+                    </span>
+                  </span>
+                )}
+                {trade.exit_price != null && (
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    Exit{" "}
+                    <span
+                      style={{
+                        color: "var(--text-secondary)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {trade.exit_price}
+                    </span>
+                  </span>
+                )}
+                {trade.position_size != null && (
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    Size{" "}
+                    <span
+                      style={{
+                        color: "var(--text-secondary)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {trade.position_size}
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* PnL right-aligned */}
+            <div className="text-right shrink-0">
+              <p
                 style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 800,
-                  color:
-                    trade.entry_rating === "Good"
-                      ? PROFIT
-                      : trade.entry_rating === "Poor"
-                        ? LOSS
-                        : "var(--text-secondary)",
+                  fontSize: "0.52rem",
+                  color: "var(--text-tertiary)",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.15em",
+                  marginBottom: 4,
                 }}
               >
-                {trade.entry_rating}
-              </span>
-            </MetricCell>
-          )}
-          {/* Exit quality */}
-          {trade.exit_rating && (
-            <MetricCell label="Exit Quality">
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 800,
-                  color:
-                    trade.exit_rating === "Good"
-                      ? PROFIT
-                      : trade.exit_rating === "Poor"
-                        ? LOSS
-                        : "var(--text-secondary)",
-                }}
+                Net P&amp;L
+              </p>
+              <p
+                className="font-black tabular-nums"
+                style={{ fontSize: "2.2rem", lineHeight: 1, color: pnlColor }}
               >
-                {trade.exit_rating}
-              </span>
-            </MetricCell>
-          )}
-          {/* MAE */}
-          {trade.mae != null && (
-            <MetricCell label="MAE">
-              <span
-                style={{ fontSize: "0.75rem", fontWeight: 800, color: LOSS }}
-              >
-                {trade.mae}R
-              </span>
-            </MetricCell>
-          )}
-          {/* MFE */}
-          {trade.mfe != null && (
-            <MetricCell label="MFE">
-              <span
-                style={{ fontSize: "0.75rem", fontWeight: 800, color: PROFIT }}
-              >
-                {trade.mfe}R
-              </span>
-            </MetricCell>
-          )}
-          {/* Tags count */}
-          {setupTags.length + mistakeTags.length > 0 && (
-            <MetricCell label="Tags">
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 800,
-                  color: "var(--text-primary)",
-                }}
-              >
-                {setupTags.length + mistakeTags.length}
-              </span>
-            </MetricCell>
-          )}
-          {/* Screenshots count */}
-          {screenshots.length > 0 && (
-            <MetricCell label="Charts">
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 800,
-                  color: "var(--text-primary)",
-                }}
-              >
-                {screenshots.length}
-              </span>
-            </MetricCell>
-          )}
-          {/* Feelings */}
-          {feelings && (
-            <MetricCell label="Mindset">
-              <span
-                style={{
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                  color: "var(--text-secondary)",
-                }}
-              >
-                {feelings.split(",")[0].trim()}
-              </span>
-            </MetricCell>
+                {fmtCurrency(trade.pnl)}
+              </p>
+              {fmtR(trade.r_multiple) && (
+                <p
+                  className="font-mono"
+                  style={{
+                    fontSize: "0.85rem",
+                    color: pnlColor,
+                    opacity: 0.65,
+                    marginTop: 3,
+                  }}
+                >
+                  {fmtR(trade.r_multiple)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Setup tags inline with header */}
+          {(setupTags.length > 0 ||
+            mistakeTags.length > 0 ||
+            execArr.length > 0) && (
+            <div
+              className="flex flex-wrap gap-2 mt-4 pt-4"
+              style={{ borderTop: "1px solid var(--border-subtle)" }}
+            >
+              {setupTags.map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    fontSize: "0.65rem",
+                    fontWeight: 600,
+                    padding: "4px 11px",
+                    borderRadius: 6,
+                    background: "var(--surface-elevated)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border-default)",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+              {execArr.map((tag) => (
+                <span
+                  key={tag}
+                  className="flex items-center gap-1"
+                  style={{
+                    fontSize: "0.65rem",
+                    fontWeight: 600,
+                    padding: "4px 11px",
+                    borderRadius: 6,
+                    background: `${accent}12`,
+                    color: accent,
+                    border: `1px solid ${accent}22`,
+                  }}
+                >
+                  <Layers size={9} />
+                  {tag}
+                </span>
+              ))}
+              {mistakeTags.map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    fontSize: "0.65rem",
+                    fontWeight: 600,
+                    padding: "4px 11px",
+                    borderRadius: 6,
+                    background: "var(--loss-bg)",
+                    color: LOSS,
+                    border: `1px solid ${LOSS}22`,
+                  }}
+                >
+                  âš  {tag}
+                </span>
+              ))}
+            </div>
           )}
         </div>
 
-        {/* â•â• BENTO CONTENT GRID â•â• */}
-        <div className="p-6 flex flex-col gap-5">
-          {/* ROW 1: Notes (wide) + MTF Bias (narrow) */}
-          {(notes || tfEntries.length > 0) && (
-            <div
-              className="grid gap-4"
-              style={{
-                gridTemplateColumns: tfEntries.length > 0 ? "1fr 240px" : "1fr",
-              }}
-            >
-              {/* Notes */}
-              {notes && (
-                <div
-                  className="rounded-[14px] p-6 relative overflow-hidden"
-                  style={{
-                    background: "var(--surface)",
-                    border: `1px solid ${accentCol}30`,
-                    borderLeft: `3px solid ${accentCol}`,
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: "0.6rem",
-                      color: accentCol,
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.18em",
-                      marginBottom: 14,
-                    }}
-                  >
-                    Journal Entry
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "0.88rem",
-                      color: "var(--text-primary)",
-                      lineHeight: 1.95,
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {notes}
-                  </p>
-                </div>
-              )}
-
-              {/* MTF BIAS stacked column */}
-              {tfEntries.length > 0 && (
-                <div
-                  className="rounded-[14px] overflow-hidden flex flex-col"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border-subtle)",
-                  }}
-                >
-                  <div
-                    className="px-4 py-3"
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                  >
-                    <p
-                      style={{
-                        fontSize: "0.6rem",
-                        color: "var(--text-tertiary)",
-                        fontWeight: 800,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.18em",
-                      }}
-                    >
-                      MTF Bias
-                    </p>
-                  </div>
-                  <div className="flex flex-col flex-1">
-                    {tfEntries.map(([tf, v], idx) => (
-                      <div
-                        key={tf}
-                        className="flex items-center justify-between px-4 py-2.5"
-                        style={{
-                          borderBottom:
-                            idx < tfEntries.length - 1
-                              ? "1px solid var(--border-subtle)"
-                              : "none",
-                          background:
-                            v.bias === "Bullish"
-                              ? "rgba(13,155,110,0.04)"
-                              : v.bias === "Bearish"
-                                ? "rgba(255,68,85,0.04)"
-                                : "transparent",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.65rem",
-                            fontWeight: 800,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.12em",
-                            color: "var(--text-secondary)",
-                          }}
-                        >
-                          {tf}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {v.bias === "Bullish" ? (
-                            <TrendingUp
-                              size={10}
-                              style={{ color: biasColor(v.bias) }}
-                            />
-                          ) : (
-                            <TrendingDown
-                              size={10}
-                              style={{ color: biasColor(v.bias) }}
-                            />
-                          )}
-                          <span
-                            style={{
-                              fontSize: "0.62rem",
-                              fontWeight: 700,
-                              color: biasColor(v.bias),
-                              textTransform: "uppercase",
-                              letterSpacing: "0.06em",
-                            }}
-                          >
-                            {v.bias ?? "â€”"}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ROW 2: Tags (left) + Execution (right) */}
-          {(setupTags.length > 0 ||
-            mistakeTags.length > 0 ||
-            execArrays.length > 0 ||
-            exNotes) && (
-            <div className="grid grid-cols-2 gap-4">
-              {/* Tags panel */}
-              {(setupTags.length > 0 || mistakeTags.length > 0) && (
-                <div
-                  className="rounded-[14px] p-5"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border-subtle)",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: "0.6rem",
-                      color: "var(--text-tertiary)",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.18em",
-                      marginBottom: 14,
-                    }}
-                  >
-                    Tags & Concepts
-                  </p>
-                  {setupTags.length > 0 && (
-                    <div className="mb-3">
-                      <p
-                        style={{
-                          fontSize: "0.55rem",
-                          color: accentCol,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.12em",
-                          marginBottom: 6,
-                        }}
-                      >
-                        Setup
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {setupTags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-[6px] px-2.5 py-1 font-semibold"
-                            style={{
-                              fontSize: "0.7rem",
-                              background: accentCol + "15",
-                              color: accentCol,
-                              border: `1px solid ${accentCol}30`,
-                            }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {mistakeTags.length > 0 && (
-                    <div>
-                      <p
-                        style={{
-                          fontSize: "0.55rem",
-                          color: LOSS,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.12em",
-                          marginBottom: 6,
-                        }}
-                      >
-                        Mistakes
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {mistakeTags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-[6px] px-2.5 py-1 font-semibold"
-                            style={{
-                              fontSize: "0.7rem",
-                              background: "var(--loss-bg)",
-                              color: LOSS,
-                              border: `1px solid ${LOSS}30`,
-                            }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Execution panel */}
-              {(execArrays.length > 0 || exNotes) && (
-                <div
-                  className="rounded-[14px] p-5"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border-subtle)",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: "0.6rem",
-                      color: "var(--text-tertiary)",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.18em",
-                      marginBottom: 14,
-                    }}
-                  >
-                    Execution
-                  </p>
-                  {execArrays.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      {execArrays.map((tag) => (
-                        <span
-                          key={tag}
-                          className="flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 font-semibold"
-                          style={{
-                            fontSize: "0.7rem",
-                            background: "var(--surface-elevated)",
-                            color: "var(--text-primary)",
-                            border: "1px solid var(--border-default)",
-                          }}
-                        >
-                          <Layers size={9} style={{ color: ACCENT }} />
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {exNotes && (
-                    <p
-                      style={{
-                        fontSize: "0.78rem",
-                        color: "var(--text-secondary)",
-                        lineHeight: 1.75,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {exNotes}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ROW 3: Observations + Mindset side by side */}
-          {(obs || feelings) && (
-            <div className="grid grid-cols-2 gap-4">
-              {obs && (
-                <div
-                  className="rounded-[14px] p-5"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border-subtle)",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: "0.6rem",
-                      color: "var(--text-tertiary)",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.18em",
-                      marginBottom: 12,
-                    }}
-                  >
-                    Market Observations
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "0.8rem",
-                      color: "var(--text-secondary)",
-                      lineHeight: 1.8,
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {obs}
-                  </p>
-                </div>
-              )}
-              {feelings && (
-                <div
-                  className="rounded-[14px] p-5"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border-subtle)",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: "0.6rem",
-                      color: "var(--text-tertiary)",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.18em",
-                      marginBottom: 12,
-                    }}
-                  >
-                    Psychological State
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {feelings
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean)
-                      .map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full px-3 py-1.5 font-medium"
-                          style={{
-                            fontSize: "0.75rem",
-                            background: "var(--surface-elevated)",
-                            color: "var(--text-secondary)",
-                            border: "1px solid var(--border-default)",
-                          }}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ROW 4: Screenshots full-width masonry */}
-          {screenshots.length > 0 && (
-            <div
-              className="rounded-[14px] p-5"
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border-subtle)",
-              }}
-            >
+        {/* Prose body */}
+        <div className="px-8 py-7 flex flex-col gap-10">
+          {/* Notes â€” largest, most prominent */}
+          {notes && (
+            <ProseSection title="Journal Entry">
               <p
                 style={{
-                  fontSize: "0.6rem",
-                  color: "var(--text-tertiary)",
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.18em",
-                  marginBottom: 14,
+                  fontSize: "0.95rem",
+                  color: "var(--text-primary)",
+                  lineHeight: 1.9,
+                  whiteSpace: "pre-wrap",
                 }}
               >
-                Chart Screenshots
+                {notes}
               </p>
+            </ProseSection>
+          )}
+
+          {exNotes && (
+            <ProseSection title="Execution Notes">
+              <p
+                style={{
+                  fontSize: "0.85rem",
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.85,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {exNotes}
+              </p>
+            </ProseSection>
+          )}
+
+          {obs && (
+            <ProseSection title="Market Context">
+              <p
+                style={{
+                  fontSize: "0.85rem",
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.85,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {obs}
+              </p>
+            </ProseSection>
+          )}
+
+          {feelings && (
+            <ProseSection title="Mental State">
+              <div className="flex flex-wrap gap-2">
+                {feelings
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .map((tag) => (
+                    <span
+                      key={tag}
+                      style={{
+                        fontSize: "0.72rem",
+                        padding: "5px 13px",
+                        borderRadius: 99,
+                        background: "var(--surface)",
+                        color: "var(--text-secondary)",
+                        border: "1px solid var(--border-subtle)",
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+              </div>
+            </ProseSection>
+          )}
+
+          {/* Screenshots at the bottom of prose */}
+          {screenshots.length > 0 && (
+            <ProseSection title="Chart Screenshots">
               <div
                 className="grid gap-3"
                 style={{
-                  gridTemplateColumns: `repeat(${Math.min(screenshots.length, 3)}, 1fr)`,
+                  gridTemplateColumns: `repeat(${Math.min(screenshots.length, 2)}, 1fr)`,
                 }}
               >
                 {screenshots.map((s, i) => {
@@ -1367,25 +1286,28 @@ function JournalEntryView({
                       href={url}
                       target="_blank"
                       rel="noreferrer"
-                      className="relative rounded-[10px] overflow-hidden aspect-video block group"
+                      className="relative group block overflow-hidden rounded-xl"
                       style={{
-                        background: "var(--surface-elevated)",
+                        aspectRatio: "16/9",
+                        background: "var(--surface)",
                         border: "1px solid var(--border-subtle)",
                       }}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={url}
-                        alt={`Chart ${i + 1}`}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        alt=""
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                       />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
                       {tf && (
                         <span
-                          className="absolute bottom-2 left-2 rounded-md px-2 py-0.5 font-bold"
+                          className="absolute bottom-2 left-2 text-white font-bold rounded"
                           style={{
-                            fontSize: "0.6rem",
-                            background: "rgba(0,0,0,0.75)",
-                            color: "#fff",
+                            fontSize: "0.58rem",
+                            padding: "2px 8px",
+                            background: "rgba(0,0,0,0.6)",
+                            backdropFilter: "blur(4px)",
                           }}
                         >
                           {tf}
@@ -1395,46 +1317,276 @@ function JournalEntryView({
                   );
                 })}
               </div>
+            </ProseSection>
+          )}
+        </div>
+      </div>
+
+      {/* â•â• RIGHT: Compact sidebar â•â• */}
+      <div
+        className="shrink-0 flex flex-col overflow-y-auto"
+        style={{
+          width: 300,
+          background: "var(--surface)",
+          borderLeft: "1px solid var(--border-subtle)",
+        }}
+      >
+        {/* Chart â€” compact, not dominant */}
+        <div
+          className="shrink-0"
+          style={{
+            height: 200,
+            background: "var(--surface-elevated)",
+            borderBottom: "1px solid var(--border-subtle)",
+          }}
+        >
+          <div
+            className="flex items-center justify-between px-3 py-2"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+          >
+            <span
+              style={{
+                fontSize: "0.6rem",
+                fontWeight: 700,
+                color: "var(--text-tertiary)",
+                letterSpacing: "0.08em",
+              }}
+            >
+              {trade.symbol} Â· 15M
+            </span>
+            <span
+              style={{
+                fontSize: "0.52rem",
+                color: "var(--text-tertiary)",
+                fontStyle: "italic",
+              }}
+            >
+              Simulated
+            </span>
+          </div>
+          <div style={{ height: 168 }}>
+            <CompactChart
+              candles={candles}
+              entryPrice={trade.entry_price}
+              exitPrice={trade.exit_price}
+              stopLoss={trade.stop_loss}
+              takeProfit={trade.take_profit}
+              direction={trade.direction}
+              entryTime={trade.entry_date ?? undefined}
+              exitTime={trade.exit_date ?? undefined}
+            />
+          </div>
+        </div>
+
+        {/* Trade stats */}
+        <div
+          className="px-4 py-1"
+          style={{ borderBottom: "1px solid var(--border-subtle)" }}
+        >
+          {trade.entry_price != null && (
+            <StatRow label="Entry" value={trade.entry_price} />
+          )}
+          {trade.exit_price != null && (
+            <StatRow label="Exit" value={trade.exit_price} />
+          )}
+          {trade.stop_loss != null && (
+            <StatRow
+              label="Stop Loss"
+              value={trade.stop_loss}
+              valueColor={LOSS}
+            />
+          )}
+          {trade.take_profit != null && (
+            <StatRow
+              label="Take Profit"
+              value={trade.take_profit}
+              valueColor={PROFIT}
+            />
+          )}
+          {trade.position_size != null && (
+            <StatRow label="Position Size" value={trade.position_size} />
+          )}
+          {trade.mae != null && (
+            <StatRow
+              label="MAE (drawdown)"
+              value={`${trade.mae}R`}
+              valueColor={LOSS}
+            />
+          )}
+          {trade.mfe != null && (
+            <StatRow
+              label="MFE (peak)"
+              value={`${trade.mfe}R`}
+              valueColor={PROFIT}
+            />
+          )}
+          {trade.conviction != null && (
+            <div
+              className="flex items-center justify-between py-2.5"
+              style={{ borderBottom: "1px solid var(--border-subtle)" }}
+            >
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  color: "var(--text-tertiary)",
+                  fontWeight: 500,
+                }}
+              >
+                Conviction
+              </span>
+              <div className="flex gap-0.5">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: 3,
+                      background:
+                        i <= (trade.conviction ?? 0)
+                          ? accent
+                          : "var(--surface-elevated)",
+                      border: `1px solid ${i <= (trade.conviction ?? 0) ? accent : "var(--border-subtle)"}`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {(trade.entry_rating || trade.exit_rating) && (
+            <div
+              className="flex items-center justify-between py-2.5"
+              style={{ borderBottom: "1px solid var(--border-subtle)" }}
+            >
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  color: "var(--text-tertiary)",
+                  fontWeight: 500,
+                }}
+              >
+                Quality
+              </span>
+              <div className="flex gap-1.5">
+                {trade.entry_rating && (
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      padding: "2px 7px",
+                      borderRadius: 4,
+                      background:
+                        trade.entry_rating === "Good"
+                          ? "var(--profit-bg)"
+                          : "var(--loss-bg)",
+                      color: trade.entry_rating === "Good" ? PROFIT : LOSS,
+                    }}
+                  >
+                    E: {trade.entry_rating}
+                  </span>
+                )}
+                {trade.exit_rating && (
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      padding: "2px 7px",
+                      borderRadius: 4,
+                      background:
+                        trade.exit_rating === "Good"
+                          ? "var(--profit-bg)"
+                          : "var(--loss-bg)",
+                      color: trade.exit_rating === "Good" ? PROFIT : LOSS,
+                    }}
+                  >
+                    X: {trade.exit_rating}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
-        {/* end BENTO GRID */}
+
+        {/* MTF Bias */}
+        {tfEntries.length > 0 && (
+          <div className="px-4 pt-4 pb-2">
+            <p
+              style={{
+                fontSize: "0.6rem",
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                color: "var(--text-tertiary)",
+                marginBottom: 10,
+              }}
+            >
+              Timeframe Bias
+            </p>
+            <div className="flex flex-col gap-0">
+              {tfEntries.map(([tf, v]) => {
+                const isBull = v.bias === "Bullish";
+                const isBear = v.bias === "Bearish";
+                return (
+                  <div
+                    key={tf}
+                    className="flex items-center gap-2 py-2"
+                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.6rem",
+                        fontWeight: 800,
+                        color: "var(--text-tertiary)",
+                        minWidth: 28,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      {tf}
+                    </span>
+                    <span
+                      className="flex-1 truncate"
+                      style={{
+                        fontSize: "0.62rem",
+                        color: "var(--text-tertiary)",
+                      }}
+                    >
+                      {v.notes ?? ""}
+                    </span>
+                    {v.bias && (
+                      <span
+                        style={{
+                          fontSize: "0.52rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          color: isBull
+                            ? PROFIT
+                            : isBear
+                              ? LOSS
+                              : "var(--text-tertiary)",
+                          background: isBull
+                            ? "var(--profit-bg)"
+                            : isBear
+                              ? "var(--loss-bg)"
+                              : "var(--surface-elevated)",
+                        }}
+                      >
+                        {v.bias}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
-      {/* end scrollable body */}
     </motion.div>
   );
 }
-
-// â”€â”€â”€ Horizontal metric cell (in the strip) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function MetricCell({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="flex flex-col items-center justify-center px-6 py-3 shrink-0"
-      style={{ borderRight: "1px solid var(--border-subtle)" }}
-    >
-      <span
-        style={{
-          fontSize: "0.52rem",
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.18em",
-          color: "var(--text-tertiary)",
-          marginBottom: 4,
-        }}
-      >
-        {label}
-      </span>
-      {children}
-    </div>
-  );
-}
-// â”€â”€â”€ Section wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Section({
   icon,
   title,
@@ -1489,7 +1641,7 @@ function QualityBadgeHero({
       className="text-[0.6rem] font-bold rounded-full px-2.5 py-1 uppercase tracking-wider text-white"
       style={{ background: alpha, border: "1px solid rgba(255,255,255,0.3)" }}
     >
-      {label} Â· {value}
+      {label} Â. {value}
     </span>
   );
 }
@@ -1498,11 +1650,18 @@ function QualityBadgeHero({
 export function JournalLibrary({
   trades,
   onEditTrade,
+  onEntryViewChange,
 }: {
   trades: JournalTrade[];
   onEditTrade: (trade: JournalTrade) => void;
+  onEntryViewChange?: (trade: JournalTrade | null) => void;
 }) {
   const [selectedEntry, setSelectedEntry] = useState<JournalTrade | null>(null);
+
+  const selectEntry = (trade: JournalTrade | null) => {
+    setSelectedEntry(trade);
+    onEntryViewChange?.(trade);
+  };
   const [search, setSearch] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState<"all" | "WIN" | "LOSS">(
     "all",
@@ -1538,10 +1697,10 @@ export function JournalLibrary({
     return (
       <JournalEntryView
         trade={selectedEntry}
-        onBack={() => setSelectedEntry(null)}
+        onBack={() => selectEntry(null)}
         onEdit={() => {
           onEditTrade(selectedEntry);
-          setSelectedEntry(null);
+          selectEntry(null);
         }}
       />
     );
@@ -1576,9 +1735,9 @@ export function JournalLibrary({
                 marginTop: 2,
               }}
             >
-              {stats.count} entries Â·{" "}
+              {stats.count} entries Â.{" "}
               {Math.round((stats.wins / Math.max(stats.count, 1)) * 100)}% win
-              rate Â·{" "}
+              rate Â.{" "}
               <span
                 style={{
                   color: stats.total >= 0 ? PROFIT : LOSS,
@@ -1670,7 +1829,7 @@ export function JournalLibrary({
                 >
                   <JournalCard
                     trade={trade}
-                    onClick={() => setSelectedEntry(trade)}
+                    onClick={() => selectEntry(trade)}
                   />
                 </motion.div>
               ))}

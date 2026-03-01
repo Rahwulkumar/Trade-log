@@ -930,6 +930,13 @@ export default function JournalPage() {
   // Page mode: "log" = write new entries | "library" = read saved entries
   const [pageMode, setPageMode] = useState<"log" | "library">("library");
 
+  // Track when a library entry is open (to morph the top bar)
+  const [entryTrade, setEntryTrade] = useState<{
+    symbol: string;
+    pnl?: number | null;
+    outcome: string;
+  } | null>(null);
+
   // Log-mode filters (only relevant in log mode)
   const [search, setSearch] = useState("");
   const [outcome, setOutcome] = useState("all");
@@ -955,7 +962,8 @@ export default function JournalPage() {
   const pendingTrades = useMemo(() => {
     return trades.filter((t) => {
       if (isJournaled(t)) return false;
-      if (search && !t.symbol.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search && !t.symbol.toLowerCase().includes(search.toLowerCase()))
+        return false;
       if (outcome !== "all" && getOutcome(t) !== outcome) return false;
       if (direction !== "all" && t.direction !== direction) return false;
       return true;
@@ -968,73 +976,192 @@ export default function JournalPage() {
     const total = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
     return {
       total,
-      winRate: closed.length ? Math.round((wins.length / closed.length) * 100) : 0,
+      winRate: closed.length
+        ? Math.round((wins.length / closed.length) * 100)
+        : 0,
       tradeCount: closed.length,
       openCount: pendingTrades.filter((t) => t.status === "open").length,
     };
   }, [pendingTrades]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-52px)] overflow-hidden" style={{ background: "var(--app-bg)" }}>
-
-      {/* === TOP BAR - Mode Switch === */}
+    <div
+      className="flex flex-col h-[calc(100vh-52px)] overflow-hidden"
+      style={{ background: "var(--app-bg)" }}
+    >
+      {/* === TOP BAR — morphs into breadcrumb when an entry is open === */}
       <div
         className="flex items-center justify-between px-5 py-2.5 shrink-0"
-        style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface)" }}
+        style={{
+          borderBottom: "1px solid var(--border-subtle)",
+          background: "var(--surface)",
+        }}
       >
-        <div className="flex items-center gap-2">
-          <BookOpen size={14} style={{ color: ACCENT }} />
-          <span className="font-bold" style={{ fontSize: "0.9rem", color: "var(--text-primary)" }}>
-            Journal
-          </span>
-        </div>
-
-        <div
-          className="flex rounded-[10px] overflow-hidden"
-          style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)", padding: 3 }}
-        >
-          {([
-            { id: "library" as const, label: "Journal Library", Icon: Library },
-            { id: "log"     as const, label: "Log a Trade",    Icon: PenLine },
-          ]).map(({ id, label, Icon }) => (
+        {entryTrade ? (
+          /* ── Entry breadcrumb mode ── */
+          <>
             <button
-              key={id}
-              onClick={() => { setPageMode(id); setSelectedTrade(null); }}
-              className="flex items-center gap-1.5 rounded-[7px] px-4 py-1.5 font-semibold transition-all"
+              onClick={() => setEntryTrade(null)}
+              className="flex items-center gap-1.5 transition-colors"
               style={{
+                color: "var(--text-tertiary)",
                 fontSize: "0.72rem",
-                background: pageMode === id ? "var(--surface)" : "transparent",
-                color: pageMode === id ? "var(--text-primary)" : "var(--text-tertiary)",
-                boxShadow: pageMode === id ? "var(--shadow-sm)" : "none",
+                fontWeight: 600,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = ACCENT)}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.color = "var(--text-tertiary)")
+              }
+            >
+              <ChevronLeft size={14} strokeWidth={2.5} />
+              Journal Library
+            </button>
+            <div
+              className="flex items-center gap-1.5"
+              style={{ fontSize: "0.65rem" }}
+            >
+              <span style={{ color: "var(--text-tertiary)" }}>
+                Journal Library
+              </span>
+              <span style={{ color: "var(--border-active)" }}>/</span>
+              <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                {entryTrade.symbol}
+              </span>
+              <span
+                className="rounded-full px-2 py-0.5 font-bold ml-1"
+                style={{
+                  fontSize: "0.55rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.12em",
+                  background:
+                    entryTrade.outcome === "WIN"
+                      ? "var(--profit-bg)"
+                      : entryTrade.outcome === "LOSS"
+                        ? "var(--loss-bg)"
+                        : "var(--surface-elevated)",
+                  color:
+                    entryTrade.outcome === "WIN"
+                      ? PROFIT
+                      : entryTrade.outcome === "LOSS"
+                        ? LOSS
+                        : "var(--text-secondary)",
+                }}
+              >
+                {entryTrade.outcome}
+              </span>
+              {entryTrade.pnl != null && (
+                <span
+                  style={{
+                    color: entryTrade.pnl >= 0 ? PROFIT : LOSS,
+                    fontWeight: 700,
+                    fontSize: "0.7rem",
+                  }}
+                >
+                  {entryTrade.pnl >= 0 ? "+" : ""}
+                  {entryTrade.pnl?.toFixed(2)}
+                </span>
+              )}
+            </div>
+            <div style={{ opacity: 0 }} className="w-24" />
+            {/* spacer */}
+          </>
+        ) : (
+          /* ── Normal mode switcher ── */
+          <>
+            <div className="flex items-center gap-2">
+              <BookOpen size={14} style={{ color: ACCENT }} />
+              <span
+                className="font-bold"
+                style={{ fontSize: "0.9rem", color: "var(--text-primary)" }}
+              >
+                Journal
+              </span>
+            </div>
+
+            <div
+              className="flex rounded-[10px] overflow-hidden"
+              style={{
+                background: "var(--surface-elevated)",
+                border: "1px solid var(--border-subtle)",
+                padding: 3,
               }}
             >
-              <Icon size={11} />
-              {label}
-            </button>
-          ))}
-        </div>
+              {[
+                {
+                  id: "library" as const,
+                  label: "Journal Library",
+                  Icon: Library,
+                },
+                { id: "log" as const, label: "Log a Trade", Icon: PenLine },
+              ].map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => {
+                    setPageMode(id);
+                    setSelectedTrade(null);
+                  }}
+                  className="flex items-center gap-1.5 rounded-[7px] px-4 py-1.5 font-semibold transition-all"
+                  style={{
+                    fontSize: "0.72rem",
+                    background:
+                      pageMode === id ? "var(--surface)" : "transparent",
+                    color:
+                      pageMode === id
+                        ? "var(--text-primary)"
+                        : "var(--text-tertiary)",
+                    boxShadow: pageMode === id ? "var(--shadow-sm)" : "none",
+                  }}
+                >
+                  <Icon size={11} />
+                  {label}
+                </button>
+              ))}
+            </div>
 
-        <Link
-          href="/trades?new=true"
-          className="flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 font-semibold transition-all"
-          style={{ background: ACCENT, color: "#051F20", fontSize: "0.72rem" }}
-        >
-          <Plus size={11} strokeWidth={2.5} />
-          New Trade
-        </Link>
+            <Link
+              href="/trades?new=true"
+              className="flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 font-semibold transition-all"
+              style={{
+                background: ACCENT,
+                color: "#051F20",
+                fontSize: "0.72rem",
+              }}
+            >
+              <Plus size={11} strokeWidth={2.5} />
+              New Trade
+            </Link>
+          </>
+        )}
       </div>
 
       {/* === BODY === */}
       <div className="flex-1 overflow-hidden flex">
-
         {/* LIBRARY MODE */}
         {pageMode === "library" && (
           <div className="flex-1 overflow-hidden">
             <JournalLibrary
               trades={trades}
+              onEntryViewChange={(trade) => {
+                if (trade) {
+                  const outcome =
+                    (trade.pnl ?? 0) > 0
+                      ? "WIN"
+                      : (trade.pnl ?? 0) < 0
+                        ? "LOSS"
+                        : "B/E";
+                  setEntryTrade({
+                    symbol: trade.symbol ?? "",
+                    pnl: trade.pnl,
+                    outcome,
+                  });
+                } else {
+                  setEntryTrade(null);
+                }
+              }}
               onEditTrade={(trade) => {
                 setPageMode("log");
                 setSelectedTrade(trade as unknown as Trade);
+                setEntryTrade(null);
               }}
             />
           </div>
@@ -1054,88 +1181,250 @@ export default function JournalPage() {
                 background: "var(--surface)",
               }}
             >
-              <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+              <div
+                className="flex items-center justify-between px-4 py-3 shrink-0"
+                style={{ borderBottom: "1px solid var(--border-subtle)" }}
+              >
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-bold" style={{ fontSize: "0.82rem", color: "var(--text-primary)" }}>Pending Trades</span>
-                  <span style={{ fontSize: "0.6rem", color: "var(--text-tertiary)" }}>{pendingTrades.length} un-journaled</span>
+                  <span
+                    className="font-bold"
+                    style={{
+                      fontSize: "0.82rem",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    Pending Trades
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.6rem",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    {pendingTrades.length} un-journaled
+                  </span>
                 </div>
-                <button onClick={load} className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors" style={{ color: "var(--text-tertiary)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                <button
+                  onClick={load}
+                  className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors"
+                  style={{ color: "var(--text-tertiary)" }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "var(--surface-hover)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
                 >
                   <RefreshCw size={11} strokeWidth={1.8} />
                 </button>
               </div>
 
-              <div className="flex gap-1.5 px-3 py-2 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                <StatPill label="P&L" value={fmtCurrency(stats.total)} color={stats.total >= 0 ? PROFIT : LOSS} />
-                <StatPill label="Win %" value={`${stats.winRate}%`} color={stats.winRate >= 50 ? PROFIT : LOSS} />
+              <div
+                className="flex gap-1.5 px-3 py-2 shrink-0"
+                style={{ borderBottom: "1px solid var(--border-subtle)" }}
+              >
+                <StatPill
+                  label="P&L"
+                  value={fmtCurrency(stats.total)}
+                  color={stats.total >= 0 ? PROFIT : LOSS}
+                />
+                <StatPill
+                  label="Win %"
+                  value={`${stats.winRate}%`}
+                  color={stats.winRate >= 50 ? PROFIT : LOSS}
+                />
                 <StatPill label="Trades" value={String(stats.tradeCount)} />
               </div>
 
               <div className="flex items-center gap-2 px-3 pt-2 pb-1.5 shrink-0">
-                <div className="flex items-center gap-1.5 flex-1 min-w-0 rounded-[7px] px-2.5" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
-                  <Search size={10} style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
-                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search symbol..." className="flex-1 min-w-0 bg-transparent outline-none py-1.5" style={{ fontSize: "0.73rem", color: "var(--text-primary)" }} />
-                  {search && <button onClick={() => setSearch("")} style={{ color: "var(--text-tertiary)", flexShrink: 0 }}><X size={9} /></button>}
+                <div
+                  className="flex items-center gap-1.5 flex-1 min-w-0 rounded-[7px] px-2.5"
+                  style={{
+                    background: "var(--surface-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <Search
+                    size={10}
+                    style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
+                  />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search symbol..."
+                    className="flex-1 min-w-0 bg-transparent outline-none py-1.5"
+                    style={{
+                      fontSize: "0.73rem",
+                      color: "var(--text-primary)",
+                    }}
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch("")}
+                      style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
+                    >
+                      <X size={9} />
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                <div className="flex rounded-[6px] overflow-hidden shrink-0" style={{ border: "1px solid var(--border-subtle)" }}>
+              <div
+                className="flex flex-wrap items-center gap-1.5 px-3 pb-2 shrink-0"
+                style={{ borderBottom: "1px solid var(--border-subtle)" }}
+              >
+                <div
+                  className="flex rounded-[6px] overflow-hidden shrink-0"
+                  style={{ border: "1px solid var(--border-subtle)" }}
+                >
                   {(["all", "WIN", "LOSS", "OPEN"] as const).map((val, i) => (
-                    <button key={val} onClick={() => setOutcome(val)} className="font-semibold transition-colors"
-                      style={{ fontSize: "0.62rem", padding: "4px 7px", background: outcome === val ? ACCENT + "22" : "var(--surface-elevated)", color: outcome === val ? ACCENT : "var(--text-tertiary)", borderRight: i < 3 ? "1px solid var(--border-subtle)" : undefined }}>
-                      {val === "all" ? "All" : val === "WIN" ? "W" : val === "LOSS" ? "L" : "O"}
+                    <button
+                      key={val}
+                      onClick={() => setOutcome(val)}
+                      className="font-semibold transition-colors"
+                      style={{
+                        fontSize: "0.62rem",
+                        padding: "4px 7px",
+                        background:
+                          outcome === val
+                            ? ACCENT + "22"
+                            : "var(--surface-elevated)",
+                        color:
+                          outcome === val ? ACCENT : "var(--text-tertiary)",
+                        borderRight:
+                          i < 3 ? "1px solid var(--border-subtle)" : undefined,
+                      }}
+                    >
+                      {val === "all"
+                        ? "All"
+                        : val === "WIN"
+                          ? "W"
+                          : val === "LOSS"
+                            ? "L"
+                            : "O"}
                     </button>
                   ))}
                 </div>
-                <div className="flex rounded-[6px] overflow-hidden shrink-0" style={{ border: "1px solid var(--border-subtle)" }}>
+                <div
+                  className="flex rounded-[6px] overflow-hidden shrink-0"
+                  style={{ border: "1px solid var(--border-subtle)" }}
+                >
                   {(["all", "LONG", "SHORT"] as const).map((val, i) => (
-                    <button key={val} onClick={() => setDirection(val)} className="font-semibold transition-colors"
-                      style={{ fontSize: "0.62rem", padding: "4px 7px", background: direction === val ? ACCENT + "22" : "var(--surface-elevated)", color: direction === val ? ACCENT : "var(--text-tertiary)", borderRight: i < 2 ? "1px solid var(--border-subtle)" : undefined }}>
+                    <button
+                      key={val}
+                      onClick={() => setDirection(val)}
+                      className="font-semibold transition-colors"
+                      style={{
+                        fontSize: "0.62rem",
+                        padding: "4px 7px",
+                        background:
+                          direction === val
+                            ? ACCENT + "22"
+                            : "var(--surface-elevated)",
+                        color:
+                          direction === val ? ACCENT : "var(--text-tertiary)",
+                        borderRight:
+                          i < 2 ? "1px solid var(--border-subtle)" : undefined,
+                      }}
+                    >
                       {val === "all" ? "All" : val === "LONG" ? "L" : "S"}
                     </button>
                   ))}
                 </div>
-                <span className="ml-auto shrink-0" style={{ fontSize: "0.6rem", color: "var(--text-tertiary)" }}>{pendingTrades.length}/{trades.length}</span>
+                <span
+                  className="ml-auto shrink-0"
+                  style={{ fontSize: "0.6rem", color: "var(--text-tertiary)" }}
+                >
+                  {pendingTrades.length}/{trades.length}
+                </span>
               </div>
 
               <div className="flex-1 overflow-y-auto px-2 py-1">
                 {loading ? (
-                  <div className="flex items-center justify-center h-32" style={{ color: "var(--text-tertiary)" }}>
+                  <div
+                    className="flex items-center justify-center h-32"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
                     <Activity size={20} style={{ opacity: 0.3 }} />
                   </div>
                 ) : pendingTrades.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-40 gap-3 px-4">
-                    <CheckCircle size={24} style={{ color: ACCENT, opacity: 0.5 }} />
-                    <p className="text-center" style={{ fontSize: "0.72rem", color: "var(--text-tertiary)", lineHeight: 1.5 }}>
-                      All trades journaled!<br />
-                      <span style={{ color: ACCENT, cursor: "pointer" }} onClick={() => setPageMode("library")}>View them in Library</span>
+                    <CheckCircle
+                      size={24}
+                      style={{ color: ACCENT, opacity: 0.5 }}
+                    />
+                    <p
+                      className="text-center"
+                      style={{
+                        fontSize: "0.72rem",
+                        color: "var(--text-tertiary)",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      All trades journaled!
+                      <br />
+                      <span
+                        style={{ color: ACCENT, cursor: "pointer" }}
+                        onClick={() => setPageMode("library")}
+                      >
+                        View them in Library
+                      </span>
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-0.5 py-1">
                     {pendingTrades.map((trade) => (
-                      <TradeRow key={trade.id} trade={trade} isSelected={selectedTrade?.id === trade.id} hasNote={false} onClick={() => setSelectedTrade(trade)} />
+                      <TradeRow
+                        key={trade.id}
+                        trade={trade}
+                        isSelected={selectedTrade?.id === trade.id}
+                        hasNote={false}
+                        onClick={() => setSelectedTrade(trade)}
+                      />
                     ))}
                   </div>
                 )}
               </div>
 
-              <div className="px-4 py-2 shrink-0 flex justify-between" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-                <span style={{ fontSize: "0.62rem", color: "var(--text-tertiary)" }}>
-                  {pendingTrades.length} pending Â· {trades.filter(isJournaled).length} journaled
+              <div
+                className="px-4 py-2 shrink-0 flex justify-between"
+                style={{ borderTop: "1px solid var(--border-subtle)" }}
+              >
+                <span
+                  style={{ fontSize: "0.62rem", color: "var(--text-tertiary)" }}
+                >
+                  {pendingTrades.length} pending Â·{" "}
+                  {trades.filter(isJournaled).length} journaled
                 </span>
-                {stats.openCount > 0 && <span style={{ fontSize: "0.62rem", color: ACCENT, fontWeight: 600 }}>{stats.openCount} open</span>}
+                {stats.openCount > 0 && (
+                  <span
+                    style={{
+                      fontSize: "0.62rem",
+                      color: ACCENT,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {stats.openCount} open
+                  </span>
+                )}
               </div>
             </aside>
 
             {/* RIGHT - Editor */}
-            <main className="flex-1 overflow-hidden" style={{ background: "var(--surface)" }}>
+            <main
+              className="flex-1 overflow-hidden"
+              style={{ background: "var(--surface)" }}
+            >
               <AnimatePresence mode="wait">
                 {selectedTrade ? (
-                  <motion.div key={"journal-" + selectedTrade.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full flex flex-col">
+                  <motion.div
+                    key={"journal-" + selectedTrade.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="h-full flex flex-col"
+                  >
                     <TradeJournal
                       trade={selectedTrade}
                       userId={user?.id}
@@ -1147,20 +1436,61 @@ export default function JournalPage() {
                     />
                   </motion.div>
                 ) : (
-                  <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full gap-5">
-                    <div className="flex items-center justify-center rounded-full" style={{ width: 72, height: 72, background: "rgba(44,194,153,0.08)", border: "1px solid rgba(44,194,153,0.15)" }}>
-                      <BookOpen size={28} style={{ color: ACCENT, opacity: 0.7 }} />
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex flex-col items-center justify-center h-full gap-5"
+                  >
+                    <div
+                      className="flex items-center justify-center rounded-full"
+                      style={{
+                        width: 72,
+                        height: 72,
+                        background: "rgba(44,194,153,0.08)",
+                        border: "1px solid rgba(44,194,153,0.15)",
+                      }}
+                    >
+                      <BookOpen
+                        size={28}
+                        style={{ color: ACCENT, opacity: 0.7 }}
+                      />
                     </div>
                     <div className="text-center max-w-sm">
-                      <p className="font-bold mb-1.5" style={{ fontSize: "1rem", color: "var(--text-primary)" }}>Select a trade to journal</p>
-                      <p style={{ fontSize: "0.78rem", color: "var(--text-tertiary)", lineHeight: 1.6 }}>
-                        Pick any pending trade from the left to write notes, track bias, rate execution, and reflect on your psychology.
+                      <p
+                        className="font-bold mb-1.5"
+                        style={{
+                          fontSize: "1rem",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        Select a trade to journal
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "0.78rem",
+                          color: "var(--text-tertiary)",
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        Pick any pending trade from the left to write notes,
+                        track bias, rate execution, and reflect on your
+                        psychology.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center justify-center gap-2 max-w-sm">
                       {TABS.map(({ id, label, Icon }) => (
-                        <span key={id} className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
-                          style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)", fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                        <span
+                          key={id}
+                          className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                          style={{
+                            background: "var(--surface-elevated)",
+                            border: "1px solid var(--border-subtle)",
+                            fontSize: "0.72rem",
+                            color: "var(--text-secondary)",
+                            fontWeight: 500,
+                          }}
+                        >
                           <Icon size={11} style={{ color: ACCENT }} />
                           {label}
                         </span>
