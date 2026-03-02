@@ -53,9 +53,9 @@ import { ConvictionStars } from "@/components/journal/conviction-stars";
 import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 
 // â”€â”€â”€ Color palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const PROFIT = "#0D9B6E"; // matches --profit-primary
-const LOSS = "#FF4455"; // matches --loss-primary
-const ACCENT = "#2CC299"; // matches --accent-secondary
+const PROFIT = "var(--profit-primary)";
+const LOSS = "var(--loss-primary)";
+const ACCENT = "var(--accent-primary)";
 
 // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function fmtCurrency(n: number | null | undefined) {
@@ -81,6 +81,39 @@ function getOutcome(trade: Trade): "WIN" | "LOSS" | "BE" | "OPEN" {
   if (pnl > 0.5) return "WIN";
   if (pnl < -0.5) return "LOSS";
   return "BE";
+}
+
+function toJournalTrade(t: Trade): JournalTrade {
+  const executionArrays = Array.isArray(t.execution_arrays)
+    ? t.execution_arrays.filter((v): v is string => typeof v === "string")
+    : [];
+
+  const screenshots = Array.isArray(t.screenshots)
+    ? t.screenshots.filter(
+        (v): v is string | { url: string; timeframe?: string } =>
+          typeof v === "string" ||
+          (typeof v === "object" &&
+            v !== null &&
+            "url" in v &&
+            typeof (v as { url?: unknown }).url === "string"),
+      )
+    : [];
+
+  const tfObservations =
+    t.tf_observations &&
+    typeof t.tf_observations === "object" &&
+    !Array.isArray(t.tf_observations)
+      ? (t.tf_observations as Record<string, { bias?: string; notes?: string }>)
+      : null;
+
+  return {
+    ...t,
+    direction: t.direction === "SHORT" ? "SHORT" : "LONG",
+    status: t.status === "open" ? "open" : "closed",
+    execution_arrays: executionArrays,
+    screenshots,
+    tf_observations: tfObservations,
+  };
 }
 
 /** Cast a Trade to EnrichedTrade for components that require it */
@@ -410,7 +443,7 @@ function FullscreenImage({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.9)" }}
+      style={{ background: "rgba(0,0,0,0.88)" }}
       onClick={onClose}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -423,7 +456,11 @@ function FullscreenImage({
       <button
         onClick={onClose}
         className="absolute top-4 right-4 rounded-full p-2"
-        style={{ background: "rgba(255,255,255,0.1)", color: "#fff" }}
+        style={{
+          background: "rgba(255,255,255,0.12)",
+          color: "var(--text-primary)",
+          border: "1px solid var(--border-default)",
+        }}
       >
         <X size={16} />
       </button>
@@ -647,14 +684,16 @@ function TradeJournal({
           <button
             onClick={handleSave}
             className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0"
-            style={{
-              background: ACCENT,
-              color: "#051F20",
-              fontSize: "0.72rem",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#3DD4AA")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = ACCENT)}
-          >
+              style={{
+                background: ACCENT,
+                color: "var(--text-inverse)",
+                fontSize: "0.72rem",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "var(--accent-secondary)")
+              }
+              onMouseLeave={(e) => (e.currentTarget.style.background = ACCENT)}
+            >
             <Save size={11} strokeWidth={2.2} />
             Save
           </button>
@@ -721,7 +760,7 @@ function TradeJournal({
                       lineHeight: 1.8,
                     }}
                     onFocus={(e) =>
-                      (e.target.style.borderColor = `rgba(44,194,153,0.35)`)
+                      (e.target.style.borderColor = "var(--border-active)")
                     }
                     onBlur={(e) =>
                       (e.target.style.borderColor = "var(--border-subtle)")
@@ -970,6 +1009,11 @@ export default function JournalPage() {
     });
   }, [trades, search, outcome, direction]);
 
+  const libraryTrades = useMemo(
+    () => trades.map((t) => toJournalTrade(t)),
+    [trades],
+  );
+
   const stats = useMemo(() => {
     const closed = pendingTrades.filter((t) => t.status === "closed");
     const wins = closed.filter((t) => (t.pnl ?? 0) > 0);
@@ -986,161 +1030,108 @@ export default function JournalPage() {
 
   return (
     <div
-      className="flex flex-col h-[calc(100vh-52px)] overflow-hidden"
+      className="journal-theme flex flex-col h-[calc(100vh-52px)] overflow-hidden"
       style={{ background: "var(--app-bg)" }}
     >
-      {/* === TOP BAR — morphs into breadcrumb when an entry is open === */}
-      <div
-        className="flex items-center justify-between px-5 py-2.5 shrink-0"
-        style={{
-          borderBottom: "1px solid var(--border-subtle)",
-          background: "var(--surface)",
-        }}
-      >
-        {entryTrade ? (
-          /* ── Entry breadcrumb mode ── */
-          <>
-            <button
-              onClick={() => setEntryTrade(null)}
-              className="flex items-center gap-1.5 transition-colors"
-              style={{
-                color: "var(--text-tertiary)",
-                fontSize: "0.72rem",
-                fontWeight: 600,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = ACCENT)}
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.color = "var(--text-tertiary)")
-              }
-            >
-              <ChevronLeft size={14} strokeWidth={2.5} />
-              Journal Library
-            </button>
-            <div
-              className="flex items-center gap-1.5"
-              style={{ fontSize: "0.65rem" }}
-            >
-              <span style={{ color: "var(--text-tertiary)" }}>
-                Journal Library
-              </span>
-              <span style={{ color: "var(--border-active)" }}>/</span>
-              <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-                {entryTrade.symbol}
-              </span>
-              <span
-                className="rounded-full px-2 py-0.5 font-bold ml-1"
-                style={{
-                  fontSize: "0.55rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  background:
-                    entryTrade.outcome === "WIN"
-                      ? "var(--profit-bg)"
-                      : entryTrade.outcome === "LOSS"
-                        ? "var(--loss-bg)"
-                        : "var(--surface-elevated)",
-                  color:
-                    entryTrade.outcome === "WIN"
-                      ? PROFIT
-                      : entryTrade.outcome === "LOSS"
-                        ? LOSS
-                        : "var(--text-secondary)",
-                }}
-              >
-                {entryTrade.outcome}
-              </span>
-              {entryTrade.pnl != null && (
-                <span
-                  style={{
-                    color: entryTrade.pnl >= 0 ? PROFIT : LOSS,
-                    fontWeight: 700,
-                    fontSize: "0.7rem",
-                  }}
-                >
-                  {entryTrade.pnl >= 0 ? "+" : ""}
-                  {entryTrade.pnl?.toFixed(2)}
-                </span>
-              )}
-            </div>
-            <div style={{ opacity: 0 }} className="w-24" />
-            {/* spacer */}
-          </>
-        ) : (
-          /* ── Normal mode switcher ── */
-          <>
-            <div className="flex items-center gap-2">
-              <BookOpen size={14} style={{ color: ACCENT }} />
-              <span
-                className="font-bold"
-                style={{ fontSize: "0.9rem", color: "var(--text-primary)" }}
-              >
-                Journal
-              </span>
-            </div>
-
-            <div
-              className="flex rounded-[10px] overflow-hidden"
-              style={{
-                background: "var(--surface-elevated)",
-                border: "1px solid var(--border-subtle)",
-                padding: 3,
-              }}
-            >
-              {[
-                {
-                  id: "library" as const,
-                  label: "Journal Library",
-                  Icon: Library,
-                },
-                { id: "log" as const, label: "Log a Trade", Icon: PenLine },
-              ].map(({ id, label, Icon }) => (
+      {/* Content floating card — same pattern as AppPanel on other pages */}
+      <div className="flex-1 min-h-0 overflow-hidden p-4" style={{ background: "var(--app-bg)" }}>
+        <div
+          className="flex flex-col h-full overflow-hidden"
+          style={{
+            background: "var(--surface)",
+            borderRadius: "var(--radius-lg)",
+            border: "1px solid var(--border-active)",
+            boxShadow: "var(--shadow-md), 0 0 20px var(--accent-glow)",
+          }}
+        >
+          {/* ── Card header: tabs + actions ── */}
+          <div
+            className="flex items-center justify-between px-5 shrink-0"
+            style={{ borderBottom: "1px solid var(--border-subtle)", minHeight: 44 }}
+          >
+            {entryTrade ? (
+              /* Breadcrumb mode */
+              <>
                 <button
-                  key={id}
-                  onClick={() => {
-                    setPageMode(id);
-                    setSelectedTrade(null);
-                  }}
-                  className="flex items-center gap-1.5 rounded-[7px] px-4 py-1.5 font-semibold transition-all"
-                  style={{
-                    fontSize: "0.72rem",
-                    background:
-                      pageMode === id ? "var(--surface)" : "transparent",
-                    color:
-                      pageMode === id
-                        ? "var(--text-primary)"
-                        : "var(--text-tertiary)",
-                    boxShadow: pageMode === id ? "var(--shadow-sm)" : "none",
-                  }}
+                  onClick={() => setEntryTrade(null)}
+                  className="flex items-center gap-1.5 transition-colors"
+                  style={{ color: "var(--text-tertiary)", fontSize: "0.72rem", fontWeight: 600 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = ACCENT)}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
                 >
-                  <Icon size={11} />
-                  {label}
+                  <ChevronLeft size={14} strokeWidth={2.5} />
+                  Journal Library
                 </button>
-              ))}
-            </div>
+                <div className="flex items-center gap-1.5" style={{ fontSize: "0.65rem" }}>
+                  <span style={{ color: "var(--text-tertiary)" }}>Journal Library</span>
+                  <span style={{ color: "var(--border-active)" }}>/</span>
+                  <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{entryTrade.symbol}</span>
+                  <span
+                    className="rounded-full px-2 py-0.5 font-bold ml-1"
+                    style={{
+                      fontSize: "0.55rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.12em",
+                      background: entryTrade.outcome === "WIN" ? "var(--profit-bg)" : entryTrade.outcome === "LOSS" ? "var(--loss-bg)" : "var(--surface-elevated)",
+                      color: entryTrade.outcome === "WIN" ? PROFIT : entryTrade.outcome === "LOSS" ? LOSS : "var(--text-secondary)",
+                    }}
+                  >
+                    {entryTrade.outcome}
+                  </span>
+                  {entryTrade.pnl != null && (
+                    <span style={{ color: entryTrade.pnl >= 0 ? PROFIT : LOSS, fontWeight: 700, fontSize: "0.7rem" }}>
+                      {entryTrade.pnl >= 0 ? "+" : ""}{entryTrade.pnl?.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                <div style={{ opacity: 0 }} className="w-24" />
+              </>
+            ) : (
+              /* Normal mode tabs */
+              <>
+                <div className="flex items-center gap-0 h-full">
+                  {[
+                    { id: "library" as const, label: "Journal Library", Icon: Library },
+                    { id: "log" as const, label: "Log a Trade", Icon: PenLine },
+                  ].map(({ id, label, Icon }) => {
+                    const isActive = pageMode === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => { setPageMode(id); setSelectedTrade(null); }}
+                        className="flex items-center gap-1.5 px-4 h-full transition-colors"
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: isActive ? 600 : 500,
+                          color: isActive ? "var(--text-primary)" : "var(--text-tertiary)",
+                          background: "transparent",
+                          borderBottom: isActive ? `2px solid ${ACCENT}` : "2px solid transparent",
+                        }}
+                      >
+                        <Icon size={11} />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Link
+                  href="/trades?new=true"
+                  className="flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 font-semibold transition-all"
+                  style={{ background: ACCENT, color: "#fff", fontSize: "0.72rem" }}
+                >
+                  <Plus size={11} strokeWidth={2.5} />
+                  New Trade
+                </Link>
+              </>
+            )}
+          </div>
 
-            <Link
-              href="/trades?new=true"
-              className="flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 font-semibold transition-all"
-              style={{
-                background: ACCENT,
-                color: "#051F20",
-                fontSize: "0.72rem",
-              }}
-            >
-              <Plus size={11} strokeWidth={2.5} />
-              New Trade
-            </Link>
-          </>
-        )}
-      </div>
-
-      {/* === BODY === */}
-      <div className="flex-1 overflow-hidden flex">
-        {/* LIBRARY MODE */}
+          {/* ── Card body ── */}
+          <div className="flex-1 min-h-0 overflow-hidden flex">
         {pageMode === "library" && (
           <div className="flex-1 overflow-hidden">
             <JournalLibrary
-              trades={trades}
+              trades={libraryTrades}
               onEntryViewChange={(trade) => {
                 if (trade) {
                   const outcome =
@@ -1447,8 +1438,8 @@ export default function JournalPage() {
                       style={{
                         width: 72,
                         height: 72,
-                        background: "rgba(44,194,153,0.08)",
-                        border: "1px solid rgba(44,194,153,0.15)",
+                        background: "var(--accent-soft)",
+                        border: "1px solid var(--border-active)",
                       }}
                     >
                       <BookOpen
@@ -1502,7 +1493,11 @@ export default function JournalPage() {
             </main>
           </>
         )}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
+

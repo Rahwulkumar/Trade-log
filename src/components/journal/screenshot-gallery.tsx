@@ -15,6 +15,7 @@ interface ScreenshotItem {
 }
 
 const ALL_TIMEFRAMES: Timeframe[] = ["4H", "1H", "15M", "Execution"];
+const ACCENT = "var(--accent-primary)";
 
 interface ScreenshotGalleryProps {
   screenshots: TradeScreenshot[];
@@ -79,8 +80,8 @@ function ScreenshotCard({
             style={{
               fontSize: "0.58rem",
               background: "rgba(0,0,0,0.6)",
-              color: "#2CC299",
-              border: "1px solid rgba(44,194,153,0.4)",
+              color: ACCENT,
+              border: "1px solid var(--border-active)",
             }}
           >
             {ss.timeframe}
@@ -93,7 +94,10 @@ function ScreenshotCard({
                 onDelete();
               }}
               className="flex h-5 w-5 items-center justify-center rounded-full"
-              style={{ background: "rgba(224,82,82,0.7)", color: "#fff" }}
+              style={{
+                background: "rgba(224,82,82,0.75)",
+                color: "var(--text-primary)",
+              }}
             >
               <X size={9} />
             </button>
@@ -118,8 +122,8 @@ function ScreenshotCard({
             onClick={onView}
             className="flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold"
             style={{
-              background: "rgba(44,194,153,0.8)",
-              color: "#051F20",
+              background: ACCENT,
+              color: "var(--text-inverse)",
               fontSize: "0.62rem",
             }}
           >
@@ -135,8 +139,8 @@ function ScreenshotCard({
         style={{
           fontSize: "0.58rem",
           background: "rgba(5,31,32,0.8)",
-          color: "#2CC299",
-          border: "1px solid rgba(44,194,153,0.3)",
+          color: ACCENT,
+          border: "1px solid var(--border-active)",
           opacity: hover ? 0 : 1,
           transition: "opacity 0.2s",
         }}
@@ -165,8 +169,8 @@ function UploadSlot({
         border: "1px dashed var(--border-default)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "rgba(44,194,153,0.4)";
-        e.currentTarget.style.background = "rgba(44,194,153,0.04)";
+        e.currentTarget.style.borderColor = "var(--border-active)";
+        e.currentTarget.style.background = "var(--accent-soft)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = "var(--border-default)";
@@ -252,11 +256,11 @@ export function ScreenshotGallery({
               style={{
                 fontSize: "0.65rem",
                 background: "var(--surface-elevated)",
-                color: "var(--accent-primary)",
+                color: ACCENT,
                 border: "1px solid var(--border-subtle)",
               }}
               onMouseEnter={(e) =>
-                (e.currentTarget.style.borderColor = "rgba(44,194,153,0.4)")
+                (e.currentTarget.style.borderColor = "var(--border-active)")
               }
               onMouseLeave={(e) =>
                 (e.currentTarget.style.borderColor = "var(--border-subtle)")

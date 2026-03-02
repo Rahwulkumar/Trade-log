@@ -100,7 +100,7 @@
 }
 
 /* ─── SIDEBAR DARK THEME OVERRIDE ────────────────────────────────────────── */
-/* Bangladesh Green dark palette — matches app's primary accent family        */
+/* Always dark bg — but accent matches content area per-mode for consistency  */
 .sidebar-theme {
   background-color: #051F20;
 
@@ -118,11 +118,21 @@
   --border-default:   rgba(218, 241, 222, 0.12);
   --border-active:    rgba(44, 194, 153, 0.35);
 
-  --accent-primary:   #2CC299;   /* Mountain Meadow — active accent */
-  --accent-soft:      rgba(44, 194, 153, 0.12);
-  --accent-glow:      rgba(44, 194, 153, 0.35);
+  /* Light-mode sidebar accent: matches :root --accent-primary (#03624C) */
+  --accent-primary:   #03624C;
+  --accent-secondary: #2CC299;
+  --accent-soft:      rgba(3, 98, 76, 0.18);
+  --accent-glow:      rgba(3, 98, 76, 0.35);
 
   color: var(--text-primary);
+}
+
+/* Dark-mode sidebar accent: matches html.dark --accent-primary (#10B981) */
+html.dark .sidebar-theme {
+  --accent-primary:   #10B981;
+  --accent-secondary: #34d399;
+  --accent-soft:      rgba(16, 185, 129, 0.18);
+  --accent-glow:      rgba(16, 185, 129, 0.35);
 }
 
 
@@ -173,6 +183,35 @@ html.dark {
 /* Badge profit/accent text in dark mode uses brighter green for contrast */
 html.dark .badge-profit { color: #10B981; }
 html.dark .badge-accent  { color: #10B981; }
+
+/* Journal page dark tuning: higher contrast copy + clearer panel separation */
+html.dark .journal-theme {
+  --app-bg: #0a1016;
+  --surface: #141b24;
+  --surface-elevated: #1c2532;
+  --surface-hover: #263243;
+  --surface-active: #303e52;
+
+  --text-primary: #f0f6fc;
+  --text-secondary: #b6c2ce;
+  --text-tertiary: #8a97a6;
+  --text-inverse: #0a1016;
+
+  --border-subtle: rgba(240, 246, 252, 0.1);
+  --border-default: rgba(240, 246, 252, 0.16);
+  --border-active: rgba(34, 197, 94, 0.42);
+
+  --accent-primary: #22c55e;
+  --accent-secondary: #34d399;
+  --accent-soft: rgba(34, 197, 94, 0.16);
+  --accent-muted: rgba(34, 197, 94, 0.22);
+  --accent-glow: rgba(34, 197, 94, 0.3);
+
+  --profit-primary: #4ade80;
+  --loss-primary: #fb7185;
+  --profit-bg: rgba(74, 222, 128, 0.14);
+  --loss-bg: rgba(251, 113, 133, 0.14);
+}
 
 /* ─────────────────────────────────────────────────────────────────────────────
    GLOBAL STYLES

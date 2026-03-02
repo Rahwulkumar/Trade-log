@@ -29,9 +29,9 @@ import {
 } from "lucide-react";
 
 // â”€â”€â”€ Colour helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const ACCENT = "#2CC299";
-const PROFIT = "#0D9B6E";
-const LOSS = "#FF4455";
+const ACCENT = "var(--accent-primary)";
+const PROFIT = "var(--profit-primary)";
+const LOSS = "var(--loss-primary)";
 
 // Define the base Trade type fields that JournalTrade will use, making them optional
 // This avoids requiring all fields from the original `Trade` type from `supabase/types`
@@ -52,7 +52,7 @@ export type JournalTrade = {
   take_profit?: number | null;
   prop_account_id?: string | null;
   playbook_id?: string | null;
-  created_at?: string;
+  created_at?: string | null;
   // Journal-specific fields
   notes?: string | null;
   feelings?: string | null;
@@ -103,18 +103,38 @@ function fmtDateShort(d: string | null | undefined) {
 }
 
 // â”€â”€â”€ Type used internally (Trade + journal fields) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-export function isJournaled(t: JournalTrade): boolean {
+type JournaledFields = {
+  notes?: string | null;
+  feelings?: string | null;
+  observations?: string | null;
+  execution_notes?: string | null;
+  conviction?: number | null;
+  setup_tags?: unknown;
+  mistake_tags?: unknown;
+  screenshots?: unknown;
+  execution_arrays?: unknown;
+  tf_observations?: unknown;
+};
+
+export function isJournaled(t: JournaledFields): boolean {
+  const hasItems = (v: unknown) => Array.isArray(v) && v.length > 0;
+  const hasTfObservations =
+    !!t.tf_observations &&
+    typeof t.tf_observations === "object" &&
+    !Array.isArray(t.tf_observations) &&
+    Object.keys(t.tf_observations as Record<string, unknown>).length > 0;
+
   return !!(
     t.notes ||
     t.feelings ||
     t.observations ||
     t.execution_notes ||
     t.conviction ||
-    t.setup_tags?.length ||
-    t.mistake_tags?.length ||
-    t.screenshots?.length ||
-    t.execution_arrays?.length ||
-    (t.tf_observations && Object.keys(t.tf_observations).length > 0)
+    hasItems(t.setup_tags) ||
+    hasItems(t.mistake_tags) ||
+    hasItems(t.screenshots) ||
+    hasItems(t.execution_arrays) ||
+    hasTfObservations
   );
 }
 
@@ -336,7 +356,7 @@ function QualityBadge({
       className="text-[0.58rem] font-bold rounded-full px-2 py-0.5 uppercase tracking-wider"
       style={{ background: bg, color }}
     >
-      {label} Â. {value}
+      {label} · {value}
     </span>
   );
 }
@@ -357,10 +377,10 @@ function JournalCard({
 
   // Gradient hero strip colours
   const stripGrad = isWin
-    ? "linear-gradient(120deg, #03624C 0%, #0D9B6E 50%, #2CC299 100%)"
+    ? "linear-gradient(135deg, var(--profit-primary) 0%, rgba(13,155,110,0.6) 100%)"
     : isLoss
-      ? "linear-gradient(120deg, #7a1020 0%, #FF4455 100%)"
-      : "linear-gradient(120deg, #1a1a2e 0%, #444 100%)";
+      ? "linear-gradient(135deg, var(--loss-primary) 0%, rgba(255,68,85,0.7) 100%)"
+      : "linear-gradient(135deg, var(--surface-active) 0%, var(--surface-elevated) 100%)";
 
   return (
     <motion.div
@@ -400,7 +420,7 @@ function JournalCard({
               className="font-bold uppercase tracking-widest text-white opacity-70"
               style={{ fontSize: "0.55rem" }}
             >
-              {trade.direction} Â. {fmtDateShort(trade.entry_date)}
+              {trade.direction} · {fmtDateShort(trade.entry_date)}
             </span>
           </div>
           <div className="flex flex-col items-end gap-1">
@@ -728,16 +748,16 @@ function CompactChart({
         fontSize: 10,
       },
       grid: {
-        vertLines: { color: "rgba(255,255,255,0.03)" },
-        horzLines: { color: "rgba(255,255,255,0.04)" },
+        vertLines: { color: get("--border-subtle", "rgba(255,255,255,0.06)") },
+        horzLines: { color: get("--border-subtle", "rgba(255,255,255,0.06)") },
       },
       crosshair: {
-        vertLine: { color: "rgba(255,255,255,0.15)", style: LineStyle.Dashed },
-        horzLine: { color: "rgba(255,255,255,0.15)", style: LineStyle.Dashed },
+        vertLine: { color: get("--border-active", "rgba(255,255,255,0.2)"), style: LineStyle.Dashed },
+        horzLine: { color: get("--border-active", "rgba(255,255,255,0.2)"), style: LineStyle.Dashed },
       },
-      rightPriceScale: { borderColor: "rgba(255,255,255,0.06)" },
+      rightPriceScale: { borderColor: get("--border-subtle", "rgba(255,255,255,0.06)") },
       timeScale: {
-        borderColor: "rgba(255,255,255,0.06)",
+        borderColor: get("--border-subtle", "rgba(255,255,255,0.06)"),
         timeVisible: true,
         secondsVisible: false,
       },
@@ -1342,7 +1362,7 @@ function JournalEntryView({
         >
           <div
             className="flex items-center justify-between px-3 py-2"
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+            style={{ borderBottom: "1px solid var(--border-subtle)" }}
           >
             <span
               style={{
@@ -1641,7 +1661,7 @@ function QualityBadgeHero({
       className="text-[0.6rem] font-bold rounded-full px-2.5 py-1 uppercase tracking-wider text-white"
       style={{ background: alpha, border: "1px solid rgba(255,255,255,0.3)" }}
     >
-      {label} Â. {value}
+      {label} · {value}
     </span>
   );
 }
@@ -1662,31 +1682,33 @@ export function JournalLibrary({
     setSelectedEntry(trade);
     onEntryViewChange?.(trade);
   };
-  const [search, setSearch] = useState("");
-  const [outcomeFilter, setOutcomeFilter] = useState<"all" | "WIN" | "LOSS">(
-    "all",
-  );
 
-  // Combine real journaled trades + dummy data for demo
-  const allEntries = useMemo(() => {
-    const real = trades.filter(isJournaled);
-    // Deduplicate by id â€” real trades take priority over demo
-    const realIds = new Set(real.map((t) => t.id));
-    const demos = DUMMY_JOURNAL_TRADES.filter((d) => !realIds.has(d.id));
-    return [...real, ...demos];
-  }, [trades]);
+  const [search, setSearch] = useState("");
+  const [outcomeFilter, setOutcomeFilter] = useState<"all" | "WIN" | "LOSS">("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // Only real journaled trades from DB — no demo data
+  const allEntries = useMemo(() => trades.filter(isJournaled), [trades]);
 
   const filtered = useMemo(() => {
     return allEntries.filter((t) => {
-      if (search && !t.symbol.toLowerCase().includes(search.toLowerCase()))
-        return false;
-      if (outcomeFilter !== "all" && getOutcome(t) !== outcomeFilter)
-        return false;
+      if (search && !(t.symbol ?? "").toLowerCase().includes(search.toLowerCase())) return false;
+      if (outcomeFilter !== "all" && getOutcome(t) !== outcomeFilter) return false;
+      if (dateFrom) {
+        const d = t.entry_date ? new Date(t.entry_date) : null;
+        if (!d || d < new Date(dateFrom)) return false;
+      }
+      if (dateTo) {
+        const d = t.entry_date ? new Date(t.entry_date) : null;
+        const end = new Date(dateTo); end.setHours(23, 59, 59, 999);
+        if (!d || d > end) return false;
+      }
       return true;
     });
-  }, [allEntries, search, outcomeFilter]);
+  }, [allEntries, search, outcomeFilter, dateFrom, dateTo]);
 
-  // Stats
+  // Stats based on all journaled entries (not filtered)
   const stats = useMemo(() => {
     const wins = allEntries.filter((t) => getOutcome(t) === "WIN").length;
     const total = allEntries.reduce((s, t) => s + (t.pnl ?? 0), 0);
@@ -1735,9 +1757,9 @@ export function JournalLibrary({
                 marginTop: 2,
               }}
             >
-              {stats.count} entries Â.{" "}
+              {stats.count} entries ·{" "}
               {Math.round((stats.wins / Math.max(stats.count, 1)) * 100)}% win
-              rate Â.{" "}
+              rate ·{" "}
               <span
                 style={{
                   color: stats.total >= 0 ? PROFIT : LOSS,
@@ -1763,9 +1785,14 @@ export function JournalLibrary({
                         ? PROFIT
                         : v === "LOSS"
                           ? LOSS
-                          : "var(--text-primary)"
+                          : "var(--accent-primary)"
                       : "var(--surface-elevated)",
-                  color: outcomeFilter === v ? "#fff" : "var(--text-tertiary)",
+                  color:
+                    outcomeFilter === v
+                      ? v === "all"
+                        ? "#fff"
+                        : "#fff"
+                      : "var(--text-tertiary)",
                   border: `1px solid ${outcomeFilter === v ? "transparent" : "var(--border-subtle)"}`,
                 }}
               >
@@ -1775,31 +1802,64 @@ export function JournalLibrary({
           </div>
         </div>
 
-        {/* Search */}
-        <div
-          className="flex items-center gap-2 rounded-[10px] px-3 py-2"
-          style={{
-            background: "var(--surface-elevated)",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
-          <Search
-            size={13}
-            style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by symbolâ€¦"
-            className="flex-1 bg-transparent outline-none"
-            style={{ fontSize: "0.78rem", color: "var(--text-primary)" }}
-          />
-          {search && (
+        {/* Search + Date filter row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div
+            className="flex flex-1 min-w-[160px] items-center gap-2 rounded-[10px] px-3 py-2"
+            style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}
+          >
+            <Search size={13} style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by symbol…"
+              className="flex-1 bg-transparent outline-none"
+              style={{ fontSize: "0.78rem", color: "var(--text-primary)" }}
+            />
+            {search && (
+              <button onClick={() => setSearch("")} style={{ color: "var(--text-tertiary)" }}>
+                <X size={11} />
+              </button>
+            )}
+          </div>
+
+          <div
+            className="flex items-center gap-1.5 rounded-[10px] px-3 py-2"
+            style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)", flexShrink: 0 }}
+          >
+            <Calendar size={12} style={{ color: "var(--text-tertiary)" }} />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="bg-transparent outline-none"
+              style={{ fontSize: "0.72rem", color: dateFrom ? "var(--text-primary)" : "var(--text-tertiary)", width: 110 }}
+            />
+          </div>
+
+          <span style={{ fontSize: "0.68rem", color: "var(--text-tertiary)", flexShrink: 0 }}>to</span>
+
+          <div
+            className="flex items-center gap-1.5 rounded-[10px] px-3 py-2"
+            style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)", flexShrink: 0 }}
+          >
+            <Calendar size={12} style={{ color: "var(--text-tertiary)" }} />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="bg-transparent outline-none"
+              style={{ fontSize: "0.72rem", color: dateTo ? "var(--text-primary)" : "var(--text-tertiary)", width: 110 }}
+            />
+          </div>
+
+          {(dateFrom || dateTo) && (
             <button
-              onClick={() => setSearch("")}
-              style={{ color: "var(--text-tertiary)" }}
+              onClick={() => { setDateFrom(""); setDateTo(""); }}
+              className="flex items-center gap-1 rounded-[8px] px-2.5 py-2"
+              style={{ fontSize: "0.65rem", color: "var(--text-tertiary)", background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}
             >
-              <X size={11} />
+              <X size={10} /> Clear
             </button>
           )}
         </div>
@@ -1840,3 +1900,6 @@ export function JournalLibrary({
     </div>
   );
 }
+
+
+
