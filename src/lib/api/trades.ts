@@ -15,6 +15,11 @@ export interface TradeFilters {
 export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
     const supabase = createClient()
 
+    // Check auth first — if no session, return empty rather than hitting Supabase
+    // and getting a network error (which would surface as "Failed to fetch")
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return []
+
     const buildQuery = (select: string) => {
         let q = supabase
             .from('trades')
@@ -35,19 +40,29 @@ export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
     const EXTENDED = 'id, symbol, direction, entry_price, exit_price, position_size, pnl, r_multiple, entry_date, exit_date, status, playbook_id, prop_account_id, stop_loss, take_profit, notes, feelings, observations, screenshots, tf_observations, setup_tags, mistake_tags, conviction, entry_rating, exit_rating, mae, mfe, execution_notes, execution_arrays, created_at'
     const CORE     = 'id, symbol, direction, entry_price, exit_price, position_size, pnl, r_multiple, entry_date, exit_date, status, playbook_id, prop_account_id, stop_loss, take_profit, notes, created_at'
 
-    const { data, error } = await buildQuery(EXTENDED)
+    try {
+        const { data, error } = await buildQuery(EXTENDED)
 
-    if (error) {
-        // Column doesn't exist in the live DB â€” fall back to core columns
-        if (error.code === '42703' || error.message.includes('does not exist')) {
-            const { data: fallback, error: fallbackError } = await buildQuery(CORE)
-            if (fallbackError) throw new Error(fallbackError.message)
-            return (fallback || []) as unknown as Trade[]
+        if (error) {
+            // Column doesn't exist in the live DB — fall back to core columns
+            if (error.code === '42703' || error.message.includes('does not exist')) {
+                const { data: fallback, error: fallbackError } = await buildQuery(CORE)
+                if (fallbackError) {
+                    console.warn('[getTrades] fallback query failed:', fallbackError.message)
+                    return []
+                }
+                return (fallback || []) as unknown as Trade[]
+            }
+            console.warn('[getTrades] query failed:', error.message)
+            return []
         }
-        throw new Error(error.message)
-    }
 
-    return (data || []) as unknown as Trade[]
+        return (data || []) as unknown as Trade[]
+    } catch (err) {
+        // Network-level errors (e.g. "Failed to fetch") — return empty gracefully
+        console.warn('[getTrades] network error:', err instanceof Error ? err.message : String(err))
+        return []
+    }
 }
 
 export async function getTrade(id: string): Promise<Trade | null> {

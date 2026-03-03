@@ -51,13 +51,13 @@
   --radius-xl: 16px;
 
   /* ── Canvas & surfaces ── */
-  --app-bg:           #FFFFFF;   /* Pure white content canvas */
+  --app-bg:           #F4F5F7;   /* Very light grey-white canvas — creates contrast with cards */
   --sidebar-bg:       #000000;
 
-  --surface:          #FFFFFF;   /* Pure white cards/panels */
-  --surface-elevated: #F7F7F8;   /* Very slightly lifted */
-  --surface-hover:    #F0F0F2;   /* Hover */
-  --surface-active:   #E8E8EA;   /* Pressed */
+  --surface:          #FFFFFF;   /* Pure white cards/panels — visible against bg */
+  --surface-elevated: #F0F1F3;   /* Slightly lifted */
+  --surface-hover:    #E8E9EC;   /* Hover */
+  --surface-active:   #DCDDE1;   /* Pressed */
 
   /* ── Text (On Light) ── */
   --text-primary:     #000000;   /* Pure black — maximum contrast */
@@ -65,10 +65,10 @@
   --text-tertiary:    #717171;   /* Mid grey — hints, labels */
   --text-inverse:     #FFFFFF;
 
-  /* ── Borders (Light) ── */
-  --border-subtle:    rgba(5, 31, 32, 0.06);
-  --border-default:   rgba(5, 31, 32, 0.10);
-  --border-active:    rgba(5, 31, 32, 0.18);
+  /* ── Borders (Light) — strong enough to see on white cards ── */
+  --border-subtle:    rgba(5, 31, 32, 0.10);   /* was 0.06 — now clearly visible */
+  --border-default:   rgba(5, 31, 32, 0.16);   /* was 0.10 — medium definition */
+  --border-active:    rgba(5, 31, 32, 0.28);   /* was 0.18 — accent hover/focus */
 
   /* ── Accents — Bangladesh Green (UI interactive only) ── */
   --accent-primary:   #03624C;   /* Bangladesh Green — buttons, focus, active nav */
@@ -609,10 +609,15 @@ html.dark .text-gradient {
   position: relative;
   border-radius: var(--radius-lg);
   background: var(--surface);
+  border: 1px solid var(--border-default);  /* visible solid border in light mode */
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.3s ease, transform 0.2s ease;
+  transition: box-shadow 0.3s ease, transform 0.2s ease, border-color 0.2s ease;
 }
-.glow-card::before {
+/* Dark mode: replace solid border with the CSS-mask gradient-border technique */
+html.dark .glow-card {
+  border: none;
+}
+html.dark .glow-card::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -626,8 +631,12 @@ html.dark .text-gradient {
   pointer-events: none;
 }
 .glow-card:hover {
+  border-color: var(--border-active);
   box-shadow: var(--shadow-md), 0 0 24px var(--accent-glow);
   transform: translateY(-1px);
+}
+html.dark .glow-card:hover {
+  border-color: transparent;  /* keep gradient border in dark mode on hover too */
 }
 
 /* ─── Verdict glow cards ─── */

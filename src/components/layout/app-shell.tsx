@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 
@@ -16,17 +16,28 @@ const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
  * Layout:
  *   mobile  (<md): sidebar hidden, full-width content, hamburger in header
  *   desktop (≥md): fixed sidebar (240px expanded / 60px collapsed), content offset
+ *
+ * SSR-SAFE: sidebarCollapsed always starts as `false` on both server and client.
+ * After hydration completes, a useEffect reads localStorage and applies the
+ * saved preference — this prevents the server/client HTML mismatch that caused
+ * the hydration warning.
  */
 export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
+  // Always start as false (matches server render). localStorage sync happens
+  // in useEffect after hydration — this is the standard SSR-safe pattern.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Sync from localStorage once after mount
+  useEffect(() => {
     try {
-      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+      if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true") {
+        setSidebarCollapsed(true);
+      }
     } catch {
-      return false;
+      // localStorage unavailable — keep default (expanded)
     }
-  });
+  }, []);
 
   const toggleCollapse = () => {
     setSidebarCollapsed((prev) => {
