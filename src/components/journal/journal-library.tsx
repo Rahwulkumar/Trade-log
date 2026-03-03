@@ -28,10 +28,38 @@ import {
   Layers,
 } from "lucide-react";
 
-// â”€â”€â”€ Colour helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const ACCENT = "var(--accent-primary)";
-const PROFIT = "var(--profit-primary)";
-const LOSS = "var(--loss-primary)";
+// -- Shared format helpers (Phase 3: deduplicated) --
+import {
+  fmtCurrency,
+  fmtR,
+  fmtDate,
+  fmtDateShort,
+  getOutcome,
+  PROFIT,
+  LOSS_COLOR as LOSS,
+  ACCENT,
+} from "@/components/journal/utils/format";
+
+// isJournaled — local check compatible with the loose JournalTrade type
+function isJournaled(t: JournalTrade): boolean {
+  const hasItems = (v: unknown) => Array.isArray(v) && v.length > 0;
+  const hasTfObs =
+    !!t.tf_observations &&
+    typeof t.tf_observations === "object" &&
+    Object.keys(t.tf_observations).length > 0;
+  return !!(
+    t.notes ||
+    t.feelings ||
+    t.observations ||
+    t.execution_notes ||
+    t.conviction ||
+    hasItems(t.setup_tags) ||
+    hasItems(t.mistake_tags) ||
+    hasItems(t.screenshots) ||
+    hasItems(t.execution_arrays) ||
+    hasTfObs
+  );
+}
 
 // Define the base Trade type fields that JournalTrade will use, making them optional
 // This avoids requiring all fields from the original `Trade` type from `supabase/types`
@@ -76,66 +104,6 @@ function getOutcome(t: JournalTrade) {
   if (p > 0.5) return "WIN";
   if (p < -0.5) return "LOSS";
   return "BE";
-}
-
-function fmtCurrency(n: number | null | undefined) {
-  if (n == null) return "â€”";
-  return (n >= 0 ? "+" : "") + "$" + Math.abs(n).toFixed(2);
-}
-function fmtR(n: number | null | undefined) {
-  if (n == null) return null;
-  return (n >= 0 ? "+" : "") + n.toFixed(2) + "R";
-}
-function fmtDate(d: string | null | undefined) {
-  if (!d) return "â€”";
-  return new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-function fmtDateShort(d: string | null | undefined) {
-  if (!d) return "â€”";
-  return new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-// â”€â”€â”€ Type used internally (Trade + journal fields) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-type JournaledFields = {
-  notes?: string | null;
-  feelings?: string | null;
-  observations?: string | null;
-  execution_notes?: string | null;
-  conviction?: number | null;
-  setup_tags?: unknown;
-  mistake_tags?: unknown;
-  screenshots?: unknown;
-  execution_arrays?: unknown;
-  tf_observations?: unknown;
-};
-
-export function isJournaled(t: JournaledFields): boolean {
-  const hasItems = (v: unknown) => Array.isArray(v) && v.length > 0;
-  const hasTfObservations =
-    !!t.tf_observations &&
-    typeof t.tf_observations === "object" &&
-    !Array.isArray(t.tf_observations) &&
-    Object.keys(t.tf_observations as Record<string, unknown>).length > 0;
-
-  return !!(
-    t.notes ||
-    t.feelings ||
-    t.observations ||
-    t.execution_notes ||
-    t.conviction ||
-    hasItems(t.setup_tags) ||
-    hasItems(t.mistake_tags) ||
-    hasItems(t.screenshots) ||
-    hasItems(t.execution_arrays) ||
-    hasTfObservations
-  );
 }
 
 // â”€â”€â”€ Dummy data for UI demo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -752,10 +720,18 @@ function CompactChart({
         horzLines: { color: get("--border-subtle", "rgba(255,255,255,0.06)") },
       },
       crosshair: {
-        vertLine: { color: get("--border-active", "rgba(255,255,255,0.2)"), style: LineStyle.Dashed },
-        horzLine: { color: get("--border-active", "rgba(255,255,255,0.2)"), style: LineStyle.Dashed },
+        vertLine: {
+          color: get("--border-active", "rgba(255,255,255,0.2)"),
+          style: LineStyle.Dashed,
+        },
+        horzLine: {
+          color: get("--border-active", "rgba(255,255,255,0.2)"),
+          style: LineStyle.Dashed,
+        },
       },
-      rightPriceScale: { borderColor: get("--border-subtle", "rgba(255,255,255,0.06)") },
+      rightPriceScale: {
+        borderColor: get("--border-subtle", "rgba(255,255,255,0.06)"),
+      },
       timeScale: {
         borderColor: get("--border-subtle", "rgba(255,255,255,0.06)"),
         timeVisible: true,
@@ -1684,7 +1660,9 @@ export function JournalLibrary({
   };
 
   const [search, setSearch] = useState("");
-  const [outcomeFilter, setOutcomeFilter] = useState<"all" | "WIN" | "LOSS">("all");
+  const [outcomeFilter, setOutcomeFilter] = useState<"all" | "WIN" | "LOSS">(
+    "all",
+  );
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -1693,15 +1671,21 @@ export function JournalLibrary({
 
   const filtered = useMemo(() => {
     return allEntries.filter((t) => {
-      if (search && !(t.symbol ?? "").toLowerCase().includes(search.toLowerCase())) return false;
-      if (outcomeFilter !== "all" && getOutcome(t) !== outcomeFilter) return false;
+      if (
+        search &&
+        !(t.symbol ?? "").toLowerCase().includes(search.toLowerCase())
+      )
+        return false;
+      if (outcomeFilter !== "all" && getOutcome(t) !== outcomeFilter)
+        return false;
       if (dateFrom) {
         const d = t.entry_date ? new Date(t.entry_date) : null;
         if (!d || d < new Date(dateFrom)) return false;
       }
       if (dateTo) {
         const d = t.entry_date ? new Date(t.entry_date) : null;
-        const end = new Date(dateTo); end.setHours(23, 59, 59, 999);
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
         if (!d || d > end) return false;
       }
       return true;
@@ -1806,9 +1790,15 @@ export function JournalLibrary({
         <div className="flex items-center gap-2 flex-wrap">
           <div
             className="flex flex-1 min-w-[160px] items-center gap-2 rounded-[10px] px-3 py-2"
-            style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}
+            style={{
+              background: "var(--surface-elevated)",
+              border: "1px solid var(--border-subtle)",
+            }}
           >
-            <Search size={13} style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
+            <Search
+              size={13}
+              style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
+            />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1817,7 +1807,10 @@ export function JournalLibrary({
               style={{ fontSize: "0.78rem", color: "var(--text-primary)" }}
             />
             {search && (
-              <button onClick={() => setSearch("")} style={{ color: "var(--text-tertiary)" }}>
+              <button
+                onClick={() => setSearch("")}
+                style={{ color: "var(--text-tertiary)" }}
+              >
                 <X size={11} />
               </button>
             )}
@@ -1825,7 +1818,11 @@ export function JournalLibrary({
 
           <div
             className="flex items-center gap-1.5 rounded-[10px] px-3 py-2"
-            style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)", flexShrink: 0 }}
+            style={{
+              background: "var(--surface-elevated)",
+              border: "1px solid var(--border-subtle)",
+              flexShrink: 0,
+            }}
           >
             <Calendar size={12} style={{ color: "var(--text-tertiary)" }} />
             <input
@@ -1833,15 +1830,33 @@ export function JournalLibrary({
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               className="bg-transparent outline-none"
-              style={{ fontSize: "0.72rem", color: dateFrom ? "var(--text-primary)" : "var(--text-tertiary)", width: 110 }}
+              style={{
+                fontSize: "0.72rem",
+                color: dateFrom
+                  ? "var(--text-primary)"
+                  : "var(--text-tertiary)",
+                width: 110,
+              }}
             />
           </div>
 
-          <span style={{ fontSize: "0.68rem", color: "var(--text-tertiary)", flexShrink: 0 }}>to</span>
+          <span
+            style={{
+              fontSize: "0.68rem",
+              color: "var(--text-tertiary)",
+              flexShrink: 0,
+            }}
+          >
+            to
+          </span>
 
           <div
             className="flex items-center gap-1.5 rounded-[10px] px-3 py-2"
-            style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)", flexShrink: 0 }}
+            style={{
+              background: "var(--surface-elevated)",
+              border: "1px solid var(--border-subtle)",
+              flexShrink: 0,
+            }}
           >
             <Calendar size={12} style={{ color: "var(--text-tertiary)" }} />
             <input
@@ -1849,15 +1864,27 @@ export function JournalLibrary({
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               className="bg-transparent outline-none"
-              style={{ fontSize: "0.72rem", color: dateTo ? "var(--text-primary)" : "var(--text-tertiary)", width: 110 }}
+              style={{
+                fontSize: "0.72rem",
+                color: dateTo ? "var(--text-primary)" : "var(--text-tertiary)",
+                width: 110,
+              }}
             />
           </div>
 
           {(dateFrom || dateTo) && (
             <button
-              onClick={() => { setDateFrom(""); setDateTo(""); }}
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
               className="flex items-center gap-1 rounded-[8px] px-2.5 py-2"
-              style={{ fontSize: "0.65rem", color: "var(--text-tertiary)", background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}
+              style={{
+                fontSize: "0.65rem",
+                color: "var(--text-tertiary)",
+                background: "var(--surface-elevated)",
+                border: "1px solid var(--border-subtle)",
+              }}
             >
               <X size={10} /> Clear
             </button>
@@ -1900,6 +1927,3 @@ export function JournalLibrary({
     </div>
   );
 }
-
-
-

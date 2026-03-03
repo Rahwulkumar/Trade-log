@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -11,28 +11,20 @@ import {
   Activity,
   BookOpen,
   BarChart2,
-  ArrowUpRight,
-  ArrowDownRight,
   Save,
   CheckCircle,
   Brain,
   ChevronLeft,
-  Edit3,
-  Tag,
-  Camera,
   Zap,
-  Heart,
   Layers,
   PenLine,
   Library,
 } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { getTrades } from "@/lib/api/trades";
-import { uploadTradeScreenshot } from "@/lib/api/storage";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
-import type { Trade, TradeScreenshot } from "@/lib/supabase/types";
+import type { Trade } from "@/lib/supabase/types";
 import type { EnrichedTrade } from "@/domain/trade-types";
 
 // -- Domain types & mapper (Phase 1: single source of truth) --
@@ -40,10 +32,10 @@ import type { JournalEntryDraft, JournalTab } from "@/domain/journal-types";
 import {
   mapTradeToViewModel,
   viewModelToDraft,
-  mapDraftToTradeUpdate,
   isRawTradeJournaled,
   toSupabaseScreenshot,
 } from "@/domain/journal-mapper";
+import { useJournalAutosave } from "@/hooks/use-journal-autosave";
 
 // -- Shared format helpers (deduplicated) --
 import {
@@ -107,192 +99,18 @@ function toEnriched(t: Trade): EnrichedTrade {
   } as EnrichedTrade;
 }
 
-// â”€â”€ Section label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function SecLabel({ label }: { label: string }) {
-  return (
-    <span
-      style={{
-        fontSize: "0.6rem",
-        color: "var(--text-tertiary)",
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: "0.15em",
-      }}
-    >
-      {label}
-    </span>
-  );
-}
+// -- Extracted UI components (Phase 3) --
+import {
+  SecLabel,
+  OutcomeBadge,
+  DirectionBadge,
+  StatPill,
+} from "@/components/journal/journal-ui-atoms";
+import { TradeRow } from "@/components/journal/trade-row";
+import { FullscreenImage } from "@/components/journal/fullscreen-image";
+import { useScreenshotUpload } from "@/hooks/use-screenshot-upload";
 
-// â”€â”€ Outcome badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function OutcomeBadge({
-  outcome,
-}: {
-  outcome: "WIN" | "LOSS" | "BE" | "OPEN";
-}) {
-  const map = {
-    WIN: { bg: "rgba(13,155,110,0.15)", color: PROFIT },
-    LOSS: { bg: "rgba(224,82,82,0.15)", color: LOSS },
-    BE: { bg: "rgba(142,182,155,0.12)", color: "#8EB69B" },
-    OPEN: { bg: "rgba(44,194,153,0.12)", color: ACCENT },
-  };
-  const s = map[outcome];
-  return (
-    <span
-      className="text-[0.58rem] font-bold rounded px-1.5 py-0.5 uppercase tracking-wider"
-      style={{ background: s.bg, color: s.color }}
-    >
-      {outcome}
-    </span>
-  );
-}
-
-// â”€â”€ Direction badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function DirectionBadge({ d }: { d: "LONG" | "SHORT" }) {
-  return d === "LONG" ? (
-    <span
-      className="flex items-center gap-0.5 text-[0.58rem] font-bold"
-      style={{ color: PROFIT }}
-    >
-      <ArrowUpRight size={10} />
-      LONG
-    </span>
-  ) : (
-    <span
-      className="flex items-center gap-0.5 text-[0.58rem] font-bold"
-      style={{ color: LOSS }}
-    >
-      <ArrowDownRight size={10} />
-      SHORT
-    </span>
-  );
-}
-
-// â”€â”€ Stat pill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function StatPill({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string;
-  color?: string;
-}) {
-  return (
-    <div
-      className="flex flex-col gap-0.5 rounded-[8px] px-3 py-2"
-      style={{
-        background: "var(--surface-elevated)",
-        border: "1px solid var(--border-subtle)",
-        flex: 1,
-        minWidth: 0,
-      }}
-    >
-      <span
-        style={{
-          fontSize: "0.5rem",
-          color: "var(--text-tertiary)",
-          textTransform: "uppercase",
-          letterSpacing: "0.14em",
-          fontWeight: 700,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {label}
-      </span>
-      <span
-        className="font-bold tabular-nums truncate"
-        style={{ fontSize: "0.85rem", color: color ?? "var(--text-primary)" }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-// â”€â”€ Trade row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function TradeRow({
-  trade,
-  isSelected,
-  hasNote,
-  onClick,
-}: {
-  trade: Trade;
-  isSelected: boolean;
-  hasNote: boolean;
-  onClick: () => void;
-}) {
-  const pnl = trade.pnl ?? 0;
-  return (
-    <button
-      onClick={onClick}
-      className="w-full text-left transition-all duration-150 rounded-[8px]"
-      style={{
-        padding: "10px 12px",
-        background: isSelected ? "var(--surface-active)" : "transparent",
-        borderLeft: isSelected
-          ? `3px solid ${ACCENT}`
-          : "3px solid transparent",
-      }}
-      onMouseEnter={(e) => {
-        if (!isSelected)
-          e.currentTarget.style.background = "var(--surface-hover)";
-      }}
-      onMouseLeave={(e) => {
-        if (!isSelected) e.currentTarget.style.background = "transparent";
-      }}
-    >
-      <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-2">
-          <span
-            className="font-bold tracking-tight"
-            style={{
-              fontSize: "0.88rem",
-              color: isSelected ? ACCENT : "var(--text-primary)",
-            }}
-          >
-            {trade.symbol}
-          </span>
-          <DirectionBadge d={trade.direction as "LONG" | "SHORT"} />
-          <OutcomeBadge outcome={getOutcome(trade.status, trade.pnl)} />
-          {hasNote && (
-            <FileText size={9} style={{ color: ACCENT, opacity: 0.7 }} />
-          )}
-        </div>
-        <span
-          className="font-semibold tabular-nums"
-          style={{
-            fontSize: "0.82rem",
-            color: pnl > 0 ? PROFIT : pnl < 0 ? LOSS : "var(--text-tertiary)",
-          }}
-        >
-          {fmtCurrency(trade.pnl)}
-        </span>
-      </div>
-      <div className="flex items-center justify-between">
-        <span style={{ fontSize: "0.65rem", color: "var(--text-tertiary)" }}>
-          {fmtDate(trade.entry_date)}
-        </span>
-        {trade.r_multiple != null && (
-          <span
-            className="font-mono"
-            style={{
-              fontSize: "0.65rem",
-              color: trade.r_multiple >= 0 ? PROFIT : LOSS,
-              fontWeight: 600,
-            }}
-          >
-            {fmtR(trade.r_multiple)}
-          </span>
-        )}
-      </div>
-    </button>
-  );
-}
-
-// â”€â”€â”€ Journal tab types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// JournalTab type imported from @/domain/journal-types
-
+// ── Journal tab configuration ───────────────────────────────────────────────
 const TABS: { id: JournalTab; label: string; Icon: React.ElementType }[] = [
   { id: "notes", label: "Notes", Icon: FileText },
   { id: "bias", label: "Bias", Icon: BarChart2 },
@@ -300,112 +118,6 @@ const TABS: { id: JournalTab; label: string; Icon: React.ElementType }[] = [
   { id: "execution", label: "Execution", Icon: Zap },
   { id: "psychology", label: "Psychology", Icon: Brain },
 ];
-
-// â”€â”€â”€ TradeState: all mutable journal fields for one trade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// TradeJournalState replaced by JournalEntryDraft from @/domain/journal-types
-
-// defaultState replaced by viewModelToDraft(mapTradeToViewModel(trade))
-
-// â”€â”€â”€ Screenshot uploader (hidden file input) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function useScreenshotUpload(
-  tradeId: string,
-  userId: string | undefined,
-  onUploaded: (ss: import("@/domain/journal-types").JournalScreenshot) => void,
-) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [pendingTf, setPendingTf] = useState<string>("Execution");
-
-  const trigger = (timeframe: string) => {
-    setPendingTf(timeframe);
-    inputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !userId) return;
-    setUploading(true);
-    try {
-      const supabase = createClient();
-      const path = await uploadTradeScreenshot(file, userId);
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("trade-screenshots").getPublicUrl(path);
-      const newScreenshot: import("@/domain/journal-types").JournalScreenshot =
-        {
-          id: `temp-${Date.now()}`,
-          tradeId,
-          url: publicUrl,
-          timeframe: pendingTf,
-          createdAt: new Date().toISOString(),
-        };
-      onUploaded(newScreenshot);
-    } catch (err) {
-      console.error("[Screenshot upload]", err);
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
-  };
-
-  const inputEl = (
-    <input
-      ref={inputRef}
-      type="file"
-      accept="image/*"
-      className="hidden"
-      onChange={handleFileChange}
-    />
-  );
-
-  return { trigger, uploading, inputEl };
-}
-
-// â”€â”€â”€ Fullscreen image overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function FullscreenImage({
-  url,
-  onClose,
-}: {
-  url: string;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.88)" }}
-      onClick={onClose}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt="Screenshot"
-        className="max-w-[90vw] max-h-[90vh] rounded-[10px] object-contain"
-        onClick={(e) => e.stopPropagation()}
-      />
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 rounded-full p-2"
-        style={{
-          background: "rgba(255,255,255,0.12)",
-          color: "var(--text-primary)",
-          border: "1px solid var(--border-default)",
-        }}
-      >
-        <X size={16} />
-      </button>
-    </motion.div>
-  );
-}
 
 // â”€â”€â”€ The journaling workspace for a selected trade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function TradeJournal({
@@ -422,22 +134,26 @@ function TradeJournal({
   const [state, setState] = useState<JournalEntryDraft>(() =>
     viewModelToDraft(mapTradeToViewModel(trade)),
   );
+  const [initialDraft] = useState<JournalEntryDraft>(() =>
+    viewModelToDraft(mapTradeToViewModel(trade)),
+  );
   const [activeTab, setActiveTab] = useState<JournalTab>("notes");
-  const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
-  const dirty = useRef(false);
 
-  // Reset when trade changes
-  useEffect(() => {
-    setState(viewModelToDraft(mapTradeToViewModel(trade)));
-    dirty.current = false;
-    setSavedAt(null);
-  }, [trade.id]);
+  // Autosave hook (replaces inline handleSave + useEffect)
+  const {
+    saving,
+    savedAt,
+    save: handleSave,
+  } = useJournalAutosave({
+    draft: state,
+    initialDraft,
+    tradeId: trade.id,
+    onSaved,
+  });
 
   const update = (patch: Partial<JournalEntryDraft>) => {
     setState((prev) => ({ ...prev, ...patch }));
-    dirty.current = true;
   };
 
   // Enrich for BiasWidget â€” cast tf_observations through unknown to satisfy Json
@@ -485,58 +201,6 @@ function TradeJournal({
     },
     [state.screenshots],
   );
-
-  // Save to Supabase
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("trades")
-        .update({
-          // Core columns (always exist)
-          notes: state.notes || null,
-          feelings: state.feelings || null,
-          observations: state.observations || null,
-          screenshots: state.screenshots.length ? state.screenshots : null,
-          // Journal v2 columns (added by migration 20260227000000_journal_missing_columns)
-          tf_observations: Object.keys(state.tfObservations).length
-            ? state.tfObservations
-            : null,
-          setup_tags: state.setupTags.length ? state.setupTags : null,
-          mistake_tags: state.mistakeTags.length ? state.mistakeTags : null,
-          conviction: state.conviction,
-          entry_rating: state.entryRating,
-          exit_rating: state.exitRating,
-          mae: state.mae,
-          mfe: state.mfe,
-          execution_notes: state.executionNotes || null,
-          execution_arrays: state.executionArrays.length
-            ? state.executionArrays
-            : null,
-        })
-        .eq("id", trade.id);
-
-      if (error) {
-        console.error("[Journal save error]", error.message, error.details);
-        return;
-      }
-      dirty.current = false;
-      setSavedAt(new Date());
-      onSaved();
-    } catch (e) {
-      console.error("[Journal save]", e);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Auto-save after 2.5 s of inactivity
-  useEffect(() => {
-    if (!dirty.current) return;
-    const t = setTimeout(handleSave, 2500);
-    return () => clearTimeout(t);
-  }, [state]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
