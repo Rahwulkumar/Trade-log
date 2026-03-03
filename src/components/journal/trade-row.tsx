@@ -31,20 +31,13 @@ export function TradeRow({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left transition-all duration-150 rounded-[8px]"
+      className="w-full text-left transition-all duration-150 rounded-[8px] jnl-hover-surface"
       style={{
         padding: "10px 12px",
         background: isSelected ? "var(--surface-active)" : "transparent",
         borderLeft: isSelected
           ? `3px solid ${ACCENT}`
           : "3px solid transparent",
-      }}
-      onMouseEnter={(e) => {
-        if (!isSelected)
-          e.currentTarget.style.background = "var(--surface-hover)";
-      }}
-      onMouseLeave={(e) => {
-        if (!isSelected) e.currentTarget.style.background = "transparent";
       }}
     >
       <div className="flex items-center justify-between mb-1">

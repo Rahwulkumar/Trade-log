@@ -273,17 +273,13 @@ function TradeJournal({
           {onBackToView && (
             <button
               onClick={onBackToView}
-              className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0"
+              className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0 jnl-hover-border"
               style={{
                 background: "var(--surface-elevated)",
                 border: "1px solid var(--border-default)",
                 color: "var(--text-secondary)",
                 fontSize: "0.72rem",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = ACCENT)}
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.borderColor = "var(--border-default)")
-              }
             >
               <ChevronLeft size={11} strokeWidth={2.2} />
               View
@@ -291,16 +287,12 @@ function TradeJournal({
           )}
           <button
             onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0"
+            className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0 jnl-hover-accent-bg"
             style={{
               background: ACCENT,
               color: "var(--text-inverse)",
               fontSize: "0.72rem",
             }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "var(--accent-secondary)")
-            }
-            onMouseLeave={(e) => (e.currentTarget.style.background = ACCENT)}
           >
             <Save size={11} strokeWidth={2.2} />
             Save
@@ -671,16 +663,12 @@ export default function JournalPage() {
               <>
                 <button
                   onClick={() => setEntryTrade(null)}
-                  className="flex items-center gap-1.5 transition-colors"
+                  className="flex items-center gap-1.5 transition-colors jnl-hover-text-accent"
                   style={{
                     color: "var(--text-tertiary)",
                     fontSize: "0.72rem",
                     fontWeight: 600,
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = ACCENT)}
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.color = "var(--text-tertiary)")
-                  }
                 >
                   <ChevronLeft size={14} strokeWidth={2.5} />
                   Journal Library
@@ -861,15 +849,8 @@ export default function JournalPage() {
                     </div>
                     <button
                       onClick={load}
-                      className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors"
+                      className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors jnl-hover-surface"
                       style={{ color: "var(--text-tertiary)" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background =
-                          "var(--surface-hover)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
                     >
                       <RefreshCw size={11} strokeWidth={1.8} />
                     </button>

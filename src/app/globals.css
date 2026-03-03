@@ -829,3 +829,54 @@ html.dark .impact-medium { color: #f59e0b; }
   background-size: 200px 8px;
   padding-bottom: 6px;
 }
+
+/* ─── Journal hover utilities (Phase 4: replace onMouseEnter/Leave DOM mutations) ─── */
+
+/* Border flips to accent on hover (e.g. "View" / "Back" buttons) */
+.jnl-hover-border {
+  transition: border-color 150ms ease;
+}
+.jnl-hover-border:hover {
+  border-color: var(--accent-primary) !important;
+}
+
+/* Background flips to accent-secondary on hover (e.g. primary action "Save" button) */
+.jnl-hover-accent-bg {
+  transition: background 150ms ease;
+}
+.jnl-hover-accent-bg:hover {
+  background: var(--accent-secondary) !important;
+}
+
+/* Background flips to surface-hover on hover (e.g. icon buttons, dropdown rows) */
+.jnl-hover-surface {
+  transition: background 150ms ease;
+}
+.jnl-hover-surface:hover {
+  background: var(--surface-hover) !important;
+}
+
+/* Text color flips to accent on hover (e.g. "Journal Library" back link) */
+.jnl-hover-text-accent {
+  transition: color 150ms ease;
+}
+.jnl-hover-text-accent:hover {
+  color: var(--accent-primary) !important;
+}
+
+/* Upload slot: border to active + bg to accent-soft on hover */
+.jnl-hover-upload-slot {
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.jnl-hover-upload-slot:hover {
+  border-color: var(--border-active) !important;
+  background: var(--accent-soft) !important;
+}
+
+/* TF quick-upload button: border to active on hover */
+.jnl-hover-tf-btn {
+  transition: border-color 150ms ease;
+}
+.jnl-hover-tf-btn:hover {
+  border-color: var(--border-active) !important;
+}

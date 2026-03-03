@@ -162,19 +162,11 @@ function UploadSlot({
     <button
       type="button"
       onClick={onUpload}
-      className="relative rounded-[8px] flex flex-col items-center justify-center gap-2 transition-all duration-150 group"
+      className="relative rounded-[8px] flex flex-col items-center justify-center gap-2 transition-all duration-150 group jnl-hover-upload-slot"
       style={{
         aspectRatio: "16/9",
         background: "var(--surface-elevated)",
         border: "1px dashed var(--border-default)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "var(--border-active)";
-        e.currentTarget.style.background = "var(--accent-soft)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "var(--border-default)";
-        e.currentTarget.style.background = "var(--surface-elevated)";
       }}
     >
       <Camera
@@ -252,19 +244,13 @@ export function ScreenshotGallery({
               key={tf}
               type="button"
               onClick={() => onUpload(tf)}
-              className="flex items-center gap-1 rounded-[6px] px-2 py-1 font-semibold transition-all"
+              className="flex items-center gap-1 rounded-[6px] px-2 py-1 font-semibold transition-all jnl-hover-tf-btn"
               style={{
                 fontSize: "0.65rem",
                 background: "var(--surface-elevated)",
                 color: ACCENT,
                 border: "1px solid var(--border-subtle)",
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.borderColor = "var(--border-active)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.borderColor = "var(--border-subtle)")
-              }
             >
               <Upload size={9} strokeWidth={2} />
               {tf}

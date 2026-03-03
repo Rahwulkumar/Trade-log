@@ -262,20 +262,13 @@ export function ExecutionWidget({
                       key={label}
                       type="button"
                       onClick={() => addArray(label)}
-                      className="w-full text-left px-3 py-2 flex items-center justify-between transition-colors"
+                      className="w-full text-left px-3 py-2 flex items-center justify-between transition-colors jnl-hover-surface"
                       style={{
                         fontSize: "0.75rem",
                         color: active
                           ? "var(--accent-primary)"
                           : "var(--text-secondary)",
                       }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background =
-                          "var(--surface-hover)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
                     >
                       {label}
                       {active && (
