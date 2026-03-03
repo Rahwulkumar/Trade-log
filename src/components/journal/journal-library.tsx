@@ -98,14 +98,6 @@ export type JournalTrade = {
   tf_observations?: Record<string, { bias?: string; notes?: string }> | null;
 };
 
-function getOutcome(t: JournalTrade) {
-  if (t.status === "open") return "OPEN";
-  const p = t.pnl ?? 0;
-  if (p > 0.5) return "WIN";
-  if (p < -0.5) return "LOSS";
-  return "BE";
-}
-
 // â”€â”€â”€ Dummy data for UI demo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const DUMMY_JOURNAL_TRADES: JournalTrade[] = [
   {
@@ -337,7 +329,7 @@ function JournalCard({
   trade: JournalTrade;
   onClick: () => void;
 }) {
-  const outcome = getOutcome(trade);
+  const outcome = getOutcome(trade.status, trade.pnl);
   const isWin = outcome === "WIN";
   const isLoss = outcome === "LOSS";
   const pnlCol = isWin ? PROFIT : isLoss ? LOSS : "var(--text-tertiary)";
@@ -924,7 +916,7 @@ function JournalEntryView({
   onBack: () => void;
   onEdit: () => void;
 }) {
-  const outcome = getOutcome(trade);
+  const outcome = getOutcome(trade.status, trade.pnl);
   const isWin = outcome === "WIN";
   const isLoss = outcome === "LOSS";
   const pnlColor = isWin ? PROFIT : isLoss ? LOSS : "var(--text-secondary)";
@@ -1676,7 +1668,10 @@ export function JournalLibrary({
         !(t.symbol ?? "").toLowerCase().includes(search.toLowerCase())
       )
         return false;
-      if (outcomeFilter !== "all" && getOutcome(t) !== outcomeFilter)
+      if (
+        outcomeFilter !== "all" &&
+        getOutcome(t.status, t.pnl) !== outcomeFilter
+      )
         return false;
       if (dateFrom) {
         const d = t.entry_date ? new Date(t.entry_date) : null;
@@ -1694,7 +1689,9 @@ export function JournalLibrary({
 
   // Stats based on all journaled entries (not filtered)
   const stats = useMemo(() => {
-    const wins = allEntries.filter((t) => getOutcome(t) === "WIN").length;
+    const wins = allEntries.filter(
+      (t) => getOutcome(t.status, t.pnl) === "WIN",
+    ).length;
     const total = allEntries.reduce((s, t) => s + (t.pnl ?? 0), 0);
     return { total, wins, count: allEntries.length };
   }, [allEntries]);
