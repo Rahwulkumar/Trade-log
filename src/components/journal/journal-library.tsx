@@ -1,6 +1,12 @@
 ﻿"use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import {
   createChart,
   LineStyle,
@@ -11,20 +17,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowUpRight,
   ArrowDownRight,
-  ChevronLeft,
-  Edit3,
   Calendar,
-  Star,
   Tag,
   Camera,
-  Zap,
-  Heart,
   BarChart2,
   FileText,
   Search,
   X,
-  TrendingUp,
-  TrendingDown,
   Layers,
 } from "lucide-react";
 
@@ -322,7 +321,7 @@ function QualityBadge({
 }
 
 // â”€â”€â”€ Journal Card (in the library grid) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function JournalCard({
+const JournalCard = React.memo(function JournalCard({
   trade,
   onClick,
 }: {
@@ -332,7 +331,6 @@ function JournalCard({
   const outcome = getOutcome(trade.status, trade.pnl);
   const isWin = outcome === "WIN";
   const isLoss = outcome === "LOSS";
-  const pnlCol = isWin ? PROFIT : isLoss ? LOSS : "var(--text-tertiary)";
   const allTags = [...(trade.setup_tags ?? []), ...(trade.mistake_tags ?? [])];
 
   // Gradient hero strip colours
@@ -486,7 +484,8 @@ function JournalCard({
       </div>
     </motion.div>
   );
-}
+});
+JournalCard.displayName = "JournalCard";
 
 // â”€â”€â”€ Dummy candle data shaped as lightweight-charts expects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type LC = {
@@ -665,7 +664,7 @@ function getDummyCandles(trade: JournalTrade): LC[] {
 }
 
 // â”€â”€â”€ Compact Lightweight-Charts candlestick â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function CompactChart({
+const CompactChart = React.memo(function CompactChart({
   candles,
   entryPrice,
   exitPrice,
@@ -841,7 +840,8 @@ function CompactChart({
   ]);
 
   return <div ref={ref} className="w-full h-full" />;
-}
+});
+CompactChart.displayName = "CompactChart";
 
 // â”€â”€â”€ Stat row used in the sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StatRow({
@@ -938,7 +938,7 @@ function JournalEntryView({
     ([, v]) => v?.bias || v?.notes,
   ) as [string, { bias?: string; notes?: string }][];
 
-  const candles = getDummyCandles(trade);
+  const candles = useMemo(() => getDummyCandles(trade), [trade]);
 
   return (
     <motion.div
@@ -1646,10 +1646,13 @@ export function JournalLibrary({
 }) {
   const [selectedEntry, setSelectedEntry] = useState<JournalTrade | null>(null);
 
-  const selectEntry = (trade: JournalTrade | null) => {
-    setSelectedEntry(trade);
-    onEntryViewChange?.(trade);
-  };
+  const selectEntry = useCallback(
+    (trade: JournalTrade | null) => {
+      setSelectedEntry(trade);
+      onEntryViewChange?.(trade);
+    },
+    [onEntryViewChange],
+  );
 
   const [search, setSearch] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState<"all" | "WIN" | "LOSS">(
