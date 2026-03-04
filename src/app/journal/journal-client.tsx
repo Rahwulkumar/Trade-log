@@ -54,7 +54,7 @@ import {
   type JournalTrade,
 } from "@/components/journal/journal-library";
 
-// â”€â”€ Existing journal widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€ Existing journal widgets €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 import { BiasWidget } from "@/components/journal/bias-widget";
 import { MaeMfeCard } from "@/components/journal/mae-mfe-card";
 import { PsychologyWidget } from "@/components/journal/psychology-widget";
@@ -119,7 +119,7 @@ const TABS: { id: JournalTab; label: string; Icon: React.ElementType }[] = [
   { id: "psychology", label: "Psychology", Icon: Brain },
 ];
 
-// â”€â”€â”€ The journaling workspace for a selected trade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ The journaling workspace for a selected trade €€€€€€€€€€€€€€€€€€€€€€€€€€€€
 function TradeJournal({
   trade,
   userId,
@@ -156,7 +156,7 @@ function TradeJournal({
     setState((prev) => ({ ...prev, ...patch }));
   };
 
-  // Enrich for BiasWidget â€” cast tf_observations through unknown to satisfy Json
+  // Enrich for BiasWidget "” cast tf_observations through unknown to satisfy Json
   const enriched: EnrichedTrade = useMemo(
     () => ({
       ...toEnriched(trade),
@@ -206,7 +206,7 @@ function TradeJournal({
     <div className="flex flex-col h-full overflow-hidden">
       {inputEl}
 
-      {/* â”€â”€ Trade header bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* €€ Trade header bar €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ */}
       <div
         className="flex items-center gap-3 px-5 py-3 shrink-0"
         style={{
@@ -258,7 +258,7 @@ function TradeJournal({
             <span
               style={{ fontSize: "0.68rem", color: "var(--text-tertiary)" }}
             >
-              Savingâ€¦
+              Saving"¦
             </span>
           ) : savedAt ? (
             <span
@@ -269,7 +269,7 @@ function TradeJournal({
               Saved
             </span>
           ) : null}
-          {/* Back to view â€” only shown when trade already has journal data */}
+          {/* Back to view "” only shown when trade already has journal data */}
           {onBackToView && (
             <button
               onClick={onBackToView}
@@ -300,7 +300,7 @@ function TradeJournal({
         </div>
       </div>
 
-      {/* â”€â”€ Tab bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* €€ Tab bar €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ */}
       <div
         className="flex shrink-0 px-5 gap-1"
         style={{
@@ -329,7 +329,7 @@ function TradeJournal({
         ))}
       </div>
 
-      {/* â”€â”€ Tab content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* €€ Tab content €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ */}
       <div className="flex-1 overflow-y-auto">
         <AnimatePresence mode="wait">
           <motion.div
@@ -340,7 +340,7 @@ function TradeJournal({
             transition={{ duration: 0.14 }}
             className="h-full"
           >
-            {/* â”€â”€ NOTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* €€ NOTES €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ */}
             {activeTab === "notes" && (
               <div className="p-5 space-y-5">
                 {/* Main notes textarea */}
@@ -349,7 +349,7 @@ function TradeJournal({
                   <textarea
                     value={state.notes}
                     onChange={(e) => update({ notes: e.target.value })}
-                    placeholder={`Write about this tradeâ€¦\n\nâ€¢ What was the setup and did it match your playbook?\nâ€¢ How did you manage the position â€” any deviations?\nâ€¢ What was your psychology like during the trade?\nâ€¢ Key lessons and what you'd do differently.`}
+                    placeholder={`Write about this trade"¦\n\n"¢ What was the setup and did it match your playbook?\n"¢ How did you manage the position "” any deviations?\n"¢ What was your psychology like during the trade?\n"¢ Key lessons and what you'd do differently.`}
                     className="w-full resize-none rounded-[10px] p-4 font-mono leading-loose outline-none transition-all"
                     style={{
                       minHeight: "240px",
@@ -412,7 +412,7 @@ function TradeJournal({
               </div>
             )}
 
-            {/* â”€â”€ BIAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* €€ BIAS €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ */}
             {activeTab === "bias" && (
               <div className="p-5">
                 <div className="mb-4">
@@ -432,7 +432,7 @@ function TradeJournal({
               </div>
             )}
 
-            {/* â”€â”€ SETUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* €€ SETUP €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ */}
             {activeTab === "setup" && (
               <div className="p-5 space-y-6">
                 {/* Screenshots */}
@@ -451,7 +451,7 @@ function TradeJournal({
                   />
                   {uploading && (
                     <p style={{ fontSize: "0.68rem", color: ACCENT }}>
-                      Uploading screenshotâ€¦
+                      Uploading screenshot"¦
                     </p>
                   )}
                 </div>
@@ -478,7 +478,7 @@ function TradeJournal({
               </div>
             )}
 
-            {/* â”€â”€ EXECUTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* €€ EXECUTION €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ */}
             {activeTab === "execution" && (
               <div className="p-5">
                 <div className="mb-4">
@@ -518,7 +518,7 @@ function TradeJournal({
               </div>
             )}
 
-            {/* â”€â”€ PSYCHOLOGY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* €€ PSYCHOLOGY €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ */}
             {activeTab === "psychology" && (
               <div className="p-5">
                 <div className="mb-4">

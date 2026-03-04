@@ -37,7 +37,7 @@ export function OutcomeBadge({
 }) {
   const map = {
     WIN: { bg: "rgba(13,155,110,0.15)", color: PROFIT },
-    LOSS: { bg: "rgba(224,82,82,0.15)", color: LOSS },
+    LOSS: { bg: "rgba(224,82,90,0.15)", color: LOSS },
     BE: { bg: "rgba(142,182,155,0.12)", color: "#8EB69B" },
     OPEN: { bg: "rgba(44,194,153,0.12)", color: ACCENT },
   };

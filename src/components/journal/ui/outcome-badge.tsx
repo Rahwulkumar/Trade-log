@@ -17,9 +17,9 @@ export function OutcomeBadge({ outcome }: OutcomeBadgeProps) {
       }
     : isLoss
       ? {
-          background: "rgba(255,68,85,0.1)",
+          background: "rgba(224,82,90,0.1)",
           color: "var(--loss-primary)",
-          borderColor: "rgba(255,68,85,0.2)",
+          borderColor: "rgba(224,82,90,0.2)",
         }
       : isBE
         ? {

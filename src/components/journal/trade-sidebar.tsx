@@ -78,7 +78,7 @@ export function TradeSidebar({ trades }: TradeSidebarProps) {
                       style={
                         trade.direction === "LONG"
                           ? { background: "rgba(78,203,6,0.1)", color: "var(--profit-primary)" }
-                          : { background: "rgba(255,68,85,0.1)", color: "var(--loss-primary)" }
+                          : { background: "rgba(224,82,90,0.1)", color: "var(--loss-primary)" }
                       }
                     >
                       {trade.direction === "LONG" ? "L" : "S"}

@@ -53,7 +53,7 @@ function DirectionBadge({
             bg: "var(--loss-bg)",
             color: "var(--loss-primary)",
             label: "▼ SHORT",
-            glow: "rgba(255,68,85,0.3)",
+            glow: "rgba(224,82,90,0.3)",
           }
         : {
             bg: "var(--surface-elevated)",
@@ -551,7 +551,7 @@ export function NewsAIAgent({ events, onClose }: NewsAIAgentProps) {
             style={{
               background: "var(--loss-bg)",
               border: "1px solid var(--loss-primary)",
-              boxShadow: "0 0 12px rgba(255,68,85,0.15)",
+              boxShadow: "0 0 12px rgba(224,82,90,0.15)",
             }}
           >
             <p

@@ -136,7 +136,7 @@ function EventRow({ event, index }: { event: EconomicEvent; index: number }) {
         borderBottom: "1px solid var(--border-subtle)",
         background:
           isHigh && isUpcoming
-            ? "rgba(255, 68, 85, 0.025)"
+            ? "rgba(224, 82, 90, 0.025)"
             : !isUpcoming
               ? "var(--surface-elevated)"
               : "transparent",
@@ -148,7 +148,7 @@ function EventRow({ event, index }: { event: EconomicEvent; index: number }) {
       onMouseLeave={(e) =>
         (e.currentTarget.style.background =
           isHigh && isUpcoming
-            ? "rgba(255, 68, 85, 0.025)"
+            ? "rgba(224, 82, 90, 0.025)"
             : !isUpcoming
               ? "var(--surface-elevated)"
               : "transparent")

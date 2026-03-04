@@ -606,7 +606,7 @@ export default function SettingsPage() {
             className="rounded-[var(--radius-lg)] p-6"
             style={{
               border: "1px solid var(--loss-primary)",
-              background: "rgba(255,68,85,0.04)",
+              background: "rgba(224,82,90,0.04)",
             }}
           >
             <PanelTitle

@@ -121,7 +121,7 @@ function RiskCard({
     good: { color: "#f7c36a", bg: "rgba(247,195,106,0.12)", tag: "Good" },
     poor: {
       color: "var(--loss-primary)",
-      bg: "rgba(255,68,85,0.1)",
+      bg: "rgba(224,82,90,0.1)",
       tag: "Needs Work",
     },
   }[q];
@@ -945,8 +945,8 @@ export default function AnalyticsPage() {
                     style={{
                       background: isPos
                         ? `rgba(8,168,120,${alpha})`
-                        : `rgba(255,68,85,${alpha})`,
-                      border: `1px solid ${isPos ? `rgba(8,168,120,${Math.min(alpha * 0.6, 0.4)})` : `rgba(255,68,85,${Math.min(alpha * 0.6, 0.4)})`}`,
+                        : `rgba(224,82,90,${alpha})`,
+                      border: `1px solid ${isPos ? `rgba(8,168,120,${Math.min(alpha * 0.6, 0.4)})` : `rgba(224,82,90,${Math.min(alpha * 0.6, 0.4)})`}`,
                     }}
                   >
                     <span
@@ -984,7 +984,7 @@ export default function AnalyticsPage() {
               <span className="flex items-center gap-1.5">
                 <span
                   className="inline-block w-3 h-1.5 rounded-sm"
-                  style={{ background: "rgba(255,68,85,0.7)" }}
+                  style={{ background: "rgba(224,82,90,0.7)" }}
                 />
                 Losing hour
               </span>
@@ -1017,12 +1017,12 @@ export default function AnalyticsPage() {
                     background:
                       t === "W"
                         ? "rgba(8,168,120,0.15)"
-                        : "rgba(255,68,85,0.12)",
+                        : "rgba(224,82,90,0.12)",
                     color:
                       t === "W"
                         ? "var(--profit-primary)"
                         : "var(--loss-primary)",
-                    border: `1px solid ${t === "W" ? "rgba(8,168,120,0.3)" : "rgba(255,68,85,0.3)"}`,
+                    border: `1px solid ${t === "W" ? "rgba(8,168,120,0.3)" : "rgba(224,82,90,0.3)"}`,
                   }}
                 >
                   {t}
@@ -1041,8 +1041,8 @@ export default function AnalyticsPage() {
                 background:
                   DUMMY_STREAKS.currentType === "win"
                     ? "rgba(8,168,120,0.1)"
-                    : "rgba(255,68,85,0.1)",
-                border: `1px solid ${DUMMY_STREAKS.currentType === "win" ? "rgba(8,168,120,0.25)" : "rgba(255,68,85,0.25)"}`,
+                    : "rgba(224,82,90,0.1)",
+                border: `1px solid ${DUMMY_STREAKS.currentType === "win" ? "rgba(8,168,120,0.25)" : "rgba(224,82,90,0.25)"}`,
               }}
             >
               {DUMMY_STREAKS.currentType === "win" ? (
@@ -1100,8 +1100,8 @@ export default function AnalyticsPage() {
                     background:
                       s.type === "win"
                         ? "rgba(8,168,120,0.08)"
-                        : "rgba(255,68,85,0.08)",
-                    border: `1px solid ${s.type === "win" ? "rgba(8,168,120,0.2)" : "rgba(255,68,85,0.2)"}`,
+                        : "rgba(224,82,90,0.08)",
+                    border: `1px solid ${s.type === "win" ? "rgba(8,168,120,0.2)" : "rgba(224,82,90,0.2)"}`,
                   }}
                 >
                   {s.type === "win" ? (

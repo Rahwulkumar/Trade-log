@@ -27,7 +27,7 @@ export function StatCard({
   const iconBg = isPositive
     ? "rgba(13,155,110,0.10)"
     : isNegative
-      ? "rgba(255,68,85,0.1)"
+      ? "rgba(224,82,90,0.1)"
       : undefined;
 
   const iconColor = isPositive
@@ -92,7 +92,7 @@ export function StatCard({
           background: isPositive
             ? "linear-gradient(to right, var(--profit-primary), rgba(13,155,110,0.25))"
             : isNegative
-              ? "linear-gradient(to right, var(--loss-primary), rgba(255,68,85,0.3))"
+              ? "linear-gradient(to right, var(--loss-primary), rgba(224,82,90,0.3))"
               : "linear-gradient(to right, var(--text-tertiary), var(--border-default))",
         }}
       />

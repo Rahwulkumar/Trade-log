@@ -97,7 +97,7 @@ export type JournalTrade = {
   tf_observations?: Record<string, { bias?: string; notes?: string }> | null;
 };
 
-// â”€â”€â”€ Dummy data for UI demo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Dummy data for UI demo €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 export const DUMMY_JOURNAL_TRADES: JournalTrade[] = [
   {
     id: "demo-1",
@@ -116,7 +116,7 @@ export const DUMMY_JOURNAL_TRADES: JournalTrade[] = [
     prop_account_id: null,
     playbook_id: null,
     notes:
-      "Textbook FVG entry on the 15m chart. I had been stalking this level for 3 days waiting for a clean sweep of the Asian session lows before a solid displacement. The killzone timing was perfect â€” London open gave the liquidity sweep I needed. Managed the trade well by trailing to BE after 1R.",
+      "Textbook FVG entry on the 15m chart. I had been stalking this level for 3 days waiting for a clean sweep of the Asian session lows before a solid displacement. The killzone timing was perfect -- London open gave the liquidity sweep I needed. Managed the trade well by trailing to BE after 1R.",
     feelings: "Confident, Focused, Patient",
     observations:
       "Dollar weakness was clear from the DXY correlation throughout the morning. NFP cycle correlation was bullish bias.",
@@ -133,7 +133,7 @@ export const DUMMY_JOURNAL_TRADES: JournalTrade[] = [
       D: { bias: "Bullish", notes: "Above 50 EMA, targeting 1.0980 premium" },
       "4H": { bias: "Bullish", notes: "CHoCH confirmed, FVG formed" },
       "1H": { bias: "Bullish", notes: "OB aligned with 4H FVG" },
-      "15m": { bias: "Bullish", notes: "Entry candle â€” FVG fill + sweep" },
+      "15m": { bias: "Bullish", notes: "Entry candle -- FVG fill + sweep" },
       "5m": { bias: "Neutral", notes: "Execution timeframe" },
     },
     screenshots: [
@@ -168,7 +168,7 @@ export const DUMMY_JOURNAL_TRADES: JournalTrade[] = [
     observations:
       "GBP was strengthening against all pairs. I should have seen this coming from the morning session correlations.",
     execution_notes:
-      "Bad execution â€” didn't wait for proper confirmation. Entered early on first touch of the level.",
+      "Bad execution -- didn't wait for proper confirmation. Entered early on first touch of the level.",
     setup_tags: ["OB Entry"],
     mistake_tags: ["Against HTF Bias", "Early Entry", "FOMO"],
     conviction: 2,
@@ -177,10 +177,10 @@ export const DUMMY_JOURNAL_TRADES: JournalTrade[] = [
     mae: 1.0,
     mfe: 0.2,
     tf_observations: {
-      D: { bias: "Bullish", notes: "Clear uptrend â€” I ignored this" },
+      D: { bias: "Bullish", notes: "Clear uptrend -- I ignored this" },
       "4H": { bias: "Bullish", notes: "Against my short bias" },
       "1H": { bias: "Neutral", notes: "Ranging, unclear direction" },
-      "15m": { bias: "Bearish", notes: "False signal â€” entry timeframe" },
+      "15m": { bias: "Bearish", notes: "False signal -- entry timeframe" },
     },
     screenshots: [],
     execution_arrays: ["OB"],
@@ -269,7 +269,7 @@ export const DUMMY_JOURNAL_TRADES: JournalTrade[] = [
   },
 ];
 
-// â”€â”€â”€ Mini conviction stars â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Mini conviction stars €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 function ConvictionDots({ value }: { value: number | null | undefined }) {
   if (!value) return null;
   return (
@@ -289,7 +289,7 @@ function ConvictionDots({ value }: { value: number | null | undefined }) {
   );
 }
 
-// â”€â”€â”€ Quality badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Quality badge €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 function QualityBadge({
   label,
   value,
@@ -320,7 +320,7 @@ function QualityBadge({
   );
 }
 
-// â”€â”€â”€ Journal Card (in the library grid) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Journal Card (in the library grid) €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 const JournalCard = React.memo(function JournalCard({
   trade,
   onClick,
@@ -337,7 +337,7 @@ const JournalCard = React.memo(function JournalCard({
   const stripGrad = isWin
     ? "linear-gradient(135deg, var(--profit-primary) 0%, rgba(13,155,110,0.6) 100%)"
     : isLoss
-      ? "linear-gradient(135deg, var(--loss-primary) 0%, rgba(255,68,85,0.7) 100%)"
+      ? "linear-gradient(135deg, var(--loss-primary) 0%, rgba(224,82,90,0.7) 100%)"
       : "linear-gradient(135deg, var(--surface-active) 0%, var(--surface-elevated) 100%)";
 
   return (
@@ -487,7 +487,7 @@ const JournalCard = React.memo(function JournalCard({
 });
 JournalCard.displayName = "JournalCard";
 
-// â”€â”€â”€ Dummy candle data shaped as lightweight-charts expects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Dummy candle data shaped as lightweight-charts expects €€€€€€€€€€€€€€€€€€
 type LC = {
   time: number;
   open: number;
@@ -663,7 +663,7 @@ function getDummyCandles(trade: JournalTrade): LC[] {
   );
 }
 
-// â”€â”€â”€ Compact Lightweight-Charts candlestick â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Compact Lightweight-Charts candlestick €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 const CompactChart = React.memo(function CompactChart({
   candles,
   entryPrice,
@@ -843,7 +843,7 @@ const CompactChart = React.memo(function CompactChart({
 });
 CompactChart.displayName = "CompactChart";
 
-// â”€â”€â”€ Stat row used in the sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Stat row used in the sidebar €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 function StatRow({
   label,
   value,
@@ -880,7 +880,7 @@ function StatRow({
   );
 }
 
-// â”€â”€â”€ Section heading in prose area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Section heading in prose area €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 function ProseSection({
   title,
   children,
@@ -906,7 +906,7 @@ function ProseSection({
   );
 }
 
-// â”€â”€â”€ Main Journal Entry View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Main Journal Entry View €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 function JournalEntryView({
   trade,
   onBack,
@@ -948,9 +948,9 @@ function JournalEntryView({
       className="flex h-full overflow-hidden"
       style={{ background: "var(--app-bg)" }}
     >
-      {/* â•â• LEFT: Scrollable prose content â•â• */}
+      {/*  LEFT: Scrollable prose content  */}
       <div className="flex-1 overflow-y-auto">
-        {/* Hero header â€” full width, no color blobs */}
+        {/* Hero header "” full width, no color blobs */}
         <div
           className="px-8 py-6"
           style={{
@@ -987,9 +987,9 @@ function JournalEntryView({
                     }}
                   >
                     {trade.direction === "LONG" ? (
-                      <span>â–² LONG</span>
+                      <span>▲ LONG</span>
                     ) : (
-                      <span>â–¼ SHORT</span>
+                      <span>¼ SHORT</span>
                     )}
                   </span>
                   <span
@@ -1175,7 +1175,7 @@ function JournalEntryView({
                     border: `1px solid ${LOSS}22`,
                   }}
                 >
-                  âš  {tag}
+                    {tag}
                 </span>
               ))}
             </div>
@@ -1184,7 +1184,7 @@ function JournalEntryView({
 
         {/* Prose body */}
         <div className="px-8 py-7 flex flex-col gap-10">
-          {/* Notes â€” largest, most prominent */}
+          {/* Notes "” largest, most prominent */}
           {notes && (
             <ProseSection title="Journal Entry">
               <p
@@ -1310,7 +1310,7 @@ function JournalEntryView({
         </div>
       </div>
 
-      {/* â•â• RIGHT: Compact sidebar â•â• */}
+      {/*  RIGHT: Compact sidebar  */}
       <div
         className="shrink-0 flex flex-col overflow-y-auto"
         style={{
@@ -1319,7 +1319,7 @@ function JournalEntryView({
           borderLeft: "1px solid var(--border-subtle)",
         }}
       >
-        {/* Chart â€” compact, not dominant */}
+        {/* Chart "” compact, not dominant */}
         <div
           className="shrink-0"
           style={{
@@ -1609,7 +1609,7 @@ function Section({
   );
 }
 
-// â”€â”€â”€ Hero quality badge (white text on gradient) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Hero quality badge (white text on gradient) €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 function QualityBadgeHero({
   label,
   value,
@@ -1622,7 +1622,7 @@ function QualityBadgeHero({
     value === "Good"
       ? "rgba(13,155,110,0.3)"
       : value === "Poor"
-        ? "rgba(255,68,85,0.3)"
+        ? "rgba(224,82,90,0.3)"
         : "rgba(255,255,255,0.15)";
   return (
     <span
@@ -1634,7 +1634,7 @@ function QualityBadgeHero({
   );
 }
 
-// â”€â”€â”€ Main JournalLibrary component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// €€€ Main JournalLibrary component €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
 export function JournalLibrary({
   trades,
   onEditTrade,
@@ -1717,7 +1717,7 @@ export function JournalLibrary({
       className="flex flex-col h-full overflow-hidden"
       style={{ background: "var(--app-bg)" }}
     >
-      {/* â”€â”€ Library header â”€â”€ */}
+      {/* €€ Library header €€ */}
       <div
         className="px-6 py-4 shrink-0 flex flex-col gap-3"
         style={{
@@ -1892,7 +1892,7 @@ export function JournalLibrary({
         </div>
       </div>
 
-      {/* â”€â”€ Grid â”€â”€ */}
+      {/* €€ Grid €€ */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 gap-3">

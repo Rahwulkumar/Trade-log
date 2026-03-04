@@ -95,7 +95,7 @@ function ScreenshotCard({
               }}
               className="flex h-5 w-5 items-center justify-center rounded-full"
               style={{
-                background: "rgba(224,82,82,0.75)",
+                background: "rgba(224,82,90,0.75)",
                 color: "var(--text-primary)",
               }}
             >

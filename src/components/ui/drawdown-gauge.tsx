@@ -42,7 +42,7 @@ export function DrawdownGauge({
           />
           <div
             className="h-full flex-1"
-            style={{ background: "rgba(255,68,85,0.12)" }}
+            style={{ background: "rgba(224,82,90,0.12)" }}
           />
         </div>
         <div

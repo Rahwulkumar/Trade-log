@@ -476,7 +476,7 @@ export default function PlaybooksPage() {
                       background:
                         pnl >= 0
                           ? "linear-gradient(90deg, var(--profit-primary), rgba(78,203,6,0.2))"
-                          : "linear-gradient(90deg, var(--loss-primary), rgba(255,68,85,0.2))",
+                          : "linear-gradient(90deg, var(--loss-primary), rgba(224,82,90,0.2))",
                     }}
                   />
 
