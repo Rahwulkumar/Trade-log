@@ -6,7 +6,7 @@
 /** Format a number as a signed dollar amount: +$123.45 / -$80.00 / "—" if null */
 export function fmtCurrency(n: number | null | undefined): string {
   if (n == null) return "—";
-  return (n >= 0 ? "+" : "") + "$" + Math.abs(n).toFixed(2);
+  return (n >= 0 ? "+" : "-") + "$" + Math.abs(n).toFixed(2);
 }
 
 /** Format R-multiple: +2.40R / -1.00R / null if null */
