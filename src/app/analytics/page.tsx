@@ -51,8 +51,8 @@ import {
   type EquityCurvePoint,
   type DayPerformance,
 } from "@/lib/api/analytics";
-import { getTrades } from "@/lib/api/trades";
-import type { Trade } from "@/lib/supabase/types";
+import { getTrades } from "@/lib/api/client/trades";
+import type { Trade } from "@/lib/db/schema";
 
 // ─── Dummy data ───────────────────────────────────────────────────────────────
 import {
@@ -350,9 +350,9 @@ export default function AnalyticsPage() {
   if (!authLoading && !isConfigured)
     return (
       <AppPanel className="mt-8 max-w-md">
-        <h2 className="mb-2 text-xl font-semibold">Supabase Not Configured</h2>
+        <h2 className="mb-2 text-xl font-semibold">Auth Not Configured</h2>
         <p className="text-muted-foreground">
-          Please add your Supabase credentials to continue.
+          Please add your Clerk credentials to continue.
         </p>
       </AppPanel>
     );

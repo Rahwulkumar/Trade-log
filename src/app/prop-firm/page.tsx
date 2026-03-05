@@ -10,7 +10,7 @@ import {
   checkCompliance,
   recalculateBalanceFromTrades,
   type ComplianceStatus,
-} from "@/lib/api/prop-accounts";
+} from "@/lib/api/client/prop-accounts";
 import {
   getPropFirms,
   getFirmChallenges,
@@ -57,8 +57,36 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import type { PropAccount } from "@/lib/supabase/types";
+import type { PropAccount as DrizzlePropAccount } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
+
+// Bridge type: adds Supabase-compatible snake_case aliases for the Drizzle PropAccount
+// so the existing UI code doesn't need a mass rename.
+type PropAccount = DrizzlePropAccount & {
+  name?: string; // alias for accountName
+  firm?: string; // alias for firmName
+  phase?: string; // no direct equivalent — from challenge
+  initial_balance: number; // populated by normalizeAccount from accountSize
+  current_balance: number; // populated by normalizeAccount from currentBalance
+  daily_dd_max?: number | null;
+  daily_dd_current?: number | null;
+  total_dd_max?: number | null;
+  total_dd_current?: number | null;
+  profit_target?: number | null;
+  start_date?: string | null;
+};
+
+/** Populate snake_case aliases from Drizzle camelCase fields so the rest of the UI works unchanged */
+function normalizeAccount(a: DrizzlePropAccount): PropAccount {
+  return {
+    ...a,
+    name: a.accountName,
+    firm: a.firmName ?? undefined,
+    initial_balance: Number(a.accountSize ?? 0),
+    current_balance: Number(a.currentBalance ?? 0),
+    start_date: a.startDate ?? null,
+  };
+}
 
 type PropAccountWithCompliance = PropAccount & { compliance: ComplianceStatus };
 
@@ -175,7 +203,10 @@ export default function PropFirmPage() {
       const accountsWithCompliance = await Promise.all(
         updatedAccountsData.map(async (account) => {
           const compliance = await checkCompliance(account.id);
-          return { ...account, compliance };
+          return {
+            ...normalizeAccount(account),
+            compliance,
+          } as PropAccountWithCompliance;
         }),
       );
 
@@ -983,7 +1014,11 @@ export default function PropFirmPage() {
                 <div>
                   <p className="text-sm font-medium">Started</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(selectedAccount.start_date).toLocaleDateString()}
+                    {selectedAccount.start_date
+                      ? new Date(
+                          selectedAccount.start_date,
+                        ).toLocaleDateString()
+                      : "N/A"}
                   </p>
                 </div>
               </div>

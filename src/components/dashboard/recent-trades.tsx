@@ -4,9 +4,8 @@ import { useState, useEffect } from "react";
 import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
-import { getTrades } from "@/lib/api/trades";
-
-import type { Trade } from "@/lib/supabase/types";
+import { getTrades } from "@/lib/api/client/trades";
+import type { Trade } from "@/lib/db/schema";
 
 interface RecentTradesProps {
   limit?: number;
@@ -98,36 +97,36 @@ export function RecentTrades({ limit = 5, propAccountId }: RecentTradesProps) {
                 </div>
               </td>
               <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-                {trade.entry_price}
+                {trade.entryPrice}
               </td>
               <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-                {trade.exit_price || "-"}
+                {trade.exitPrice || "-"}
               </td>
               <td
                 className={cn(
                   "px-4 py-3 text-right font-mono font-medium",
-                  (trade.pnl || 0) >= 0
+                  (Number(trade.pnl) || 0) >= 0
                     ? "text-[var(--profit-primary)]"
                     : "text-[var(--loss-primary)]",
                 )}
               >
-                {(trade.pnl || 0) >= 0 ? "+" : ""}
-                {(trade.pnl || 0).toFixed(2)}
+                {(Number(trade.pnl) || 0) >= 0 ? "+" : ""}
+                {(Number(trade.pnl) || 0).toFixed(2)}
               </td>
               <td
                 className={cn(
                   "px-4 py-3 text-right font-mono",
-                  (trade.r_multiple || 0) >= 0
+                  (Number(trade.rMultiple) || 0) >= 0
                     ? "text-[var(--profit-primary)]"
                     : "text-[var(--loss-primary)]",
                 )}
               >
-                {trade.r_multiple
-                  ? `${trade.r_multiple >= 0 ? "+" : ""}${trade.r_multiple.toFixed(1)}R`
+                {trade.rMultiple
+                  ? `${Number(trade.rMultiple) >= 0 ? "+" : ""}${Number(trade.rMultiple).toFixed(1)}R`
                   : "-"}
               </td>
               <td className="px-4 py-3 text-right text-muted-foreground">
-                {new Date(trade.entry_date).toLocaleDateString("en-US", {
+                {new Date(trade.entryDate).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
                   year: "numeric",

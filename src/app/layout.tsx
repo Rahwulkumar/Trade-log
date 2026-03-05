@@ -2,6 +2,7 @@ import "@/lib/env"; // Validate required env vars on startup
 import type { Metadata } from "next";
 import { Syne, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth-provider";
 import { PropAccountProvider } from "@/components/prop-account-provider";
@@ -38,16 +39,29 @@ const jbMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CONIYEST — Professional Trading Journal",
+  title: "TradeLog — Professional Trading Journal",
   description:
     "Track, analyze, and improve your trading performance with deep analytics and a professional-grade journal.",
 };
+
+const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+const isClerkConfigured = clerkKey.startsWith("pk_");
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const content = (
+    <ThemeProvider defaultTheme="system" storageKey="theme">
+      <AuthProvider clerkConfigured={isClerkConfigured}>
+        <PropAccountProvider>
+          <AppShell>{children}</AppShell>
+        </PropAccountProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -62,13 +76,11 @@ export default function RootLayout({
         className={`${syne.variable} ${inter.variable} ${jbMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <ThemeProvider defaultTheme="system" storageKey="theme">
-          <AuthProvider>
-            <PropAccountProvider>
-              <AppShell>{children}</AppShell>
-            </PropAccountProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        {isClerkConfigured ? (
+          <ClerkProvider publishableKey={clerkKey}>{content}</ClerkProvider>
+        ) : (
+          content
+        )}
       </body>
     </html>
   );

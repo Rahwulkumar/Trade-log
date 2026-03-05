@@ -21,11 +21,45 @@ import {
   Library,
 } from "lucide-react";
 import Link from "next/link";
-import { getTrades } from "@/lib/api/trades";
+import { getTrades } from "@/lib/api/client/trades";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
-import type { Trade } from "@/lib/supabase/types";
+import type { Trade as DrizzleTrade } from "@/lib/db/schema";
+import type { Trade as SupabaseTrade } from "@/lib/supabase/types";
 import type { EnrichedTrade } from "@/domain/trade-types";
+
+/** Bridge: convert Drizzle Trade (camelCase, string pnl, Date objects) into the
+ *  old Supabase-compatible shape that all the mappers + widgets expect. */
+function normalizeTrade(t: DrizzleTrade): SupabaseTrade {
+  return {
+    ...t,
+    // numeric fields stored as Drizzle decimal strings
+    pnl: t.pnl != null ? Number(t.pnl) : null,
+    commission: t.commission != null ? Number(t.commission) : null,
+    // date fields: Drizzle returns Date objects, old code expects ISO strings
+    entry_date:
+      t.entryDate instanceof Date
+        ? t.entryDate.toISOString()
+        : ((t.entryDate as unknown as string) ?? ""),
+    exit_date:
+      t.exitDate instanceof Date
+        ? t.exitDate.toISOString()
+        : ((t.exitDate as unknown as string) ?? null),
+    // snake_case aliases
+    r_multiple:
+      (t as unknown as { rMultiple?: number | null }).rMultiple ?? null,
+    position_size:
+      (t as unknown as { positionSize?: number | null }).positionSize ?? null,
+    prop_account_id: t.propAccountId,
+    playbook_id: t.playbookId,
+    magic_number:
+      (t as unknown as { magicNumber?: number | null }).magicNumber ?? null,
+    // Spread remaining fields as-is (id, symbol, status, direction, etc.)
+  } as unknown as SupabaseTrade;
+}
+
+/** Convenience: use Drizzle Trade as the canonical type, cast via bridge */
+type Trade = SupabaseTrade;
 
 // -- Domain types & mapper (Phase 1: single source of truth) --
 import type { JournalEntryDraft, JournalTab } from "@/domain/journal-types";
@@ -93,8 +127,8 @@ function toEnriched(t: Trade): EnrichedTrade {
     ...t,
     outcome: getOutcome(t.status, t.pnl),
     isOpen: t.status === "open",
-    formattedEntryDate: fmtDate(t.entry_date),
-    formattedExitDate: t.exit_date ? fmtDate(t.exit_date) : undefined,
+    formattedEntryDate: fmtDate(t.entryDate),
+    formattedExitDate: t.exitDate ? fmtDate(t.exitDate) : undefined,
     formattedPnL: fmtCurrency(pnl),
   } as EnrichedTrade;
 }
@@ -247,10 +281,10 @@ function TradeJournal({
               className="font-mono font-bold"
               style={{
                 fontSize: "0.8rem",
-                color: trade.r_multiple >= 0 ? PROFIT : LOSS,
+                color: (trade.r_multiple ?? 0) >= 0 ? PROFIT : LOSS,
               }}
             >
-              {fmtR(trade.r_multiple)}
+              {fmtR(trade.r_multiple ?? 0)}
             </span>
           )}
           {/* Save status */}
@@ -378,7 +412,7 @@ function TradeJournal({
                     <MaeMfeCard
                       mae={state.mae}
                       mfe={state.mfe}
-                      rMultiple={trade.r_multiple ?? null}
+                      rMultiple={trade.rMultiple ?? null}
                       onMaeChange={(v) => update({ mae: v })}
                       onMfeChange={(v) => update({ mfe: v })}
                     />
@@ -497,8 +531,8 @@ function TradeJournal({
                 <ExecutionWidget
                   executionNotes={state.executionNotes}
                   executionArrays={state.executionArrays}
-                  positionSize={trade.position_size ?? null}
-                  rMultiple={trade.r_multiple ?? null}
+                  positionSize={trade.positionSize ?? null}
+                  rMultiple={trade.rMultiple ?? null}
                   commission={null}
                   swap={null}
                   screenshots={state.screenshots
@@ -586,8 +620,10 @@ export default function JournalPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const ts = await getTrades({ propAccountId: selectedAccountId });
-      setTrades(ts);
+      const raw = await getTrades({
+        propAccountId: selectedAccountId ?? undefined,
+      });
+      setTrades(raw.map(normalizeTrade));
     } catch (e) {
       console.error(e);
     } finally {

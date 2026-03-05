@@ -11,7 +11,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useAuth } from "@/components/auth-provider";
-import { getTrades } from "@/lib/api/trades";
+import { getTrades } from "@/lib/api/client/trades";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface CashflowProps {
@@ -147,8 +147,8 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
         ];
 
         for (const trade of trades) {
-          if (!trade.exit_date && !trade.entry_date) continue;
-          const d = new Date(trade.exit_date || trade.entry_date || "");
+          if (!trade.exitDate && !trade.entryDate) continue;
+          const d = new Date(trade.exitDate || trade.entryDate || "");
           let key: string;
           let label: string;
 
@@ -163,7 +163,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
           if (!buckets.has(key))
             buckets.set(key, { label, Winners: 0, Losers: 0 });
           const bucket = buckets.get(key)!;
-          const p = trade.pnl ?? 0;
+          const p = Number(trade.pnl ?? 0);
           if (p >= 0) bucket.Winners += p;
           else bucket.Losers += Math.abs(p);
         }
@@ -184,7 +184,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
           setData(sorted);
         }
 
-        const net = trades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+        const net = trades.reduce((sum, t) => sum + Number(t.pnl ?? 0), 0);
         setTotalPnl(net);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

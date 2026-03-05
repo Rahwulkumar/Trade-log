@@ -1,46 +1,38 @@
-/**
- * Disable Auto-Sync for MT5 Account
- * DELETE /api/mt5-accounts/[id]/disable-autosync
- * 
- * Marks the terminal for shutdown (orchestrator will stop the container).
- */
-
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/auth/server';
 import { disableAutoSync } from '@/lib/terminal-farm/service';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function DELETE(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-    try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const { userId, error } = await requireAuth();
+    if (error) return error;
 
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    const { id: accountId } = await params;
 
-        const { id: accountId } = await params;
+    // Verify account ownership via Drizzle
+    const { db } = await import('@/lib/db');
+    const { mt5Accounts } = await import('@/lib/db/schema');
+    const { eq, and } = await import('drizzle-orm');
 
-        // Verify account ownership
-        const { data: account } = await supabase
-            .from('mt5_accounts')
-            .select('id, user_id')
-            .eq('id', accountId)
-            .eq('user_id', user.id)
-            .single();
+    const [account] = await db
+      .select({ id: mt5Accounts.id })
+      .from(mt5Accounts)
+      .where(and(eq(mt5Accounts.id, accountId), eq(mt5Accounts.userId, userId)))
+      .limit(1);
 
-        if (!account) {
-            return NextResponse.json({ error: 'Account not found' }, { status: 404 });
-        }
-
-        await disableAutoSync(accountId);
-
-        return new NextResponse(null, { status: 204 });
-    } catch (error) {
-        console.error('[DisableAutoSync] Error:', error);
-        const message = error instanceof Error ? error.message : 'Internal server error';
-        return NextResponse.json({ error: message }, { status: 500 });
+    if (!account) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
+
+    await disableAutoSync(accountId);
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    console.error('[DisableAutoSync] Error:', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

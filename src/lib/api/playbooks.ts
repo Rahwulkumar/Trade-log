@@ -1,157 +1,155 @@
-import { createClient } from '@/lib/supabase/client'
-import type { Playbook, PlaybookInsert, PlaybookUpdate } from '@/lib/supabase/types'
-import { withPropAccountFilter } from '@/lib/utils/query-helpers'
+/**
+ * Playbooks API — Drizzle ORM (replaces Supabase query builder)
+ * Auth: Clerk's auth() on server — userId passed from API routes/server components.
+ * For client-side mutations, call the API route which uses requireAuth().
+ */
 
-export async function getPlaybooks(): Promise<Playbook[]> {
-    const supabase = createClient()
+import { db } from '@/lib/db';
+import {
+  playbooks, trades,
+  type Playbook, type PlaybookInsert,
+} from '@/lib/db/schema';
+import { eq, and, desc, asc } from 'drizzle-orm';
 
-    const { data, error } = await supabase
-        .from('playbooks')
-        .select('*')
-        .order('created_at', { ascending: false })
+// ─── Queries ──────────────────────────────────────────────────────────────────
 
-    if (error) throw new Error(error.message)
-    return (data || []) as Playbook[]
+export async function getPlaybooks(userId: string): Promise<Playbook[]> {
+  return db
+    .select()
+    .from(playbooks)
+    .where(eq(playbooks.userId, userId))
+    .orderBy(desc(playbooks.createdAt));
 }
 
-export async function getActivePlaybooks(): Promise<Playbook[]> {
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-        .from('playbooks')
-        .select('*')
-        .eq('is_active', true)
-        .order('name', { ascending: true })
-
-    if (error) throw new Error(error.message)
-    return (data || []) as Playbook[]
+export async function getActivePlaybooks(userId: string): Promise<Playbook[]> {
+  return db
+    .select()
+    .from(playbooks)
+    .where(and(eq(playbooks.userId, userId), eq(playbooks.isActive, true)))
+    .orderBy(asc(playbooks.name));
 }
 
-export async function getPlaybook(id: string): Promise<Playbook | null> {
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-        .from('playbooks')
-        .select('*')
-        .eq('id', id)
-        .single()
-
-    if (error) {
-        if (error.code === 'PGRST116') return null
-        throw new Error(error.message)
-    }
-    return data as Playbook
+export async function getPlaybook(id: string, userId: string): Promise<Playbook | null> {
+  const [row] = await db
+    .select()
+    .from(playbooks)
+    .where(and(eq(playbooks.id, id), eq(playbooks.userId, userId)))
+    .limit(1);
+  return row ?? null;
 }
 
-export async function createPlaybook(playbook: Omit<PlaybookInsert, 'user_id'>): Promise<Playbook> {
-    const supabase = createClient()
+// ─── Mutations ────────────────────────────────────────────────────────────────
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    const { data, error } = await supabase
-        .from('playbooks')
-        .insert({ ...playbook, user_id: user.id })
-        .select()
-        .single()
-
-    if (error) throw new Error(error.message)
-    return data as Playbook
+export async function createPlaybook(
+  userId: string,
+  data: Omit<PlaybookInsert, 'userId'>
+): Promise<Playbook> {
+  const [row] = await db
+    .insert(playbooks)
+    .values({ ...data, userId })
+    .returning();
+  return row;
 }
 
-export async function updatePlaybook(id: string, updates: PlaybookUpdate): Promise<Playbook> {
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-        .from('playbooks')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single()
-
-    if (error) throw new Error(error.message)
-    return data as Playbook
+export async function updatePlaybook(
+  id: string,
+  userId: string,
+  updates: Partial<Omit<PlaybookInsert, 'id' | 'userId'>>
+): Promise<Playbook> {
+  const [row] = await db
+    .update(playbooks)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(and(eq(playbooks.id, id), eq(playbooks.userId, userId)))
+    .returning();
+  if (!row) throw new Error('Playbook not found');
+  return row;
 }
 
-export async function deletePlaybook(id: string): Promise<void> {
-    const supabase = createClient()
-
-    const { error } = await supabase
-        .from('playbooks')
-        .delete()
-        .eq('id', id)
-
-    if (error) throw new Error(error.message)
+export async function deletePlaybook(id: string, userId: string): Promise<void> {
+  await db
+    .delete(playbooks)
+    .where(and(eq(playbooks.id, id), eq(playbooks.userId, userId)));
 }
 
-export async function duplicatePlaybook(id: string): Promise<Playbook> {
-    const original = await getPlaybook(id)
-    if (!original) throw new Error('Playbook not found')
-
-    return createPlaybook({
-        name: `${original.name} (Copy)`,
-        description: original.description,
-        rules: original.rules,
-        is_active: original.is_active,
-    })
+export async function duplicatePlaybook(id: string, userId: string): Promise<Playbook> {
+  const original = await getPlaybook(id, userId);
+  if (!original) throw new Error('Playbook not found');
+  return createPlaybook(userId, {
+    name: `${original.name} (Copy)`,
+    description: original.description,
+    rules: original.rules,
+    isActive: original.isActive,
+  });
 }
 
-export async function togglePlaybookActive(id: string): Promise<Playbook> {
-    const playbook = await getPlaybook(id)
-    if (!playbook) throw new Error('Playbook not found')
-
-    return updatePlaybook(id, { is_active: !playbook.is_active })
+export async function togglePlaybookActive(id: string, userId: string): Promise<Playbook> {
+  const playbook = await getPlaybook(id, userId);
+  if (!playbook) throw new Error('Playbook not found');
+  return updatePlaybook(id, userId, { isActive: !playbook.isActive });
 }
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
 
 export interface PlaybookStats {
-    playbook: Playbook
-    totalTrades: number
-    winningTrades: number
-    losingTrades: number
-    winRate: number
-    avgRMultiple: number
-    totalPnl: number
+  playbook: Playbook;
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  winRate: number;
+  avgRMultiple: number;
+  totalPnl: number;
 }
 
-export async function getPlaybookStats(playbookId: string, propAccountId?: string | null): Promise<PlaybookStats | null> {
-    const supabase = createClient()
+export async function getPlaybookStats(
+  playbookId: string,
+  userId: string,
+  propAccountId?: string | null
+): Promise<PlaybookStats | null> {
+  const playbook = await getPlaybook(playbookId, userId);
+  if (!playbook) return null;
 
-    const playbook = await getPlaybook(playbookId)
-    if (!playbook) return null
+  const conditions = [
+    eq(trades.playbookId, playbookId),
+    eq(trades.userId, userId),
+    eq(trades.status, 'closed'),
+  ];
+  if (propAccountId) {
+    const { eq: deq } = await import('drizzle-orm');
+    conditions.push(deq(trades.propAccountId, propAccountId));
+  }
 
-    let query = supabase
-        .from('trades')
-        .select('pnl, r_multiple')
-        .eq('playbook_id', playbookId)
-        .eq('status', 'closed')
+  const closedTrades = await db
+    .select({ pnl: trades.pnl, rMultiple: trades.rMultiple })
+    .from(trades)
+    .where(and(...conditions));
 
-    query = withPropAccountFilter(query, propAccountId)
+  const pnlNums = closedTrades.map(t => ({
+    pnl: Number(t.pnl ?? 0),
+    rMultiple: t.rMultiple != null ? Number(t.rMultiple) : 0,
+  }));
 
-    const { data, error } = await query
-    if (error) throw new Error(error.message)
+  const winning = pnlNums.filter(t => t.pnl > 0).length;
+  const totalPnl = pnlNums.reduce((sum, t) => sum + t.pnl, 0);
+  const avgRMultiple = pnlNums.length > 0
+    ? pnlNums.reduce((sum, t) => sum + t.rMultiple, 0) / pnlNums.length
+    : 0;
 
-    const closedTrades = (data || []) as { pnl: number; r_multiple: number | null }[]
-    const winningTrades = closedTrades.filter(t => t.pnl > 0).length
-    const losingTrades = closedTrades.filter(t => t.pnl < 0).length
-    const totalPnl = closedTrades.reduce((sum, t) => sum + t.pnl, 0)
-    const avgRMultiple = closedTrades.length > 0
-        ? closedTrades.reduce((sum, t) => sum + (t.r_multiple || 0), 0) / closedTrades.length
-        : 0
-
-    return {
-        playbook,
-        totalTrades: closedTrades.length,
-        winningTrades,
-        losingTrades,
-        winRate: closedTrades.length > 0 ? (winningTrades / closedTrades.length) * 100 : 0,
-        avgRMultiple,
-        totalPnl,
-    }
+  return {
+    playbook,
+    totalTrades: pnlNums.length,
+    winningTrades: winning,
+    losingTrades: pnlNums.filter(t => t.pnl < 0).length,
+    winRate: pnlNums.length > 0 ? (winning / pnlNums.length) * 100 : 0,
+    avgRMultiple,
+    totalPnl,
+  };
 }
 
-export async function getAllPlaybooksWithStats(propAccountId?: string | null): Promise<PlaybookStats[]> {
-    const playbooks = await getPlaybooks()
-    const statsPromises = playbooks.map(p => getPlaybookStats(p.id, propAccountId))
-    const stats = await Promise.all(statsPromises)
-    return stats.filter((s): s is PlaybookStats => s !== null)
+export async function getAllPlaybooksWithStats(
+  userId: string,
+  propAccountId?: string | null
+): Promise<PlaybookStats[]> {
+  const all = await getPlaybooks(userId);
+  const stats = await Promise.all(all.map(p => getPlaybookStats(p.id, userId, propAccountId)));
+  return stats.filter((s): s is PlaybookStats => s !== null);
 }

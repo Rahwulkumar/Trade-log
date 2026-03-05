@@ -82,7 +82,7 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
   const title =
     Object.entries(PAGE_TITLES).find(
       ([key]) => pathname === key || (key !== "/" && pathname.startsWith(key)),
-    )?.[1] ?? "CONIYEST";
+    )?.[1] ?? "TradeLog";
 
   const userInitials = user?.email
     ? user.email.substring(0, 2).toUpperCase()

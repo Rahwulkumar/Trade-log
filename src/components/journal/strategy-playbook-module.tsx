@@ -22,8 +22,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createPlaybook } from "@/lib/api/playbooks";
-import type { Playbook } from "@/lib/supabase/types";
+import { createPlaybook } from "@/lib/api/client/playbooks";
+import type { Playbook } from "@/lib/db/schema";
 
 interface StrategyPlaybookModuleProps {
   playbooks: Playbook[];
@@ -86,7 +86,7 @@ export function StrategyPlaybookModule({
         name: createForm.name.trim(),
         description: createForm.description.trim() || null,
         rules: ruleList.length > 0 ? ruleList : null,
-        is_active: true,
+        isActive: true,
       });
       await onPlaybooksRefetch();
       onPlaybookChange(created.id);
@@ -201,48 +201,52 @@ export function StrategyPlaybookModule({
         </Select>
       </div>
 
-      {selectedPlaybook?.ai_generated && selectedPlaybook?.ai_prompt && (
-        <div
-          className="rounded-md overflow-hidden"
-          style={{
-            border: "1px solid var(--border-active)",
-            background: "var(--accent-soft)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setAiOpen((o) => !o)}
-            className="flex items-center gap-2 w-full text-left px-3 py-2 text-[10px] uppercase tracking-wider transition-colors"
-            style={{ color: "var(--accent-secondary)" }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "var(--accent-muted)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "transparent")
-            }
+      {(selectedPlaybook as unknown as Record<string, unknown>)?.ai_generated &&
+        (selectedPlaybook as unknown as Record<string, unknown>)?.ai_prompt && (
+          <div
+            className="rounded-md overflow-hidden"
+            style={{
+              border: "1px solid var(--border-active)",
+              background: "var(--accent-soft)",
+            }}
           >
-            <ChevronDown
-              className={cn(
-                "w-3 h-3 transition-transform",
-                aiOpen && "rotate-180",
-              )}
-            />
-            <span>AI Logic Insight</span>
-          </button>
-          {aiOpen && (
-            <div
-              className="px-3 py-2 text-xs whitespace-pre-wrap font-mono leading-relaxed"
-              style={{
-                borderTop: "1px solid var(--border-subtle)",
-                color: "var(--text-secondary)",
-                background: "var(--surface-elevated)",
-              }}
+            <button
+              type="button"
+              onClick={() => setAiOpen((o) => !o)}
+              className="flex items-center gap-2 w-full text-left px-3 py-2 text-[10px] uppercase tracking-wider transition-colors"
+              style={{ color: "var(--accent-secondary)" }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "var(--accent-muted)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
             >
-              {selectedPlaybook.ai_prompt}
-            </div>
-          )}
-        </div>
-      )}
+              <ChevronDown
+                className={cn(
+                  "w-3 h-3 transition-transform",
+                  aiOpen && "rotate-180",
+                )}
+              />
+              <span>AI Logic Insight</span>
+            </button>
+            {aiOpen && (
+              <div
+                className="px-3 py-2 text-xs whitespace-pre-wrap font-mono leading-relaxed"
+                style={{
+                  borderTop: "1px solid var(--border-subtle)",
+                  color: "var(--text-secondary)",
+                  background: "var(--surface-elevated)",
+                }}
+              >
+                {
+                  (selectedPlaybook as unknown as Record<string, string>)
+                    .ai_prompt
+                }
+              </div>
+            )}
+          </div>
+        )}
 
       {rules.length > 0 ? (
         <div className="space-y-3">

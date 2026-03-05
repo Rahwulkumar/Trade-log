@@ -7,7 +7,7 @@ import { useAuth } from "@/components/auth-provider";
 import {
   getAllPlaybooksWithStats,
   type PlaybookStats,
-} from "@/lib/api/playbooks";
+} from "@/lib/api/client/playbooks";
 
 interface TopPlaybooksProps {
   propAccountId?: string | null;

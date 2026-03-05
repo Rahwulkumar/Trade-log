@@ -31,8 +31,7 @@ import {
   duplicatePlaybook,
   getAllPlaybooksWithStats,
   togglePlaybookActive,
-} from "@/lib/api/playbooks";
-import type { Playbook } from "@/lib/supabase/types";
+} from "@/lib/api/client/playbooks";
 import { AppPageHeader, AppPanel } from "@/components/ui/page-primitives";
 import { Input } from "@/components/ui/input";
 
@@ -48,7 +47,13 @@ interface GeneratedStrategy {
   rules: { id: string; text: string; required: boolean }[];
 }
 
-interface PlaybookWithStats extends Playbook {
+interface PlaybookWithStats {
+  id: string;
+  name: string;
+  description: string | null;
+  rules: unknown;
+  isActive?: boolean | null;
+  is_active?: boolean | null;
   stats?: {
     totalTrades: number;
     winRate: number;
@@ -192,7 +197,7 @@ export default function StrategiesPage() {
         name: generated.name,
         description: generated.description,
         rules: generated.rules.map((rule) => rule.text),
-        is_active: true,
+        isActive: true,
       });
       setIsCreating(false);
       setGenerated(null);

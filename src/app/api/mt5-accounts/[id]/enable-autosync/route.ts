@@ -1,54 +1,46 @@
-/**
- * Enable Auto-Sync for MT5 Account
- * POST /api/mt5-accounts/[id]/enable-autosync
- * 
- * Provisions a terminal for the account (Docker container will be started by orchestrator).
- */
-
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/auth/server';
 import { enableAutoSync } from '@/lib/terminal-farm/service';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-    try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const { userId, error } = await requireAuth();
+    if (error) return error;
 
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    const { id: accountId } = await params;
 
-        const { id: accountId } = await params;
+    // Verify account ownership via Drizzle
+    const { db } = await import('@/lib/db');
+    const { mt5Accounts } = await import('@/lib/db/schema');
+    const { eq, and } = await import('drizzle-orm');
 
-        // Verify account ownership
-        const { data: account } = await supabase
-            .from('mt5_accounts')
-            .select('id, user_id')
-            .eq('id', accountId)
-            .eq('user_id', user.id)
-            .single();
+    const [account] = await db
+      .select({ id: mt5Accounts.id })
+      .from(mt5Accounts)
+      .where(and(eq(mt5Accounts.id, accountId), eq(mt5Accounts.userId, userId)))
+      .limit(1);
 
-        if (!account) {
-            return NextResponse.json({ error: 'Account not found' }, { status: 404 });
-        }
-
-        const terminal = await enableAutoSync(accountId, user.id);
-
-        return NextResponse.json({
-            success: true,
-            terminalId: terminal.id,
-            terminal: {
-                id: terminal.id,
-                status: terminal.status,
-                createdAt: terminal.created_at,
-            },
-        });
-    } catch (error) {
-        console.error('[EnableAutoSync] Error:', error);
-        const message = error instanceof Error ? error.message : 'Internal server error';
-        return NextResponse.json({ error: message }, { status: 500 });
+    if (!account) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
+
+    const terminal = await enableAutoSync(accountId, userId);
+
+    return NextResponse.json({
+      success: true,
+      terminalId: terminal.id,
+      terminal: {
+        id: terminal.id,
+        status: terminal.status,
+        createdAt: terminal.created_at,
+      },
+    });
+  } catch (error) {
+    console.error('[EnableAutoSync] Error:', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

@@ -160,11 +160,6 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
   const [open, setOpen] = useState(false);
   const selected = propAccounts.find((a) => a.id === selectedAccountId);
 
-  const allItems = [
-    { id: null as string | null, name: "All Accounts", status: "No filter" },
-    ...propAccounts,
-  ];
-
   const Dropdown = (
     <>
       <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
@@ -181,19 +176,53 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
             "0 20px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(44,194,153,0.08)",
         }}
       >
-        {allItems.map((acct) => {
+        {/* All Accounts option */}
+        <button
+          onClick={() => {
+            setSelectedAccountId(null);
+            setOpen(false);
+          }}
+          className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+          style={{
+            background: selectedAccountId === null ? T.active : "transparent",
+          }}
+          onMouseEnter={(e) => {
+            if (selectedAccountId !== null)
+              e.currentTarget.style.background = T.hover;
+          }}
+          onMouseLeave={(e) => {
+            if (selectedAccountId !== null)
+              e.currentTarget.style.background = "transparent";
+          }}
+        >
+          <div
+            className="h-1.5 w-1.5 rounded-full shrink-0"
+            style={{
+              background: selectedAccountId === null ? T.accent : T.textTert,
+            }}
+          />
+          <span
+            style={{
+              fontSize: "0.75rem",
+              fontWeight: 500,
+              color: selectedAccountId === null ? T.accent : T.textPrimary,
+            }}
+          >
+            All Accounts
+          </span>
+        </button>
+        {/* Individual accounts */}
+        {propAccounts.map((acct) => {
           const isSel = selectedAccountId === acct.id;
           return (
             <button
-              key={acct.id ?? "all"}
+              key={acct.id}
               onClick={() => {
                 setSelectedAccountId(acct.id);
                 setOpen(false);
               }}
               className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
-              style={{
-                background: isSel ? T.active : "transparent",
-              }}
+              style={{ background: isSel ? T.active : "transparent" }}
               onMouseEnter={(e) => {
                 if (!isSel) e.currentTarget.style.background = T.hover;
               }}
@@ -212,7 +241,7 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
                   color: isSel ? T.accent : T.textPrimary,
                 }}
               >
-                {acct.name}
+                {acct.accountName}
               </span>
             </button>
           );
@@ -225,7 +254,7 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
     return (
       <div className="relative flex justify-center">
         <button
-          title={selected?.name ?? "All Accounts"}
+          title={selected?.accountName ?? "All Accounts"}
           onClick={() => setOpen((o) => !o)}
           className="flex h-8 w-8 items-center justify-center rounded-[7px] transition-colors"
           style={{ color: T.textSec }}
@@ -267,7 +296,7 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
             className="truncate font-medium leading-none"
             style={{ fontSize: "0.73rem", color: T.textPrimary }}
           >
-            {selected?.name ?? "All Accounts"}
+            {selected?.accountName ?? "All Accounts"}
           </p>
           <p
             className="mt-0.5 leading-none truncate"
@@ -350,7 +379,7 @@ function SidebarContent({
                   lineHeight: 1,
                 }}
               >
-                VELOX
+                TradeLog
               </span>
               <span
                 style={{

@@ -39,8 +39,7 @@ import {
   duplicatePlaybook,
   getAllPlaybooksWithStats,
   togglePlaybookActive,
-} from "@/lib/api/playbooks";
-import type { Playbook } from "@/lib/supabase/types";
+} from "@/lib/api/client/playbooks";
 import { cn } from "@/lib/utils";
 import {
   AppMetricCard,
@@ -52,7 +51,13 @@ import { motion } from "framer-motion";
 import { NoDataEmpty } from "@/components/ui/empty-state";
 import { IconSearch } from "@/components/ui/icons";
 
-interface PlaybookWithStats extends Playbook {
+interface PlaybookWithStats {
+  id: string;
+  name: string;
+  description: string | null;
+  rules: unknown;
+  isActive: boolean | null;
+  is_active?: boolean | null;
   stats?: {
     totalTrades: number;
     winRate: number;
@@ -88,7 +93,9 @@ export default function PlaybooksPage() {
       const propAccountIdFilter =
         selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
 
-      const stats = await getAllPlaybooksWithStats(propAccountIdFilter);
+      const stats = await getAllPlaybooksWithStats(
+        propAccountIdFilter ?? undefined,
+      );
       const playbooksWithStats: PlaybookWithStats[] = stats.map((item) => ({
         ...item.playbook,
         stats: {
@@ -131,7 +138,7 @@ export default function PlaybooksPage() {
               .map((rule) => rule.trim())
               .filter(Boolean)
           : null,
-        is_active: true,
+        isActive: true,
       });
       setFormData({ name: "", description: "", rules: "" });
       setIsNewPlaybookOpen(false);

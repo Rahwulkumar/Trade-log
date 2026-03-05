@@ -34,8 +34,8 @@ import {
 } from "date-fns";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
-import { getTradesByDateRange } from "@/lib/api/trades";
-import type { Trade } from "@/lib/supabase/types";
+import { getTradesByDateRange } from "@/lib/api/client/trades";
+import type { Trade } from "@/lib/db/schema";
 
 interface DayTrade {
   id: string;
@@ -81,7 +81,7 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
         const start = format(startOfMonth(currentMonth), "yyyy-MM-dd");
         const end = format(endOfMonth(currentMonth), "yyyy-MM-dd");
         const propAccountIdFilter =
-          selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
+          selectedAccountId === "unassigned" ? null : selectedAccountId;
         const tradesData = await getTradesByDateRange(
           start,
           end,
@@ -104,8 +104,8 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
     const data = new Map<string, DayData>();
 
     trades.forEach((trade) => {
-      const dateKey = format(new Date(trade.entry_date), "yyyy-MM-dd");
-      const tradePnl = trade.pnl ?? 0;
+      const dateKey = format(new Date(trade.entryDate), "yyyy-MM-dd");
+      const tradePnl = Number(trade.pnl ?? 0);
       const direction =
         trade.direction === "LONG" || trade.direction === "SHORT"
           ? trade.direction
@@ -116,10 +116,10 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
         symbol: trade.symbol,
         direction,
         pnl: tradePnl,
-        rMultiple: trade.r_multiple,
-        entryTime: format(new Date(trade.entry_date), "HH:mm"),
-        exitTime: trade.exit_date
-          ? format(new Date(trade.exit_date), "HH:mm")
+        rMultiple: trade.rMultiple != null ? Number(trade.rMultiple) : null,
+        entryTime: format(new Date(trade.entryDate), "HH:mm"),
+        exitTime: trade.exitDate
+          ? format(new Date(trade.exitDate), "HH:mm")
           : null,
       };
 
@@ -132,7 +132,7 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
         existing.winRate = Math.round((wins / existing.tradesCount) * 100);
       } else {
         data.set(dateKey, {
-          date: new Date(trade.entry_date),
+          date: new Date(trade.entryDate),
           trades: [dayTrade],
           totalPnl: tradePnl,
           winRate: tradePnl > 0 ? 100 : 0,

@@ -8,8 +8,8 @@ import {
   ReactNode,
 } from "react";
 import { useAuth } from "@/components/auth-provider";
-import { getActivePropAccounts } from "@/lib/api/prop-accounts";
-import type { PropAccount } from "@/lib/supabase/types";
+import { getActivePropAccounts } from "@/lib/api/client/prop-accounts";
+import type { PropAccount } from "@/lib/db/schema";
 
 const STORAGE_KEY = "trading-journal-selected-account";
 

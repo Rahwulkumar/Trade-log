@@ -15,7 +15,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { getTradesByDateRange } from "@/lib/api/trades";
+import { getTradesByDateRange } from "@/lib/api/client/trades";
 import { usePropAccount } from "@/components/prop-account-provider";
 import { getCurrentWeekRange, formatWeekRange } from "@/lib/utils/date-range";
 import {
@@ -24,7 +24,7 @@ import {
   formatSignedCurrency,
 } from "@/lib/utils/format";
 import { getPnLColorClass } from "@/lib/utils/trade-colors";
-import type { Trade } from "@/lib/supabase/types";
+import type { Trade } from "@/lib/db/schema";
 import {
   AppPageHeader,
   AppPanel,
@@ -43,16 +43,20 @@ interface WeekStats {
 
 function buildWeekStats(trades: Trade[]): WeekStats {
   const closed = trades.filter((t) => t.status === "closed");
-  const winners = closed.filter((t) => (t.pnl ?? 0) > 0);
-  const losers = closed.filter((t) => (t.pnl ?? 0) < 0);
-  const netPnL = closed.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+  const winners = closed.filter((t) => Number(t.pnl ?? 0) > 0);
+  const losers = closed.filter((t) => Number(t.pnl ?? 0) < 0);
+  const netPnL = closed.reduce((sum, t) => sum + Number(t.pnl ?? 0), 0);
   const bestTrade =
     winners.length > 0
-      ? winners.reduce((a, b) => ((a.pnl ?? 0) > (b.pnl ?? 0) ? a : b))
+      ? winners.reduce((a, b) =>
+          Number(a.pnl ?? 0) > Number(b.pnl ?? 0) ? a : b,
+        )
       : null;
   const worstTrade =
     losers.length > 0
-      ? losers.reduce((a, b) => ((a.pnl ?? 0) < (b.pnl ?? 0) ? a : b))
+      ? losers.reduce((a, b) =>
+          Number(a.pnl ?? 0) < Number(b.pnl ?? 0) ? a : b,
+        )
       : null;
   return {
     trades: closed.length,
@@ -61,10 +65,10 @@ function buildWeekStats(trades: Trade[]): WeekStats {
     winRate: closed.length > 0 ? (winners.length / closed.length) * 100 : 0,
     netPnL,
     bestTrade: bestTrade
-      ? { symbol: bestTrade.symbol, pnl: bestTrade.pnl ?? 0 }
+      ? { symbol: bestTrade.symbol, pnl: Number(bestTrade.pnl ?? 0) }
       : null,
     worstTrade: worstTrade
-      ? { symbol: worstTrade.symbol, pnl: worstTrade.pnl ?? 0 }
+      ? { symbol: worstTrade.symbol, pnl: Number(worstTrade.pnl ?? 0) }
       : null,
   };
 }

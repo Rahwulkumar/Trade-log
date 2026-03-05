@@ -205,7 +205,7 @@ export function StatisticsDonut({
         </div>
       </div>
 
-      {/* Category legend — like CONIYEST reference right panel */}
+      {/* Category legend — reference right panel */}
       <div className="flex-1 space-y-2 mt-2">
         {[
           {

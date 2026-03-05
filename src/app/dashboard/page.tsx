@@ -15,8 +15,8 @@ import {
   getTodayStats,
   type AnalyticsSummary,
 } from "@/lib/api/analytics";
-import { checkCompliance } from "@/lib/api/prop-accounts";
-import type { PropAccount } from "@/lib/supabase/types";
+import { checkCompliance } from "@/lib/api/client/prop-accounts";
+import type { PropAccount } from "@/lib/db/schema";
 import {
   IconAnalytics,
   IconPropFirm,
@@ -216,7 +216,7 @@ function AccountCard({
               marginTop: "2px",
             }}
           >
-            {account?.name ?? "All Accounts"}
+            {account?.accountName ?? "All Accounts"}
           </p>
         </div>
         <span className="badge-toggle-on">ON</span>
@@ -353,15 +353,13 @@ export default function DashboardPage() {
             : propAccounts[0]?.id;
 
         if (targetId) {
-          const account = propAccounts.find(
-            (a: PropAccount) => a.id === targetId,
-          );
+          const account = propAccounts.find((a) => a.id === targetId);
           if (account) {
             const compliance = await checkCompliance(account.id);
             setPropAccount({
               ...account,
               compliance: { profitProgress: compliance.profitProgress },
-            });
+            } as PropAccountWithCompliance);
           } else setPropAccount(null);
         } else setPropAccount(null);
       } catch (err) {
@@ -378,7 +376,7 @@ export default function DashboardPage() {
   const totalIncome = stats ? Math.abs(stats.avgWin) * stats.winningTrades : 0;
   const totalExpense = stats ? Math.abs(stats.avgLoss) * stats.losingTrades : 0;
   const winRate = stats?.winRate ?? 0;
-  const balance = propAccount?.current_balance ?? Math.max(totalPnl, 0);
+  const balance = Number(propAccount?.currentBalance ?? Math.max(totalPnl, 0));
   const profitFactor =
     stats?.profitFactor === Infinity
       ? "∞"
@@ -629,14 +627,14 @@ export default function DashboardPage() {
               </div>
               <div>
                 <h2 className="headline-md">
-                  {propAccount?.name ?? "Prop Firm"}
+                  {propAccount?.accountName ?? "Prop Firm"}
                 </h2>
                 <p
                   className="text-label mt-0.5"
                   style={{ textTransform: "none", letterSpacing: 0 }}
                 >
                   {propAccount
-                    ? `${fmt(propAccount.initial_balance)} funded account`
+                    ? `${fmt(Number(propAccount.accountSize))} funded account`
                     : "Add a prop account below"}
                 </p>
               </div>
@@ -661,14 +659,14 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-label mb-0.5">Current Balance</p>
                     <p className="stat-medium">
-                      {fmt(propAccount.current_balance)}
+                      {fmt(Number(propAccount.currentBalance ?? 0))}
                     </p>
                   </div>
                   <div>
                     <p className="text-label mb-0.5">Profit Target</p>
                     <p className="stat-medium profit">
-                      {propAccount.profit_target
-                        ? fmt(propAccount.profit_target)
+                      {propAccount.compliance?.profitProgress != null
+                        ? fmt(propAccount.compliance.profitProgress)
                         : "N/A"}
                     </p>
                   </div>
@@ -681,16 +679,8 @@ export default function DashboardPage() {
                   paddingTop: "1rem",
                 }}
               >
-                <DrawdownGauge
-                  label="Daily Drawdown"
-                  used={propAccount.daily_dd_current ?? 0}
-                  max={propAccount.daily_dd_max ?? 5}
-                />
-                <DrawdownGauge
-                  label="Total Drawdown"
-                  used={propAccount.total_dd_current ?? 0}
-                  max={propAccount.total_dd_max ?? 10}
-                />
+                <DrawdownGauge label="Daily Drawdown" used={0} max={5} />
+                <DrawdownGauge label="Total Drawdown" used={0} max={10} />
               </div>
             </div>
           ) : (

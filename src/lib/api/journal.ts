@@ -1,164 +1,134 @@
-import { createClient } from '@/lib/supabase/client'
-import type { JournalEntry, JournalEntryInsert, Json } from '@/lib/supabase/types'
+/**
+ * Journal Entries API — Drizzle ORM (replaces Supabase query builder)
+ */
 
-export async function getJournalEntries(): Promise<JournalEntry[]> {
-    const supabase = createClient()
+import { db } from '@/lib/db';
+import { journalEntries, type JournalEntry, type JournalEntryInsert } from '@/lib/db/schema';
+import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
-    const { data, error } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .order('entry_date', { ascending: false })
+export type { JournalEntry };
+export type Json = unknown; // compat with old type import
 
-    if (error) throw new Error(error.message)
-    return (data || []) as JournalEntry[]
+export async function getJournalEntries(userId: string): Promise<JournalEntry[]> {
+  return db
+    .select()
+    .from(journalEntries)
+    .where(eq(journalEntries.userId, userId))
+    .orderBy(desc(journalEntries.entryDate));
 }
 
-export async function getJournalEntry(id: string): Promise<JournalEntry | null> {
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .eq('id', id)
-        .single()
-
-    if (error) {
-        if (error.code === 'PGRST116') return null
-        throw new Error(error.message)
-    }
-    return data as JournalEntry
+export async function getJournalEntry(id: string, userId: string): Promise<JournalEntry | null> {
+  const [row] = await db
+    .select()
+    .from(journalEntries)
+    .where(and(eq(journalEntries.id, id), eq(journalEntries.userId, userId)))
+    .limit(1);
+  return row ?? null;
 }
 
-export async function getJournalEntriesByType(type: 'daily' | 'weekly' | 'trade'): Promise<JournalEntry[]> {
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .eq('entry_type', type)
-        .order('entry_date', { ascending: false })
-
-    if (error) throw new Error(error.message)
-    return (data || []) as JournalEntry[]
+export async function getJournalEntriesByType(
+  userId: string,
+  type: 'daily' | 'weekly' | 'trade'
+): Promise<JournalEntry[]> {
+  return db
+    .select()
+    .from(journalEntries)
+    .where(and(eq(journalEntries.userId, userId), eq(journalEntries.entryType, type)))
+    .orderBy(desc(journalEntries.entryDate));
 }
 
 export async function getJournalEntriesByDateRange(
-    startDate: string,
-    endDate: string
+  userId: string,
+  startDate: string,
+  endDate: string
 ): Promise<JournalEntry[]> {
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .gte('entry_date', startDate)
-        .lte('entry_date', endDate)
-        .order('entry_date', { ascending: false })
-
-    if (error) throw new Error(error.message)
-    return (data || []) as JournalEntry[]
+  return db
+    .select()
+    .from(journalEntries)
+    .where(
+      and(
+        eq(journalEntries.userId, userId),
+        gte(journalEntries.entryDate, startDate),
+        lte(journalEntries.entryDate, endDate)
+      )
+    )
+    .orderBy(desc(journalEntries.entryDate));
 }
 
 export async function createJournalEntry(
-    entry: Omit<JournalEntryInsert, 'user_id'>
+  userId: string,
+  entry: Omit<JournalEntryInsert, 'userId'>
 ): Promise<JournalEntry> {
-    const supabase = createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    const { data, error } = await supabase
-        .from('journal_entries')
-        .insert({ ...entry, user_id: user.id })
-        .select()
-        .single()
-
-    if (error) throw new Error(error.message)
-    return data as JournalEntry
+  const [row] = await db
+    .insert(journalEntries)
+    .values({ ...entry, userId })
+    .returning();
+  return row;
 }
 
 export async function updateJournalEntry(
-    id: string,
-    updates: Partial<JournalEntry>
+  id: string,
+  userId: string,
+  updates: Partial<Omit<JournalEntryInsert, 'id' | 'userId'>>
 ): Promise<JournalEntry> {
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-        .from('journal_entries')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single()
-
-    if (error) throw new Error(error.message)
-    return data as JournalEntry
+  const [row] = await db
+    .update(journalEntries)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(and(eq(journalEntries.id, id), eq(journalEntries.userId, userId)))
+    .returning();
+  if (!row) throw new Error('Journal entry not found');
+  return row;
 }
 
-export async function deleteJournalEntry(id: string): Promise<void> {
-    const supabase = createClient()
-
-    const { error } = await supabase
-        .from('journal_entries')
-        .delete()
-        .eq('id', id)
-
-    if (error) throw new Error(error.message)
+export async function deleteJournalEntry(id: string, userId: string): Promise<void> {
+  await db
+    .delete(journalEntries)
+    .where(and(eq(journalEntries.id, id), eq(journalEntries.userId, userId)));
 }
 
-export async function toggleFavorite(id: string): Promise<JournalEntry> {
-    const entry = await getJournalEntry(id)
-    if (!entry) throw new Error('Journal entry not found')
-
-    return updateJournalEntry(id, { is_favorite: !entry.is_favorite })
+export async function toggleFavorite(id: string, userId: string): Promise<JournalEntry> {
+  const entry = await getJournalEntry(id, userId);
+  if (!entry) throw new Error('Journal entry not found');
+  return updateJournalEntry(id, userId, { isFavorite: !entry.isFavorite });
 }
 
-export async function getFavorites(): Promise<JournalEntry[]> {
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .eq('is_favorite', true)
-        .order('entry_date', { ascending: false })
-
-    if (error) throw new Error(error.message)
-    return (data || []) as JournalEntry[]
+export async function getFavorites(userId: string): Promise<JournalEntry[]> {
+  return db
+    .select()
+    .from(journalEntries)
+    .where(and(eq(journalEntries.userId, userId), eq(journalEntries.isFavorite, true)))
+    .orderBy(desc(journalEntries.entryDate));
 }
 
-// Get the journal entry for a specific trade
-export async function getJournalForTrade(tradeId: string): Promise<JournalEntry | null> {
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .eq('trade_id', tradeId)
-        .single()
-
-    if (error) {
-        if (error.code === 'PGRST116') return null
-        throw new Error(error.message)
-    }
-    return data as JournalEntry
+export async function getJournalForTrade(
+  tradeId: string,
+  userId: string
+): Promise<JournalEntry | null> {
+  const [row] = await db
+    .select()
+    .from(journalEntries)
+    .where(and(eq(journalEntries.tradeId, tradeId), eq(journalEntries.userId, userId)))
+    .limit(1);
+  return row ?? null;
 }
 
-// Create or update a journal entry for a trade
 export async function saveTradeJournal(
-    tradeId: string,
-    content: Json,
-    title?: string
+  tradeId: string,
+  userId: string,
+  content: Json,
+  title?: string
 ): Promise<JournalEntry> {
-    const existing = await getJournalForTrade(tradeId)
+  const existing = await getJournalForTrade(tradeId, userId);
 
-    if (existing) {
-        return updateJournalEntry(existing.id, { content, title })
-    }
+  if (existing) {
+    return updateJournalEntry(existing.id, userId, { content, title });
+  }
 
-    return createJournalEntry({
-        title,
-        content,
-        entry_date: new Date().toISOString().split('T')[0],
-        entry_type: 'trade',
-        trade_id: tradeId,
-    })
+  return createJournalEntry(userId, {
+    title,
+    content,
+    entryDate: new Date().toISOString().split('T')[0],
+    entryType: 'trade',
+    tradeId,
+  });
 }

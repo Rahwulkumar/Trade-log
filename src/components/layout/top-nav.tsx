@@ -33,10 +33,11 @@ export function TopNav() {
   }
 
   const getAccountDisplayName = () => {
-    if (!selectedAccountId || selectedAccountId === "all") return "All Accounts";
+    if (!selectedAccountId || selectedAccountId === "all")
+      return "All Accounts";
     if (selectedAccountId === "unassigned") return "Unassigned";
     const account = propAccounts.find((a) => a.id === selectedAccountId);
-    return account?.name || "All Accounts";
+    return account?.accountName || "All Accounts";
   };
 
   const isActive = (href: string) =>
@@ -76,14 +77,16 @@ export function TopNav() {
             >
               <SelectTrigger className="h-9 min-w-[140px] gap-2 rounded-md border-border bg-card px-2 text-xs">
                 <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="max-w-[110px] truncate">{getAccountDisplayName()}</span>
+                <span className="max-w-[110px] truncate">
+                  {getAccountDisplayName()}
+                </span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Accounts</SelectItem>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
                 {propAccounts.map((account) => (
                   <SelectItem key={account.id} value={account.id}>
-                    {account.name}
+                    {account.accountName}
                   </SelectItem>
                 ))}
               </SelectContent>

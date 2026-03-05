@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getTrades } from "@/lib/api/trades";
-import { Trade } from "@/lib/supabase/types";
+import { getTrades } from "@/lib/api/client/trades";
+import { Trade } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import { IconArrowLeft, IconSearch } from "@/components/ui/icons";
 
@@ -20,7 +20,7 @@ function TradeCard({
   isActive: boolean;
   onClick: () => void;
 }) {
-  const pnl = trade.pnl ?? 0;
+  const pnl = Number(trade.pnl ?? 0);
   const isProfit = pnl >= 0;
 
   return (
@@ -40,7 +40,7 @@ function TradeCard({
         <div className="flex items-center gap-2">
           <span
             style={{
-                            fontWeight: 700,
+              fontWeight: 700,
               fontSize: "0.9rem",
               color: isActive ? "var(--accent-primary)" : "var(--text-primary)",
               letterSpacing: "-0.01em",
@@ -82,27 +82,29 @@ function TradeCard({
             color: "var(--text-tertiary)",
           }}
         >
-          {new Date(trade.entry_date).toLocaleDateString(undefined, {
+          {new Date(trade.entryDate).toLocaleDateString(undefined, {
             month: "short",
             day: "numeric",
             year: "2-digit",
           })}
         </span>
 
-        {trade.r_multiple != null && (
+        {trade.rMultiple != null && (
           <span
             className="mono text-[0.65rem] font-medium px-1.5 py-0.5 rounded-sm"
             style={{
               background:
-                trade.r_multiple >= 0 ? "var(--profit-bg)" : "var(--loss-bg)",
+                Number(trade.rMultiple) >= 0
+                  ? "var(--profit-bg)"
+                  : "var(--loss-bg)",
               color:
-                trade.r_multiple >= 0
+                Number(trade.rMultiple) >= 0
                   ? "var(--profit-primary)"
                   : "var(--loss-primary)",
             }}
           >
-            {trade.r_multiple >= 0 ? "+" : ""}
-            {trade.r_multiple.toFixed(1)}R
+            {Number(trade.rMultiple) >= 0 ? "+" : ""}
+            {Number(trade.rMultiple).toFixed(1)}R
           </span>
         )}
       </div>
@@ -142,7 +144,7 @@ export function TradeSelector({ currentTradeId }: TradeSelectorProps) {
     search ? t.symbol.toLowerCase().includes(search.toLowerCase()) : true,
   );
 
-  const wins = filtered.filter((t) => (t.pnl ?? 0) > 0).length;
+  const wins = filtered.filter((t) => Number(t.pnl ?? 0) > 0).length;
   const winRate =
     filtered.length > 0 ? Math.round((wins / filtered.length) * 100) : 0;
 
