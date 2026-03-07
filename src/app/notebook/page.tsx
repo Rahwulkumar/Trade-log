@@ -7,7 +7,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/auth-provider";
 import { JournalEditor } from "@/components/journal/journal-editor";
 import { format, formatDistanceToNowStrict } from "date-fns";
@@ -198,10 +197,46 @@ function EmptyEditor({ onCreate }: { onCreate: () => void }) {
   );
 }
 
+// ─── API helpers ─────────────────────────────────────────────────────────────
+async function fetchNotes(): Promise<Note[]> {
+  const res = await fetch("/api/notes", { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to load notes");
+  return res.json();
+}
+
+async function createNoteApi(): Promise<Note> {
+  const res = await fetch("/api/notes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ title: "Untitled", icon: "📝" }),
+  });
+  if (!res.ok) throw new Error("Failed to create note");
+  return res.json();
+}
+
+async function updateNoteApi(id: string, payload: Record<string, unknown>): Promise<Note> {
+  const res = await fetch(`/api/notes/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to update note");
+  return res.json();
+}
+
+async function deleteNoteApi(id: string): Promise<void> {
+  const res = await fetch(`/api/notes/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to delete note");
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function NotebookPage() {
   const { user } = useAuth();
-  const supabase = createClient();
 
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -216,18 +251,17 @@ export default function NotebookPage() {
     if (!user) return;
     (async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from("notes")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("pinned", { ascending: false })
-        .order("updated_at", { ascending: false });
-      const rows = (data ?? []) as Note[];
-      setNotes(rows);
-      if (rows.length) setSelectedId(rows[0].id);
-      setLoading(false);
+      try {
+        const rows = await fetchNotes();
+        setNotes(rows);
+        if (rows.length) setSelectedId(rows[0].id);
+      } catch {
+        setNotes([]);
+      } finally {
+        setLoading(false);
+      }
     })();
-  }, [user]); // eslint-disable-line
+  }, [user]);
 
   const selected = useMemo(
     () => notes.find((n) => n.id === selectedId) ?? null,
@@ -237,17 +271,14 @@ export default function NotebookPage() {
   // ── CRUD ────────────────────────────────────────────────────────────────────
   const createNote = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("notes")
-      .insert({ user_id: user.id, title: "Untitled", icon: "📝" })
-      .select()
-      .single();
-    if (data) {
-      const note = data as Note;
+    try {
+      const note = await createNoteApi();
       setNotes((prev) => [note, ...prev]);
       setSelectedId(note.id);
+    } catch {
+      // ignore
     }
-  }, [user, supabase]);
+  }, [user]);
 
   const updateNote = useCallback(
     (field: string, value: unknown) => {
@@ -261,33 +292,49 @@ export default function NotebookPage() {
       );
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
-        await supabase.from("notes").update({ [field]: value }).eq("id", selectedId);
+        try {
+          const updated = await updateNoteApi(selectedId, { [field]: value });
+          setNotes((prev) =>
+            prev.map((n) => (n.id === selectedId ? updated : n)),
+          );
+        } catch {
+          // ignore
+        }
       }, 600);
     },
-    [selectedId, supabase],
+    [selectedId],
   );
 
   const togglePin = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const note = notes.find((n) => n.id === id);
       if (!note) return;
       const next = !note.pinned;
       setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, pinned: next } : n)));
-      supabase.from("notes").update({ pinned: next }).eq("id", id);
+      try {
+        const updated = await updateNoteApi(id, { pinned: next });
+        setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)));
+      } catch {
+        setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, pinned: note.pinned } : n)));
+      }
     },
-    [notes, supabase],
+    [notes],
   );
 
   const deleteNote = useCallback(
     async (id: string) => {
-      await supabase.from("notes").delete().eq("id", id);
-      setNotes((prev) => {
-        const remaining = prev.filter((n) => n.id !== id);
-        if (selectedId === id) setSelectedId(remaining[0]?.id ?? null);
-        return remaining;
-      });
+      try {
+        await deleteNoteApi(id);
+        setNotes((prev) => {
+          const remaining = prev.filter((n) => n.id !== id);
+          if (selectedId === id) setSelectedId(remaining[0]?.id ?? null);
+          return remaining;
+        });
+      } catch {
+        // ignore
+      }
     },
-    [selectedId, supabase],
+    [selectedId],
   );
 
   // ── Filtered & grouped lists ────────────────────────────────────────────────

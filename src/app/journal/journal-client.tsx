@@ -45,6 +45,9 @@ function normalizeTrade(t: DrizzleTrade): SupabaseTrade {
       t.exitDate instanceof Date
         ? t.exitDate.toISOString()
         : ((t.exitDate as unknown as string) ?? null),
+    // Normalise DB uppercase status ('OPEN'/'CLOSED') to lowercase so all
+    // downstream display logic (stats, isOpen, getOutcome) works uniformly.
+    status: t.status?.toLowerCase() ?? t.status,
     // snake_case aliases
     r_multiple:
       (t as unknown as { rMultiple?: number | null }).rMultiple ?? null,
@@ -54,7 +57,7 @@ function normalizeTrade(t: DrizzleTrade): SupabaseTrade {
     playbook_id: t.playbookId,
     magic_number:
       (t as unknown as { magicNumber?: number | null }).magicNumber ?? null,
-    // Spread remaining fields as-is (id, symbol, status, direction, etc.)
+    // Spread remaining fields as-is (id, symbol, direction, etc.)
   } as unknown as SupabaseTrade;
 }
 
@@ -292,7 +295,7 @@ function TradeJournal({
             <span
               style={{ fontSize: "0.68rem", color: "var(--text-tertiary)" }}
             >
-              Saving"¦
+              Saving...
             </span>
           ) : savedAt ? (
             <span
@@ -303,7 +306,7 @@ function TradeJournal({
               Saved
             </span>
           ) : null}
-          {/* Back to view "” only shown when trade already has journal data */}
+          {/* Back to view is only shown when trade already has journal data */}
           {onBackToView && (
             <button
               onClick={onBackToView}
@@ -485,7 +488,7 @@ function TradeJournal({
                   />
                   {uploading && (
                     <p style={{ fontSize: "0.68rem", color: ACCENT }}>
-                      Uploading screenshot"¦
+                      Uploading screenshot...
                     </p>
                   )}
                 </div>

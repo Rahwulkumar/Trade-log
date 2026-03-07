@@ -33,9 +33,18 @@ export DISPLAY=:99
 # Wait for display to be ready
 sleep 2
 
-# Create MT5 configuration file
-MT5_CONFIG_DIR="/home/trader/.wine/drive_c/Program Files/MetaTrader 5/config"
+# Create MT5 configuration and preset files.
+# Use canonical MT5 folder names (Config / MQL5/Presets) to avoid case-sensitive
+# path mismatches on Linux filesystems.
+MT5_BASE_DIR="/home/trader/.wine/drive_c/Program Files/MetaTrader 5"
+MT5_CONFIG_DIR="$MT5_BASE_DIR/Config"
+MT5_CONFIG_MOUNT_DIR="/home/trader/config"
+MT5_PRESETS_DIR="$MT5_BASE_DIR/MQL5/Presets"
+MT5_FILES_DIR="$MT5_BASE_DIR/MQL5/Files"
 mkdir -p "$MT5_CONFIG_DIR"
+mkdir -p "$MT5_CONFIG_MOUNT_DIR"
+mkdir -p "$MT5_PRESETS_DIR"
+mkdir -p "$MT5_FILES_DIR"
 
 # Use TERMINAL_WEBHOOK_SECRET as API_KEY if provided, otherwise use API_KEY env var
 if [ -z "$API_KEY" ]; then
@@ -46,7 +55,37 @@ if [ -z "$API_KEY" ]; then
     fi
 fi
 
+# Normalize key to avoid copy/paste trailing spaces causing webhook auth mismatch.
+API_KEY="$(printf '%s' "$API_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+if [ -z "$API_KEY" ]; then
+    API_KEY="none"
+fi
+
 echo "DEBUG: Using API_KEY: ${API_KEY:0:4}..." # Only show first 4 chars for security
+
+# MT5 startup requires ExpertParameters to reference a .set file located in
+# MQL5/Presets, not an inline delimited string.
+EA_PRESET_FILE="TradeTaperSync.set"
+cat > "$MT5_PRESETS_DIR/$EA_PRESET_FILE" << EOF
+APIEndpoint=$API_ENDPOINT
+APIKey=$API_KEY
+TerminalId=$TERMINAL_ID
+HeartbeatInterval=30
+SyncInterval=60
+EOF
+
+# Fallback runtime config consumed directly by EA when startup input parameters
+# are not propagated by MT5 startup.
+cat > "$MT5_FILES_DIR/TradeTaperSync.cfg" << EOF
+APIEndpoint=$API_ENDPOINT
+APIKey=$API_KEY
+TerminalId=$TERMINAL_ID
+HeartbeatInterval=30
+SyncInterval=60
+EOF
+
+# Remove stale lowercase config file from older versions to prevent ambiguity.
+rm -f "$MT5_BASE_DIR/config/terminal.ini" 2>/dev/null || true
 
 cat > "$MT5_CONFIG_DIR/terminal.ini" << EOF
 [Common]
@@ -56,26 +95,71 @@ Server=$MT5_SERVER
 ProxyEnable=0
 AutoConfiguration=1
 NewsEnable=0
-ExpertsEnable=1
-ExpertsProfile=0
-ExpertsDllImport=0
-ExpertsAllowLiveTrading=1
-ExpertsTrades=1
-AllowWebRequest=1
+
+[Charts]
+ProfileLast=Default
+
+[Experts]
+AllowLiveTrading=1
+AllowDllImport=0
+Enabled=1
+Account=0
+Profile=0
+WebRequest=1
 WebRequestUrl=$API_ENDPOINT
 
 [StartUp]
-Expert=TradeTaperSync
-ExpertParameters=$API_ENDPOINT|$API_KEY|$TERMINAL_ID
+Expert=TradeTaperSync.ex5
+ExpertParameters=$EA_PRESET_FILE
 Symbol=EURUSD
-Period=1
+Period=H1
 EOF
 
 echo "Configuration written to $MT5_CONFIG_DIR/terminal.ini"
+# Mirror config to a no-space path so /config can be parsed reliably.
+cp "$MT5_CONFIG_DIR/terminal.ini" "$MT5_CONFIG_MOUNT_DIR/terminal.ini"
 
 # Copy EA to MT5 folder if not already there
 EA_SOURCE="/home/trader/mt5/MQL5/Experts/TradeTaperSync.mq5"
 EA_DEST="/home/trader/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/TradeTaperSync.mq5"
+EA_COMPILE_TIMEOUT_SECONDS="${EA_COMPILE_TIMEOUT_SECONDS:-120}"
+
+compile_ea() {
+    local mt5_dir="/home/trader/.wine/drive_c/Program Files/MetaTrader 5"
+
+    cd "$mt5_dir" || return 1
+    mkdir -p "MQL5/Logs"
+    rm -f "MQL5/Logs/compile.log"
+
+    # Kill stale compiler processes from prior retries so timeout is effective.
+    pkill -f metaeditor64.exe >/dev/null 2>&1 || true
+
+    echo "Compiling EA (timeout: ${EA_COMPILE_TIMEOUT_SECONDS}s)..."
+    if timeout "${EA_COMPILE_TIMEOUT_SECONDS}s" wine metaeditor64.exe \
+        /portable \
+        /compile:MQL5\\Experts\\TradeTaperSync.mq5 \
+        /log:MQL5\\Logs\\compile.log; then
+        if [ -f "MQL5/Experts/TradeTaperSync.ex5" ]; then
+            echo "Compilation successful"
+            return 0
+        fi
+        echo "Compilation exited without generating TradeTaperSync.ex5"
+    else
+        local code=$?
+        if [ "$code" -eq 124 ]; then
+            echo "Compilation timed out after ${EA_COMPILE_TIMEOUT_SECONDS}s"
+        else
+            echo "Compilation failed with exit code $code"
+        fi
+    fi
+
+    # Ensure no stuck compiler keeps the container alive without progressing.
+    pkill -f metaeditor64.exe >/dev/null 2>&1 || true
+
+    echo "Compilation FAILED. Log content:"
+    cat "MQL5/Logs/compile.log" || echo "No log file generated"
+    return 1
+}
 
 if [ -f "$EA_SOURCE" ]; then
     mkdir -p "$(dirname "$EA_DEST")"
@@ -96,24 +180,7 @@ if [ -f "$EA_SOURCE" ]; then
         echo "Found existing TradeTaperSync.ex5, skipping compilation."
     else
         # Compile EA only if .ex5 is missing
-        echo "Compiling EA..."
-        cd "/home/trader/.wine/drive_c/Program Files/MetaTrader 5"
-        
-        # Create Logs directory explicitly
-        mkdir -p "MQL5/Logs"
-        
-        # Use xvfb-run -a to avoid conflicts with existing display and ensure proper auth
-        # Use explicit absolute paths (windows style with forward slashes)
-        xvfb-run -a wine metaeditor64.exe /portable /compile:"MQL5/Experts/TradeTaperSync.mq5" /log:"MQL5/Logs/compile.log"
-        
-        if [ -f "MQL5/Experts/TradeTaperSync.ex5" ]; then
-            echo "Compilation successful"
-        else
-            echo "Compilation FAILED. Log content:"
-            cat "MQL5/Logs/compile.log" || echo "No log file generated"
-            
-            # Fallback: Check if we have a pre-compiled version (if user uploads it later)
-            # For now, we exit if compilation fails because EA is critical
+        if ! compile_ea; then
             echo "Critical: EA compilation failed. Exiting."
             exit 1
         fi
@@ -126,7 +193,9 @@ MT5_EXE="/home/trader/.wine/drive_c/Program Files/MetaTrader 5/terminal64.exe"
 
 if [ -f "$MT5_EXE" ]; then
     cd "/home/trader/.wine/drive_c/Program Files/MetaTrader 5"
-    wine terminal64.exe /portable /config:config/terminal.ini &
+    # MT5 may ignore relative /config values and silently fallback to defaults.
+    # Use a no-space host path mapped via Z: to avoid quoting edge-cases.
+    wine terminal64.exe /portable /profile:Default /config:Z:\\home\\trader\\config\\terminal.ini &
     
     echo "MT5 terminal started"
     

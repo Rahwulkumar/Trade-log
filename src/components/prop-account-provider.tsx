@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useState,
   useEffect,
@@ -18,6 +19,8 @@ interface PropAccountContextType {
   setSelectedAccountId: (id: string | null) => void;
   propAccounts: PropAccount[];
   loading: boolean;
+  /** Call after adding/editing an account so nav and sidebar update. */
+  refreshPropAccounts: () => Promise<void>;
 }
 
 const PropAccountContext = createContext<PropAccountContextType | undefined>(
@@ -52,16 +55,29 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshPropAccounts = useCallback(async () => {
+    if (!isConfigured || !user) return;
+    try {
+      const accounts = await getActivePropAccounts();
+      setPropAccounts(accounts);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("Failed to fetch"))
+        console.error("Failed to load prop accounts:", err);
+    }
+  }, [isConfigured, user]);
+
   // Fetch active prop accounts — wait for auth to fully resolve first
   useEffect(() => {
-    async function loadAccounts() {
-      if (authLoading) return;
-      if (!isConfigured || !user) {
-        setLoading(false);
-        return;
-      }
+    if (authLoading) return;
+    if (!isConfigured || !user) {
+      setLoading(false);
+      return;
+    }
 
+    async function loadAccounts() {
       try {
+        setLoading(true);
         const accounts = await getActivePropAccounts();
         setPropAccounts(accounts);
       } catch (err) {
@@ -85,6 +101,7 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
         setSelectedAccountId,
         propAccounts,
         loading,
+        refreshPropAccounts,
       }}
     >
       {children}

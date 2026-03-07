@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import {
@@ -11,12 +11,6 @@ import {
   recalculateBalanceFromTrades,
   type ComplianceStatus,
 } from "@/lib/api/client/prop-accounts";
-import {
-  getPropFirms,
-  getFirmChallenges,
-  createAccountFromChallenge,
-} from "@/lib/api/prop-firms";
-import type { PropFirm, PropFirmChallenge } from "@/lib/types/prop-firms";
 
 import {
   Plus,
@@ -37,6 +31,7 @@ import {
   getTerminalStatusByPropAccount,
   disableAutoSync,
   createMT5Account,
+  getMT5Accounts,
 } from "@/lib/api/terminal-farm";
 import {
   Dialog,
@@ -82,6 +77,7 @@ function normalizeAccount(a: DrizzlePropAccount): PropAccount {
     ...a,
     name: a.accountName,
     firm: a.firmName ?? undefined,
+    phase: a.currentPhaseStatus ?? undefined,
     initial_balance: Number(a.accountSize ?? 0),
     current_balance: Number(a.currentBalance ?? 0),
     start_date: a.startDate ?? null,
@@ -103,7 +99,7 @@ function toPercent(
 
 export default function PropFirmPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
-  const { selectedAccountId, setSelectedAccountId } = usePropAccount();
+  const { selectedAccountId, setSelectedAccountId, refreshPropAccounts } = usePropAccount();
   const [accounts, setAccounts] = useState<PropAccountWithCompliance[]>([]);
   const [selectedAccount, setSelectedAccount] =
     useState<PropAccountWithCompliance | null>(null);
@@ -114,7 +110,7 @@ export default function PropFirmPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
 
-  // Terminal Farm State
+  // Terminal Farm State (includes stored MT5 account so we can show "using your details")
   const [terminalStatus, setTerminalStatus] = useState<{
     connected: boolean;
     terminalId?: string;
@@ -122,62 +118,31 @@ export default function PropFirmPage() {
     lastHeartbeat?: string | null;
     lastSyncAt?: string | null;
     errorMessage?: string | null;
+    mt5Account?: {
+      server: string;
+      login: string;
+      accountName: string | null;
+      balance: number | null;
+      equity: number | null;
+    };
   } | null>(null);
+  const lastTerminalSyncKeyRef = useRef<string | null>(null);
   const [terminalLoading, setTerminalLoading] = useState(false);
   const [mt5FormData, setMt5FormData] = useState({
     server: "",
     login: "",
     password: "",
+    currentBalance: "",
   });
   const [mt5Error, setMt5Error] = useState<string | null>(null);
 
-  // Prop Firm Data State
-  const [firms, setFirms] = useState<PropFirm[]>([]);
-  const [challenges, setChallenges] = useState<PropFirmChallenge[]>([]);
-  const [selectedFirmId, setSelectedFirmId] = useState<string>("");
-  const [selectedChallengeId, setSelectedChallengeId] = useState<string>("");
-
-  // Simplified Form State (we only need Name and Start Date really, rules come from challenge)
-  const [formData, setFormData] = useState({
-    name: "",
-    start_date: new Date().toISOString().split("T")[0],
-    // Optional overrides (if user wants to tweak what DB gave them, or for custom manual entry)
-    initial_balance: "",
+  // Single Add Account form: firm name, phase type, start date, optional starting balance
+  const [addForm, setAddForm] = useState({
+    firmName: "",
+    phaseType: "2-phase" as "2-phase" | "1-phase" | "zero-phase",
+    startDate: new Date().toISOString().split("T")[0],
+    startingBalance: "",
   });
-
-  // Load Firms on open
-  useEffect(() => {
-    if (isNewAccountOpen) {
-      getPropFirms().then(setFirms).catch(console.error);
-    }
-  }, [isNewAccountOpen]);
-
-  // Load Challenges when firm selected
-  useEffect(() => {
-    if (selectedFirmId) {
-      getFirmChallenges(selectedFirmId)
-        .then(setChallenges)
-        .catch(console.error);
-    } else {
-      setChallenges([]);
-    }
-  }, [selectedFirmId]);
-
-  // Auto-fill form details when challenge selected
-  useEffect(() => {
-    if (selectedChallengeId) {
-      const challenge = challenges.find((c) => c.id === selectedChallengeId);
-      if (challenge) {
-        // Auto-generate a name if empty
-        if (!formData.name) {
-          setFormData((prev) => ({
-            ...prev,
-            name: `${challenge.name} - ${challenge.phase_name}`,
-          }));
-        }
-      }
-    }
-  }, [selectedChallengeId, challenges, formData.name]);
 
   const loadAccounts = useCallback(async () => {
     if (!isConfigured || !user) {
@@ -190,14 +155,29 @@ export default function PropFirmPage() {
       setError(null);
 
       const accountsData = await getPropAccounts();
-
-      // Recalculate balance from trades for each account (ensures balance is always up to date)
-      await Promise.all(
-        accountsData.map((account) => recalculateBalanceFromTrades(account.id)),
+      const mt5Accounts = await getMT5Accounts();
+      const mt5LinkedPropAccountIds = new Set(
+        mt5Accounts
+          .map((a) => a.propAccountId)
+          .filter((id): id is string => Boolean(id)),
       );
 
-      // Refetch accounts after balance recalculation
-      const updatedAccountsData = await getPropAccounts();
+      // Recalculate only non-MT5 accounts from trades.
+      // MT5-linked accounts should keep live balance from terminal heartbeat.
+      const nonMt5Accounts = accountsData.filter(
+        (account) => !mt5LinkedPropAccountIds.has(account.id),
+      );
+      if (nonMt5Accounts.length > 0) {
+        await Promise.all(
+          nonMt5Accounts.map((account) =>
+            recalculateBalanceFromTrades(account.id),
+          ),
+        );
+      }
+
+      // Refetch after any recalculation
+      const updatedAccountsData =
+        nonMt5Accounts.length > 0 ? await getPropAccounts() : accountsData;
 
       // Get compliance for each account
       const accountsWithCompliance = await Promise.all(
@@ -229,6 +209,7 @@ export default function PropFirmPage() {
       setLoading(false);
     }
   }, [isConfigured, user, selectedAccountId]);
+  const selectedAccountKey = selectedAccount?.id ?? null;
 
   // Update selected account when global ID changes
   useEffect(() => {
@@ -250,6 +231,113 @@ export default function PropFirmPage() {
     }
   }, [user, isConfigured, authLoading, loadAccounts]);
 
+  // Fetch terminal/sync status when selected account changes so UI shows Synced / Not synced
+  useEffect(() => {
+    if (!selectedAccountKey) {
+      setTerminalStatus(null);
+      return;
+    }
+    getTerminalStatusByPropAccount(selectedAccountKey)
+      .then((result) => {
+        const mt5 = result.mt5Account
+          ? {
+              server: result.mt5Account.server,
+              login: result.mt5Account.login,
+              accountName: result.mt5Account.accountName,
+              balance: result.mt5Account.balance,
+              equity: result.mt5Account.equity,
+            }
+          : undefined;
+        setTerminalStatus(
+          result.connected
+            ? {
+                connected: true,
+                terminalId: result.terminal?.terminalId,
+                status: result.terminal?.status,
+                lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
+                lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
+                errorMessage: result.terminal?.errorMessage ?? undefined,
+                mt5Account: mt5,
+              }
+            : {
+                connected: false,
+                status: result.terminal?.status,
+                lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
+                lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
+                errorMessage: result.terminal?.errorMessage ?? undefined,
+                mt5Account: mt5,
+              },
+        );
+      })
+      .catch(() => setTerminalStatus({ connected: false }));
+  }, [selectedAccountKey]);
+
+  useEffect(() => {
+    lastTerminalSyncKeyRef.current = null;
+  }, [selectedAccountKey]);
+
+  // Poll terminal status while sync dialog is open so MT5 balance appears without manual refresh.
+  useEffect(() => {
+    if (!isSyncDialogOpen || !selectedAccountKey) return;
+
+    const poll = async () => {
+      try {
+        const result = await getTerminalStatusByPropAccount(selectedAccountKey);
+        const mt5 = result.mt5Account
+          ? {
+              server: result.mt5Account.server,
+              login: result.mt5Account.login,
+              accountName: result.mt5Account.accountName,
+              balance: result.mt5Account.balance,
+              equity: result.mt5Account.equity,
+            }
+          : undefined;
+
+        setTerminalStatus(
+          result.connected
+            ? {
+                connected: true,
+                terminalId: result.terminal?.terminalId,
+                status: result.terminal?.status,
+                lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
+                lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
+                errorMessage: result.terminal?.errorMessage ?? undefined,
+                mt5Account: mt5,
+              }
+            : {
+                connected: false,
+                status: result.terminal?.status,
+                lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
+                lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
+                errorMessage: result.terminal?.errorMessage ?? undefined,
+                mt5Account: mt5,
+              },
+        );
+
+        const syncKey = [
+          result.terminal?.lastHeartbeat ?? "",
+          result.terminal?.lastSyncAt ?? "",
+          mt5?.balance ?? "",
+          mt5?.equity ?? "",
+        ].join("|");
+
+        if (syncKey !== lastTerminalSyncKeyRef.current) {
+          lastTerminalSyncKeyRef.current = syncKey;
+          await loadAccounts();
+        }
+      } catch {
+        // Keep previous status shown in UI.
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => {
+      void poll();
+    }, 10_000);
+
+    return () => window.clearInterval(timer);
+  }, [isSyncDialogOpen, selectedAccountKey, loadAccounts]);
+
   // Handle local selection change - updates global state
   const handleAccountChange = (value: string) => {
     if (value === "all") {
@@ -268,36 +356,49 @@ export default function PropFirmPage() {
     e.preventDefault();
     if (!user) return;
 
-    // We need either a selected challenge OR manual entry (which we haven't fully implemented back yet, prioritizing DB path)
-    if (!formData.name || !selectedChallengeId) {
-      setError("Please select a firm and challenge, and provide a name.");
+    const firm = addForm.firmName?.trim();
+    if (!firm) {
+      setError("Please enter your prop firm name.");
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
-
     try {
-      const newAccount = await createAccountFromChallenge({
-        userId: user.id,
-        challengeId: selectedChallengeId,
-        name: formData.name,
-        startDate: formData.start_date,
+      const accountName = `${firm} - ${addForm.phaseType}`;
+      const balanceNum = addForm.startingBalance.trim()
+        ? Number(addForm.startingBalance.replace(/[^0-9.-]/g, ""))
+        : 0;
+      const useBalance = !Number.isNaN(balanceNum) && balanceNum > 0 ? String(balanceNum) : "0";
+      const res = await fetch("/api/prop-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          accountName,
+          firmName: firm,
+          accountSize: useBalance,
+          currentBalance: useBalance,
+          startDate: addForm.startDate || new Date().toISOString().split("T")[0],
+          status: "active",
+          currentPhaseStatus: addForm.phaseType,
+        }),
       });
-
-      // Reset form and close dialog
-      setFormData({
-        name: "",
-        start_date: new Date().toISOString().split("T")[0],
-        initial_balance: "",
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error ?? "Failed to create account");
+      }
+      const newAccount = await res.json();
+      setAddForm({
+        firmName: "",
+        phaseType: "2-phase",
+        startDate: new Date().toISOString().split("T")[0],
+        startingBalance: "",
       });
-      setSelectedFirmId("");
-      setSelectedChallengeId("");
       setIsNewAccountOpen(false);
-
-      // Reload accounts and select the new one
       await loadAccounts();
-      if (newAccount) setSelectedAccountId(newAccount.id);
+      await refreshPropAccounts?.();
+      if (newAccount?.id) setSelectedAccountId(newAccount.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create account");
     } finally {
@@ -370,10 +471,10 @@ export default function PropFirmPage() {
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <div className="surface p-8 text-center max-w-md">
           <h2 className="text-xl font-semibold mb-2">
-            Supabase Not Configured
+            Sign-in not configured
           </h2>
           <p className="text-muted-foreground">
-            Please add your Supabase credentials.
+            Please configure Clerk to manage prop accounts.
           </p>
         </div>
       </div>
@@ -408,25 +509,24 @@ export default function PropFirmPage() {
           <h1 className="headline-lg">Account Tracker</h1>
         </div>
 
-        <div className="flex items-center gap-3">
-          {accounts.length > 0 && (
-            <Select
-              value={selectedAccount?.id || "all"}
-              onValueChange={handleAccountChange}
-            >
-              <SelectTrigger className="w-full sm:w-[280px] bg-card border-border">
-                <SelectValue placeholder="Select account" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Accounts</SelectItem>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {account.name} - {account.phase}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+        <div className="flex items-center gap-3 flex-wrap">
+          <Select
+            value={selectedAccount?.id || "all"}
+            onValueChange={handleAccountChange}
+          >
+            <SelectTrigger className="w-full sm:w-[280px] bg-card border-border" aria-label="Select account">
+              <SelectValue placeholder={accounts.length === 0 ? "No accounts yet" : "Select account"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Accounts</SelectItem>
+              {accounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.name ?? account.accountName}
+                  {account.phase ? ` — ${account.phase}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             size="icon"
@@ -435,7 +535,13 @@ export default function PropFirmPage() {
           >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
           </Button>
-          <Dialog open={isNewAccountOpen} onOpenChange={setIsNewAccountOpen}>
+          <Dialog
+            open={isNewAccountOpen}
+            onOpenChange={(open) => {
+              setIsNewAccountOpen(open);
+              if (!open) setAddForm({ firmName: "", phaseType: "2-phase", startDate: new Date().toISOString().split("T")[0], startingBalance: "" });
+            }}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4" />
@@ -452,135 +558,59 @@ export default function PropFirmPage() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label>Firm</Label>
+                    <Label htmlFor="add-firm">Prop firm name</Label>
+                    <Input
+                      id="add-firm"
+                      placeholder="e.g. FTMO, Funding Pips, The5ers"
+                      value={addForm.firmName}
+                      onChange={(e) => setAddForm({ ...addForm, firmName: e.target.value })}
+                      className="bg-card border-border"
+                      autoComplete="organization"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="add-phase">Phase type</Label>
                     <Select
-                      value={selectedFirmId}
-                      onValueChange={setSelectedFirmId}
+                      value={addForm.phaseType}
+                      onValueChange={(v: "2-phase" | "1-phase" | "zero-phase") =>
+                        setAddForm({ ...addForm, phaseType: v })
+                      }
                     >
-                      <SelectTrigger className="bg-card border-border">
-                        <SelectValue placeholder="Select Prop Firm" />
+                      <SelectTrigger id="add-phase" className="bg-card border-border">
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {firms.map((firm) => (
-                          <SelectItem key={firm.id} value={firm.id}>
-                            {firm.name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="2-phase">2-phase</SelectItem>
+                        <SelectItem value="1-phase">1-phase</SelectItem>
+                        <SelectItem value="zero-phase">Zero-phase</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {selectedFirmId && (
-                    <div className="space-y-2">
-                      <Label>Challenge / Phase</Label>
-                      <Select
-                        value={selectedChallengeId}
-                        onValueChange={setSelectedChallengeId}
-                      >
-                        <SelectTrigger className="bg-card border-border">
-                          <SelectValue placeholder="Select Challenge" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {challenges.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name} - {c.phase_name} ($
-                              {c.initial_balance.toLocaleString()})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {selectedChallengeId &&
-                    (() => {
-                      const challenge = challenges.find(
-                        (c) => c.id === selectedChallengeId,
-                      );
-                      if (!challenge) return null;
-                      return (
-                        <div className="p-4 rounded-lg bg-card border border-border-subtle space-y-3">
-                          <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                            Challenge Rules
-                          </h4>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <span className="text-muted-foreground block text-xs">
-                                Initial Balance
-                              </span>
-                              <span className="font-mono text-green-400">
-                                ${challenge.initial_balance.toLocaleString()}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block text-xs">
-                                Profit Target
-                              </span>
-                              <span className="font-mono text-blue-400">
-                                {challenge.profit_target_percent
-                                  ? `${challenge.profit_target_percent}%`
-                                  : "None"}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block text-xs">
-                                Daily Loss Limit
-                              </span>
-                              <span className="font-mono text-red-400">
-                                {challenge.daily_loss_percent
-                                  ? `${challenge.daily_loss_percent}%`
-                                  : challenge.daily_loss_amount
-                                    ? `$${challenge.daily_loss_amount.toLocaleString()}`
-                                    : "-"}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block text-xs">
-                                Max Loss Limit
-                              </span>
-                              <span className="font-mono text-red-500">
-                                {challenge.max_loss_percent
-                                  ? `${challenge.max_loss_percent}%`
-                                  : challenge.max_loss_amount
-                                    ? `$${challenge.max_loss_amount.toLocaleString()}`
-                                    : "-"}
-                              </span>
-                            </div>
-                            <div className="col-span-2">
-                              <span className="text-muted-foreground block text-xs">
-                                Drawdown Type
-                              </span>
-                              <span className="capitalize">
-                                {challenge.drawdown_type}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
                   <div className="space-y-2">
-                    <Label>Account Name</Label>
+                    <Label htmlFor="add-start">When did this account start?</Label>
                     <Input
-                      placeholder="e.g. My FTMO Account"
+                      id="add-start"
+                      type="date"
+                      value={addForm.startDate}
+                      onChange={(e) => setAddForm({ ...addForm, startDate: e.target.value })}
                       className="bg-card border-border"
-                      value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
                     />
                   </div>
-
                   <div className="space-y-2">
-                    <Label>Start Date</Label>
+                    <Label htmlFor="add-balance">Starting balance ($)</Label>
                     <Input
-                      type="date"
+                      id="add-balance"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="e.g. 10000"
+                      value={addForm.startingBalance}
+                      onChange={(e) => setAddForm({ ...addForm, startingBalance: e.target.value })}
                       className="bg-card border-border"
-                      value={formData.start_date}
-                      onChange={(e) =>
-                        setFormData({ ...formData, start_date: e.target.value })
-                      }
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Optional. Enter your account size so the tracker shows the correct balance. You can also set this when connecting MT5.
+                    </p>
                   </div>
                 </div>
                 <DialogFooter>
@@ -594,7 +624,7 @@ export default function PropFirmPage() {
                   <button
                     type="submit"
                     className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-semibold hover:bg-[var(--accent-secondary)] transition-colors disabled:opacity-50"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !addForm.firmName.trim()}
                   >
                     {isSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -787,6 +817,15 @@ export default function PropFirmPage() {
                       setMt5Error(null);
                       getTerminalStatusByPropAccount(selectedAccount.id)
                         .then((result) => {
+                          const mt5 = result.mt5Account
+                            ? {
+                                server: result.mt5Account.server,
+                                login: result.mt5Account.login,
+                                accountName: result.mt5Account.accountName,
+                                balance: result.mt5Account.balance,
+                                equity: result.mt5Account.equity,
+                              }
+                            : undefined;
                           setTerminalStatus(
                             result.connected
                               ? {
@@ -796,8 +835,19 @@ export default function PropFirmPage() {
                                   lastHeartbeat: result.terminal?.lastHeartbeat,
                                   lastSyncAt: result.terminal?.lastSyncAt,
                                   errorMessage: result.terminal?.errorMessage,
+                                  mt5Account: mt5,
                                 }
-                              : { connected: false },
+                              : {
+                                  connected: false,
+                                  status: result.terminal?.status,
+                                  lastHeartbeat:
+                                    result.terminal?.lastHeartbeat ?? undefined,
+                                  lastSyncAt:
+                                    result.terminal?.lastSyncAt ?? undefined,
+                                  errorMessage:
+                                    result.terminal?.errorMessage ?? undefined,
+                                  mt5Account: mt5,
+                                },
                           );
                         })
                         .catch((error) => {
@@ -1067,6 +1117,15 @@ export default function PropFirmPage() {
             setTerminalLoading(true);
             getTerminalStatusByPropAccount(selectedAccount.id)
               .then((result) => {
+                const mt5 = result.mt5Account
+                  ? {
+                      server: result.mt5Account.server,
+                      login: result.mt5Account.login,
+                      accountName: result.mt5Account.accountName,
+                      balance: result.mt5Account.balance,
+                      equity: result.mt5Account.equity,
+                    }
+                  : undefined;
                 setTerminalStatus(
                   result.connected
                     ? {
@@ -1076,8 +1135,16 @@ export default function PropFirmPage() {
                         lastHeartbeat: result.terminal?.lastHeartbeat,
                         lastSyncAt: result.terminal?.lastSyncAt,
                         errorMessage: result.terminal?.errorMessage,
+                        mt5Account: mt5,
                       }
-                    : { connected: false },
+                    : {
+                        connected: false,
+                        status: result.terminal?.status,
+                        lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
+                        lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
+                        errorMessage: result.terminal?.errorMessage ?? undefined,
+                        mt5Account: mt5,
+                      },
                 );
               })
               .catch((error) => {
@@ -1116,6 +1183,31 @@ export default function PropFirmPage() {
                     <p className="text-xs text-muted-foreground">
                       Terminal ID: {terminalStatus.terminalId}
                     </p>
+                    {terminalStatus.mt5Account && (
+                      <>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Using your MT5 account:{" "}
+                          <span className="font-mono text-foreground">
+                            {terminalStatus.mt5Account.server}
+                          </span>{" "}
+                          / Login{" "}
+                          <span className="font-mono text-foreground">
+                            {terminalStatus.mt5Account.login}
+                          </span>
+                        </p>
+                        {terminalStatus.mt5Account.balance != null && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Broker balance:{" "}
+                            <span className="font-mono text-foreground">
+                              $
+                              {Number(
+                                terminalStatus.mt5Account.balance,
+                              ).toLocaleString()}
+                            </span>
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1190,8 +1282,44 @@ export default function PropFirmPage() {
               </button>
             </div>
           ) : (
-            // Not Connected - Show Connection Form
+            // Not Connected - Show saved MT5 details if we have them, or connection form
             <div className="space-y-4 py-4">
+              {terminalStatus?.mt5Account && (
+                <div className="p-3 rounded-lg bg-muted/50 border border-border text-sm">
+                  <p className="font-medium text-foreground">Your MT5 account is saved</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Server: <span className="font-mono text-foreground">{terminalStatus.mt5Account.server}</span> · Login: <span className="font-mono text-foreground">{terminalStatus.mt5Account.login}</span>
+                  </p>
+                  {terminalStatus.mt5Account.balance != null && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Last synced broker balance:{" "}
+                      <span className="font-mono text-foreground">
+                        ${Number(terminalStatus.mt5Account.balance).toLocaleString()}
+                      </span>
+                    </p>
+                  )}
+                  {terminalStatus.status && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Terminal status:{" "}
+                      <span className="font-mono text-foreground">
+                        {terminalStatus.status}
+                      </span>
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    The app uses these credentials when the Terminal Farm orchestrator runs. Start the orchestrator to sync trades and balance automatically. To change server or login, enter new details below and click Enable Auto-Sync again.
+                  </p>
+                </div>
+              )}
+              {selectedAccount && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+                  <span className="text-muted-foreground">This prop account size: </span>
+                  <span className="font-mono font-semibold">${Number(selectedAccount.initial_balance ?? selectedAccount.accountSize ?? 0).toLocaleString()}</span>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your MT5 balance should match this so trades sync correctly.
+                  </p>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">
                 Enter your MT5 account credentials. Your password is encrypted
                 and never stored in plain text.
@@ -1241,6 +1369,24 @@ export default function PropFirmPage() {
                     Tip: Use the investor (read-only) password for safety.
                   </p>
                 </div>
+                <div>
+                  <Label htmlFor="mt5-balance">Current account balance (optional)</Label>
+                  <Input
+                    id="mt5-balance"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="e.g. 10000"
+                    value={mt5FormData.currentBalance}
+                    onChange={(e) =>
+                      setMt5FormData({ ...mt5FormData, currentBalance: e.target.value })
+                    }
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Validated against this prop account size. Leave blank to skip.
+                  </p>
+                </div>
               </div>
 
               {mt5Error && <p className="text-sm text-red-400">{mt5Error}</p>}
@@ -1253,12 +1399,27 @@ export default function PropFirmPage() {
                     setTerminalLoading(true);
                     setMt5Error(null);
                     try {
+                      const propSize = Number(selectedAccount.initial_balance ?? selectedAccount.accountSize ?? 0);
+                      const balanceStr = mt5FormData.currentBalance?.trim();
+                      const balanceNum = balanceStr ? Number(balanceStr) : undefined;
+                      if (balanceNum != null && !Number.isNaN(balanceNum) && propSize > 0) {
+                        const diff = Math.abs(balanceNum - propSize);
+                        const tolerance = Math.max(propSize * 0.15, 500);
+                        if (diff > tolerance) {
+                          setMt5Error(
+                            `Balance $${balanceNum.toLocaleString()} doesn’t match this prop account ($${propSize.toLocaleString()}). Use the correct prop account or update the balance.`
+                          );
+                          setTerminalLoading(false);
+                          return;
+                        }
+                      }
                       // 1. Create MT5 account
                       const createResult = await createMT5Account({
                         propAccountId: selectedAccount.id,
                         server: mt5FormData.server,
                         login: mt5FormData.login,
                         password: mt5FormData.password,
+                        currentBalance: balanceNum,
                       });
 
                       if (!createResult.success) {
@@ -1286,6 +1447,15 @@ export default function PropFirmPage() {
                       const status = await getTerminalStatusByPropAccount(
                         selectedAccount.id,
                       );
+                      const mt5 = status.mt5Account
+                        ? {
+                            server: status.mt5Account.server,
+                            login: status.mt5Account.login,
+                            accountName: status.mt5Account.accountName,
+                            balance: status.mt5Account.balance,
+                            equity: status.mt5Account.equity,
+                          }
+                        : undefined;
                       setTerminalStatus(
                         status.connected
                           ? {
@@ -1295,11 +1465,23 @@ export default function PropFirmPage() {
                               lastHeartbeat: status.terminal?.lastHeartbeat,
                               lastSyncAt: status.terminal?.lastSyncAt,
                               errorMessage: status.terminal?.errorMessage,
+                              mt5Account: mt5,
                             }
-                          : { connected: false },
+                          : {
+                              connected: false,
+                              status: status.terminal?.status,
+                              lastHeartbeat:
+                                status.terminal?.lastHeartbeat ?? undefined,
+                              lastSyncAt: status.terminal?.lastSyncAt ?? undefined,
+                              errorMessage:
+                                status.terminal?.errorMessage ?? undefined,
+                              mt5Account: mt5,
+                            },
                       );
 
-                      setMt5FormData({ server: "", login: "", password: "" });
+                      setMt5FormData({ server: "", login: "", password: "", currentBalance: "" });
+                      // Reload accounts so Account Tracker shows updated balance from MT5
+                      await loadAccounts();
                     } catch {
                       setMt5Error("Network error");
                     } finally {

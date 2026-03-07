@@ -4,11 +4,12 @@
  * Uses Neon (Drizzle) — no Supabase.
  */
 
-import { eq, inArray, like, asc, and } from 'drizzle-orm';
+import { eq, inArray, like, asc, and, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import {
     terminalInstances,
     mt5Accounts,
+    propAccounts,
     terminalCommands,
     trades,
     type TerminalInstance as SchemaTerminalInstance,
@@ -18,7 +19,6 @@ import { retry } from './retry';
 import { logSyncMetrics } from './metrics';
 import type {
     TerminalInstance,
-    TerminalCommand,
     TerminalHeartbeatPayload,
     TerminalSyncPayload,
     TerminalPositionsPayload,
@@ -27,7 +27,6 @@ import type {
     HeartbeatResponse,
 } from './types';
 import {
-    TerminalSyncPayloadSchema,
     TerminalHeartbeatPayloadSchema,
     TerminalPositionsPayloadSchema,
     TerminalCandlesSyncPayloadSchema,
@@ -80,9 +79,9 @@ export async function getTerminalByAccountId(accountId: string): Promise<Termina
 export async function enableAutoSync(accountId: string, userId: string): Promise<TerminalInstance> {
     const existing = await getTerminalByAccountId(accountId);
     if (existing) {
-        if (existing.status === 'RUNNING' || existing.status === 'PENDING') {
-            throw new Error('Auto-sync is already enabled for this account');
-        }
+        // Always reset to PENDING regardless of current status.
+        // The UI only shows this button when connected=false (no recent heartbeat),
+        // so a RUNNING/PENDING terminal is stale and should be allowed to restart.
         const [updated] = await db
             .update(terminalInstances)
             .set({ status: 'PENDING', errorMessage: null })
@@ -210,6 +209,22 @@ export async function processHeartbeat(data: TerminalHeartbeatPayload): Promise<
                 equity: String(data.accountInfo.equity),
             })
             .where(eq(mt5Accounts.id, terminal.accountId));
+
+        // Push MT5 balance to linked prop account so Account Tracker shows live balance
+        const [mt5Row] = await db
+            .select({ propAccountId: mt5Accounts.propAccountId })
+            .from(mt5Accounts)
+            .where(eq(mt5Accounts.id, terminal.accountId))
+            .limit(1);
+        if (mt5Row?.propAccountId) {
+            await db
+                .update(propAccounts)
+                .set({
+                    currentBalance: String(data.accountInfo.balance),
+                    lastSyncedAt: new Date(),
+                })
+                .where(eq(propAccounts.id, mt5Row.propAccountId));
+        }
     }
 
     const [cmd] = await db
@@ -252,6 +267,26 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
     const terminal = await getTerminalById(data.terminalId);
     if (!terminal) {
         throw new Error('Unknown terminal');
+    }
+
+    const [mt5Account] = await db
+        .select({ propAccountId: mt5Accounts.propAccountId })
+        .from(mt5Accounts)
+        .where(eq(mt5Accounts.id, terminal.accountId))
+        .limit(1);
+    const linkedPropAccountId = mt5Account?.propAccountId ?? null;
+
+    // Backfill legacy synced trades that were imported without propAccountId.
+    if (linkedPropAccountId) {
+        await db
+            .update(trades)
+            .set({ propAccountId: linkedPropAccountId })
+            .where(
+                and(
+                    eq(trades.mt5AccountId, terminal.accountId),
+                    isNull(trades.propAccountId)
+                )
+            );
     }
 
     console.log(`[TerminalFarm] Processing ${data.trades.length} trades for terminal ${data.terminalId}`);
@@ -314,6 +349,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
                     }
                     inserts.push({
                         userId: terminal.userId,
+                        propAccountId: linkedPropAccountId,
                         mt5AccountId: terminal.accountId,
                         symbol: trade.symbol,
                         direction: trade.type === 'BUY' ? 'LONG' : 'SHORT',
@@ -341,6 +377,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
                                 id: existing.id,
                                 data: {
                                     status: 'CLOSED',
+                                    ...(linkedPropAccountId ? { propAccountId: linkedPropAccountId } : {}),
                                     exitDate: trade.openTime ? new Date(trade.openTime) : null,
                                     exitPrice: trade.openPrice != null ? String(trade.openPrice) : null,
                                     pnl: trade.profit != null ? String(trade.profit) : null,
@@ -355,6 +392,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
                     } else {
                         inserts.push({
                             userId: terminal.userId,
+                            propAccountId: linkedPropAccountId,
                             mt5AccountId: terminal.accountId,
                             symbol: trade.symbol,
                             direction: trade.type === 'SELL' ? 'LONG' : 'SHORT',
@@ -398,6 +436,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
 
             inserts.push({
                 userId: terminal.userId,
+                propAccountId: linkedPropAccountId,
                 mt5AccountId: terminal.accountId,
                 symbol: trade.symbol,
                 direction: trade.type === 'BUY' ? 'LONG' : 'SHORT',

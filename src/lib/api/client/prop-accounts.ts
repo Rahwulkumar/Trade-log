@@ -16,7 +16,7 @@ export interface ComplianceStatus {
 
 export async function getPropAccounts(): Promise<PropAccount[]> {
   try {
-    const res = await fetch('/api/prop-accounts');
+    const res = await fetch('/api/prop-accounts', { credentials: 'include' });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -26,7 +26,7 @@ export async function getPropAccounts(): Promise<PropAccount[]> {
 
 export async function getActivePropAccounts(): Promise<PropAccount[]> {
   try {
-    const res = await fetch('/api/prop-accounts?active=true');
+    const res = await fetch('/api/prop-accounts?active=true', { credentials: 'include' });
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -36,7 +36,7 @@ export async function getActivePropAccounts(): Promise<PropAccount[]> {
 
 export async function getPropAccount(id: string): Promise<PropAccount | null> {
   try {
-    const res = await fetch(`/api/prop-accounts/${id}`);
+    const res = await fetch(`/api/prop-accounts/${id}`, { credentials: 'include' });
     if (!res.ok) return null;
     return res.json();
   } catch {
@@ -50,6 +50,7 @@ export async function createPropAccount(
   const res = await fetch('/api/prop-accounts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(account),
   });
   if (!res.ok) throw new Error('Failed to create prop account');
@@ -63,6 +64,7 @@ export async function updatePropAccount(
   const res = await fetch(`/api/prop-accounts/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(updates),
   });
   if (!res.ok) throw new Error('Failed to update prop account');
@@ -70,7 +72,7 @@ export async function updatePropAccount(
 }
 
 export async function deletePropAccount(id: string): Promise<void> {
-  const res = await fetch(`/api/prop-accounts/${id}`, { method: 'DELETE' });
+  const res = await fetch(`/api/prop-accounts/${id}`, { method: 'DELETE', credentials: 'include' });
   if (!res.ok) throw new Error('Failed to delete prop account');
 }
 
@@ -79,6 +81,7 @@ export async function recalculateBalanceFromTrades(accountId: string): Promise<P
     const res = await fetch('/api/prop-accounts/recalculate-balance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ accountId }),
     });
     if (!res.ok) return null;
@@ -90,7 +93,7 @@ export async function recalculateBalanceFromTrades(accountId: string): Promise<P
 
 export async function checkCompliance(accountId: string): Promise<ComplianceStatus> {
   try {
-    const res = await fetch(`/api/prop-accounts/${accountId}/compliance`);
+    const res = await fetch(`/api/prop-accounts/${accountId}/compliance`, { credentials: 'include' });
     if (!res.ok) {
       return { isCompliant: true, dailyDdRemaining: 100, totalDdRemaining: 100, profitProgress: null, daysRemaining: null };
     }

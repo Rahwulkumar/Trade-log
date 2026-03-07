@@ -1,0 +1,14 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth/server';
+import { getAllPlaybooksWithStats } from '@/lib/api/playbooks';
+
+export async function GET(request: NextRequest) {
+  const { userId, error } = await requireAuth();
+  if (error) return error;
+
+  const { searchParams } = new URL(request.url);
+  const propAccountId = searchParams.get('propAccountId');
+
+  const stats = await getAllPlaybooksWithStats(userId, propAccountId);
+  return NextResponse.json(stats);
+}

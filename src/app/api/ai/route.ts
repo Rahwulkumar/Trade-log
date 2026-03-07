@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth/server';
 import { generateStrategy, chatWithAI, analyzeTrades, analyzeNews, type ChatMessage } from '@/lib/api/gemini';
 
 export async function POST(request: NextRequest) {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
         const body = await request.json();
         const { action, ...params } = body;

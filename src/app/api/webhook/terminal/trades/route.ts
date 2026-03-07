@@ -13,8 +13,11 @@ import { TerminalSyncPayloadSchema } from '@/lib/terminal-farm/validation';
 
 // Validate webhook secret
 function validateApiKey(request: NextRequest): boolean {
-    const apiKey = request.headers.get('x-api-key');
-    const expectedKey = process.env.TERMINAL_WEBHOOK_SECRET;
+    const normalize = (value: string | null | undefined): string =>
+        (value ?? '').trim().replace(/^['"]|['"]$/g, '');
+    const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const apiKey = normalize(request.headers.get('x-api-key') ?? bearer);
+    const expectedKey = normalize(process.env.TERMINAL_WEBHOOK_SECRET);
 
     if (!expectedKey) {
         // Only allow unauthenticated requests when explicitly opted-in
@@ -22,7 +25,7 @@ function validateApiKey(request: NextRequest): boolean {
         console.warn('[Webhook/Trades] TERMINAL_WEBHOOK_SECRET is not set — rejecting request. Set WEBHOOK_SECRET_OPTIONAL=true to allow unauthenticated webhooks.');
         return false;
     }
-    return apiKey === expectedKey;
+    return apiKey.length > 0 && apiKey === expectedKey;
 }
 
 export async function POST(request: NextRequest) {

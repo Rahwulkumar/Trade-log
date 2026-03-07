@@ -27,9 +27,16 @@ export async function GET(
       return NextResponse.json({ error: 'Prop account not found' }, { status: 404 });
     }
 
-    // Find MT5 account linked to this prop account
+    // Find MT5 account linked to this prop account (always return stored details so UI can show "using your MT5 account")
     const [mt5Account] = await db
-      .select({ id: mt5Accounts.id })
+      .select({
+        id: mt5Accounts.id,
+        server: mt5Accounts.server,
+        login: mt5Accounts.login,
+        accountName: mt5Accounts.accountName,
+        balance: mt5Accounts.balance,
+        equity: mt5Accounts.equity,
+      })
       .from(mt5Accounts)
       .where(eq(mt5Accounts.propAccountId, propAccountId))
       .limit(1);
@@ -39,13 +46,38 @@ export async function GET(
     }
 
     const terminal = await getTerminalByAccountId(mt5Account.id);
+
+    // Always return stored MT5 account details so the UI can show we're using what they gave
+    const mt5AccountInfo = {
+      mt5AccountId: mt5Account.id,
+      server: mt5Account.server ?? '',
+      login: mt5Account.login ?? '',
+      accountName: mt5Account.accountName ?? null,
+      balance: mt5Account.balance != null ? Number(mt5Account.balance) : null,
+      equity: mt5Account.equity != null ? Number(mt5Account.equity) : null,
+    };
+
     if (!terminal) {
-      return NextResponse.json({ connected: false });
+      return NextResponse.json({
+        connected: false,
+        mt5AccountId: mt5Account.id,
+        mt5Account: mt5AccountInfo,
+      });
     }
 
+    const hasRecentHeartbeat = (() => {
+      if (!terminal.lastHeartbeat) return false;
+      const lastBeatMs = new Date(terminal.lastHeartbeat).getTime();
+      if (Number.isNaN(lastBeatMs)) return false;
+      return Date.now() - lastBeatMs <= 120_000; // 2 minutes
+    })();
+
+    const connected = terminal.status === 'RUNNING' && hasRecentHeartbeat;
+
     return NextResponse.json({
-      connected: true,
+      connected,
       mt5AccountId: mt5Account.id,
+      mt5Account: mt5AccountInfo,
       terminal: {
         terminalId: terminal.id,
         status: terminal.status,

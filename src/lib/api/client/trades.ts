@@ -78,5 +78,5 @@ export async function getTradesByDateRange(
 }
 
 export async function getOpenTrades(): Promise<Trade[]> {
-  return getTrades({ status: 'open' });
+  return getTrades({ status: 'OPEN' });
 }

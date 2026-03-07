@@ -68,34 +68,44 @@ export function TopNav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          {propAccounts.length > 0 && !loading && (
-            <Select
-              value={selectedAccountId || "all"}
-              onValueChange={(value) =>
-                setSelectedAccountId(value === "all" ? null : value)
-              }
-            >
-              <SelectTrigger className="h-9 min-w-[140px] gap-2 rounded-md border-border bg-card px-2 text-xs">
+          {!loading && (
+            propAccounts.length > 0 ? (
+              <Select
+                value={selectedAccountId || "all"}
+                onValueChange={(value) =>
+                  setSelectedAccountId(value === "all" ? null : value)
+                }
+              >
+                <SelectTrigger className="h-9 min-w-[140px] gap-2 rounded-md border-border bg-card px-2 text-xs" aria-label="Select account">
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="max-w-[110px] truncate">
+                    {getAccountDisplayName()}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Accounts</SelectItem>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {propAccounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.accountName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Link
+                href="/prop-firm"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+              >
                 <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="max-w-[110px] truncate">
-                  {getAccountDisplayName()}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Accounts</SelectItem>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-                {propAccounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {account.accountName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                Add account
+              </Link>
+            )
           )}
 
           <Link
             href="/prop-firm"
-            aria-label="Open prop firm page"
+            aria-label="Manage prop accounts"
             className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Briefcase className="h-4 w-4" />

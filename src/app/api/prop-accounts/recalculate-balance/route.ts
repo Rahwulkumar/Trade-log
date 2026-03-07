@@ -1,93 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireAuth } from '@/lib/auth/server';
+import { getPropAccount, updatePropAccount } from '@/lib/api/prop-accounts';
+import { db } from '@/lib/db';
+import { mt5Accounts, trades } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 /**
  * POST /api/prop-accounts/recalculate-balance
- * 
+ *
  * Recalculates the balance for a prop account from all linked trades.
- * Uses admin client to bypass RLS for the update.
+ * Uses Clerk for auth and Drizzle/Neon for data.
  */
 export async function POST(req: NextRequest) {
+    const { userId, error: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
-        // Get authenticated user
-        const supabase = await createClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Get account ID from request
-        const { accountId } = await req.json();
+        const body = await req.json();
+        const { accountId } = body;
 
         if (!accountId) {
             return NextResponse.json({ error: 'Account ID required' }, { status: 400 });
         }
 
-        // Verify user owns this account
-        const { data: account, error: accountError } = await (supabase
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .from('prop_accounts') as any)
-            .select('id, initial_balance, user_id')
-            .eq('id', accountId)
-            .single();
-
-        if (accountError || !account) {
+        const account = await getPropAccount(accountId, userId);
+        if (!account) {
             return NextResponse.json({ error: 'Account not found' }, { status: 404 });
         }
 
-        if (account.user_id !== user.id) {
-            return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
-        }
+        // If this prop account is linked to MT5 and has been synced before,
+        // keep MT5 balance as source-of-truth to avoid overwriting live balance.
+        const [linkedMt5] = await db
+            .select({ balance: mt5Accounts.balance })
+            .from(mt5Accounts)
+            .where(
+                and(
+                    eq(mt5Accounts.propAccountId, accountId),
+                    eq(mt5Accounts.userId, userId)
+                )
+            )
+            .limit(1);
 
-        // Use admin client to fetch trades and update balance
-        const adminDb = createAdminClient();
+        const mt5Balance =
+            linkedMt5?.balance != null ? Number(linkedMt5.balance) : null;
+        const hasSyncedMt5Balance =
+            account.lastSyncedAt != null &&
+            mt5Balance != null &&
+            Number.isFinite(mt5Balance);
 
-        // Get all trades linked to this account
-        const { data: trades, error: tradesError } = await (adminDb
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .from('trades') as any)
-            .select('pnl')
-            .eq('prop_account_id', accountId);
+        const linkedTrades = await db
+            .select({ pnl: trades.pnl })
+            .from(trades)
+            .where(eq(trades.propAccountId, accountId));
 
-        if (tradesError) {
-            console.error('[Recalculate] Error fetching trades:', tradesError);
-            return NextResponse.json({ error: 'Failed to fetch trades' }, { status: 500 });
-        }
+        const totalPnl = linkedTrades.reduce(
+            (sum, t) => sum + Number(t.pnl ?? 0),
+            0
+        );
+        const initialBalance = Number(account.accountSize);
+        // If MT5 has synced, preserve live MT5 balance.
+        // Otherwise fallback to trade-derived balance.
+        const newBalance =
+            hasSyncedMt5Balance
+                ? mt5Balance
+                : linkedTrades.length === 0
+                ? Number(account.currentBalance ?? account.accountSize ?? 0)
+                : initialBalance + totalPnl;
 
-        // Calculate total P&L
-        const totalPnl = trades?.reduce((sum: number, t: { pnl: number | null }) => sum + (t.pnl || 0), 0) || 0;
-        const newBalance = account.initial_balance + totalPnl;
-        const pnlPercent = (totalPnl / account.initial_balance) * 100;
-        const totalDdCurrent = pnlPercent < 0 ? Math.abs(pnlPercent) : 0;
-
-        // Update balance using admin client (bypasses RLS)
-        const { error: updateError } = await (adminDb
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .from('prop_accounts') as any)
-            .update({
-                current_balance: newBalance,
-                total_dd_current: totalDdCurrent,
-            })
-            .eq('id', accountId)
-            .select()
-            .single();
-
-        if (updateError) {
-            console.error('[Recalculate] Error updating balance:', updateError);
-            return NextResponse.json({ error: 'Failed to update balance' }, { status: 500 });
-        }
-
-        console.log(`[Recalculate] Updated balance for ${accountId}: $${newBalance.toFixed(2)} (${trades?.length || 0} trades)`);
+        await updatePropAccount(accountId, userId, {
+            currentBalance: String(newBalance),
+        });
 
         return NextResponse.json({
             success: true,
             balance: newBalance,
             pnl: totalPnl,
-            tradeCount: trades?.length || 0,
+            tradeCount: linkedTrades.length,
+            source: hasSyncedMt5Balance ? 'mt5' : 'trades',
         });
-
     } catch (err) {
         console.error('[Recalculate] Exception:', err);
         return NextResponse.json(

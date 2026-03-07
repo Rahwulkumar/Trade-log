@@ -1,7 +1,6 @@
-// @ts-nocheck
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type FormEvent, type ReactNode } from "react";
 import { Plus, Loader2, ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +65,14 @@ export function StrategyPlaybookModule({
   );
 
   const rules = (selectedPlaybook?.rules as string[] | null) ?? [];
+  const selectedPlaybookMeta = selectedPlaybook as
+    | (Record<string, unknown> & { ai_prompt?: unknown; ai_generated?: unknown })
+    | null;
+  const aiGenerated = Boolean(selectedPlaybookMeta?.ai_generated);
+  const aiPrompt =
+    typeof selectedPlaybookMeta?.ai_prompt === "string"
+      ? selectedPlaybookMeta.ai_prompt
+      : null;
 
   const strategySelectNode = (
     <Select
@@ -151,7 +158,7 @@ export function StrategyPlaybookModule({
         ))}
       </SelectContent>
     </Select>
-  ) as React.ReactNode;
+  ) as unknown as ReactNode;
 
   const isRuleChecked = (rule: string) =>
     checkedRules.includes(rule) ||
@@ -167,7 +174,7 @@ export function StrategyPlaybookModule({
     }
   };
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!createForm.name.trim()) return;
     setCreateSubmitting(true);
@@ -213,8 +220,7 @@ export function StrategyPlaybookModule({
         {strategySelectNode}
       </div>
 
-      {(selectedPlaybook as unknown as Record<string, unknown>)?.ai_generated &&
-        (selectedPlaybook as unknown as Record<string, unknown>)?.ai_prompt && (
+      {aiGenerated && aiPrompt && (
           <div
             className="rounded-md overflow-hidden"
             style={{
@@ -251,10 +257,7 @@ export function StrategyPlaybookModule({
                   background: "var(--surface-elevated)",
                 }}
               >
-                {
-                  (selectedPlaybook as unknown as Record<string, string>)
-                    .ai_prompt
-                }
+                {aiPrompt}
               </div>
             )}
           </div>

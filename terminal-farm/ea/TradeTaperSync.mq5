@@ -21,27 +21,55 @@ datetime lastHeartbeat = 0;
 datetime lastSync = 0;
 int lastDealCount = 0;
 bool isInitialized = false;
+string gAPIEndpoint = "";
+string gAPIKey = "";
+string gTerminalId = "";
+int gHeartbeatInterval = 30;
+int gSyncInterval = 60;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                     |
 //+------------------------------------------------------------------+
 int OnInit()
 {
-    if(StringLen(TerminalId) == 0)
+    gAPIEndpoint = APIEndpoint;
+    gAPIKey = APIKey;
+    gTerminalId = TerminalId;
+    gHeartbeatInterval = HeartbeatInterval;
+    gSyncInterval = SyncInterval;
+
+    if(StringLen(gAPIEndpoint) == 0 || StringLen(gTerminalId) == 0 || StringLen(gAPIKey) == 0)
+    {
+        LoadRuntimeConfig();
+    }
+
+    TrimInPlace(gAPIEndpoint);
+    TrimInPlace(gAPIKey);
+    TrimInPlace(gTerminalId);
+
+    WriteLog(
+        "OnInit: Config resolved. TerminalIdLen=" + IntegerToString(StringLen(gTerminalId)) +
+        ", EndpointLen=" + IntegerToString(StringLen(gAPIEndpoint)) +
+        ", ApiKeyLen=" + IntegerToString(StringLen(gAPIKey))
+    );
+
+    if(StringLen(gTerminalId) == 0)
     {
         Print("Error: TerminalId is required");
+        WriteLog("Error: TerminalId is required after config resolution");
         return(INIT_FAILED);
     }
     
-    if(StringLen(APIEndpoint) == 0)
+    if(StringLen(gAPIEndpoint) == 0)
     {
         Print("Error: APIEndpoint is required");
+        WriteLog("Error: APIEndpoint is required after config resolution");
         return(INIT_FAILED);
     }
     
     Print("Trading Journal Sync EA initialized");
-    Print("Terminal ID: ", TerminalId);
-    Print("API Endpoint: ", APIEndpoint);
+    Print("Terminal ID: ", gTerminalId);
+    Print("API Endpoint: ", gAPIEndpoint);
     
     // Set timer for periodic tasks
     EventSetTimer(10);
@@ -72,14 +100,14 @@ void OnTimer()
     datetime now = TimeCurrent();
     
     // Heartbeat
-    if(now - lastHeartbeat >= HeartbeatInterval)
+    if(now - lastHeartbeat >= gHeartbeatInterval)
     {
         SendHeartbeat();
         lastHeartbeat = now;
     }
     
     // Periodic sync
-    if(now - lastSync >= SyncInterval)
+    if(now - lastSync >= gSyncInterval)
     {
         SyncDealHistory();
         lastSync = now;
@@ -119,6 +147,68 @@ void WriteLog(string message)
     }
 }
 
+void TrimInPlace(string &value)
+{
+    StringTrimLeft(value);
+    StringTrimRight(value);
+}
+
+void ApplyConfigLine(string line)
+{
+    TrimInPlace(line);
+    if(StringLen(line) == 0) return;
+    if(StringSubstr(line, 0, 1) == "#") return;
+
+    int sep = StringFind(line, "=");
+    if(sep <= 0) return;
+
+    string key = StringSubstr(line, 0, sep);
+    string value = StringSubstr(line, sep + 1);
+    TrimInPlace(key);
+    TrimInPlace(value);
+
+    if(key == "APIEndpoint")
+    {
+        gAPIEndpoint = value;
+    }
+    else if(key == "APIKey")
+    {
+        gAPIKey = value;
+    }
+    else if(key == "TerminalId")
+    {
+        gTerminalId = value;
+    }
+    else if(key == "HeartbeatInterval")
+    {
+        int parsedHeartbeat = (int)StringToInteger(value);
+        if(parsedHeartbeat > 0) gHeartbeatInterval = parsedHeartbeat;
+    }
+    else if(key == "SyncInterval")
+    {
+        int parsedSync = (int)StringToInteger(value);
+        if(parsedSync > 0) gSyncInterval = parsedSync;
+    }
+}
+
+void LoadRuntimeConfig()
+{
+    int handle = FileOpen("TradeTaperSync.cfg", FILE_READ|FILE_TXT|FILE_ANSI);
+    if(handle == INVALID_HANDLE)
+    {
+        WriteLog("Runtime config TradeTaperSync.cfg not found. Error=" + IntegerToString(GetLastError()));
+        return;
+    }
+
+    while(!FileIsEnding(handle))
+    {
+        string line = FileReadString(handle);
+        ApplyConfigLine(line);
+    }
+
+    FileClose(handle);
+}
+
 //+------------------------------------------------------------------+
 //| Fetch candle data for a symbol and time range                    |
 //+------------------------------------------------------------------+
@@ -144,7 +234,7 @@ void FetchCandles(string symbol, string timeframeStr, string startStr, string en
     if(copied > 0)
     {
         string json = "{";
-        json += "\"terminalId\":\"" + TerminalId + "\",";
+        json += "\"terminalId\":\"" + gTerminalId + "\",";
         json += "\"tradeId\":\"" + tradeId + "\",";
         json += "\"symbol\":\"" + symbol + "\",";
         json += "\"candles\":[";
@@ -164,7 +254,7 @@ void FetchCandles(string symbol, string timeframeStr, string startStr, string en
         json += "]}";
         
         // Send data - Updated to use /api/webhook/terminal/candles
-        string url = APIEndpoint + "/api/webhook/terminal/candles";
+        string url = gAPIEndpoint + "/api/webhook/terminal/candles";
         SendRequest(url, json);
         WriteLog("Sent " + IntegerToString(copied) + " candles for " + symbol);
     }
@@ -212,11 +302,11 @@ string GetJsonValue(string json, string key)
 void SendHeartbeat()
 {
     // Updated to use /api/webhook/terminal/heartbeat
-    string url = APIEndpoint + "/api/webhook/terminal/heartbeat";
+    string url = gAPIEndpoint + "/api/webhook/terminal/heartbeat";
     
     // Build JSON payload
     string json = "{";
-    json += "\"terminalId\":\"" + TerminalId + "\",";
+    json += "\"terminalId\":\"" + gTerminalId + "\",";
     json += "\"accountInfo\":{";
     json += "\"balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",";
     json += "\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + ",";
@@ -347,12 +437,12 @@ void SyncDealHistory()
     
     // Build final JSON
     string json = "{";
-    json += "\"terminalId\":\"" + TerminalId + "\",";
+    json += "\"terminalId\":\"" + gTerminalId + "\",";
     json += "\"trades\":" + tradesJson;
     json += "}";
     
     // Send request - Updated to use /api/webhook/terminal/trades
-    string url = APIEndpoint + "/api/webhook/terminal/trades";
+    string url = gAPIEndpoint + "/api/webhook/terminal/trades";
     string result = SendRequest(url, json);
     
     if(StringFind(result, "success") >= 0)
@@ -411,12 +501,12 @@ void SyncPositions()
     
     // Build final JSON
     string json = "{";
-    json += "\"terminalId\":\"" + TerminalId + "\",";
+    json += "\"terminalId\":\"" + gTerminalId + "\",";
     json += "\"positions\":" + positionsJson;
     json += "}";
     
     // Send request - Updated to use /api/webhook/terminal/positions
-    string url = APIEndpoint + "/api/webhook/terminal/positions";
+    string url = gAPIEndpoint + "/api/webhook/terminal/positions";
     string result = SendRequest(url, json);
     
     if(StringFind(result, "success") >= 0)
@@ -428,6 +518,29 @@ void SyncPositions()
 //+------------------------------------------------------------------+
 //| Send HTTP POST request                                              |
 //+------------------------------------------------------------------+
+bool QueueRequestForBridge(string url, string jsonData)
+{
+    FolderCreate("bridge_outbox");
+
+    string fileName = "bridge_outbox\\req_" +
+        IntegerToString((int)TimeCurrent()) + "_" +
+        IntegerToString((int)GetTickCount()) + ".req";
+
+    int handle = FileOpen(fileName, FILE_WRITE|FILE_TXT|FILE_ANSI);
+    if(handle == INVALID_HANDLE)
+    {
+        WriteLog("Error: Failed to queue payload for bridge. FileOpen error=" + IntegerToString(GetLastError()));
+        return false;
+    }
+
+    FileWrite(handle, url);
+    FileWrite(handle, jsonData);
+    FileClose(handle);
+
+    WriteLog("Queued payload for bridge: " + fileName);
+    return true;
+}
+
 string SendRequest(string url, string jsonData)
 {
     char postData[];
@@ -436,9 +549,9 @@ string SendRequest(string url, string jsonData)
     string headers = "Content-Type: application/json\r\n";
     
     // Updated to use lowercase header name (x-api-key) to match backend
-    if(StringLen(APIKey) > 0)
+    if(StringLen(gAPIKey) > 0)
     {
-        headers += "x-api-key: " + APIKey + "\r\n";
+        headers += "x-api-key: " + gAPIKey + "\r\n";
     }
     
     // Convert string to char array
@@ -461,6 +574,17 @@ string SendRequest(string url, string jsonData)
     if(response == -1)
     {
         int errorCode = GetLastError();
+
+        // MT5 can block WebRequest (error 4014) when URL permissions are not available.
+        // Queue payloads for an external curl bridge process to ensure sync still progresses.
+        if(errorCode == 4014)
+        {
+            if(QueueRequestForBridge(url, jsonData))
+            {
+                return "{\"success\":true,\"queued\":true}";
+            }
+        }
+
         return "Error: " + IntegerToString(errorCode);
     }
     

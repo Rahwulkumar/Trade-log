@@ -10,13 +10,13 @@ import {
   type Trade, type TradeInsert, type TradeUpdate,
 } from '@/lib/db/schema';
 import {
-  eq, and, desc, asc, gte, lte, ilike, or,
+  eq, and, desc, asc, gte, lte, ilike,
 } from 'drizzle-orm';
 
 export type { Trade, TradeInsert, TradeUpdate };
 
 export interface TradeFilters {
-  status?: 'open' | 'closed' | 'all';
+  status?: 'OPEN' | 'CLOSED' | 'open' | 'closed' | 'all';
   direction?: 'LONG' | 'SHORT' | 'all';
   playbookId?: string;
   propAccountId?: string | null;
@@ -37,7 +37,8 @@ export async function getTrades(
     const conditions: any[] = [eq(trades.userId, userId)];
 
     if (filters?.status && filters.status !== 'all') {
-      conditions.push(eq(trades.status, filters.status));
+      // Normalise to uppercase to match DB constraint ('OPEN' | 'CLOSED')
+      conditions.push(eq(trades.status, filters.status.toUpperCase()));
     }
     if (filters?.direction && filters.direction !== 'all') {
       conditions.push(eq(trades.direction, filters.direction));
@@ -121,7 +122,7 @@ export async function closeTrade(
 ): Promise<Trade> {
   const trade = await getTrade(id, userId);
   if (!trade) throw new Error('Trade not found');
-  if (trade.status === 'closed') throw new Error('Trade is already closed');
+  if (trade.status?.toUpperCase() === 'CLOSED') throw new Error('Trade is already closed');
 
   const entryPrice = Number(trade.entryPrice);
   const positionSize = Number(trade.positionSize);
@@ -143,7 +144,7 @@ export async function closeTrade(
     exitDate: new Date(exitDate),
     pnl: String(pnl),
     rMultiple: rMultiple != null ? String(rMultiple) : null,
-    status: 'closed',
+    status: 'CLOSED',
   });
 }
 
@@ -174,6 +175,6 @@ export async function getOpenTrades(userId: string): Promise<Trade[]> {
   return db
     .select()
     .from(trades)
-    .where(and(eq(trades.userId, userId), eq(trades.status, 'open')))
+    .where(and(eq(trades.userId, userId), eq(trades.status, 'OPEN')))
     .orderBy(desc(trades.entryDate));
 }

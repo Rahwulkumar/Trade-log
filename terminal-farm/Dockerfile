@@ -16,17 +16,26 @@ RUN apt-get update && apt-get install -y \
     x11vnc \
     supervisor \
     unzip \
+    libvulkan1 \
+    mesa-vulkan-drivers \
     # WINE dependencies
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
 # Add WineHQ repository and install WINE
+# MT5 currently trips an anti-debug popup on Wine 11 in this setup.
+# Pin to Wine 10 stable until upstream compatibility improves.
+ARG WINEHQ_STABLE_VERSION=10.0.0.0~jammy-1
 RUN dpkg --add-architecture i386 \
     && mkdir -pm755 /etc/apt/keyrings \
     && wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key \
     && wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources \
     && apt-get update \
-    && apt-get install -y --install-recommends winehq-stable \
+    && apt-get install -y --install-recommends \
+        "winehq-stable=${WINEHQ_STABLE_VERSION}" \
+        "wine-stable=${WINEHQ_STABLE_VERSION}" \
+        "wine-stable-amd64=${WINEHQ_STABLE_VERSION}" \
+        "wine-stable-i386:i386=${WINEHQ_STABLE_VERSION}" \
     && rm -rf /var/lib/apt/lists/*
 
 # Install winetricks for additional Windows components
@@ -63,8 +72,9 @@ RUN mkdir -p /home/trader/mt5
 RUN mkdir -p /home/trader/mt5/MQL5/Experts \
     && mkdir -p /home/trader/config
 
-# Copy Trading Journal Sync EA (will be mounted at runtime)
-COPY --chown=trader:trader ea/TradeTaperSync.mq5 /home/trader/mt5/MQL5/Experts/
+# Copy Trading Journal Sync EA source + optional precompiled binary.
+# If TradeTaperSync.ex5 is present, runtime compilation is skipped.
+COPY --chown=trader:trader ea/ /home/trader/mt5/MQL5/Experts/
 
 # Switch back to root for supervisor
 USER root
@@ -75,7 +85,8 @@ COPY supervisor.conf /etc/supervisor/conf.d/mt5.conf
 
 # Create startup script
 COPY scripts/start-terminal.sh /start.sh
-RUN chmod +x /start.sh
+COPY scripts/webhook-bridge.sh /webhook-bridge.sh
+RUN chmod +x /start.sh /webhook-bridge.sh
 
 # Expose VNC port for debugging (optional)
 EXPOSE 5900

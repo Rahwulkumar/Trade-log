@@ -6,16 +6,13 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/auth/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
 export async function GET() {
-    // Require authenticated session
-    const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
+    const { error: authError } = await requireAuth();
+    if (authError) {
         return NextResponse.json(
             { error: 'Unauthorized — please sign in to download the EA.' },
             { status: 401 }

@@ -45,10 +45,12 @@ export interface CreateAccountFromChallengeParams {
     startDate: string;
 }
 
-export interface PropAccountWithChallenge extends PropAccount {
+// Minimal shape for prop account with optional challenge (UI)
+export interface PropAccountWithChallenge {
+    id: string;
+    accountName?: string;
+    firmName?: string | null;
+    [key: string]: unknown;
     challenge?: PropFirmChallenge;
-    current_phase_status: 'in_progress' | 'passed' | 'failed' | null;
+    current_phase_status?: 'in_progress' | 'passed' | 'failed' | null;
 }
-
-// Re-export existing PropAccount for convenience
-import { PropAccount } from "../supabase/types";

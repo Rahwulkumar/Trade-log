@@ -39,7 +39,7 @@ export function getOutcome(
   status: string | null | undefined,
   pnl: number | null | undefined,
 ): "WIN" | "LOSS" | "BE" | "OPEN" {
-  if (status === "open") return "OPEN";
+  if (status?.toUpperCase() === "OPEN") return "OPEN";
   const p = pnl ?? 0;
   if (p > 0.5) return "WIN";
   if (p < -0.5) return "LOSS";

@@ -246,6 +246,19 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
             </button>
           );
         })}
+        {/* Add account CTA when empty or always for quick access */}
+        <div className="border-t border-border/60 mt-1 pt-1">
+          <Link
+            href="/prop-firm"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+            style={{ color: T.accent }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = T.hover)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <span style={{ fontSize: "0.75rem", fontWeight: 500 }}>+ Add account</span>
+          </Link>
+        </div>
       </motion.div>
     </>
   );

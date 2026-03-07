@@ -1,0 +1,133 @@
+================================================================================
+TERMINAL FARM — EXACT STEPS TO RUN
+================================================================================
+
+Do these in order. Prerequisites: Google Cloud project, gcloud CLI, Docker.
+
+--------------------------------------------------------------------------------
+STEP 1 — App environment (Trading Journal)
+--------------------------------------------------------------------------------
+1.1  In project root (trading-journal/), create or edit .env.local.
+
+1.2  Set these (required for Terminal Farm + app):
+     DATABASE_URL=postgresql://...          # Your Neon connection string
+     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
+     CLERK_SECRET_KEY=sk_...
+     MT5_ENCRYPTION_KEY=<32+ char secret>   # Used to decrypt MT5 passwords
+     TERMINAL_WEBHOOK_SECRET=<secret>        # EA calls webhooks with x-api-key: this value
+     ORCHESTRATOR_SECRET=<secret>            # Orchestrator calls GET /api/orchestrator/config with x-orchestrator-secret: this value
+
+     Generate secrets with: openssl rand -hex 24
+
+1.3  Sync DB schema (once):
+     npm run db:push
+
+1.4  Deploy your Next.js app (Vercel / your host) and note the public URL, e.g.:
+     https://your-app.vercel.app
+
+--------------------------------------------------------------------------------
+STEP 2 — MT5 terminal Docker image
+--------------------------------------------------------------------------------
+2.1  Get MT5 installation as a zip:
+     - Install MT5 on a Windows machine (or use a pre-built portable install).
+     - Zip the "MetaTrader 5" folder (the one containing terminal64.exe, MQL5, etc.).
+     - Name the file exactly: mt5-install.zip
+
+2.2  Put the file here:
+     trading-journal/terminal-farm/mt5-install.zip
+
+2.3  Set GCP project and build the image (from trading-journal/):
+     gcloud config set project YOUR_GCP_PROJECT_ID
+     ./scripts/build-terminal-image.sh
+
+     Or with explicit project:
+     ./scripts/build-terminal-image.sh YOUR_GCP_PROJECT_ID
+
+     Result: image gcr.io/YOUR_GCP_PROJECT_ID/mt5-terminal:latest
+
+--------------------------------------------------------------------------------
+STEP 3 — VM (or host) where MT5 containers will run
+--------------------------------------------------------------------------------
+3.1  Create a VM (e.g. GCP Compute Engine) with Docker installed.
+     - Docker must be listening so the orchestrator can connect.
+     - For same-network access: use internal IP and unix socket or tcp.
+     - For Cloud Run → VM: use a TCP endpoint (e.g. tcp://VM_IP:2376) with Docker TLS or a proxy.
+
+3.2  Decide VM_DOCKER_HOST value:
+     - Local Docker (orchestrator runs on same machine): unix://var/run/docker.sock
+     - Remote Docker with TCP: tcp://VM_IP:2376  (and set TLS certs if required)
+
+3.3  If using TLS (recommended for tcp://), put cert.pem, key.pem, ca.pem in a folder and set VM_DOCKER_CERT_PATH when running the orchestrator (see Step 5).
+
+--------------------------------------------------------------------------------
+STEP 4 — Run orchestrator (choose one: local vs Cloud Run)
+--------------------------------------------------------------------------------
+--- Option A: Run orchestrator locally (e.g. for testing)
+--------------------------------------------------------------------------------
+4A.1  From trading-journal/:
+      cd orchestrator
+      pip install -r requirements.txt
+
+4A.2  Set env and run (same terminal or .env):
+      export TRADING_JOURNAL_URL=https://your-app.vercel.app
+      export ORCHESTRATOR_SECRET=<same as in app .env ORCHESTRATOR_SECRET>
+      export VM_DOCKER_HOST=unix://var/run/docker.sock
+      export TERMINAL_WEBHOOK_SECRET=<same as in app .env TERMINAL_WEBHOOK_SECRET>
+      export TERMINAL_IMAGE=gcr.io/YOUR_GCP_PROJECT_ID/mt5-terminal:latest
+
+      python main.py
+
+      It runs once and exits. To poll every 60s, run in a loop or use cron:
+      while true; do python main.py; sleep 60; done
+
+--------------------------------------------------------------------------------
+--- Option B: Deploy orchestrator to Cloud Run (production)
+--------------------------------------------------------------------------------
+4B.1  From trading-journal/ run (all one line or pass args):
+
+      ./scripts/deploy-orchestrator.sh \
+        YOUR_GCP_PROJECT_ID \
+        us-central1 \
+        "https://your-app.vercel.app" \
+        "YOUR_ORCHESTRATOR_SECRET" \
+        "tcp://YOUR_VM_IP:2376" \
+        "YOUR_TERMINAL_WEBHOOK_SECRET"
+
+      Replace:
+      - YOUR_GCP_PROJECT_ID
+      - your-app.vercel.app with your real app URL
+      - YOUR_ORCHESTRATOR_SECRET / YOUR_TERMINAL_WEBHOOK_SECRET (same values as in app .env)
+      - YOUR_VM_IP and port (e.g. 2376 for Docker TCP)
+
+4B.2  If the job already exists, update env instead of create:
+      gcloud run jobs update orchestrator --region=us-central1 \
+        --set-env-vars="TRADING_JOURNAL_URL=...,ORCHESTRATOR_SECRET=...,VM_DOCKER_HOST=...,TERMINAL_WEBHOOK_SECRET=...,TERMINAL_IMAGE=gcr.io/PROJECT_ID/mt5-terminal:latest"
+
+4B.3  Cloud Scheduler will trigger the job every minute. To run once manually:
+      gcloud run jobs execute orchestrator --region=us-central1
+
+--------------------------------------------------------------------------------
+STEP 5 — Enable Terminal Farm for an MT5 account (in the app)
+--------------------------------------------------------------------------------
+5.1  Log in to the Trading Journal app.
+
+5.2  Add an MT5 account (server, login, password). The app encrypts the password with MT5_ENCRYPTION_KEY.
+
+5.3  Turn on “Auto-sync” / “Terminal Farm” for that account.
+     - This creates a terminal_instances row (status PENDING).
+     - On the next orchestrator run, it will see the config and start a container with that account’s credentials.
+     - The container runs MT5 + EA; the EA sends heartbeat, trades, positions (and candles when requested) to your app.
+
+--------------------------------------------------------------------------------
+CHECKLIST SUMMARY
+--------------------------------------------------------------------------------
+[ ] .env.local has DATABASE_URL, Clerk, MT5_ENCRYPTION_KEY, TERMINAL_WEBHOOK_SECRET, ORCHESTRATOR_SECRET
+[ ] npm run db:push done once
+[ ] App deployed and URL known
+[ ] mt5-install.zip in terminal-farm/
+[ ] Terminal image built: gcr.io/PROJECT_ID/mt5-terminal:latest
+[ ] VM with Docker running; VM_DOCKER_HOST known (unix or tcp)
+[ ] Orchestrator running (local loop or Cloud Run Job + Scheduler)
+[ ] In app: MT5 account added, Auto-sync enabled for that account
+
+================================================================================

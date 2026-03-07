@@ -82,7 +82,7 @@ export const propFirmChallenges = pgTable('prop_firm_challenges', {
 
 export const propAccounts = pgTable('prop_accounts', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(), // Clerk user id (e.g. user_xxx)
   challengeId: uuid('challenge_id').references(() => propFirmChallenges.id, { onDelete: 'set null' }),
   accountName: text('account_name').notNull(),
   firmName: text('firm_name'),
@@ -107,7 +107,7 @@ export const propAccounts = pgTable('prop_accounts', {
 
 export const playbooks = pgTable('playbooks', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   name: text('name').notNull(),
   description: text('description'),
   rules: jsonb('rules').default([]),
@@ -123,7 +123,7 @@ export const playbooks = pgTable('playbooks', {
 
 export const trades = pgTable('trades', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   propAccountId: uuid('prop_account_id').references(() => propAccounts.id, { onDelete: 'set null' }),
   playbookId: uuid('playbook_id').references(() => playbooks.id, { onDelete: 'set null' }),
 
@@ -196,7 +196,7 @@ export const trades = pgTable('trades', {
 
 export const mt5Accounts = pgTable('mt5_accounts', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   propAccountId: uuid('prop_account_id').references(() => propAccounts.id, { onDelete: 'cascade' }),
   accountName: text('account_name').notNull(),
   server: text('server').notNull(),
@@ -216,7 +216,7 @@ export const mt5Accounts = pgTable('mt5_accounts', {
 export const terminalInstances = pgTable('terminal_instances', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   accountId: uuid('account_id').notNull().references(() => mt5Accounts.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   containerId: text('container_id'),
   status: text('status').notNull().default('PENDING'),
   // PENDING | STARTING | RUNNING | STOPPING | STOPPED | ERROR
@@ -252,7 +252,7 @@ export const terminalCommands = pgTable('terminal_commands', {
 
 export const notes = pgTable('notes', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   title: text('title').notNull().default('Untitled'),
   content: text('content'), // BlockNote JSON string
   icon: text('icon').notNull().default('📝'),
@@ -268,7 +268,7 @@ export const notes = pgTable('notes', {
 
 export const tags = pgTable('tags', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   name: text('name').notNull(),
   color: text('color'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -289,7 +289,7 @@ export const tradeTags = pgTable('trade_tags', {
 
 export const journalEntries = pgTable('journal_entries', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   tradeId: uuid('trade_id').references(() => trades.id, { onDelete: 'set null' }),
   title: text('title'),
   content: jsonb('content'),
