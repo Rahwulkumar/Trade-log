@@ -1,9 +1,18 @@
 /**
  * Terminal Farm Service
  * Core business logic for managing MT5 terminals and processing EA webhooks
+ * Uses Neon (Drizzle) — no Supabase.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { eq, inArray, like, asc, and } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import {
+    terminalInstances,
+    mt5Accounts,
+    terminalCommands,
+    trades,
+    type TerminalInstance as SchemaTerminalInstance,
+} from '@/lib/db/schema';
 import { decrypt } from '@/lib/mt5/encryption';
 import { retry } from './retry';
 import { logSyncMetrics } from './metrics';
@@ -24,82 +33,81 @@ import {
     TerminalCandlesSyncPayloadSchema,
 } from './validation';
 
-// Create Supabase client with service role for webhook operations
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function rowToTerminalInstance(row: SchemaTerminalInstance): TerminalInstance {
+    return {
+        id: row.id,
+        accountId: row.accountId,
+        userId: row.userId,
+        containerId: row.containerId,
+        status: row.status as TerminalInstance['status'],
+        terminalPort: row.terminalPort,
+        lastHeartbeat: row.lastHeartbeat?.toISOString() ?? null,
+        lastSyncAt: row.lastSyncAt?.toISOString() ?? null,
+        errorMessage: row.errorMessage,
+        metadata: (row.metadata as Record<string, unknown>) ?? {},
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+    };
+}
 
 /**
  * Get terminal instance by ID
  */
 export async function getTerminalById(terminalId: string): Promise<TerminalInstance | null> {
-    const { data, error } = await supabase
-        .from('terminal_instances')
-        .select('*')
-        .eq('id', terminalId)
-        .single();
-
-    if (error || !data) return null;
-    return data as TerminalInstance;
+    const [row] = await db
+        .select()
+        .from(terminalInstances)
+        .where(eq(terminalInstances.id, terminalId))
+        .limit(1);
+    return row ? rowToTerminalInstance(row) : null;
 }
 
 /**
  * Get terminal by account ID
  */
 export async function getTerminalByAccountId(accountId: string): Promise<TerminalInstance | null> {
-    const { data, error } = await supabase
-        .from('terminal_instances')
-        .select('*')
-        .eq('account_id', accountId)
-        .single();
-
-    if (error || !data) return null;
-    return data as TerminalInstance;
+    const [row] = await db
+        .select()
+        .from(terminalInstances)
+        .where(eq(terminalInstances.accountId, accountId))
+        .limit(1);
+    return row ? rowToTerminalInstance(row) : null;
 }
 
 /**
  * Enable auto-sync for an MT5 account (create terminal instance)
  */
 export async function enableAutoSync(accountId: string, userId: string): Promise<TerminalInstance> {
-    // Check if terminal already exists
     const existing = await getTerminalByAccountId(accountId);
     if (existing) {
         if (existing.status === 'RUNNING' || existing.status === 'PENDING') {
             throw new Error('Auto-sync is already enabled for this account');
         }
-        // Restart stopped terminal
-        const { data, error } = await supabase
-            .from('terminal_instances')
-            .update({ status: 'PENDING', error_message: null })
-            .eq('id', existing.id)
-            .select()
-            .single();
-
-        if (error) throw new Error(error.message);
-        return data as TerminalInstance;
+        const [updated] = await db
+            .update(terminalInstances)
+            .set({ status: 'PENDING', errorMessage: null })
+            .where(eq(terminalInstances.id, existing.id))
+            .returning();
+        if (!updated) throw new Error('Failed to update terminal');
+        return rowToTerminalInstance(updated);
     }
 
-    // Create new terminal instance
-    const { data, error } = await supabase
-        .from('terminal_instances')
-        .insert({
-            account_id: accountId,
-            user_id: userId,
+    const [inserted] = await db
+        .insert(terminalInstances)
+        .values({
+            accountId,
+            userId,
             status: 'PENDING',
         })
-        .select()
-        .single();
+        .returning();
+    if (!inserted) throw new Error('Failed to create terminal instance');
 
-    if (error) throw new Error(error.message);
+    await db
+        .update(mt5Accounts)
+        .set({ terminalEnabled: true })
+        .where(eq(mt5Accounts.id, accountId));
 
-    // Mark account as terminal-enabled
-    await supabase
-        .from('mt5_accounts')
-        .update({ terminal_enabled: true })
-        .eq('id', accountId);
-
-    return data as TerminalInstance;
+    return rowToTerminalInstance(inserted);
 }
 
 /**
@@ -110,68 +118,53 @@ export async function disableAutoSync(accountId: string): Promise<void> {
     if (!terminal) {
         throw new Error('Auto-sync is not enabled for this account');
     }
-
-    // Mark for stopping (orchestrator will handle container teardown)
-    await supabase
-        .from('terminal_instances')
-        .update({ status: 'STOPPING' })
-        .eq('id', terminal.id);
-
-    // Mark account as not terminal-enabled
-    await supabase
-        .from('mt5_accounts')
-        .update({ terminal_enabled: false })
-        .eq('id', accountId);
+    await db
+        .update(terminalInstances)
+        .set({ status: 'STOPPING' })
+        .where(eq(terminalInstances.id, terminal.id));
+    await db
+        .update(mt5Accounts)
+        .set({ terminalEnabled: false })
+        .where(eq(mt5Accounts.id, accountId));
 }
 
 /**
  * Get orchestrator configuration (all active terminals with decrypted credentials)
  */
 export async function getOrchestratorConfig(): Promise<OrchestratorTerminalConfig[]> {
-    // Fetch all terminals that should be managed
-    const { data: terminals, error } = await supabase
-        .from('terminal_instances')
-        .select('*')
-        .in('status', ['PENDING', 'STARTING', 'RUNNING', 'STOPPING']);
-
-    if (error || !terminals) return [];
+    const terminals = await db
+        .select()
+        .from(terminalInstances)
+        .where(inArray(terminalInstances.status, ['PENDING', 'STARTING', 'RUNNING', 'STOPPING']));
 
     const config: OrchestratorTerminalConfig[] = [];
 
     for (const terminal of terminals) {
         if (terminal.status === 'STOPPING') {
-            // Instruction to stop container
             config.push({
                 id: terminal.id,
                 status: 'STOPPED',
-                accountId: terminal.account_id,
+                accountId: terminal.accountId,
             });
-
-            // Mark as STOPPED in DB
-            await supabase
-                .from('terminal_instances')
-                .update({ status: 'STOPPED' })
-                .eq('id', terminal.id);
-
+            await db
+                .update(terminalInstances)
+                .set({ status: 'STOPPED' })
+                .where(eq(terminalInstances.id, terminal.id));
             continue;
         }
 
-        // Fetch MT5 account with decrypted credentials
-        const { data: account } = await supabase
-            .from('mt5_accounts')
-            .select('*')
-            .eq('id', terminal.account_id)
-            .single();
-
+        const [account] = await db
+            .select()
+            .from(mt5Accounts)
+            .where(eq(mt5Accounts.id, terminal.accountId))
+            .limit(1);
         if (!account) continue;
 
-        // Decrypt password using MT5_ENCRYPTION_KEY
         const decryptedPassword = decrypt(account.password);
-
         config.push({
             id: terminal.id,
             status: 'RUNNING',
-            accountId: terminal.account_id,
+            accountId: terminal.accountId,
             server: account.server,
             login: account.login,
             password: decryptedPassword,
@@ -183,7 +176,6 @@ export async function getOrchestratorConfig(): Promise<OrchestratorTerminalConfi
             },
         });
     }
-
     return config;
 }
 
@@ -191,7 +183,6 @@ export async function getOrchestratorConfig(): Promise<OrchestratorTerminalConfi
  * Process heartbeat from terminal EA
  */
 export async function processHeartbeat(data: TerminalHeartbeatPayload): Promise<HeartbeatResponse> {
-    // Validate payload
     const validationResult = TerminalHeartbeatPayloadSchema.safeParse(data);
     if (!validationResult.success) {
         console.error('[TerminalFarm] Invalid heartbeat payload:', validationResult.error);
@@ -203,64 +194,58 @@ export async function processHeartbeat(data: TerminalHeartbeatPayload): Promise<
         return { success: false, error: 'Unknown terminal' };
     }
 
-    // Update heartbeat timestamp and status
-    await supabase
-        .from('terminal_instances')
-        .update({
-            last_heartbeat: new Date().toISOString(),
+    await db
+        .update(terminalInstances)
+        .set({
+            lastHeartbeat: new Date(),
             status: 'RUNNING',
         })
-        .eq('id', terminal.id);
+        .where(eq(terminalInstances.id, terminal.id));
 
-    // Update account balance/equity if provided
     if (data.accountInfo) {
-        await supabase
-            .from('mt5_accounts')
-            .update({
-                balance: data.accountInfo.balance,
-                equity: data.accountInfo.equity,
+        await db
+            .update(mt5Accounts)
+            .set({
+                balance: String(data.accountInfo.balance),
+                equity: String(data.accountInfo.equity),
             })
-            .eq('id', terminal.account_id);
+            .where(eq(mt5Accounts.id, terminal.accountId));
     }
 
-    // Check for pending commands (atomic fetch and update)
-    const { data: commands } = await supabase
-        .from('terminal_commands')
-        .select('*')
-        .eq('terminal_id', terminal.id)
-        .eq('status', 'PENDING')
-        .order('created_at', { ascending: true })
+    const [cmd] = await db
+        .select()
+        .from(terminalCommands)
+        .where(
+            and(
+                eq(terminalCommands.terminalId, terminal.id),
+                eq(terminalCommands.status, 'PENDING')
+            )
+        )
+        .orderBy(asc(terminalCommands.createdAt))
         .limit(1);
 
-    if (commands && commands.length > 0) {
-        const cmd = commands[0] as TerminalCommand;
-
-        // Mark as dispatched (atomic update)
-        const { error } = await supabase
-            .from('terminal_commands')
-            .update({
+    if (cmd) {
+        const [updated] = await db
+            .update(terminalCommands)
+            .set({
                 status: 'DISPATCHED',
-                dispatched_at: new Date().toISOString(),
+                dispatchedAt: new Date(),
             })
-            .eq('id', cmd.id)
-            .eq('status', 'PENDING'); // Only update if still PENDING (prevents double dispatch)
-
-        if (!error) {
+            .where(and(eq(terminalCommands.id, cmd.id), eq(terminalCommands.status, 'PENDING')))
+            .returning();
+        if (updated) {
             return {
                 success: true,
                 command: cmd.command,
-                payload: cmd.payload || undefined,
+                payload: cmd.payload ?? undefined,
             };
         }
     }
-
     return { success: true };
 }
 
 /**
  * Process trade sync from terminal EA
- * Aligned with TradeTaper's position-based matching logic
- * Phase 3: Optimized with batch processing and retry logic
  */
 export async function processTrades(data: TerminalSyncPayload): Promise<{ imported: number; skipped: number }> {
     const startTime = Date.now();
@@ -275,164 +260,162 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
     let skipped = 0;
     const errors: Array<{ ticket: string; error: string }> = [];
 
-    // Batch fetch existing trades for position-based matching
     const positionIds = data.trades
         .filter(t => t.positionId)
         .map(t => t.positionId!.toString());
-    
-    const existingTradesMap = new Map<string, { id: string; status: string; commission: number | null; swap: number | null; contract_size: number | null }>();
-    
-    if (positionIds.length > 0) {
-        const { data: existingTrades, error: fetchError } = await supabase
-            .from('trades')
-            .select('id, status, commission, swap, contract_size, external_id')
-            .eq('mt5_account_id', terminal.account_id)
-            .in('external_id', positionIds);
 
-        if (!fetchError && existingTrades) {
-            existingTrades.forEach(t => {
-                if (t.external_id) {
-                    existingTradesMap.set(t.external_id, {
-                        id: t.id,
-                        status: t.status || 'OPEN',
-                        commission: t.commission,
-                        swap: t.swap,
-                        contract_size: t.contract_size,
-                    });
-                }
-            });
+    const existingTradesMap = new Map<string, { id: string; status: string; commission: string | null; swap: string | null; contractSize: string | null }>();
+
+    if (positionIds.length > 0) {
+        const existingTrades = await db
+            .select({
+                id: trades.id,
+                status: trades.status,
+                commission: trades.commission,
+                swap: trades.swap,
+                contractSize: trades.contractSize,
+                externalId: trades.externalId,
+            })
+            .from(trades)
+            .where(
+                and(
+                    eq(trades.mt5AccountId, terminal.accountId),
+                    inArray(trades.externalId, positionIds)
+                )
+            );
+        for (const t of existingTrades) {
+            if (t.externalId) {
+                existingTradesMap.set(t.externalId, {
+                    id: t.id,
+                    status: t.status ?? 'OPEN',
+                    commission: t.commission,
+                    swap: t.swap,
+                    contractSize: t.contractSize,
+                });
+            }
         }
     }
 
-    // Batch collect inserts and updates
-    const inserts: Record<string, unknown>[] = [];
-    const updates: Array<{ id: string; data: Record<string, unknown> }> = [];
+    const inserts: typeof trades.$inferInsert[] = [];
+    const updates: Array<{ id: string; data: Partial<typeof trades.$inferInsert> }> = [];
 
     for (const trade of data.trades) {
         try {
-            // Position-Based Logic (Primary)
             if (trade.positionId) {
                 const positionIdString = trade.positionId.toString();
                 const existing = existingTradesMap.get(positionIdString);
-
-                const isEntry = trade.entryType === 0; // DEAL_ENTRY_IN
-                const isExit = trade.entryType === 1;  // DEAL_ENTRY_OUT
+                const isEntry = trade.entryType === 0;
+                const isExit = trade.entryType === 1;
 
                 if (isEntry) {
-                    // If entry already exists, skip (idempotent)
                     if (existing) {
                         skipped++;
                         continue;
                     }
-
-                    // Queue for batch insert
                     inserts.push({
-                        user_id: terminal.user_id,
-                        mt5_account_id: terminal.account_id,
+                        userId: terminal.userId,
+                        mt5AccountId: terminal.accountId,
                         symbol: trade.symbol,
                         direction: trade.type === 'BUY' ? 'LONG' : 'SHORT',
                         status: 'OPEN',
-                        entry_date: trade.openTime || new Date().toISOString(),
-                        entry_price: trade.openPrice || 0,
-                        position_size: trade.volume || 0,
-                        commission: trade.commission || 0,
-                        swap: trade.swap || 0,
-                        stop_loss: trade.stopLoss,
-                        take_profit: trade.takeProfit,
+                        entryDate: new Date(trade.openTime ?? Date.now()),
+                        entryPrice: String(trade.openPrice ?? 0),
+                        positionSize: String(trade.volume ?? 0),
+                        commission: String(trade.commission ?? 0),
+                        swap: String(trade.swap ?? 0),
+                        stopLoss: trade.stopLoss != null ? String(trade.stopLoss) : null,
+                        takeProfit: trade.takeProfit != null ? String(trade.takeProfit) : null,
                         notes: `Auto-synced via Terminal Farm. Position ID: ${trade.positionId}`,
-                        external_id: positionIdString,
-                        external_deal_id: trade.ticket,
-                        contract_size: trade.contractSize,
-                        asset_type: detectAssetType(trade.symbol),
-                        magic_number: trade.magic,
+                        externalId: positionIdString,
+                        externalDealId: trade.ticket,
+                        contractSize: trade.contractSize != null ? String(trade.contractSize) : null,
+                        assetType: detectAssetType(trade.symbol),
+                        magicNumber: trade.magic ?? null,
                     });
-
                 } else if (isExit) {
-                    // If exit, close the existing trade
                     if (existing) {
-                        // Only update if not already closed (or missing contractSize for self-healing)
-                        if (existing.status !== 'CLOSED' || !existing.contract_size) {
+                        if (existing.status !== 'CLOSED' || !existing.contractSize) {
+                            const prevCommission = existing.commission ? parseFloat(existing.commission) : 0;
+                            const prevSwap = existing.swap ? parseFloat(existing.swap) : 0;
                             updates.push({
                                 id: existing.id,
                                 data: {
                                     status: 'CLOSED',
-                                    exit_date: trade.openTime,
-                                    exit_price: trade.openPrice,
-                                    pnl: trade.profit || 0,
-                                    commission: (existing.commission || 0) + (trade.commission || 0),
-                                    swap: (existing.swap || 0) + (trade.swap || 0),
-                                    contract_size: trade.contractSize || existing.contract_size,
+                                    exitDate: trade.openTime ? new Date(trade.openTime) : null,
+                                    exitPrice: trade.openPrice != null ? String(trade.openPrice) : null,
+                                    pnl: trade.profit != null ? String(trade.profit) : null,
+                                    commission: String(prevCommission + (trade.commission ?? 0)),
+                                    swap: String(prevSwap + (trade.swap ?? 0)),
+                                    contractSize: trade.contractSize != null ? String(trade.contractSize) : existing.contractSize,
                                 },
                             });
                         } else {
-                            skipped++; // Already closed
+                            skipped++;
                         }
                     } else {
-                        // Orphan exit: Create standalone CLOSED trade
                         inserts.push({
-                            user_id: terminal.user_id,
-                            mt5_account_id: terminal.account_id,
+                            userId: terminal.userId,
+                            mt5AccountId: terminal.accountId,
                             symbol: trade.symbol,
                             direction: trade.type === 'SELL' ? 'LONG' : 'SHORT',
                             status: 'CLOSED',
-                            entry_date: trade.openTime || new Date().toISOString(),
-                            entry_price: 0,
-                            exit_date: trade.openTime,
-                            exit_price: trade.openPrice,
-                            position_size: trade.volume || 0,
-                            pnl: trade.profit || 0,
-                            commission: trade.commission || 0,
-                            swap: trade.swap || 0,
-                            stop_loss: trade.stopLoss,
-                            take_profit: trade.takeProfit,
+                            entryDate: new Date(trade.openTime ?? Date.now()),
+                            entryPrice: '0',
+                            exitDate: trade.openTime ? new Date(trade.openTime) : null,
+                            exitPrice: trade.openPrice != null ? String(trade.openPrice) : null,
+                            positionSize: String(trade.volume ?? 0),
+                            pnl: trade.profit != null ? String(trade.profit) : null,
+                            commission: String(trade.commission ?? 0),
+                            swap: String(trade.swap ?? 0),
+                            stopLoss: trade.stopLoss != null ? String(trade.stopLoss) : null,
+                            takeProfit: trade.takeProfit != null ? String(trade.takeProfit) : null,
                             notes: `Orphan Exit Synced (Entry missing). Position ID: ${positionIdString}`,
-                            external_id: positionIdString,
-                            external_deal_id: trade.ticket,
-                            contract_size: trade.contractSize,
-                            asset_type: detectAssetType(trade.symbol),
-                            magic_number: trade.magic,
+                            externalId: positionIdString,
+                            externalDealId: trade.ticket,
+                            contractSize: trade.contractSize != null ? String(trade.contractSize) : null,
+                            assetType: detectAssetType(trade.symbol),
+                            magicNumber: trade.magic ?? null,
                         });
                     }
                 }
                 continue;
             }
 
-            // Legacy Ticket-Based Logic (Fallback)
-            // Check for duplicate by ticket (single query per trade - can't batch easily)
-            const { data: existing } = await supabase
-                .from('trades')
-                .select('id')
-                .eq('mt5_account_id', terminal.account_id)
-                .eq('external_deal_id', trade.ticket)
-                .single();
-
+            const [existing] = await db
+                .select({ id: trades.id })
+                .from(trades)
+                .where(
+                    and(
+                        eq(trades.mt5AccountId, terminal.accountId),
+                        eq(trades.externalDealId, trade.ticket)
+                    )
+                )
+                .limit(1);
             if (existing) {
                 skipped++;
                 continue;
             }
 
-            // Queue for batch insert
             inserts.push({
-                user_id: terminal.user_id,
-                mt5_account_id: terminal.account_id,
+                userId: terminal.userId,
+                mt5AccountId: terminal.accountId,
                 symbol: trade.symbol,
                 direction: trade.type === 'BUY' ? 'LONG' : 'SHORT',
                 status: trade.closeTime ? 'CLOSED' : 'OPEN',
-                entry_date: trade.openTime || new Date().toISOString(),
-                exit_date: trade.closeTime || null,
-                entry_price: trade.openPrice || 0,
-                exit_price: trade.closePrice || null,
-                position_size: trade.volume || 0,
-                commission: trade.commission || 0,
-                swap: trade.swap || 0,
-                pnl: trade.profit || 0,
+                entryDate: new Date(trade.openTime ?? Date.now()),
+                exitDate: trade.closeTime ? new Date(trade.closeTime) : null,
+                entryPrice: String(trade.openPrice ?? 0),
+                exitPrice: trade.closePrice != null ? String(trade.closePrice) : null,
+                positionSize: String(trade.volume ?? 0),
+                commission: String(trade.commission ?? 0),
+                swap: String(trade.swap ?? 0),
+                pnl: trade.profit != null ? String(trade.profit) : null,
                 notes: `Auto-synced from MT5. Ticket: ${trade.ticket}`,
-                external_deal_id: trade.ticket,
-                contract_size: trade.contractSize,
-                asset_type: detectAssetType(trade.symbol),
-                magic_number: trade.magic,
+                externalDealId: trade.ticket,
+                contractSize: trade.contractSize != null ? String(trade.contractSize) : null,
+                assetType: detectAssetType(trade.symbol),
+                magicNumber: trade.magic ?? null,
             });
-
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             errors.push({ ticket: trade.ticket || 'unknown', error: errorMsg });
@@ -441,64 +424,55 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
         }
     }
 
-    // Batch insert trades (chunked for performance)
-    if (inserts.length > 0) {
-        const BATCH_SIZE = 50;
-        for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
-            const batch = inserts.slice(i, i + BATCH_SIZE);
-            try {
-                const { error } = await retry(
-                    async () => supabase.from('trades').insert(batch),
-                    { maxAttempts: 3 }
-                );
-
-                if (!error) {
-                    imported += batch.length;
-                } else {
-                    console.error(`[TerminalFarm] Batch insert failed (${i}-${i + batch.length}):`, error);
-                    skipped += batch.length;
-                    errors.push({ ticket: `batch_${i}`, error: error.message });
-                }
-            } catch (error) {
-                console.error(`[TerminalFarm] Batch insert retry exhausted:`, error);
-                skipped += batch.length;
-            }
-        }
-    }
-
-    // Batch update trades (with retry)
-    for (const update of updates) {
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
+        const batch = inserts.slice(i, i + BATCH_SIZE);
         try {
-            const { error } = await retry(
-                async () => supabase
-                    .from('trades')
-                    .update(update.data)
-                    .eq('id', update.id),
+            await retry(
+                async () => {
+                    await db.insert(trades).values(batch);
+                },
                 { maxAttempts: 3 }
             );
-
-            if (!error) {
-                imported++;
-            } else {
-                console.error(`[TerminalFarm] Failed to update trade ${update.id}:`, error);
-                skipped++;
-                errors.push({ ticket: update.id, error: error.message });
-            }
+            imported += batch.length;
         } catch (error) {
-            console.error(`[TerminalFarm] Update retry exhausted for ${update.id}:`, error);
-            skipped++;
+            console.error(`[TerminalFarm] Batch insert failed (${i}-${i + batch.length}):`, error);
+            skipped += batch.length;
+            errors.push({
+                ticket: `batch_${i}`,
+                error: error instanceof Error ? error.message : String(error),
+            });
         }
     }
 
-    // Update last sync timestamp
-    await supabase
-        .from('terminal_instances')
-        .update({ last_sync_at: new Date().toISOString() })
-        .eq('id', terminal.id);
+    for (const update of updates) {
+        try {
+            await retry(
+                async () => {
+                    await db
+                        .update(trades)
+                        .set(update.data)
+                        .where(eq(trades.id, update.id));
+                },
+                { maxAttempts: 3 }
+            );
+            imported++;
+        } catch (error) {
+            console.error(`[TerminalFarm] Failed to update trade ${update.id}:`, error);
+            skipped++;
+            errors.push({
+                ticket: update.id,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    await db
+        .update(terminalInstances)
+        .set({ lastSyncAt: new Date() })
+        .where(eq(terminalInstances.id, terminal.id));
 
     const duration = Date.now() - startTime;
-    
-    // Log metrics
     logSyncMetrics({
         terminalId: terminal.id,
         timestamp: new Date().toISOString(),
@@ -509,11 +483,9 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
         durationMs: duration,
         batchSize: inserts.length > 0 ? inserts.length : undefined,
     });
-
     if (errors.length > 0) {
-        console.warn(`[TerminalFarm] Errors encountered:`, errors.slice(0, 5)); // Log first 5 errors
+        console.warn(`[TerminalFarm] Errors encountered:`, errors.slice(0, 5));
     }
-
     return { imported, skipped };
 }
 
@@ -521,18 +493,16 @@ export async function processTrades(data: TerminalSyncPayload): Promise<{ import
  * Process candle data from terminal EA
  */
 export async function processCandles(data: TerminalCandlesSyncPayload): Promise<void> {
-    // Validate payload
     const validationResult = TerminalCandlesSyncPayloadSchema.safeParse(data);
     if (!validationResult.success) {
         console.error('[TerminalFarm] Invalid candles payload:', validationResult.error);
         throw new Error('Invalid payload');
     }
 
-    // Update the trade's chart_data with the candles
-    const { error } = await supabase
-        .from('trades')
-        .update({
-            chart_data: {
+    await db
+        .update(trades)
+        .set({
+            chartData: {
                 candles: data.candles.map(c => ({
                     time: c.time,
                     open: c.open,
@@ -545,34 +515,27 @@ export async function processCandles(data: TerminalCandlesSyncPayload): Promise<
                 source: 'terminal_farm',
             },
         })
-        .eq('id', data.tradeId);
+        .where(eq(trades.id, data.tradeId));
 
-    if (error) {
-        console.error('[TerminalFarm] Failed to save candles:', error);
-        throw error;
-    }
-
-    // Mark command as completed (match by tradeId in payload)
-    // Payload format: SYMBOL,TIMEFRAME,START,END,TRADEID
-    const { error: cmdError } = await supabase
-        .from('terminal_commands')
-        .update({
+    await db
+        .update(terminalCommands)
+        .set({
             status: 'COMPLETED',
-            completed_at: new Date().toISOString(),
+            completedAt: new Date(),
         })
-        .like('payload', `%,${data.tradeId}`) // Match payload ending with ,tradeId
-        .eq('status', 'DISPATCHED');
-
-    if (cmdError) {
-        console.error('[TerminalFarm] Failed to mark command as completed:', cmdError);
-    }
+        .where(
+            and(
+                eq(terminalCommands.terminalId, data.terminalId),
+                eq(terminalCommands.status, 'DISPATCHED'),
+                like(terminalCommands.payload, `%,${data.tradeId}`)
+            )
+        );
 }
 
 /**
  * Process position sync from terminal EA
  */
 export async function processPositions(data: TerminalPositionsPayload): Promise<void> {
-    // Validate payload
     const validationResult = TerminalPositionsPayloadSchema.safeParse(data);
     if (!validationResult.success) {
         console.error('[TerminalFarm] Invalid positions payload:', validationResult.error);
@@ -584,16 +547,16 @@ export async function processPositions(data: TerminalPositionsPayload): Promise<
         throw new Error('Unknown terminal');
     }
 
-    await supabase
-        .from('terminal_instances')
-        .update({
+    await db
+        .update(terminalInstances)
+        .set({
             metadata: {
                 ...terminal.metadata,
                 openPositions: data.positions,
                 positionsUpdatedAt: new Date().toISOString(),
             },
         })
-        .eq('id', terminal.id);
+        .where(eq(terminalInstances.id, terminal.id));
 }
 
 /**
@@ -606,25 +569,23 @@ export async function queueFetchCandles(
     startTime: Date,
     endTime: Date
 ): Promise<void> {
-    // Find the terminal for this trade
-    const { data: trade } = await supabase
-        .from('trades')
-        .select('mt5_account_id')
-        .eq('id', tradeId)
-        .single();
+    const [trade] = await db
+        .select({ mt5AccountId: trades.mt5AccountId })
+        .from(trades)
+        .where(eq(trades.id, tradeId))
+        .limit(1);
 
-    if (!trade?.mt5_account_id) {
+    if (!trade?.mt5AccountId) {
         console.error('[TerminalFarm] Trade has no MT5 account');
         return;
     }
 
-    const terminal = await getTerminalByAccountId(trade.mt5_account_id);
+    const terminal = await getTerminalByAccountId(trade.mt5AccountId);
     if (!terminal || terminal.status !== 'RUNNING') {
         console.log('[TerminalFarm] No running terminal for this account, falling back to Twelve Data');
         return;
     }
 
-    // Format: SYMBOL,TIMEFRAME,START,END,TRADEID
     const payload = [
         symbol,
         timeframe,
@@ -633,45 +594,24 @@ export async function queueFetchCandles(
         tradeId,
     ].join(',');
 
-    await supabase.from('terminal_commands').insert({
-        terminal_id: terminal.id,
+    await db.insert(terminalCommands).values({
+        terminalId: terminal.id,
         command: 'FETCH_CANDLES',
         payload,
         status: 'PENDING',
+        tradeId,
     });
-
     console.log(`[TerminalFarm] Queued FETCH_CANDLES for trade ${tradeId}`);
 }
 
-/**
- * Detect asset type from symbol
- */
 function detectAssetType(symbol: string): string {
     const upper = symbol.toUpperCase();
-    
-    // Forex: Two currency codes (e.g., EURUSD, GBPJPY)
     const forexPairs = ['EUR', 'USD', 'GBP', 'JPY', 'AUD', 'NZD', 'CAD', 'CHF'];
-    const forexMatch = forexPairs.filter(c => upper.includes(c)).length >= 2;
-    if (forexMatch && upper.length <= 7) return 'FOREX';
-    
-    // Crypto
-    if (upper.includes('BTC') || upper.includes('ETH') || upper.includes('USDT') || upper.includes('CRYPTO')) {
-        return 'CRYPTO';
-    }
-    
-    // Commodities
-    if (upper.includes('XAU') || upper.includes('GOLD') || upper.includes('OIL') || upper.includes('SILVER') || upper.includes('XAG')) {
-        return 'COMMODITIES';
-    }
-    
-    // Indices
+    if (forexPairs.filter(c => upper.includes(c)).length >= 2 && upper.length <= 7) return 'FOREX';
+    if (upper.includes('BTC') || upper.includes('ETH') || upper.includes('USDT') || upper.includes('CRYPTO')) return 'CRYPTO';
+    if (upper.includes('XAU') || upper.includes('GOLD') || upper.includes('OIL') || upper.includes('SILVER') || upper.includes('XAG')) return 'COMMODITIES';
     const indices = ['US30', 'DJ30', 'NAS100', 'NDX', 'SPX', 'SP500', 'GER30', 'DE30', 'UK100', 'JP225', 'FTSE'];
     if (indices.some(i => upper.includes(i))) return 'INDICES';
-    
-    // Stocks (if all uppercase and reasonable length)
     if (upper === symbol && symbol.length >= 1 && symbol.length <= 5) return 'STOCKS';
-    
-    // Default to FOREX
     return 'FOREX';
 }
-

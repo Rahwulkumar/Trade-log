@@ -6,32 +6,32 @@
 // Terminal status enum matching database constraint
 export type TerminalStatus = 'PENDING' | 'STARTING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'ERROR';
 
-// Terminal instance from database
+// Terminal instance from database (camelCase to match Drizzle/Neon schema)
 export interface TerminalInstance {
     id: string;
-    account_id: string;
-    user_id: string;
-    container_id: string | null;
+    accountId: string;
+    userId: string;
+    containerId: string | null;
     status: TerminalStatus;
-    terminal_port: number | null;
-    last_heartbeat: string | null;
-    last_sync_at: string | null;
-    error_message: string | null;
+    terminalPort: number | null;
+    lastHeartbeat: string | null;  // ISO string from DB
+    lastSyncAt: string | null;    // ISO string from DB
+    errorMessage: string | null;
     metadata: Record<string, unknown>;
-    created_at: string;
-    updated_at: string;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
-// Command queue entry
+// Command queue entry (camelCase to match Drizzle/Neon schema)
 export interface TerminalCommand {
     id: string;
-    terminal_id: string;
+    terminalId: string;
     command: string;
     payload: string | null;
     status: 'PENDING' | 'DISPATCHED' | 'COMPLETED' | 'FAILED';
-    created_at: string;
-    dispatched_at: string | null;
-    completed_at: string | null;
+    createdAt: Date;
+    dispatchedAt: Date | null;
+    completedAt: Date | null;
 }
 
 // ============================================

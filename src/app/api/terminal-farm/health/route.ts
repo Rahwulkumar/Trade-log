@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
       .select({
         id: terminalInstances.id,
         status: terminalInstances.status,
-        last_heartbeat: terminalInstances.lastHeartbeat,
-        last_sync_at: terminalInstances.lastSyncAt,
+        lastHeartbeat: terminalInstances.lastHeartbeat,
+        lastSyncAt: terminalInstances.lastSyncAt,
       })
       .from(terminalInstances)
       .where(
@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
     const health = terminals.map(t => calculateTerminalHealth({
       id: t.id,
       status: t.status,
-      last_heartbeat: t.last_heartbeat?.toISOString() ?? null,
-      last_sync_at: t.last_sync_at?.toISOString() ?? null,
+      last_heartbeat: t.lastHeartbeat?.toISOString() ?? null,
+      last_sync_at: t.lastSyncAt?.toISOString() ?? null,
     }));
 
     const summary = {

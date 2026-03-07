@@ -49,9 +49,9 @@ export async function GET(
       terminal: {
         terminalId: terminal.id,
         status: terminal.status,
-        lastHeartbeat: terminal.last_heartbeat,
-        lastSyncAt: terminal.last_sync_at,
-        errorMessage: terminal.error_message,
+        lastHeartbeat: terminal.lastHeartbeat,
+        lastSyncAt: terminal.lastSyncAt,
+        errorMessage: terminal.errorMessage,
       },
     });
   } catch (error) {

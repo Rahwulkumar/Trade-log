@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -127,8 +127,8 @@ function toEnriched(t: Trade): EnrichedTrade {
     ...t,
     outcome: getOutcome(t.status, t.pnl),
     isOpen: t.status === "open",
-    formattedEntryDate: fmtDate(t.entryDate),
-    formattedExitDate: t.exitDate ? fmtDate(t.exitDate) : undefined,
+    formattedEntryDate: fmtDate(t.entry_date),
+    formattedExitDate: t.exit_date ? fmtDate(t.exit_date) : undefined,
     formattedPnL: fmtCurrency(pnl),
   } as EnrichedTrade;
 }
@@ -412,7 +412,7 @@ function TradeJournal({
                     <MaeMfeCard
                       mae={state.mae}
                       mfe={state.mfe}
-                      rMultiple={trade.rMultiple ?? null}
+                      rMultiple={trade.r_multiple ?? null}
                       onMaeChange={(v) => update({ mae: v })}
                       onMfeChange={(v) => update({ mfe: v })}
                     />
@@ -531,8 +531,8 @@ function TradeJournal({
                 <ExecutionWidget
                   executionNotes={state.executionNotes}
                   executionArrays={state.executionArrays}
-                  positionSize={trade.positionSize ?? null}
-                  rMultiple={trade.rMultiple ?? null}
+                  positionSize={trade.position_size ?? null}
+                  rMultiple={trade.r_multiple ?? null}
                   commission={null}
                   swap={null}
                   screenshots={state.screenshots

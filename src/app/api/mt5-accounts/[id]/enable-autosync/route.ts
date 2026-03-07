@@ -35,7 +35,7 @@ export async function POST(
       terminal: {
         id: terminal.id,
         status: terminal.status,
-        createdAt: terminal.created_at,
+        createdAt: terminal.createdAt,
       },
     });
   } catch (error) {

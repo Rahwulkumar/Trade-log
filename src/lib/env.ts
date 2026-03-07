@@ -16,10 +16,6 @@ const optional = [
     "ORCHESTRATOR_SECRET",
     "NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_KEY",
     "FINNHUB_API_KEY",
-    // Legacy Supabase (kept for not-yet-migrated API paths, remove after Phase 3)
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY",
 ] as const;
 
 function validateEnv() {
