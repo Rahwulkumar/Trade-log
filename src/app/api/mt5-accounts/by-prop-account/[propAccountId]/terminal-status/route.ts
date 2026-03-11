@@ -1,9 +1,14 @@
 import { requireAuth } from '@/lib/auth/server';
+import { refreshMetaApiTerminalStatus } from '@/lib/metaapi/service';
 import { getTerminalByAccountId } from '@/lib/terminal-farm/service';
+import {
+  readTerminalOpenPositions,
+  readTerminalSyncDiagnostics,
+} from '@/lib/terminal-farm/metadata';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ propAccountId: string }> }
 ) {
   try {
@@ -42,8 +47,16 @@ export async function GET(
       .limit(1);
 
     if (!mt5Account) {
-      return NextResponse.json({ connected: false });
+      return NextResponse.json({
+        connected: false,
+        diagnostics: null,
+        livePositions: [],
+      });
     }
+
+    await refreshMetaApiTerminalStatus(mt5Account.id, userId, {
+      createIfMissing: false,
+    });
 
     const terminal = await getTerminalByAccountId(mt5Account.id);
 
@@ -62,9 +75,13 @@ export async function GET(
         connected: false,
         mt5AccountId: mt5Account.id,
         mt5Account: mt5AccountInfo,
+        diagnostics: null,
+        livePositions: [],
       });
     }
 
+    const diagnostics = readTerminalSyncDiagnostics(terminal.metadata);
+    const livePositions = readTerminalOpenPositions(terminal.metadata);
     const hasRecentHeartbeat = (() => {
       if (!terminal.lastHeartbeat) return false;
       const lastBeatMs = new Date(terminal.lastHeartbeat).getTime();
@@ -85,6 +102,8 @@ export async function GET(
         lastSyncAt: terminal.lastSyncAt,
         errorMessage: terminal.errorMessage,
       },
+      diagnostics,
+      livePositions,
     });
   } catch (error) {
     console.error('[TerminalStatus/PropAccount] Error:', error);

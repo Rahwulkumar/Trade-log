@@ -32,6 +32,8 @@ import {
   disableAutoSync,
   createMT5Account,
   getMT5Accounts,
+  resetMt5SyncByPropAccount,
+  type TerminalStatusByPropAccountResult,
 } from "@/lib/api/terminal-farm";
 import {
   Dialog,
@@ -113,18 +115,11 @@ export default function PropFirmPage() {
   // Terminal Farm State (includes stored MT5 account so we can show "using your details")
   const [terminalStatus, setTerminalStatus] = useState<{
     connected: boolean;
-    terminalId?: string;
-    status?: string;
-    lastHeartbeat?: string | null;
-    lastSyncAt?: string | null;
-    errorMessage?: string | null;
-    mt5Account?: {
-      server: string;
-      login: string;
-      accountName: string | null;
-      balance: number | null;
-      equity: number | null;
-    };
+    terminal: TerminalStatusByPropAccountResult["terminal"];
+    mt5AccountId?: string;
+    mt5Account?: TerminalStatusByPropAccountResult["mt5Account"];
+    diagnostics: TerminalStatusByPropAccountResult["diagnostics"];
+    livePositions: TerminalStatusByPropAccountResult["livePositions"];
   } | null>(null);
   const lastTerminalSyncKeyRef = useRef<string | null>(null);
   const [terminalLoading, setTerminalLoading] = useState(false);
@@ -211,6 +206,54 @@ export default function PropFirmPage() {
   }, [isConfigured, user, selectedAccountId]);
   const selectedAccountKey = selectedAccount?.id ?? null;
 
+  const mapTerminalStatus = useCallback(
+    (result: TerminalStatusByPropAccountResult) => ({
+      connected: result.connected,
+      terminal: result.terminal,
+      mt5AccountId: result.mt5AccountId,
+      mt5Account: result.mt5Account,
+      diagnostics: result.diagnostics,
+      livePositions: result.livePositions,
+    }),
+    [],
+  );
+
+  const getTerminalSyncKey = useCallback(
+    (result: TerminalStatusByPropAccountResult) =>
+      [
+        result.terminal?.lastHeartbeat ?? "",
+        result.terminal?.lastSyncAt ?? "",
+        result.mt5Account?.balance ?? "",
+        result.mt5Account?.equity ?? "",
+        result.diagnostics?.code ?? "",
+        result.diagnostics?.lastTradeImportCount ?? "",
+        result.diagnostics?.lastTradeSkipCount ?? "",
+        result.livePositions.length,
+      ].join("|"),
+    [],
+  );
+
+  const refreshTerminalStatus = useCallback(
+    async (
+      propAccountId: string,
+      options?: { reloadAccountsOnChange?: boolean },
+    ) => {
+      const result = await getTerminalStatusByPropAccount(propAccountId);
+      setTerminalStatus(mapTerminalStatus(result));
+
+      if (options?.reloadAccountsOnChange) {
+        const syncKey = getTerminalSyncKey(result);
+        if (syncKey !== lastTerminalSyncKeyRef.current) {
+          lastTerminalSyncKeyRef.current = syncKey;
+          await loadAccounts();
+        }
+      }
+
+      return result;
+    },
+    [getTerminalSyncKey, loadAccounts, mapTerminalStatus],
+  );
+
   // Update selected account when global ID changes
   useEffect(() => {
     if (accounts.length > 0) {
@@ -237,40 +280,16 @@ export default function PropFirmPage() {
       setTerminalStatus(null);
       return;
     }
-    getTerminalStatusByPropAccount(selectedAccountKey)
-      .then((result) => {
-        const mt5 = result.mt5Account
-          ? {
-              server: result.mt5Account.server,
-              login: result.mt5Account.login,
-              accountName: result.mt5Account.accountName,
-              balance: result.mt5Account.balance,
-              equity: result.mt5Account.equity,
-            }
-          : undefined;
-        setTerminalStatus(
-          result.connected
-            ? {
-                connected: true,
-                terminalId: result.terminal?.terminalId,
-                status: result.terminal?.status,
-                lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
-                lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
-                errorMessage: result.terminal?.errorMessage ?? undefined,
-                mt5Account: mt5,
-              }
-            : {
-                connected: false,
-                status: result.terminal?.status,
-                lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
-                lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
-                errorMessage: result.terminal?.errorMessage ?? undefined,
-                mt5Account: mt5,
-              },
-        );
-      })
-      .catch(() => setTerminalStatus({ connected: false }));
-  }, [selectedAccountKey]);
+    refreshTerminalStatus(selectedAccountKey)
+      .catch(() =>
+        setTerminalStatus({
+          connected: false,
+          terminal: null,
+          diagnostics: null,
+          livePositions: [],
+        }),
+      );
+  }, [refreshTerminalStatus, selectedAccountKey]);
 
   useEffect(() => {
     lastTerminalSyncKeyRef.current = null;
@@ -282,49 +301,9 @@ export default function PropFirmPage() {
 
     const poll = async () => {
       try {
-        const result = await getTerminalStatusByPropAccount(selectedAccountKey);
-        const mt5 = result.mt5Account
-          ? {
-              server: result.mt5Account.server,
-              login: result.mt5Account.login,
-              accountName: result.mt5Account.accountName,
-              balance: result.mt5Account.balance,
-              equity: result.mt5Account.equity,
-            }
-          : undefined;
-
-        setTerminalStatus(
-          result.connected
-            ? {
-                connected: true,
-                terminalId: result.terminal?.terminalId,
-                status: result.terminal?.status,
-                lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
-                lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
-                errorMessage: result.terminal?.errorMessage ?? undefined,
-                mt5Account: mt5,
-              }
-            : {
-                connected: false,
-                status: result.terminal?.status,
-                lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
-                lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
-                errorMessage: result.terminal?.errorMessage ?? undefined,
-                mt5Account: mt5,
-              },
-        );
-
-        const syncKey = [
-          result.terminal?.lastHeartbeat ?? "",
-          result.terminal?.lastSyncAt ?? "",
-          mt5?.balance ?? "",
-          mt5?.equity ?? "",
-        ].join("|");
-
-        if (syncKey !== lastTerminalSyncKeyRef.current) {
-          lastTerminalSyncKeyRef.current = syncKey;
-          await loadAccounts();
-        }
+        await refreshTerminalStatus(selectedAccountKey, {
+          reloadAccountsOnChange: true,
+        });
       } catch {
         // Keep previous status shown in UI.
       }
@@ -336,7 +315,7 @@ export default function PropFirmPage() {
     }, 10_000);
 
     return () => window.clearInterval(timer);
-  }, [isSyncDialogOpen, selectedAccountKey, loadAccounts]);
+  }, [isSyncDialogOpen, refreshTerminalStatus, selectedAccountKey]);
 
   // Handle local selection change - updates global state
   const handleAccountChange = (value: string) => {
@@ -418,33 +397,12 @@ export default function PropFirmPage() {
     setError(null);
 
     try {
-      // First, check if there's an MT5 account linked and disable auto-sync
-      try {
-        const mt5Status = await getTerminalStatusByPropAccount(id);
-        if (mt5Status.connected && mt5Status.mt5AccountId) {
-          await disableAutoSync(mt5Status.mt5AccountId);
-          // Give orchestrator a moment to process the stop command
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      } catch (mt5Err) {
-        console.warn(
-          "[Delete] Error disabling MT5 auto-sync (continuing with delete):",
-          mt5Err,
-        );
-        // Continue with deletion even if MT5 disable fails
-      }
-
-      // Delete the prop account
       await deletePropAccount(id);
 
-      // Clear selection if this was the selected account
       setSelectedAccount(null);
       if (selectedAccountId === id) setSelectedAccountId(null);
-
-      // Reload accounts list
       await loadAccounts();
-
-      // Clear any errors
+      await refreshPropAccounts?.();
       setError(null);
     } catch (err) {
       console.error("[Delete] Error deleting prop account:", err);
@@ -455,6 +413,104 @@ export default function PropFirmPage() {
       );
     } finally {
       setIsDeleting(null);
+    }
+  }
+
+  async function handleResetMt5Sync(reason: "manual_reset" | "reconnect" = "manual_reset") {
+    if (!selectedAccount) return false;
+
+    setTerminalLoading(true);
+    setMt5Error(null);
+
+    try {
+      const resetResult = await resetMt5SyncByPropAccount(selectedAccount.id, reason);
+      if (!resetResult.success) {
+        setMt5Error(resetResult.error || "Failed to reset MT5 sync");
+        return false;
+      }
+
+      setTerminalStatus({
+        connected: false,
+        terminal: null,
+        diagnostics: null,
+        livePositions: [],
+      });
+      lastTerminalSyncKeyRef.current = null;
+      await loadAccounts();
+      await refreshPropAccounts?.();
+      return true;
+    } catch (error) {
+      console.error("[ResetMt5Sync] Error:", error);
+      setMt5Error("Failed to reset MT5 sync");
+      return false;
+    } finally {
+      setTerminalLoading(false);
+    }
+  }
+
+  async function handleConnectMt5() {
+    if (!selectedAccount) return;
+
+    setTerminalLoading(true);
+    setMt5Error(null);
+
+    try {
+      const propSize = Number(
+        selectedAccount.initial_balance ?? selectedAccount.accountSize ?? 0,
+      );
+      const balanceStr = mt5FormData.currentBalance?.trim();
+      const balanceNum = balanceStr ? Number(balanceStr) : undefined;
+
+      if (balanceNum != null && !Number.isNaN(balanceNum) && propSize > 0) {
+        const diff = Math.abs(balanceNum - propSize);
+        const tolerance = Math.max(propSize * 0.15, 500);
+        if (diff > tolerance) {
+          setMt5Error(
+            `Balance $${balanceNum.toLocaleString()} doesn't match this prop account ($${propSize.toLocaleString()}). Use the correct prop account or update the balance.`,
+          );
+          return;
+        }
+      }
+
+      if (terminalStatus?.mt5AccountId) {
+        const resetOk = await handleResetMt5Sync("reconnect");
+        if (!resetOk) return;
+        setTerminalLoading(true);
+      }
+
+      const createResult = await createMT5Account({
+        propAccountId: selectedAccount.id,
+        server: mt5FormData.server,
+        login: mt5FormData.login,
+        password: mt5FormData.password,
+        currentBalance: balanceNum,
+      });
+
+      if (!createResult.success) {
+        setMt5Error(
+          createResult.error ||
+            (createResult.code === "MT5_ACCOUNT_EXISTS"
+              ? "MT5 account already linked. Reset or reconnect MT5 sync first."
+              : "Failed to create account"),
+        );
+        return;
+      }
+
+      const syncResult = await enableAutoSync(createResult.accountId!);
+      if (!syncResult.success) {
+        setMt5Error(syncResult.error || "Failed to enable auto-sync");
+        return;
+      }
+
+      await refreshTerminalStatus(selectedAccount.id, {
+        reloadAccountsOnChange: true,
+      });
+      setMt5FormData({ server: "", login: "", password: "", currentBalance: "" });
+    } catch (error) {
+      console.error("[ConnectMt5] Error:", error);
+      setMt5Error("Network error");
+    } finally {
+      setTerminalLoading(false);
     }
   }
 
@@ -810,55 +866,15 @@ export default function PropFirmPage() {
                   className="flex items-center gap-2 text-xs rounded-lg px-3"
                   onClick={() => {
                     setIsSyncDialogOpen(true);
-
-                    // Fetch status immediately since onOpenChange doesn't fire on open
-                    if (selectedAccount) {
-                      setTerminalLoading(true);
-                      setMt5Error(null);
-                      getTerminalStatusByPropAccount(selectedAccount.id)
-                        .then((result) => {
-                          const mt5 = result.mt5Account
-                            ? {
-                                server: result.mt5Account.server,
-                                login: result.mt5Account.login,
-                                accountName: result.mt5Account.accountName,
-                                balance: result.mt5Account.balance,
-                                equity: result.mt5Account.equity,
-                              }
-                            : undefined;
-                          setTerminalStatus(
-                            result.connected
-                              ? {
-                                  connected: true,
-                                  terminalId: result.terminal?.terminalId,
-                                  status: result.terminal?.status,
-                                  lastHeartbeat: result.terminal?.lastHeartbeat,
-                                  lastSyncAt: result.terminal?.lastSyncAt,
-                                  errorMessage: result.terminal?.errorMessage,
-                                  mt5Account: mt5,
-                                }
-                              : {
-                                  connected: false,
-                                  status: result.terminal?.status,
-                                  lastHeartbeat:
-                                    result.terminal?.lastHeartbeat ?? undefined,
-                                  lastSyncAt:
-                                    result.terminal?.lastSyncAt ?? undefined,
-                                  errorMessage:
-                                    result.terminal?.errorMessage ?? undefined,
-                                  mt5Account: mt5,
-                                },
-                          );
-                        })
-                        .catch((error) => {
-                          console.error(
-                            "Error fetching terminal status:",
-                            error,
-                          );
-                          setMt5Error("Failed to check connection status");
-                        })
-                        .finally(() => setTerminalLoading(false));
-                    }
+                    if (!selectedAccount) return;
+                    setTerminalLoading(true);
+                    setMt5Error(null);
+                    refreshTerminalStatus(selectedAccount.id)
+                      .catch((error) => {
+                        console.error("Error fetching terminal status:", error);
+                        setMt5Error("Failed to check connection status");
+                      })
+                      .finally(() => setTerminalLoading(false));
                   }}
                 >
                   <Download className="h-3 w-3" />
@@ -927,6 +943,117 @@ export default function PropFirmPage() {
                 </p>
               </div>
             </div>
+
+            {(terminalStatus?.mt5Account ||
+              terminalStatus?.terminal ||
+              terminalStatus?.diagnostics) && (
+              <div className="mb-6 rounded-lg border border-border-subtle bg-muted/20 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      MT5 Sync Status
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {terminalStatus.connected
+                        ? "Terminal connected and reporting."
+                        : "Terminal not currently connected."}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "inline-flex rounded px-2 py-1 text-[11px] font-medium",
+                      terminalStatus.connected
+                        ? "bg-green-500/15 text-green-300"
+                        : "bg-amber-500/15 text-amber-300",
+                    )}
+                  >
+                    {terminalStatus.terminal?.status ?? "NOT_LINKED"}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+                  <div className="rounded-md border border-border bg-background/40 p-3">
+                    <p className="text-xs text-muted-foreground">MT5 account</p>
+                    <p className="mt-1 font-mono text-white">
+                      {terminalStatus.mt5Account
+                        ? `${terminalStatus.mt5Account.server} / ${terminalStatus.mt5Account.login}`
+                        : "Not linked"}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border bg-background/40 p-3">
+                    <p className="text-xs text-muted-foreground">Diagnostic</p>
+                    <p className="mt-1 font-mono text-white">
+                      {terminalStatus.diagnostics?.code ?? "NO_HEARTBEAT"}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border bg-background/40 p-3">
+                    <p className="text-xs text-muted-foreground">Last heartbeat</p>
+                    <p className="mt-1 text-white">
+                      {terminalStatus.terminal?.lastHeartbeat
+                        ? new Date(
+                            terminalStatus.terminal.lastHeartbeat,
+                          ).toLocaleString()
+                        : "Never"}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border bg-background/40 p-3">
+                    <p className="text-xs text-muted-foreground">Live positions</p>
+                    <p className="mt-1 text-white">
+                      {terminalStatus.livePositions.length}
+                    </p>
+                  </div>
+                </div>
+
+                {terminalStatus.diagnostics?.message && (
+                  <div className="mt-3 rounded-md border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+                    {terminalStatus.diagnostics.message}
+                  </div>
+                )}
+
+                {terminalStatus.livePositions.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-white">
+                        Live MT5 Positions
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Not yet imported into journal analytics
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {terminalStatus.livePositions.map((position) => (
+                        <div
+                          key={`${position.ticket}-${position.positionId ?? "live"}`}
+                          className="flex items-center justify-between rounded-md border border-border bg-background/40 px-3 py-2 text-xs"
+                        >
+                          <div>
+                            <p className="font-medium text-white">
+                              {position.symbol} {position.type}
+                            </p>
+                            <p className="text-muted-foreground">
+                              {position.volume} lots at {position.openPrice}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p
+                              className={cn(
+                                "font-mono",
+                                position.profit >= 0 ? "profit" : "loss",
+                              )}
+                            >
+                              ${position.profit.toLocaleString()}
+                            </p>
+                            <p className="text-muted-foreground">
+                              Current: {position.currentPrice}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Drawdown Meters */}
             <div className="grid gap-4 md:grid-cols-2">
@@ -1113,40 +1240,8 @@ export default function PropFirmPage() {
         onOpenChange={(open) => {
           setIsSyncDialogOpen(open);
           if (open && selectedAccount) {
-            // Fetch connection status when dialog opens
             setTerminalLoading(true);
-            getTerminalStatusByPropAccount(selectedAccount.id)
-              .then((result) => {
-                const mt5 = result.mt5Account
-                  ? {
-                      server: result.mt5Account.server,
-                      login: result.mt5Account.login,
-                      accountName: result.mt5Account.accountName,
-                      balance: result.mt5Account.balance,
-                      equity: result.mt5Account.equity,
-                    }
-                  : undefined;
-                setTerminalStatus(
-                  result.connected
-                    ? {
-                        connected: true,
-                        terminalId: result.terminal?.terminalId,
-                        status: result.terminal?.status,
-                        lastHeartbeat: result.terminal?.lastHeartbeat,
-                        lastSyncAt: result.terminal?.lastSyncAt,
-                        errorMessage: result.terminal?.errorMessage,
-                        mt5Account: mt5,
-                      }
-                    : {
-                        connected: false,
-                        status: result.terminal?.status,
-                        lastHeartbeat: result.terminal?.lastHeartbeat ?? undefined,
-                        lastSyncAt: result.terminal?.lastSyncAt ?? undefined,
-                        errorMessage: result.terminal?.errorMessage ?? undefined,
-                        mt5Account: mt5,
-                      },
-                );
-              })
+            refreshTerminalStatus(selectedAccount.id)
               .catch((error) => {
                 console.error("Error fetching terminal status:", error);
               })
@@ -1154,15 +1249,15 @@ export default function PropFirmPage() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-[500px] bg-card border-border">
+        <DialogContent className="sm:max-w-[560px] bg-card border-border">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Cloud className="h-5 w-5 text-blue-400" />
               Connect MetaTrader 5
             </DialogTitle>
             <DialogDescription>
-              Sync your trades automatically via cloud. No software installation
-              required.
+              Sync your MT5 account through Terminal Farm and inspect the exact
+              sync state from here.
             </DialogDescription>
           </DialogHeader>
 
@@ -1171,159 +1266,264 @@ export default function PropFirmPage() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : terminalStatus?.connected ? (
-            // Connected State - Show Terminal Status
-            <div className="space-y-6 py-4">
-              <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-400" />
-                  <div>
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-400" />
+                  <div className="space-y-1">
                     <p className="text-sm font-medium text-white">
-                      Terminal Connected
+                      Terminal connected
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Terminal ID: {terminalStatus.terminalId}
+                      Terminal ID:{" "}
+                      <span className="font-mono text-foreground">
+                        {terminalStatus.terminal?.terminalId ?? "Unknown"}
+                      </span>
                     </p>
                     {terminalStatus.mt5Account && (
-                      <>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Using your MT5 account:{" "}
-                          <span className="font-mono text-foreground">
-                            {terminalStatus.mt5Account.server}
-                          </span>{" "}
-                          / Login{" "}
-                          <span className="font-mono text-foreground">
-                            {terminalStatus.mt5Account.login}
-                          </span>
-                        </p>
-                        {terminalStatus.mt5Account.balance != null && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Broker balance:{" "}
-                            <span className="font-mono text-foreground">
-                              $
-                              {Number(
-                                terminalStatus.mt5Account.balance,
-                              ).toLocaleString()}
-                            </span>
-                          </p>
-                        )}
-                      </>
+                      <p className="text-xs text-muted-foreground">
+                        Linked MT5 session:{" "}
+                        <span className="font-mono text-foreground">
+                          {terminalStatus.mt5Account.server}
+                        </span>{" "}
+                        /{" "}
+                        <span className="font-mono text-foreground">
+                          {terminalStatus.mt5Account.login}
+                        </span>
+                      </p>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Terminal Status */}
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Last Heartbeat</span>
-                  <span className="text-white">
-                    {terminalStatus.lastHeartbeat
-                      ? new Date(terminalStatus.lastHeartbeat).toLocaleString()
+              <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Last heartbeat</span>
+                  <span className="text-right text-white">
+                    {terminalStatus.terminal?.lastHeartbeat
+                      ? new Date(
+                          terminalStatus.terminal.lastHeartbeat,
+                        ).toLocaleString()
                       : "Never"}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Status</span>
-                  <span className="text-white">
-                    {terminalStatus.status || "UNKNOWN"}
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Terminal status</span>
+                  <span className="text-right text-white">
+                    {terminalStatus.terminal?.status ?? "UNKNOWN"}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Last Sync</span>
-                  <span className="text-white">
-                    {terminalStatus.lastSyncAt
-                      ? new Date(terminalStatus.lastSyncAt).toLocaleString()
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Last trade sync</span>
+                  <span className="text-right text-white">
+                    {terminalStatus.terminal?.lastSyncAt
+                      ? new Date(
+                          terminalStatus.terminal.lastSyncAt,
+                        ).toLocaleString()
                       : "Never"}
                   </span>
                 </div>
-                {terminalStatus.errorMessage && (
-                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
-                    {terminalStatus.errorMessage}
+                {terminalStatus.diagnostics && (
+                  <>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">
+                        Diagnostic code
+                      </span>
+                      <span className="text-right font-mono text-white">
+                        {terminalStatus.diagnostics.code}
+                      </span>
+                    </div>
+                    <div className="rounded-md border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+                      {terminalStatus.diagnostics.message}
+                    </div>
+                    <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                      <div>
+                        Last imported:{" "}
+                        <span className="font-mono text-foreground">
+                          {terminalStatus.diagnostics.lastTradeImportCount ?? 0}
+                        </span>
+                      </div>
+                      <div>
+                        Last skipped:{" "}
+                        <span className="font-mono text-foreground">
+                          {terminalStatus.diagnostics.lastTradeSkipCount ?? 0}
+                        </span>
+                      </div>
+                      <div>
+                        Last seen deals:{" "}
+                        <span className="font-mono text-foreground">
+                          {terminalStatus.diagnostics.lastSeenDealCount ?? 0}
+                        </span>
+                      </div>
+                      <div>
+                        Live positions:{" "}
+                        <span className="font-mono text-foreground">
+                          {terminalStatus.livePositions.length}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {terminalStatus.terminal?.errorMessage && (
+                  <div className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-300">
+                    {terminalStatus.terminal.errorMessage}
                   </div>
                 )}
               </div>
 
-              {/* Info Message */}
-              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm text-blue-400">
-                <p className="font-medium mb-1">Auto-Sync Enabled</p>
-                <p className="text-xs text-muted-foreground">
-                  Your trades are automatically synced from MT5. No manual sync
-                  needed.
-                </p>
-              </div>
+              {terminalStatus.livePositions.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-white">
+                      Live MT5 Positions
+                    </p>
+                    <span className="text-xs text-muted-foreground">
+                      {terminalStatus.livePositions.length} open
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {terminalStatus.livePositions.map((position) => (
+                      <div
+                        key={`${position.ticket}-${position.positionId ?? "live"}`}
+                        className="flex items-center justify-between rounded-md border border-border bg-background/40 px-3 py-2 text-xs"
+                      >
+                        <div className="space-y-1">
+                          <p className="font-medium text-white">
+                            {position.symbol} {position.type}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {position.volume} lots at {position.openPrice}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p
+                            className={cn(
+                              "font-mono",
+                              position.profit >= 0 ? "profit" : "loss",
+                            )}
+                          >
+                            ${position.profit.toLocaleString()}
+                          </p>
+                          <p className="text-muted-foreground">
+                            Current: {position.currentPrice}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {mt5Error && (
-                <p className="text-sm text-red-400 text-center">{mt5Error}</p>
+                <p className="text-center text-sm text-red-400">{mt5Error}</p>
               )}
 
-              {/* Disconnect Link */}
-              <button
-                className="text-xs text-muted-foreground hover:text-red-400 mx-auto block"
-                onClick={async () => {
-                  if (!selectedAccount) return;
-                  const confirmed = confirm(
-                    "Are you sure you want to disable auto-sync for this MT5 account?",
-                  );
-                  if (confirmed) {
-                    // Find MT5 account ID first
-                    const status = await getTerminalStatusByPropAccount(
-                      selectedAccount.id,
+              <DialogFooter className="gap-2 sm:justify-between">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    if (!selectedAccount) return;
+                    const confirmed = confirm(
+                      "Disable auto-sync for this linked MT5 account?",
                     );
-                    if (status.mt5AccountId) {
-                      await disableAutoSync(status.mt5AccountId);
-                      setTerminalStatus({ connected: false });
-                    } else {
+                    if (!confirmed) return;
+
+                    const status = await refreshTerminalStatus(selectedAccount.id);
+                    if (!status.mt5AccountId) {
                       setMt5Error("MT5 account not found");
+                      return;
                     }
-                  }
-                }}
-              >
-                Disable Auto-Sync
-              </button>
+
+                    await disableAutoSync(status.mt5AccountId);
+                    setTerminalStatus({
+                      connected: false,
+                      terminal: null,
+                      mt5AccountId: status.mt5AccountId,
+                      mt5Account: status.mt5Account,
+                      diagnostics: status.diagnostics,
+                      livePositions: [],
+                    });
+                  }}
+                >
+                  Disable Auto-Sync
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    void handleResetMt5Sync("manual_reset");
+                  }}
+                >
+                  Reset MT5 Sync
+                </Button>
+              </DialogFooter>
             </div>
           ) : (
-            // Not Connected - Show saved MT5 details if we have them, or connection form
             <div className="space-y-4 py-4">
               {terminalStatus?.mt5Account && (
-                <div className="p-3 rounded-lg bg-muted/50 border border-border text-sm">
-                  <p className="font-medium text-foreground">Your MT5 account is saved</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Server: <span className="font-mono text-foreground">{terminalStatus.mt5Account.server}</span> · Login: <span className="font-mono text-foreground">{terminalStatus.mt5Account.login}</span>
+                <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm">
+                  <p className="font-medium text-foreground">
+                    Saved MT5 account
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Server:{" "}
+                    <span className="font-mono text-foreground">
+                      {terminalStatus.mt5Account.server}
+                    </span>{" "}
+                    · Login:{" "}
+                    <span className="font-mono text-foreground">
+                      {terminalStatus.mt5Account.login}
+                    </span>
                   </p>
                   {terminalStatus.mt5Account.balance != null && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Last synced broker balance:{" "}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Last broker balance:{" "}
                       <span className="font-mono text-foreground">
-                        ${Number(terminalStatus.mt5Account.balance).toLocaleString()}
+                        $
+                        {Number(
+                          terminalStatus.mt5Account.balance,
+                        ).toLocaleString()}
                       </span>
                     </p>
                   )}
-                  {terminalStatus.status && (
-                    <p className="text-xs text-muted-foreground mt-1">
+                  {terminalStatus.terminal?.status && (
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Terminal status:{" "}
                       <span className="font-mono text-foreground">
-                        {terminalStatus.status}
+                        {terminalStatus.terminal.status}
                       </span>
                     </p>
                   )}
-                  <p className="text-xs text-muted-foreground mt-2">
-                    The app uses these credentials when the Terminal Farm orchestrator runs. Start the orchestrator to sync trades and balance automatically. To change server or login, enter new details below and click Enable Auto-Sync again.
-                  </p>
+                  {terminalStatus.diagnostics && (
+                    <p className="mt-2 rounded-md border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+                      <span className="font-mono text-foreground">
+                        {terminalStatus.diagnostics.code}
+                      </span>{" "}
+                      · {terminalStatus.diagnostics.message}
+                    </p>
+                  )}
                 </div>
               )}
+
               {selectedAccount && (
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-                  <span className="text-muted-foreground">This prop account size: </span>
-                  <span className="font-mono font-semibold">${Number(selectedAccount.initial_balance ?? selectedAccount.accountSize ?? 0).toLocaleString()}</span>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Your MT5 balance should match this so trades sync correctly.
+                  <span className="text-muted-foreground">
+                    This prop account size:{" "}
+                  </span>
+                  <span className="font-mono font-semibold">
+                    $
+                    {Number(
+                      selectedAccount.initial_balance ??
+                        selectedAccount.accountSize ??
+                        0,
+                    ).toLocaleString()}
+                  </span>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Re-enter your MT5 credentials to create a fresh terminal
+                    link. Existing imported trades will stay attached to this
+                    prop account.
                   </p>
                 </div>
               )}
-              <p className="text-sm text-muted-foreground">
-                Enter your MT5 account credentials. Your password is encrypted
-                and never stored in plain text.
-              </p>
 
               <div className="space-y-3">
                 <div>
@@ -1365,12 +1565,14 @@ export default function PropFirmPage() {
                     }
                     className="mt-1"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Tip: Use the investor (read-only) password for safety.
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Use the investor password if your broker supports it.
                   </p>
                 </div>
                 <div>
-                  <Label htmlFor="mt5-balance">Current account balance (optional)</Label>
+                  <Label htmlFor="mt5-balance">
+                    Current account balance (optional)
+                  </Label>
                   <Input
                     id="mt5-balance"
                     type="number"
@@ -1379,114 +1581,35 @@ export default function PropFirmPage() {
                     placeholder="e.g. 10000"
                     value={mt5FormData.currentBalance}
                     onChange={(e) =>
-                      setMt5FormData({ ...mt5FormData, currentBalance: e.target.value })
+                      setMt5FormData({
+                        ...mt5FormData,
+                        currentBalance: e.target.value,
+                      })
                     }
                     className="mt-1"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Validated against this prop account size. Leave blank to skip.
-                  </p>
                 </div>
               </div>
 
               {mt5Error && <p className="text-sm text-red-400">{mt5Error}</p>}
 
-              <DialogFooter>
+              <DialogFooter className="gap-2 sm:justify-between">
+                {terminalStatus?.mt5AccountId ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      void handleResetMt5Sync("manual_reset");
+                    }}
+                  >
+                    Reset MT5 Sync
+                  </Button>
+                ) : (
+                  <div />
+                )}
                 <Button
-                  className="w-full"
-                  onClick={async () => {
-                    if (!selectedAccount) return;
-                    setTerminalLoading(true);
-                    setMt5Error(null);
-                    try {
-                      const propSize = Number(selectedAccount.initial_balance ?? selectedAccount.accountSize ?? 0);
-                      const balanceStr = mt5FormData.currentBalance?.trim();
-                      const balanceNum = balanceStr ? Number(balanceStr) : undefined;
-                      if (balanceNum != null && !Number.isNaN(balanceNum) && propSize > 0) {
-                        const diff = Math.abs(balanceNum - propSize);
-                        const tolerance = Math.max(propSize * 0.15, 500);
-                        if (diff > tolerance) {
-                          setMt5Error(
-                            `Balance $${balanceNum.toLocaleString()} doesn’t match this prop account ($${propSize.toLocaleString()}). Use the correct prop account or update the balance.`
-                          );
-                          setTerminalLoading(false);
-                          return;
-                        }
-                      }
-                      // 1. Create MT5 account
-                      const createResult = await createMT5Account({
-                        propAccountId: selectedAccount.id,
-                        server: mt5FormData.server,
-                        login: mt5FormData.login,
-                        password: mt5FormData.password,
-                        currentBalance: balanceNum,
-                      });
-
-                      if (!createResult.success) {
-                        setMt5Error(
-                          createResult.error || "Failed to create account",
-                        );
-                        setTerminalLoading(false);
-                        return;
-                      }
-
-                      // 2. Enable auto-sync
-                      const syncResult = await enableAutoSync(
-                        createResult.accountId!,
-                      );
-
-                      if (!syncResult.success) {
-                        setMt5Error(
-                          syncResult.error || "Failed to enable auto-sync",
-                        );
-                        setTerminalLoading(false);
-                        return;
-                      }
-
-                      // 3. Refresh terminal status (use prop account ID to find MT5 account)
-                      const status = await getTerminalStatusByPropAccount(
-                        selectedAccount.id,
-                      );
-                      const mt5 = status.mt5Account
-                        ? {
-                            server: status.mt5Account.server,
-                            login: status.mt5Account.login,
-                            accountName: status.mt5Account.accountName,
-                            balance: status.mt5Account.balance,
-                            equity: status.mt5Account.equity,
-                          }
-                        : undefined;
-                      setTerminalStatus(
-                        status.connected
-                          ? {
-                              connected: true,
-                              terminalId: status.terminal?.terminalId,
-                              status: status.terminal?.status,
-                              lastHeartbeat: status.terminal?.lastHeartbeat,
-                              lastSyncAt: status.terminal?.lastSyncAt,
-                              errorMessage: status.terminal?.errorMessage,
-                              mt5Account: mt5,
-                            }
-                          : {
-                              connected: false,
-                              status: status.terminal?.status,
-                              lastHeartbeat:
-                                status.terminal?.lastHeartbeat ?? undefined,
-                              lastSyncAt: status.terminal?.lastSyncAt ?? undefined,
-                              errorMessage:
-                                status.terminal?.errorMessage ?? undefined,
-                              mt5Account: mt5,
-                            },
-                      );
-
-                      setMt5FormData({ server: "", login: "", password: "", currentBalance: "" });
-                      // Reload accounts so Account Tracker shows updated balance from MT5
-                      await loadAccounts();
-                    } catch {
-                      setMt5Error("Network error");
-                    } finally {
-                      setTerminalLoading(false);
-                    }
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    void handleConnectMt5();
                   }}
                   disabled={
                     terminalLoading ||
@@ -1497,20 +1620,26 @@ export default function PropFirmPage() {
                 >
                   {terminalLoading ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Connecting...
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {terminalStatus?.mt5AccountId ? "Reconnecting..." : "Connecting..."}
+                    </>
+                  ) : terminalStatus?.mt5AccountId ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Reconnect MT5
                     </>
                   ) : (
                     <>
-                      <Cloud className="h-4 w-4" />
+                      <Cloud className="mr-2 h-4 w-4" />
                       Enable Auto-Sync
                     </>
                   )}
                 </Button>
               </DialogFooter>
 
-              <p className="text-xs text-center text-muted-foreground">
-                Terminal Farm: Self-hosted Docker containers for real-time sync
+              <p className="text-center text-xs text-muted-foreground">
+                Terminal Farm runs MT5 in Docker and now exposes terminal state,
+                diagnostics, and live positions directly in the app.
               </p>
             </div>
           )}
@@ -1519,3 +1648,4 @@ export default function PropFirmPage() {
     </div>
   );
 }
+

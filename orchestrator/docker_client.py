@@ -128,6 +128,15 @@ class DockerClient:
                 'API_ENDPOINT': Config.TRADING_JOURNAL_URL,
                 'API_KEY': Config.TERMINAL_WEBHOOK_SECRET,  # Webhook secret for EA
             }
+
+            optional_env_vars = {
+                'MT5_BROKER_SEED_NAME': Config.MT5_BROKER_SEED_NAME,
+                'MT5_REQUIRE_BROKER_SESSION': Config.MT5_REQUIRE_BROKER_SESSION,
+                'MT5_SESSION_READY_TIMEOUT_SECONDS': Config.MT5_SESSION_READY_TIMEOUT_SECONDS,
+                'MT5_SESSION_POLL_SECONDS': Config.MT5_SESSION_POLL_SECONDS,
+                'MT5_FAIL_FAST_ON_SESSION_TIMEOUT': Config.MT5_FAIL_FAST_ON_SESSION_TIMEOUT,
+            }
+            env_vars.update({key: value for key, value in optional_env_vars.items() if value != ''})
             
             # Create container
             container = self.client.containers.create(
@@ -137,11 +146,18 @@ class DockerClient:
                 detach=True,
                 restart_policy={"Name": "unless-stopped"},
                 mem_limit='1g',  # Limit memory to 1GB per container
+                ports={'5900/tcp': None},
             )
             
             # Start container
             try:
                 container.start()
+                container.reload()
+                port_bindings = container.attrs.get('NetworkSettings', {}).get('Ports', {}).get('5900/tcp') or []
+                if port_bindings:
+                    logger.info(
+                        f"VNC available for {container_name} on host port {port_bindings[0].get('HostPort')}"
+                    )
                 logger.info(f"Created and started container: {container_name}")
                 return True
             except Exception as start_error:

@@ -5,6 +5,23 @@
 
 // Terminal status enum matching database constraint
 export type TerminalStatus = 'PENDING' | 'STARTING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'ERROR';
+export type TerminalSyncProvider = 'terminal_farm' | 'metaapi';
+export type TerminalWebhookCode =
+    | 'OK'
+    | 'UNKNOWN_TERMINAL'
+    | 'SESSION_MISMATCH'
+    | 'ACCOUNT_NOT_LOADED'
+    | 'TERMINAL_DISABLED'
+    | 'INVALID_PAYLOAD'
+    | 'UNAUTHORIZED'
+    | 'ZERO_DEALS'
+    | 'NO_NEW_DEALS'
+    | 'TRADES_IMPORTED'
+    | 'POSITIONS_UPDATED'
+    | 'RATE_LIMITED'
+    | 'INTERNAL_ERROR';
+export type TerminalHistorySyncReason = 'startup' | 'poll' | 'new_deal' | 'no_change';
+export type ResetMt5SyncReason = 'manual_reset' | 'reconnect' | 'delete_account';
 
 // Terminal instance from database (camelCase to match Drizzle/Neon schema)
 export interface TerminalInstance {
@@ -46,6 +63,19 @@ export interface TerminalHeartbeatPayload {
         margin?: number;
         freeMargin?: number;
     };
+    sessionInfo?: {
+        login: string;
+        server: string;
+        accountName?: string;
+        company?: string;
+        currency?: string;
+    };
+    syncState?: {
+        totalDeals: number;
+        openPositions: number;
+        lastHistorySyncAt: string;
+        lastHistorySyncReason: TerminalHistorySyncReason;
+    };
 }
 
 export interface TerminalTradePayload {
@@ -61,9 +91,9 @@ export interface TerminalTradePayload {
     swap?: number;
     profit?: number;
     comment?: string;
-    positionId?: number;
+    positionId?: string | number;
     magic?: number;
-    entryType?: number; // 0 = IN, 1 = OUT
+    entryType?: number; // 0 = IN, 1 = OUT, 2 = INOUT
     reason?: number;
     stopLoss?: number;
     takeProfit?: number;
@@ -77,6 +107,7 @@ export interface TerminalSyncPayload {
 
 export interface TerminalPositionPayload {
     ticket: string;
+    positionId?: string;
     symbol: string;
     type: 'BUY' | 'SELL';
     volume: number;
@@ -84,6 +115,11 @@ export interface TerminalPositionPayload {
     currentPrice: number;
     profit: number;
     openTime: string;
+    stopLoss?: number;
+    takeProfit?: number;
+    commission?: number;
+    swap?: number;
+    comment?: string;
 }
 
 export interface TerminalPositionsPayload {
@@ -142,11 +178,66 @@ export interface TerminalStatusResponse {
     errorMessage?: string;
 }
 
-export interface HeartbeatResponse {
+export interface TerminalSyncDiagnostics {
+    code:
+        | 'OK'
+        | 'NO_HEARTBEAT'
+        | 'UNKNOWN_TERMINAL'
+        | 'SESSION_MISMATCH'
+        | 'ACCOUNT_NOT_LOADED'
+        | 'ZERO_DEALS'
+        | 'NO_NEW_DEALS'
+        | 'TRADES_IMPORTED'
+        | 'POSITIONS_UPDATED'
+        | 'TERMINAL_DISABLED';
+    message: string;
+    sessionInfo?: {
+        login: string;
+        server: string;
+        accountName?: string;
+        company?: string;
+        currency?: string;
+    };
+    lastHeartbeatAt?: string;
+    lastTradeSyncAt?: string;
+    lastPositionsSyncAt?: string;
+    lastTradeImportCount?: number;
+    lastTradeSkipCount?: number;
+    lastSeenDealCount?: number;
+    lastSeenOpenPositionCount?: number;
+}
+
+export interface MetaApiTerminalMetadata {
+    accountId: string | null;
+    state?: string | null;
+    connectionStatus?: string | null;
+    lastSyncAttemptAt?: string | null;
+    lastSuccessfulSyncAt?: string | null;
+    lastDealsCursor?: string | null;
+    lastDealsWindowStart?: string | null;
+    lastError?: string | null;
+}
+
+export interface TerminalWebhookResponse {
     success: boolean;
+    code: TerminalWebhookCode;
+    terminalId?: string;
+    mt5AccountId?: string;
+    propAccountId?: string;
+    imported?: number;
+    skipped?: number;
     command?: string;
     payload?: string;
     error?: string;
+}
+
+export type HeartbeatResponse = TerminalWebhookResponse;
+
+export interface ResetMt5SyncResult {
+    oldMt5AccountId: string | null;
+    oldTerminalId: string | null;
+    preservedTradeCount: number;
+    reason: ResetMt5SyncReason;
 }
 
 export interface MT5Account {

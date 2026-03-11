@@ -10,36 +10,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { processPositions } from '@/lib/terminal-farm/service';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { TerminalPositionsPayloadSchema } from '@/lib/terminal-farm/validation';
-
-// Validate webhook secret
-function validateApiKey(request: NextRequest): boolean {
-    const normalize = (value: string | null | undefined): string =>
-        (value ?? '').trim().replace(/^['"]|['"]$/g, '');
-    const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-    const apiKey = normalize(request.headers.get('x-api-key') ?? bearer);
-    const expectedKey = normalize(process.env.TERMINAL_WEBHOOK_SECRET);
-
-    if (!expectedKey) {
-        if (process.env.WEBHOOK_SECRET_OPTIONAL === 'true') return true;
-        console.warn('[Webhook/Positions] TERMINAL_WEBHOOK_SECRET is not set — rejecting request. Set WEBHOOK_SECRET_OPTIONAL=true to allow unauthenticated webhooks.');
-        return false;
-    }
-    return apiKey.length > 0 && apiKey === expectedKey;
-}
+import {
+    getWebhookStatusCode,
+    validateTerminalWebhookApiKey,
+} from '@/lib/terminal-farm/webhook';
 
 export async function POST(request: NextRequest) {
     try {
-        if (!validateApiKey(request)) {
-            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        if (!validateTerminalWebhookApiKey(request)) {
+            return NextResponse.json(
+                { success: false, code: 'UNAUTHORIZED', error: 'Unauthorized' },
+                { status: 401 }
+            );
         }
 
-        const body = await request.json();
+        const rawBody = (await request.text()).trim();
+        let body: unknown;
+        try {
+            body = rawBody ? JSON.parse(rawBody.replace(/^\uFEFF/, '')) : null;
+        } catch (error) {
+            console.error('[Webhook/Positions] Invalid JSON payload:', error);
+            return NextResponse.json(
+                { success: false, code: 'INVALID_PAYLOAD', error: 'Invalid JSON payload' },
+                { status: 400 }
+            );
+        }
         const terminalId = (body as { terminalId?: string })?.terminalId;
         if (terminalId) {
             const rl = checkRateLimit('webhook:positions:' + terminalId, 60, 60_000);
             if (!rl.allowed) {
                 return NextResponse.json(
-                    { success: false, error: 'Too many requests' },
+                    { success: false, code: 'RATE_LIMITED', error: 'Too many requests' },
                     { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
                 );
             }
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
         if (!validationResult.success) {
             console.error('[Webhook/Positions] Validation error:', validationResult.error);
             return NextResponse.json(
-                { success: false, error: 'Invalid payload', details: validationResult.error.issues },
+                { success: false, code: 'INVALID_PAYLOAD', error: 'Invalid payload', details: validationResult.error.issues },
                 { status: 400 }
             );
         }
@@ -59,13 +60,13 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Webhook/Positions] Received ${data.positions.length} positions from terminal ${data.terminalId}`);
 
-        await processPositions(data);
+        const result = await processPositions(data);
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json(result, { status: getWebhookStatusCode(result.code) });
     } catch (error) {
         console.error('[Webhook/Positions] Error:', error);
         return NextResponse.json(
-            { success: false, error: 'Internal server error' },
+            { success: false, code: 'INTERNAL_ERROR', error: 'Internal server error' },
             { status: 500 }
         );
     }

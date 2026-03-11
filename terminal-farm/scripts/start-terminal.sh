@@ -41,10 +41,85 @@ MT5_CONFIG_DIR="$MT5_BASE_DIR/Config"
 MT5_CONFIG_MOUNT_DIR="/home/trader/config"
 MT5_PRESETS_DIR="$MT5_BASE_DIR/MQL5/Presets"
 MT5_FILES_DIR="$MT5_BASE_DIR/MQL5/Files"
+MT5_STATE_DIR="/home/trader/state"
+MT5_SEED_BUNDLES_DIR="/home/trader/seed-bundles"
 mkdir -p "$MT5_CONFIG_DIR"
 mkdir -p "$MT5_CONFIG_MOUNT_DIR"
 mkdir -p "$MT5_PRESETS_DIR"
 mkdir -p "$MT5_FILES_DIR"
+mkdir -p "$MT5_STATE_DIR"
+mkdir -p "$MT5_SEED_BUNDLES_DIR"
+
+slugify_seed_name() {
+    printf '%s' "$1" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed 's/[^a-z0-9]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//'
+}
+
+copy_seed_tree() {
+    local source_dir="$1"
+    local target_dir="$2"
+    if [ ! -d "$source_dir" ]; then
+        return
+    fi
+
+    mkdir -p "$target_dir"
+    cp -a "$source_dir"/. "$target_dir"/
+}
+
+apply_broker_seed_from_dir() {
+    local seed_dir="$1"
+    echo "Applying broker seed from $seed_dir"
+
+    copy_seed_tree "$seed_dir/terminal" "$MT5_BASE_DIR"
+    copy_seed_tree "$seed_dir/Program Files/MetaTrader 5" "$MT5_BASE_DIR"
+    copy_seed_tree "$seed_dir/Config" "$MT5_CONFIG_DIR"
+    copy_seed_tree "$seed_dir/config" "$MT5_CONFIG_DIR"
+    copy_seed_tree "$seed_dir/bases" "$MT5_BASE_DIR/bases"
+    copy_seed_tree "$seed_dir/Profiles" "$MT5_BASE_DIR/Profiles"
+    copy_seed_tree "$seed_dir/profiles" "$MT5_BASE_DIR/Profiles"
+
+    if [ -f "$seed_dir/servers.dat" ]; then
+        cp "$seed_dir/servers.dat" "$MT5_CONFIG_DIR/servers.dat"
+    fi
+}
+
+apply_broker_seed() {
+    local explicit_seed_name="${MT5_BROKER_SEED_NAME:-}"
+    local candidates=()
+
+    if [ -n "$explicit_seed_name" ]; then
+        candidates+=("$explicit_seed_name")
+        candidates+=("$(slugify_seed_name "$explicit_seed_name")")
+    fi
+
+    candidates+=("$MT5_SERVER")
+    candidates+=("$(slugify_seed_name "$MT5_SERVER")")
+    candidates+=("$(printf '%s' "$MT5_SERVER" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '_')")
+
+    for candidate in "${candidates[@]}"; do
+        if [ -z "$candidate" ]; then
+            continue
+        fi
+
+        if [ -d "$MT5_SEED_BUNDLES_DIR/$candidate" ]; then
+            apply_broker_seed_from_dir "$MT5_SEED_BUNDLES_DIR/$candidate"
+            return 0
+        fi
+
+        if [ -f "$MT5_SEED_BUNDLES_DIR/$candidate.zip" ]; then
+            local temp_dir
+            temp_dir="$(mktemp -d)"
+            unzip -oq "$MT5_SEED_BUNDLES_DIR/$candidate.zip" -d "$temp_dir"
+            apply_broker_seed_from_dir "$temp_dir"
+            rm -rf "$temp_dir"
+            return 0
+        fi
+    done
+
+    echo "No broker seed bundle found for server $MT5_SERVER"
+    return 1
+}
 
 # Use TERMINAL_WEBHOOK_SECRET as API_KEY if provided, otherwise use API_KEY env var
 if [ -z "$API_KEY" ]; then
@@ -62,6 +137,8 @@ if [ -z "$API_KEY" ]; then
 fi
 
 echo "DEBUG: Using API_KEY: ${API_KEY:0:4}..." # Only show first 4 chars for security
+
+apply_broker_seed || true
 
 # MT5 startup requires ExpertParameters to reference a .set file located in
 # MQL5/Presets, not an inline delimited string.

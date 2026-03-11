@@ -1,9 +1,9 @@
 import { requireAuth } from '@/lib/auth/server';
-import { disableAutoSync } from '@/lib/terminal-farm/service';
+import { disableMetaApiAutoSync } from '@/lib/metaapi/service';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -27,7 +27,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    await disableAutoSync(accountId);
+    await disableMetaApiAutoSync(accountId, userId);
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

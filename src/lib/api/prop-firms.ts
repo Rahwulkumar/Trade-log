@@ -1,4 +1,5 @@
 import type { PropFirm, PropFirmChallenge, CreateAccountFromChallengeParams } from "@/lib/types/prop-firms";
+import { readJsonIfAvailable } from '@/lib/api/client/http';
 
 /**
  * Fetch all active prop firms (via API / Drizzle)
@@ -6,7 +7,7 @@ import type { PropFirm, PropFirmChallenge, CreateAccountFromChallengeParams } fr
 export async function getPropFirms(): Promise<PropFirm[]> {
   const res = await fetch("/api/prop-firms", { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch prop firms");
-  return res.json();
+  return (await readJsonIfAvailable<PropFirm[]>(res)) ?? [];
 }
 
 /**
@@ -15,7 +16,7 @@ export async function getPropFirms(): Promise<PropFirm[]> {
 export async function getFirmChallenges(firmId: string): Promise<PropFirmChallenge[]> {
   const res = await fetch(`/api/prop-firms/${firmId}/challenges`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch challenges");
-  return res.json();
+  return (await readJsonIfAvailable<PropFirmChallenge[]>(res)) ?? [];
 }
 
 /**
@@ -30,7 +31,8 @@ export async function createAccountFromChallenge({
 }: CreateAccountFromChallengeParams): Promise<{ id: string; accountName: string; [key: string]: unknown } | null> {
   const challengeRes = await fetch(`/api/prop-firm-challenges/${challengeId}`, { credentials: "include" });
   if (!challengeRes.ok) throw new Error("Challenge not found");
-  const challenge = await challengeRes.json();
+  const challenge = await readJsonIfAvailable<{ firm?: { name?: string | null }; initial_balance?: number | string | null }>(challengeRes);
+  if (!challenge) throw new Error('Challenge response was not valid JSON');
 
   const firmName = challenge.firm?.name ?? "Unknown Firm";
   const initialBalance = Number(challenge.initial_balance);
@@ -53,10 +55,10 @@ export async function createAccountFromChallenge({
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
+    const err = await readJsonIfAvailable<{ error?: string }>(res);
     throw new Error(err?.error ?? "Failed to create prop account");
   }
-  return res.json();
+  return await readJsonIfAvailable<{ id: string; accountName: string; [key: string]: unknown }>(res);
 }
 
 /**

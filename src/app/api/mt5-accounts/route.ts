@@ -98,36 +98,15 @@ export async function POST(request: NextRequest) {
       : null;
 
     if (existingAccount) {
-      const updatePayload: Record<string, string> = {
-        accountName: `${server} - ${login}`,
-        server,
-        login,
-        password: encryptedPassword,
-      };
-      if (balanceToSet !== null) {
-        updatePayload.balance = balanceToSet;
-        updatePayload.equity = balanceToSet;
-      }
-      await db
-        .update(mt5Accounts)
-        .set(updatePayload)
-        .where(eq(mt5Accounts.id, existingAccount.id));
-
-      if (balanceToSet !== null) {
-        const propUpdates: Record<string, string | Date> = {
-          currentBalance: balanceToSet,
-          lastSyncedAt: new Date(),
-        };
-        if (Number(propAccount.accountSize) === 0) {
-          propUpdates.accountSize = balanceToSet;
-        }
-        await db
-          .update(propAccounts)
-          .set(propUpdates)
-          .where(and(eq(propAccounts.id, propAccountId), eq(propAccounts.userId, userId)));
-      }
-
-      return NextResponse.json({ success: true, accountId: existingAccount.id });
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'MT5_ACCOUNT_EXISTS',
+          error:
+            'This prop account already has a linked MT5 account. Reset or reconnect MT5 sync before creating a new link.',
+        },
+        { status: 409 }
+      );
     }
 
     // Create new MT5 account

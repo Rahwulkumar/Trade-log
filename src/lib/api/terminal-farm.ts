@@ -2,6 +2,13 @@
  * Client-side API helpers for Terminal Farm integration
  */
 
+import type {
+    ResetMt5SyncReason,
+    TerminalPositionPayload,
+    TerminalSyncDiagnostics,
+} from '@/lib/terminal-farm/types';
+import { readJsonIfAvailable } from '@/lib/api/client/http';
+
 export interface TerminalStatus {
     terminalId: string;
     status: 'PENDING' | 'STARTING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'ERROR';
@@ -19,13 +26,13 @@ export async function enableAutoSync(accountId: string): Promise<{ success: bool
         credentials: 'include',
     });
 
-    const data = await response.json();
+    const data = await readJsonIfAvailable<{ error?: string; terminal?: { id?: string }; terminalId?: string }>(response);
 
     if (!response.ok) {
-        return { success: false, error: data.error || 'Failed to enable auto-sync' };
+        return { success: false, error: data?.error || 'Failed to enable auto-sync' };
     }
 
-    return { success: true, terminalId: data.terminal?.id || data.terminalId };
+    return { success: true, terminalId: data?.terminal?.id || data?.terminalId };
 }
 
 /**
@@ -37,10 +44,10 @@ export async function disableAutoSync(accountId: string): Promise<{ success: boo
         credentials: 'include',
     });
 
-    const data = await response.json();
+    const data = await readJsonIfAvailable<{ error?: string }>(response);
 
     if (!response.ok) {
-        return { success: false, error: data.error || 'Failed to disable auto-sync' };
+        return { success: false, error: data?.error || 'Failed to disable auto-sync' };
     }
 
     return { success: true };
@@ -51,7 +58,14 @@ export async function disableAutoSync(accountId: string): Promise<{ success: boo
  */
 export async function getTerminalStatus(accountId: string): Promise<{ connected: boolean; terminal: TerminalStatus | null }> {
     const response = await fetch(`/api/mt5-accounts/${accountId}/terminal-status`, { credentials: 'include' });
-    const data = await response.json();
+    const data = await readJsonIfAvailable<{ connected?: boolean; terminal?: TerminalStatus | null }>(response);
+
+    if (!response.ok || !data) {
+        return {
+            connected: false,
+            terminal: null,
+        };
+    }
 
     return {
         connected: data.connected || false,
@@ -71,20 +85,75 @@ export interface MT5AccountInfo {
     equity: number | null;
 }
 
-export async function getTerminalStatusByPropAccount(propAccountId: string): Promise<{
+export interface TerminalStatusByPropAccountResult {
     connected: boolean;
     terminal: TerminalStatus | null;
     mt5AccountId?: string;
     mt5Account?: MT5AccountInfo;
-}> {
+    diagnostics: TerminalSyncDiagnostics | null;
+    livePositions: TerminalPositionPayload[];
+}
+
+export async function getTerminalStatusByPropAccount(propAccountId: string): Promise<TerminalStatusByPropAccountResult> {
     const response = await fetch(`/api/mt5-accounts/by-prop-account/${propAccountId}/terminal-status`, { credentials: 'include' });
-    const data = await response.json();
+    const data = await readJsonIfAvailable<Partial<TerminalStatusByPropAccountResult>>(response);
+
+    if (!response.ok || !data) {
+        return {
+            connected: false,
+            terminal: null,
+            diagnostics: null,
+            livePositions: [],
+        };
+    }
 
     return {
         connected: data.connected || false,
         terminal: data.terminal || null,
         mt5AccountId: data.mt5AccountId || undefined,
         mt5Account: data.mt5Account || undefined,
+        diagnostics: data.diagnostics || null,
+        livePositions: Array.isArray(data.livePositions) ? data.livePositions : [],
+    };
+}
+
+export async function resetMt5SyncByPropAccount(
+    propAccountId: string,
+    reason: ResetMt5SyncReason = 'manual_reset'
+): Promise<{
+    success: boolean;
+    cleared?: {
+        oldMt5AccountId: string | null;
+        oldTerminalId: string | null;
+        preservedTradeCount: number;
+        reason: ResetMt5SyncReason;
+    };
+    error?: string;
+}> {
+    const response = await fetch(`/api/mt5-accounts/by-prop-account/${propAccountId}/reset-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason }),
+    });
+
+    const data = await readJsonIfAvailable<{
+        error?: string;
+        cleared?: {
+            oldMt5AccountId: string | null;
+            oldTerminalId: string | null;
+            preservedTradeCount: number;
+            reason: ResetMt5SyncReason;
+        };
+    }>(response);
+
+    if (!response.ok) {
+        return { success: false, error: data?.error || 'Failed to reset MT5 sync' };
+    }
+
+    return {
+        success: true,
+        cleared: data?.cleared,
     };
 }
 
@@ -105,7 +174,7 @@ export interface MT5AccountSummary {
 export async function getMT5Accounts(): Promise<MT5AccountSummary[]> {
     const response = await fetch('/api/mt5-accounts', { credentials: 'include' });
     if (!response.ok) return [];
-    return response.json();
+    return (await readJsonIfAvailable<MT5AccountSummary[]>(response)) ?? [];
 }
 
 /**
@@ -117,7 +186,7 @@ export async function createMT5Account(params: {
     login: string;
     password: string;
     currentBalance?: number | null;
-}): Promise<{ success: boolean; accountId?: string; error?: string }> {
+}): Promise<{ success: boolean; accountId?: string; error?: string; code?: string }> {
     const response = await fetch('/api/mt5-accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,11 +194,11 @@ export async function createMT5Account(params: {
         body: JSON.stringify(params),
     });
 
-    const data = await response.json();
+    const data = await readJsonIfAvailable<{ accountId?: string; error?: string; code?: string }>(response);
 
     if (!response.ok) {
-        return { success: false, error: data.error || 'Failed to create account' };
+        return { success: false, error: data?.error || 'Failed to create account', code: data?.code };
     }
 
-    return { success: true, accountId: data.accountId };
+    return { success: true, accountId: data?.accountId };
 }

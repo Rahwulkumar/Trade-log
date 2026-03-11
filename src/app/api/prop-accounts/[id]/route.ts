@@ -5,6 +5,7 @@ import {
   updatePropAccount,
   deletePropAccount,
 } from '@/lib/api/prop-accounts';
+import { resetMt5SyncByPropAccount } from '@/lib/terminal-farm/service';
 
 export async function GET(
   _request: NextRequest,
@@ -51,6 +52,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    await resetMt5SyncByPropAccount(id, userId, 'delete_account');
     await deletePropAccount(id, userId);
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -67,6 +67,8 @@ RUN mkdir -p "/home/trader/.wine/drive_c/Program Files/" && \
 # Download MT5 installer (will be replaced with actual installation at runtime)
 # Note: MT5 installer must be provided separately due to licensing
 RUN mkdir -p /home/trader/mt5
+RUN mkdir -p /home/trader/seed-bundles
+RUN mkdir -p /home/trader/state
 
 # Create directories for EA and configuration
 RUN mkdir -p /home/trader/mt5/MQL5/Experts \
@@ -75,6 +77,7 @@ RUN mkdir -p /home/trader/mt5/MQL5/Experts \
 # Copy Trading Journal Sync EA source + optional precompiled binary.
 # If TradeTaperSync.ex5 is present, runtime compilation is skipped.
 COPY --chown=trader:trader ea/ /home/trader/mt5/MQL5/Experts/
+COPY --chown=trader:trader seeds/ /home/trader/seed-bundles/
 
 # Switch back to root for supervisor
 USER root
@@ -86,7 +89,8 @@ COPY supervisor.conf /etc/supervisor/conf.d/mt5.conf
 # Create startup script
 COPY scripts/start-terminal.sh /start.sh
 COPY scripts/webhook-bridge.sh /webhook-bridge.sh
-RUN chmod +x /start.sh /webhook-bridge.sh
+COPY scripts/session-watchdog.sh /session-watchdog.sh
+RUN chmod +x /start.sh /webhook-bridge.sh /session-watchdog.sh
 
 # Expose VNC port for debugging (optional)
 EXPOSE 5900

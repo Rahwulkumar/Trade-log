@@ -1,25 +1,37 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
-// Define routes that do NOT require authentication
-const isPublicRoute = createRouteMatcher([
+const isPublicPageRoute = createRouteMatcher([
   '/',
   '/auth/login(.*)',
   '/auth/signup(.*)',
   '/auth/forgot-password(.*)',
   '/auth/callback(.*)',
-  '/api/webhook/terminal(.*)', // EA webhooks — authenticated with API key, not session
-  '/api/orchestrator(.*)',     // Orchestrator — authenticated with ORCHESTRATOR_SECRET
+]);
+
+const isPublicApiRoute = createRouteMatcher([
+  '/api/webhook/terminal(.*)',
+  '/api/orchestrator(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    await auth.protect();
+  if (isPublicPageRoute(request) || isPublicApiRoute(request)) {
+    return;
   }
+
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    return;
+  }
+
+  await auth.protect();
 });
 
 export const config = {
   matcher: [
-    // Match all routes except static assets
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

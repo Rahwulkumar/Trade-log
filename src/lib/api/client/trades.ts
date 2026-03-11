@@ -5,6 +5,7 @@
  */
 
 import type { Trade, TradeFilters } from '@/lib/api/trades';
+import { readJsonIfAvailable } from '@/lib/api/client/http';
 export type { Trade, TradeFilters };
 
 function buildQuery(filters?: TradeFilters): string {
@@ -25,7 +26,7 @@ export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
   try {
     const res = await fetch(`/api/trades${buildQuery(filters)}`);
     if (!res.ok) return [];
-    return res.json();
+    return (await readJsonIfAvailable<Trade[]>(res)) ?? [];
   } catch {
     return [];
   }
@@ -35,7 +36,7 @@ export async function getTrade(id: string): Promise<Trade | null> {
   try {
     const res = await fetch(`/api/trades/${id}`);
     if (!res.ok) return null;
-    return res.json();
+    return (await readJsonIfAvailable<Trade>(res)) ?? null;
   } catch {
     return null;
   }
@@ -48,10 +49,12 @@ export async function createTrade(trade: Omit<Trade, 'id' | 'userId' | 'createdA
     body: JSON.stringify(trade),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+    const err = (await readJsonIfAvailable<{ error?: string }>(res)) ?? { error: 'Unknown error' };
     throw new Error(err.error ?? 'Failed to create trade');
   }
-  return res.json();
+  const createdTrade = await readJsonIfAvailable<Trade>(res);
+  if (!createdTrade) throw new Error('Failed to create trade');
+  return createdTrade;
 }
 
 export async function updateTrade(id: string, updates: Partial<Trade>): Promise<Trade> {
@@ -61,7 +64,9 @@ export async function updateTrade(id: string, updates: Partial<Trade>): Promise<
     body: JSON.stringify(updates),
   });
   if (!res.ok) throw new Error('Failed to update trade');
-  return res.json();
+  const trade = await readJsonIfAvailable<Trade>(res);
+  if (!trade) throw new Error('Failed to update trade');
+  return trade;
 }
 
 export async function deleteTrade(id: string): Promise<void> {

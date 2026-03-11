@@ -26,6 +26,13 @@ class Config:
     
     # Terminal Webhook Secret (for EA authentication)
     TERMINAL_WEBHOOK_SECRET: str = os.getenv('TERMINAL_WEBHOOK_SECRET', '')
+
+    # Optional MT5 worker controls
+    MT5_BROKER_SEED_NAME: str = os.getenv('MT5_BROKER_SEED_NAME', '')
+    MT5_REQUIRE_BROKER_SESSION: str = os.getenv('MT5_REQUIRE_BROKER_SESSION', 'true')
+    MT5_SESSION_READY_TIMEOUT_SECONDS: str = os.getenv('MT5_SESSION_READY_TIMEOUT_SECONDS', '150')
+    MT5_SESSION_POLL_SECONDS: str = os.getenv('MT5_SESSION_POLL_SECONDS', '5')
+    MT5_FAIL_FAST_ON_SESSION_TIMEOUT: str = os.getenv('MT5_FAIL_FAST_ON_SESSION_TIMEOUT', 'false')
     
     # Polling interval (seconds)
     POLL_INTERVAL: int = int(os.getenv('POLL_INTERVAL', '60'))

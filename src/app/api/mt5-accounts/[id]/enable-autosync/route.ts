@@ -1,9 +1,9 @@
 import { requireAuth } from '@/lib/auth/server';
-import { enableAutoSync } from '@/lib/terminal-farm/service';
+import { enableMetaApiAutoSync } from '@/lib/metaapi/service';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -27,7 +27,7 @@ export async function POST(
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    const terminal = await enableAutoSync(accountId, userId);
+    const terminal = await enableMetaApiAutoSync(accountId, userId);
 
     return NextResponse.json({
       success: true,

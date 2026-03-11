@@ -4,6 +4,7 @@
  */
 
 import type { Playbook, PlaybookInsert } from '@/lib/db/schema';
+import { readJsonIfAvailable } from '@/lib/api/client/http';
 export type { Playbook, PlaybookInsert };
 
 export interface PlaybookStats {
@@ -20,7 +21,7 @@ export async function getPlaybooks(): Promise<Playbook[]> {
   try {
     const res = await fetch('/api/playbooks');
     if (!res.ok) return [];
-    return res.json();
+    return (await readJsonIfAvailable<Playbook[]>(res)) ?? [];
   } catch {
     return [];
   }
@@ -30,7 +31,7 @@ export async function getActivePlaybooks(): Promise<Playbook[]> {
   try {
     const res = await fetch('/api/playbooks?active=true');
     if (!res.ok) return [];
-    return res.json();
+    return (await readJsonIfAvailable<Playbook[]>(res)) ?? [];
   } catch {
     return [];
   }
@@ -40,7 +41,7 @@ export async function getPlaybook(id: string): Promise<Playbook | null> {
   try {
     const res = await fetch(`/api/playbooks/${id}`);
     if (!res.ok) return null;
-    return res.json();
+    return (await readJsonIfAvailable<Playbook>(res)) ?? null;
   } catch {
     return null;
   }
@@ -55,7 +56,9 @@ export async function createPlaybook(
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error('Failed to create playbook');
-  return res.json();
+  const playbook = await readJsonIfAvailable<Playbook>(res);
+  if (!playbook) throw new Error('Failed to create playbook');
+  return playbook;
 }
 
 export async function updatePlaybook(
@@ -68,7 +71,9 @@ export async function updatePlaybook(
     body: JSON.stringify(updates),
   });
   if (!res.ok) throw new Error('Failed to update playbook');
-  return res.json();
+  const playbook = await readJsonIfAvailable<Playbook>(res);
+  if (!playbook) throw new Error('Failed to update playbook');
+  return playbook;
 }
 
 export async function deletePlaybook(id: string): Promise<void> {
@@ -79,13 +84,17 @@ export async function deletePlaybook(id: string): Promise<void> {
 export async function togglePlaybookActive(id: string): Promise<Playbook> {
   const res = await fetch(`/api/playbooks/${id}/toggle-active`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to toggle playbook');
-  return res.json();
+  const playbook = await readJsonIfAvailable<Playbook>(res);
+  if (!playbook) throw new Error('Failed to toggle playbook');
+  return playbook;
 }
 
 export async function duplicatePlaybook(id: string): Promise<Playbook> {
   const res = await fetch(`/api/playbooks/${id}/duplicate`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to duplicate playbook');
-  return res.json();
+  const playbook = await readJsonIfAvailable<Playbook>(res);
+  if (!playbook) throw new Error('Failed to duplicate playbook');
+  return playbook;
 }
 
 export async function getAllPlaybooksWithStats(
@@ -95,7 +104,7 @@ export async function getAllPlaybooksWithStats(
   try {
     const res = await fetch(`/api/playbooks/stats${qs}`);
     if (!res.ok) return [];
-    return res.json();
+    return (await readJsonIfAvailable<PlaybookStats[]>(res)) ?? [];
   } catch {
     return [];
   }

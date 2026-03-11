@@ -4,6 +4,7 @@
  */
 
 import type { PropAccount, PropAccountInsert } from '@/lib/db/schema';
+import { readJsonIfAvailable } from '@/lib/api/client/http';
 export type { PropAccount, PropAccountInsert };
 
 export interface ComplianceStatus {
@@ -18,7 +19,7 @@ export async function getPropAccounts(): Promise<PropAccount[]> {
   try {
     const res = await fetch('/api/prop-accounts', { credentials: 'include' });
     if (!res.ok) return [];
-    return res.json();
+    return (await readJsonIfAvailable<PropAccount[]>(res)) ?? [];
   } catch {
     return [];
   }
@@ -28,7 +29,7 @@ export async function getActivePropAccounts(): Promise<PropAccount[]> {
   try {
     const res = await fetch('/api/prop-accounts?active=true', { credentials: 'include' });
     if (!res.ok) return [];
-    return res.json();
+    return (await readJsonIfAvailable<PropAccount[]>(res)) ?? [];
   } catch {
     return [];
   }
@@ -38,7 +39,7 @@ export async function getPropAccount(id: string): Promise<PropAccount | null> {
   try {
     const res = await fetch(`/api/prop-accounts/${id}`, { credentials: 'include' });
     if (!res.ok) return null;
-    return res.json();
+    return (await readJsonIfAvailable<PropAccount>(res)) ?? null;
   } catch {
     return null;
   }
@@ -54,7 +55,9 @@ export async function createPropAccount(
     body: JSON.stringify(account),
   });
   if (!res.ok) throw new Error('Failed to create prop account');
-  return res.json();
+  const data = await readJsonIfAvailable<PropAccount>(res);
+  if (!data) throw new Error('Failed to create prop account');
+  return data;
 }
 
 export async function updatePropAccount(
@@ -68,7 +71,9 @@ export async function updatePropAccount(
     body: JSON.stringify(updates),
   });
   if (!res.ok) throw new Error('Failed to update prop account');
-  return res.json();
+  const data = await readJsonIfAvailable<PropAccount>(res);
+  if (!data) throw new Error('Failed to update prop account');
+  return data;
 }
 
 export async function deletePropAccount(id: string): Promise<void> {
@@ -85,7 +90,7 @@ export async function recalculateBalanceFromTrades(accountId: string): Promise<P
       body: JSON.stringify({ accountId }),
     });
     if (!res.ok) return null;
-    return res.json();
+    return (await readJsonIfAvailable<PropAccount>(res)) ?? null;
   } catch {
     return null;
   }
@@ -97,7 +102,15 @@ export async function checkCompliance(accountId: string): Promise<ComplianceStat
     if (!res.ok) {
       return { isCompliant: true, dailyDdRemaining: 100, totalDdRemaining: 100, profitProgress: null, daysRemaining: null };
     }
-    return res.json();
+    return (
+      (await readJsonIfAvailable<ComplianceStatus>(res)) ?? {
+        isCompliant: true,
+        dailyDdRemaining: 100,
+        totalDdRemaining: 100,
+        profitProgress: null,
+        daysRemaining: null,
+      }
+    );
   } catch {
     return { isCompliant: true, dailyDdRemaining: 100, totalDdRemaining: 100, profitProgress: null, daysRemaining: null };
   }

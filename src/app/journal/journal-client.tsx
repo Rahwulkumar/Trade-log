@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getTrades } from "@/lib/api/client/trades";
+import { getTerminalStatusByPropAccount } from "@/lib/api/terminal-farm";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import type { Trade as DrizzleTrade } from "@/lib/db/schema";
@@ -604,6 +605,12 @@ export default function JournalPage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [loading, setLoading] = useState(true);
+  const [livePositions, setLivePositions] = useState<
+    Awaited<ReturnType<typeof getTerminalStatusByPropAccount>>["livePositions"]
+  >([]);
+  const [terminalDiagnostics, setTerminalDiagnostics] = useState<
+    Awaited<ReturnType<typeof getTerminalStatusByPropAccount>>["diagnostics"]
+  >(null);
 
   // Page mode: "log" = write new entries | "library" = read saved entries
   const [pageMode, setPageMode] = useState<"log" | "library">("library");
@@ -637,6 +644,40 @@ export default function JournalPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!selectedAccountId || selectedAccountId === "unassigned") {
+      setLivePositions([]);
+      setTerminalDiagnostics(null);
+      return;
+    }
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const status = await getTerminalStatusByPropAccount(selectedAccountId);
+        if (cancelled) return;
+        setLivePositions(status.livePositions);
+        setTerminalDiagnostics(status.diagnostics);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[Journal] Failed to load MT5 live positions:", error);
+          setLivePositions([]);
+          setTerminalDiagnostics(null);
+        }
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => {
+      void poll();
+    }, 15_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [selectedAccountId]);
 
   // In log mode we only show UN-journaled trades
   const pendingTrades = useMemo(() => {
@@ -820,7 +861,147 @@ export default function JournalPage() {
           {/* ── Card body ── */}
           <div className="flex-1 min-h-0 overflow-hidden flex">
             {pageMode === "library" && (
-              <div className="flex-1 overflow-hidden">
+              <div className="flex h-full flex-1 flex-col overflow-hidden">
+                {(livePositions.length > 0 || terminalDiagnostics) && (
+                  <div
+                    className="shrink-0 border-b px-5 py-3"
+                    style={{
+                      borderColor: "var(--border-subtle)",
+                      background: "var(--surface-elevated)",
+                    }}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div
+                          className="flex items-center gap-2"
+                          style={{
+                            fontSize: "0.76rem",
+                            color: "var(--text-primary)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          <Activity size={13} />
+                          Live MT5 Positions
+                          {selectedAccountId && (
+                            <span
+                              className="rounded-full px-2 py-0.5"
+                              style={{
+                                fontSize: "0.58rem",
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase",
+                                background: "var(--accent-primary-ghost, rgba(0,0,0,0.08))",
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              Not imported yet
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          style={{
+                            fontSize: "0.68rem",
+                            color: "var(--text-tertiary)",
+                            marginTop: 4,
+                          }}
+                        >
+                          {livePositions.length > 0
+                            ? `${livePositions.length} live MT5 position${livePositions.length === 1 ? "" : "s"} for this prop account. These stay out of journal analytics until they close and import as deal history.`
+                            : terminalDiagnostics?.message ??
+                              "No live MT5 positions are currently open."}
+                        </p>
+                      </div>
+                      {terminalDiagnostics?.code && (
+                        <div
+                          className="rounded-full px-2.5 py-1 font-mono"
+                          style={{
+                            fontSize: "0.58rem",
+                            color: "var(--text-primary)",
+                            background: "var(--surface)",
+                            border: "1px solid var(--border-subtle)",
+                          }}
+                        >
+                          {terminalDiagnostics.code}
+                        </div>
+                      )}
+                    </div>
+
+                    {livePositions.length > 0 && (
+                      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                        {livePositions.map((position) => (
+                          <div
+                            key={`${position.ticket}-${position.positionId ?? "live"}`}
+                            className="min-w-[220px] rounded-[10px] px-3 py-2"
+                            style={{
+                              background: "var(--surface)",
+                              border: "1px solid var(--border-subtle)",
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span
+                                style={{
+                                  fontSize: "0.7rem",
+                                  fontWeight: 700,
+                                  color: "var(--text-primary)",
+                                }}
+                              >
+                                {position.symbol}
+                              </span>
+                              <span
+                                className="rounded-full px-2 py-0.5"
+                                style={{
+                                  fontSize: "0.55rem",
+                                  letterSpacing: "0.08em",
+                                  textTransform: "uppercase",
+                                  background:
+                                    position.type === "BUY"
+                                      ? "rgba(16, 185, 129, 0.12)"
+                                      : "rgba(244, 63, 94, 0.12)",
+                                  color:
+                                    position.type === "BUY"
+                                      ? "var(--profit-primary)"
+                                      : "var(--loss-primary)",
+                                }}
+                              >
+                                {position.type}
+                              </span>
+                            </div>
+                            <div
+                              className="mt-1"
+                              style={{
+                                fontSize: "0.65rem",
+                                color: "var(--text-tertiary)",
+                              }}
+                            >
+                              {position.volume} lots at {position.openPrice}
+                            </div>
+                            <div className="mt-2 flex items-end justify-between gap-2">
+                              <span
+                                style={{
+                                  fontSize: "0.62rem",
+                                  color: "var(--text-tertiary)",
+                                }}
+                              >
+                                Current {position.currentPrice}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "0.72rem",
+                                  fontWeight: 700,
+                                  color:
+                                    position.profit >= 0 ? PROFIT : "var(--loss-primary)",
+                                }}
+                              >
+                                {position.profit >= 0 ? "+" : ""}$
+                                {position.profit.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <JournalLibrary
                   trades={libraryTrades}
                   onEntryViewChange={(trade) => {

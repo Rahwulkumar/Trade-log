@@ -1,9 +1,10 @@
 import { requireAuth } from '@/lib/auth/server';
+import { refreshMetaApiTerminalStatus } from '@/lib/metaapi/service';
 import { getTerminalByAccountId } from '@/lib/terminal-farm/service';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -26,6 +27,10 @@ export async function GET(
     if (!account) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
+
+    await refreshMetaApiTerminalStatus(accountId, userId, {
+      createIfMissing: false,
+    });
 
     const terminal = await getTerminalByAccountId(accountId);
 

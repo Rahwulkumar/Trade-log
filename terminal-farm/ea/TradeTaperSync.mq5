@@ -15,17 +15,22 @@ input string   APIKey = "";                                       // API Key / W
 input string   TerminalId = "";                                   // Terminal ID (set via environment)
 input int      HeartbeatInterval = 30;                            // Heartbeat interval (seconds)
 input int      SyncInterval = 60;                                 // Trade sync interval (seconds)
+input int      HistorySyncBatchSize = 200;                        // Max MT5 deals per trade sync request
 
 //--- Global variables
 datetime lastHeartbeat = 0;
 datetime lastSync = 0;
 int lastDealCount = 0;
 bool isInitialized = false;
+datetime lastHistorySyncAt = 0;
+string lastHistorySyncReason = "startup";
 string gAPIEndpoint = "";
 string gAPIKey = "";
 string gTerminalId = "";
 int gHeartbeatInterval = 30;
 int gSyncInterval = 60;
+string gLastDealCountKey = "";
+string gLastSyncTimeKey = "";
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                     |
@@ -70,14 +75,17 @@ int OnInit()
     Print("Trading Journal Sync EA initialized");
     Print("Terminal ID: ", gTerminalId);
     Print("API Endpoint: ", gAPIEndpoint);
+
+    gLastDealCountKey = "TJ_LastDealCount_" + gTerminalId;
+    gLastSyncTimeKey = "TJ_LastSyncTime_" + gTerminalId;
     
     // Set timer for periodic tasks
     EventSetTimer(10);
     
     // Do initial sync
     WriteLog("OnInit: Initializing...");
+    SyncDealHistory("startup");
     SendHeartbeat();
-    SyncDealHistory();
     
     isInitialized = true;
     return(INIT_SUCCEEDED);
@@ -99,18 +107,18 @@ void OnTimer()
 {
     datetime now = TimeCurrent();
     
+    // Periodic sync
+    if(now - lastSync >= gSyncInterval)
+    {
+        SyncDealHistory("poll");
+        lastSync = now;
+    }
+
     // Heartbeat
     if(now - lastHeartbeat >= gHeartbeatInterval)
     {
         SendHeartbeat();
         lastHeartbeat = now;
-    }
-    
-    // Periodic sync
-    if(now - lastSync >= gSyncInterval)
-    {
-        SyncDealHistory();
-        lastSync = now;
     }
 }
 
@@ -121,7 +129,7 @@ void OnTrade()
 {
     // New trade or position change detected
     SyncPositions();
-    SyncDealHistory(); // Sync history immediately when a trade event occurs (e.g. position closed)
+    SyncDealHistory("new_deal"); // Sync history immediately when a trade event occurs (e.g. position closed)
 }
 
 // Helper to escape JSON strings
@@ -136,6 +144,36 @@ string EscapeJSON(string text)
     return output;
 }
 
+bool IsSuccessfulResponse(string result)
+{
+    return StringFind(result, "\"success\":true") >= 0;
+}
+
+bool SendTradeSyncBatch(string url, string tradesJson, int dealCount, int batchNumber)
+{
+    string json = "{";
+    json += "\"terminalId\":\"" + gTerminalId + "\",";
+    json += "\"trades\":" + tradesJson;
+    json += "}";
+
+    string result = SendRequest(url, json);
+    if(!IsSuccessfulResponse(result))
+    {
+        Print("Trade sync batch failed: ", result);
+        WriteLog(
+            "Error: Trade sync batch " + IntegerToString(batchNumber) +
+            " failed. Response: " + result
+        );
+        return false;
+    }
+
+    WriteLog(
+        "Success: Trade sync batch " + IntegerToString(batchNumber) +
+        " uploaded. Deals=" + IntegerToString(dealCount)
+    );
+    return true;
+}
+
 void WriteLog(string message)
 {
     int handle = FileOpen("debug.log", FILE_WRITE|FILE_TXT|FILE_READ|FILE_SHARE_READ|FILE_SHARE_WRITE);
@@ -145,6 +183,75 @@ void WriteLog(string message)
         FileWrite(handle, TimeToString(TimeCurrent()) + " " + message);
         FileClose(handle);
     }
+}
+
+bool IsBrokerSessionReady(
+    string loginStr,
+    string server,
+    string accountName,
+    string company,
+    string currency,
+    double balance,
+    double equity,
+    int totalDeals,
+    int openPositions
+)
+{
+    if(StringLen(loginStr) == 0 || loginStr == "0") return false;
+    if(StringLen(server) == 0) return false;
+    if(StringLen(accountName) > 0 || StringLen(company) > 0 || StringLen(currency) > 0) return true;
+    if(MathAbs(balance) > 0.00001 || MathAbs(equity) > 0.00001) return true;
+    if(totalDeals > 0 || openPositions > 0) return true;
+    return false;
+}
+
+void WriteSessionStatus(
+    string loginStr,
+    string server,
+    string accountName,
+    string company,
+    string currency,
+    double balance,
+    double equity,
+    int totalDeals,
+    int openPositions
+)
+{
+    int handle = FileOpen("session_status.json", FILE_WRITE|FILE_TXT|FILE_SHARE_READ|FILE_SHARE_WRITE);
+    if(handle == INVALID_HANDLE)
+    {
+        return;
+    }
+
+    bool ready = IsBrokerSessionReady(
+        loginStr,
+        server,
+        accountName,
+        company,
+        currency,
+        balance,
+        equity,
+        totalDeals,
+        openPositions
+    );
+
+    string json = "{";
+    json += "\"ready\":" + (ready ? "true" : "false") + ",";
+    json += "\"terminalId\":\"" + EscapeJSON(gTerminalId) + "\",";
+    json += "\"login\":\"" + EscapeJSON(loginStr) + "\",";
+    json += "\"server\":\"" + EscapeJSON(server) + "\",";
+    json += "\"accountName\":\"" + EscapeJSON(accountName) + "\",";
+    json += "\"company\":\"" + EscapeJSON(company) + "\",";
+    json += "\"currency\":\"" + EscapeJSON(currency) + "\",";
+    json += "\"balance\":" + DoubleToString(balance, 2) + ",";
+    json += "\"equity\":" + DoubleToString(equity, 2) + ",";
+    json += "\"totalDeals\":" + IntegerToString(totalDeals) + ",";
+    json += "\"openPositions\":" + IntegerToString(openPositions) + ",";
+    json += "\"updatedAt\":\"" + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"";
+    json += "}";
+
+    FileWriteString(handle, json);
+    FileClose(handle);
 }
 
 void TrimInPlace(string &value)
@@ -303,21 +410,64 @@ void SendHeartbeat()
 {
     // Updated to use /api/webhook/terminal/heartbeat
     string url = gAPIEndpoint + "/api/webhook/terminal/heartbeat";
+    int totalDeals = lastDealCount;
+    if(HistorySelect(0, TimeCurrent()))
+    {
+        totalDeals = HistoryDealsTotal();
+    }
+    string loginStr = IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN));
+    string server = AccountInfoString(ACCOUNT_SERVER);
+    string accountName = AccountInfoString(ACCOUNT_NAME);
+    string company = AccountInfoString(ACCOUNT_COMPANY);
+    string currency = AccountInfoString(ACCOUNT_CURRENCY);
+    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+    double margin = AccountInfoDouble(ACCOUNT_MARGIN);
+    double freeMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+    int openPositions = PositionsTotal();
+    string lastHistoryAt = lastHistorySyncAt > 0
+        ? TimeToString(lastHistorySyncAt, TIME_DATE|TIME_SECONDS)
+        : TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+
+    WriteSessionStatus(
+        loginStr,
+        server,
+        accountName,
+        company,
+        currency,
+        balance,
+        equity,
+        totalDeals,
+        openPositions
+    );
     
     // Build JSON payload
     string json = "{";
     json += "\"terminalId\":\"" + gTerminalId + "\",";
     json += "\"accountInfo\":{";
-    json += "\"balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",";
-    json += "\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + ",";
-    json += "\"margin\":" + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN), 2) + ",";
-    json += "\"freeMargin\":" + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_FREE), 2);
+    json += "\"balance\":" + DoubleToString(balance, 2) + ",";
+    json += "\"equity\":" + DoubleToString(equity, 2) + ",";
+    json += "\"margin\":" + DoubleToString(margin, 2) + ",";
+    json += "\"freeMargin\":" + DoubleToString(freeMargin, 2);
+    json += "},";
+    json += "\"sessionInfo\":{";
+    json += "\"login\":\"" + loginStr + "\",";
+    json += "\"server\":\"" + EscapeJSON(server) + "\",";
+    json += "\"accountName\":\"" + EscapeJSON(accountName) + "\",";
+    json += "\"company\":\"" + EscapeJSON(company) + "\",";
+    json += "\"currency\":\"" + EscapeJSON(currency) + "\"";
+    json += "},";
+    json += "\"syncState\":{";
+    json += "\"totalDeals\":" + IntegerToString(totalDeals) + ",";
+    json += "\"openPositions\":" + IntegerToString(openPositions) + ",";
+    json += "\"lastHistorySyncAt\":\"" + lastHistoryAt + "\",";
+    json += "\"lastHistorySyncReason\":\"" + lastHistorySyncReason + "\"";
     json += "}}";
     
     // Send request
     string result = SendRequest(url, json);
     
-    if(StringFind(result, "success") >= 0)
+    if(IsSuccessfulResponse(result))
     {
         Print("Heartbeat sent successfully");
         
@@ -352,11 +502,23 @@ void SendHeartbeat()
 //+------------------------------------------------------------------+
 //| Sync deal history with Trading Journal                            |
 //+------------------------------------------------------------------+
-void SyncDealHistory()
+void SyncDealHistory(string reason)
 {
-    // Get deals from last 30 days
-    // Get full history
-    datetime fromDate = 0;
+    int restoredDealCount = 0;
+    if(StringLen(gLastDealCountKey) > 0 && GlobalVariableCheck(gLastDealCountKey))
+    {
+        restoredDealCount = (int)GlobalVariableGet(gLastDealCountKey);
+    }
+
+    long restoredSyncTime = 0;
+    if(StringLen(gLastSyncTimeKey) > 0 && GlobalVariableCheck(gLastSyncTimeKey))
+    {
+        restoredSyncTime = (long)GlobalVariableGet(gLastSyncTimeKey);
+    }
+
+    datetime fromDate = restoredSyncTime > 0
+        ? (datetime)(restoredSyncTime - 86400)
+        : (datetime)(TimeCurrent() - 90 * 86400);
     datetime toDate = TimeCurrent();
     
     if(!HistorySelect(fromDate, toDate))
@@ -367,32 +529,38 @@ void SyncDealHistory()
     }
     
     int totalDeals = HistoryDealsTotal();
-    WriteLog("SyncCheck: Total Deals=" + IntegerToString(totalDeals) + ", LastCount=" + IntegerToString(lastDealCount));
-    
+    WriteLog("SyncCheck: Total Deals=" + IntegerToString(totalDeals) + ", LastCount=" + IntegerToString(restoredDealCount));
+
     // Check if new deals since last sync
-    if(totalDeals == lastDealCount)
+    if(totalDeals == restoredDealCount && restoredSyncTime > 0)
     {
+        lastDealCount = totalDeals;
+        lastHistorySyncAt = TimeCurrent();
+        lastHistorySyncReason = "no_change";
         return; // No new deals
     }
     
     Print("Syncing ", totalDeals, " deals...");
-    
-    // Build trades JSON array
+
+    string url = gAPIEndpoint + "/api/webhook/terminal/trades";
+    int batchSize = MathMax(1, HistorySyncBatchSize);
     string tradesJson = "[";
     bool firstTrade = true;
-    
+    int batchDealCount = 0;
+    int syncedDealCount = 0;
+    int batchNumber = 0;
+    bool syncSucceeded = true;
+
     for(int i = 0; i < totalDeals; i++)
     {
         ulong ticket = HistoryDealGetTicket(i);
         if(ticket == 0) continue;
-        
-        // Get deal properties
+
         ENUM_DEAL_ENTRY entry = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket, DEAL_ENTRY);
         ENUM_DEAL_TYPE type = (ENUM_DEAL_TYPE)HistoryDealGetInteger(ticket, DEAL_TYPE);
-        
-        // Only process buy/sell deals (not balance, credit, etc.)
+
         if(type != DEAL_TYPE_BUY && type != DEAL_TYPE_SELL) continue;
-        
+
         string symbol = HistoryDealGetString(ticket, DEAL_SYMBOL);
         double volume = HistoryDealGetDouble(ticket, DEAL_VOLUME);
         double price = HistoryDealGetDouble(ticket, DEAL_PRICE);
@@ -401,60 +569,90 @@ void SyncDealHistory()
         double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT);
         datetime time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
         string comment = HistoryDealGetString(ticket, DEAL_COMMENT);
-        
+
         long positionId = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
         long magic = HistoryDealGetInteger(ticket, DEAL_MAGIC);
-        long reason = HistoryDealGetInteger(ticket, DEAL_REASON);
+        long dealReason = HistoryDealGetInteger(ticket, DEAL_REASON);
         double sl = HistoryDealGetDouble(ticket, DEAL_SL);
         double tp = HistoryDealGetDouble(ticket, DEAL_TP);
         double contractSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_CONTRACT_SIZE);
-        
+
+        string tradeJson = "{";
+        tradeJson += "\"ticket\":\"" + IntegerToString(ticket) + "\",";
+        tradeJson += "\"symbol\":\"" + symbol + "\",";
+        tradeJson += "\"type\":\"" + (type == DEAL_TYPE_BUY ? "BUY" : "SELL") + "\",";
+        tradeJson += "\"volume\":" + DoubleToString(volume, 2) + ",";
+        tradeJson += "\"openPrice\":" + DoubleToString(price, 5) + ",";
+        tradeJson += "\"commission\":" + DoubleToString(commission, 2) + ",";
+        tradeJson += "\"swap\":" + DoubleToString(swap, 2) + ",";
+        tradeJson += "\"profit\":" + DoubleToString(profit, 2) + ",";
+        tradeJson += "\"openTime\":\"" + TimeToString(time, TIME_DATE|TIME_SECONDS) + "\",";
+        tradeJson += "\"comment\":\"" + EscapeJSON(comment) + "\",";
+        tradeJson += "\"positionId\":" + IntegerToString(positionId) + ",";
+        tradeJson += "\"magic\":" + IntegerToString(magic) + ",";
+        tradeJson += "\"entryType\":" + IntegerToString((long)entry) + ",";
+        tradeJson += "\"reason\":" + IntegerToString(dealReason) + ",";
+        tradeJson += "\"stopLoss\":" + DoubleToString(sl, 5) + ",";
+        tradeJson += "\"takeProfit\":" + DoubleToString(tp, 5) + ",";
+        tradeJson += "\"contractSize\":" + DoubleToString(contractSize, 2);
+        tradeJson += "}";
+
         if(!firstTrade) tradesJson += ",";
         firstTrade = false;
-        
-        tradesJson += "{";
-        tradesJson += "\"ticket\":\"" + IntegerToString(ticket) + "\",";
-        tradesJson += "\"symbol\":\"" + symbol + "\",";
-        tradesJson += "\"type\":\"" + (type == DEAL_TYPE_BUY ? "BUY" : "SELL") + "\",";
-        tradesJson += "\"volume\":" + DoubleToString(volume, 2) + ",";
-        tradesJson += "\"openPrice\":" + DoubleToString(price, 5) + ",";
-        tradesJson += "\"commission\":" + DoubleToString(commission, 2) + ",";
-        tradesJson += "\"swap\":" + DoubleToString(swap, 2) + ",";
-        tradesJson += "\"profit\":" + DoubleToString(profit, 2) + ",";
-        tradesJson += "\"openTime\":\"" + TimeToString(time, TIME_DATE|TIME_SECONDS) + "\",";
-        tradesJson += "\"comment\":\"" + EscapeJSON(comment) + "\",";
-        tradesJson += "\"positionId\":" + IntegerToString(positionId) + ",";
-        tradesJson += "\"magic\":" + IntegerToString(magic) + ",";
-        tradesJson += "\"entryType\":" + IntegerToString((long)entry) + ",";
-        tradesJson += "\"reason\":" + IntegerToString(reason) + ",";
-        tradesJson += "\"stopLoss\":" + DoubleToString(sl, 5) + ",";
-        tradesJson += "\"takeProfit\":" + DoubleToString(tp, 5) + ",";
-        tradesJson += "\"contractSize\":" + DoubleToString(contractSize, 2);
-        tradesJson += "}";
+        tradesJson += tradeJson;
+
+        batchDealCount++;
+        syncedDealCount++;
+
+        if(batchDealCount >= batchSize)
+        {
+            tradesJson += "]";
+            batchNumber++;
+
+            if(!SendTradeSyncBatch(url, tradesJson, batchDealCount, batchNumber))
+            {
+                syncSucceeded = false;
+                break;
+            }
+
+            tradesJson = "[";
+            firstTrade = true;
+            batchDealCount = 0;
+        }
     }
+
+    if(syncSucceeded && (batchDealCount > 0 || syncedDealCount == 0))
+    {
+        tradesJson += "]";
+        batchNumber++;
+        syncSucceeded = SendTradeSyncBatch(url, tradesJson, batchDealCount, batchNumber);
+    }
+
+    lastHistorySyncAt = TimeCurrent();
+    lastHistorySyncReason = reason;
     
-    tradesJson += "]";
-    
-    // Build final JSON
-    string json = "{";
-    json += "\"terminalId\":\"" + gTerminalId + "\",";
-    json += "\"trades\":" + tradesJson;
-    json += "}";
-    
-    // Send request - Updated to use /api/webhook/terminal/trades
-    string url = gAPIEndpoint + "/api/webhook/terminal/trades";
-    string result = SendRequest(url, json);
-    
-    if(StringFind(result, "success") >= 0)
+    if(syncSucceeded)
     {
         Print("Trade sync completed successfully");
-        WriteLog("Success: Trade sync uploaded. Deals=" + IntegerToString(totalDeals));
+        WriteLog(
+            "Success: Trade sync uploaded. VisibleDeals=" + IntegerToString(totalDeals) +
+            ", SyncedDeals=" + IntegerToString(syncedDealCount) +
+            ", Batches=" + IntegerToString(batchNumber)
+        );
         lastDealCount = totalDeals;
+        if(StringLen(gLastDealCountKey) > 0)
+        {
+            GlobalVariableSet(gLastDealCountKey, (double)totalDeals);
+        }
+        if(StringLen(gLastSyncTimeKey) > 0)
+        {
+            GlobalVariableSet(gLastSyncTimeKey, (double)TimeCurrent());
+        }
     }
     else
     {
-        Print("Trade sync failed: ", result);
-        WriteLog("Error: Trade sync failed. Response: " + result);
+        Print("Trade sync failed");
+        WriteLog("Error: Trade sync failed before all batches completed.");
     }
 }
 
@@ -480,20 +678,30 @@ void SyncPositions()
         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
         double currentPrice = PositionGetDouble(POSITION_PRICE_CURRENT);
         double profit = PositionGetDouble(POSITION_PROFIT);
+        double stopLoss = PositionGetDouble(POSITION_SL);
+        double takeProfit = PositionGetDouble(POSITION_TP);
+        double swap = PositionGetDouble(POSITION_SWAP);
         datetime openTime = (datetime)PositionGetInteger(POSITION_TIME);
+        long positionId = PositionGetInteger(POSITION_IDENTIFIER);
+        string comment = PositionGetString(POSITION_COMMENT);
         
         if(!firstPosition) positionsJson += ",";
         firstPosition = false;
         
         positionsJson += "{";
         positionsJson += "\"ticket\":\"" + IntegerToString(ticket) + "\",";
+        positionsJson += "\"positionId\":\"" + IntegerToString((int)positionId) + "\",";
         positionsJson += "\"symbol\":\"" + symbol + "\",";
         positionsJson += "\"type\":\"" + (type == POSITION_TYPE_BUY ? "BUY" : "SELL") + "\",";
         positionsJson += "\"volume\":" + DoubleToString(volume, 2) + ",";
         positionsJson += "\"openPrice\":" + DoubleToString(openPrice, 5) + ",";
         positionsJson += "\"currentPrice\":" + DoubleToString(currentPrice, 5) + ",";
         positionsJson += "\"profit\":" + DoubleToString(profit, 2) + ",";
-        positionsJson += "\"openTime\":\"" + TimeToString(openTime, TIME_DATE|TIME_SECONDS) + "\"";
+        positionsJson += "\"openTime\":\"" + TimeToString(openTime, TIME_DATE|TIME_SECONDS) + "\",";
+        positionsJson += "\"stopLoss\":" + DoubleToString(stopLoss, 5) + ",";
+        positionsJson += "\"takeProfit\":" + DoubleToString(takeProfit, 5) + ",";
+        positionsJson += "\"swap\":" + DoubleToString(swap, 2) + ",";
+        positionsJson += "\"comment\":\"" + EscapeJSON(comment) + "\"";
         positionsJson += "}";
     }
     
@@ -509,7 +717,7 @@ void SyncPositions()
     string url = gAPIEndpoint + "/api/webhook/terminal/positions";
     string result = SendRequest(url, json);
     
-    if(StringFind(result, "success") >= 0)
+    if(IsSuccessfulResponse(result))
     {
         Print("Position sync completed: ", totalPositions, " positions");
     }
