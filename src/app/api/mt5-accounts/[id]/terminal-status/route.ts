@@ -1,6 +1,8 @@
 import { requireAuth } from '@/lib/auth/server';
 import { buildMt5EaSetupDescriptor } from '@/lib/mt5/ea-setup';
+import { hasRecentTerminalHeartbeat } from '@/lib/mt5-sync/runtime';
 import { refreshMt5SyncStatus } from '@/lib/mt5-sync/service';
+import { readTerminalSyncProvider } from '@/lib/terminal-farm/metadata';
 import { getTerminalByAccountId } from '@/lib/terminal-farm/service';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -39,8 +41,15 @@ export async function GET(
       return NextResponse.json({ connected: false });
     }
 
+    const connected =
+      terminal.status === 'RUNNING' &&
+      hasRecentTerminalHeartbeat(
+        terminal.lastHeartbeat,
+        readTerminalSyncProvider(terminal.metadata)
+      );
+
     return NextResponse.json({
-      connected: true,
+      connected,
       terminal: {
         terminalId: terminal.id,
         status: terminal.status,

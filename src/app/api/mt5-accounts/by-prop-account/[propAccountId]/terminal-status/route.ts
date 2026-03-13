@@ -1,10 +1,12 @@
 import { requireAuth } from '@/lib/auth/server';
 import { buildMt5EaSetupDescriptor } from '@/lib/mt5/ea-setup';
+import { hasRecentTerminalHeartbeat } from '@/lib/mt5-sync/runtime';
 import { refreshMt5SyncStatus } from '@/lib/mt5-sync/service';
 import { getTerminalByAccountId } from '@/lib/terminal-farm/service';
 import {
   readTerminalOpenPositions,
   readTerminalSyncDiagnostics,
+  readTerminalSyncProvider,
 } from '@/lib/terminal-farm/metadata';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -83,12 +85,10 @@ export async function GET(
 
     const diagnostics = readTerminalSyncDiagnostics(terminal.metadata);
     const livePositions = readTerminalOpenPositions(terminal.metadata);
-    const hasRecentHeartbeat = (() => {
-      if (!terminal.lastHeartbeat) return false;
-      const lastBeatMs = new Date(terminal.lastHeartbeat).getTime();
-      if (Number.isNaN(lastBeatMs)) return false;
-      return Date.now() - lastBeatMs <= 120_000; // 2 minutes
-    })();
+    const hasRecentHeartbeat = hasRecentTerminalHeartbeat(
+      terminal.lastHeartbeat,
+      readTerminalSyncProvider(terminal.metadata)
+    );
 
     const connected = terminal.status === 'RUNNING' && hasRecentHeartbeat;
 

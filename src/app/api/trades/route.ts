@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     propAccountId: searchParams.get('propAccountId') ?? undefined,
     startDate: searchParams.get('startDate') ?? undefined,
     endDate: searchParams.get('endDate') ?? undefined,
+    exitStartDate: searchParams.get('exitStartDate') ?? undefined,
+    exitEndDate: searchParams.get('exitEndDate') ?? undefined,
     search: searchParams.get('search') ?? undefined,
   };
 

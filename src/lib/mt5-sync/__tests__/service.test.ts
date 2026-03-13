@@ -1,5 +1,6 @@
 import {
     deriveWindowsMt5WorkerTerminalState,
+    hasRecentTerminalHeartbeat,
     selectWindowsMt5WorkerCandidate,
 } from '@/lib/mt5-sync/runtime';
 import type { TerminalSyncDiagnostics } from '@/lib/terminal-farm/types';
@@ -108,5 +109,30 @@ describe('selectWindowsMt5WorkerCandidate', () => {
         ]);
 
         expect(selected).toBeNull();
+    });
+});
+
+describe('hasRecentTerminalHeartbeat', () => {
+    it('uses the windows heartbeat threshold for windows worker terminals', () => {
+        const recentUnderFiveMinutes = new Date(
+            Date.now() - 4 * 60 * 1000
+        ).toISOString();
+
+        expect(
+            hasRecentTerminalHeartbeat(
+                recentUnderFiveMinutes,
+                'windows_mt5_python'
+            )
+        ).toBe(true);
+    });
+
+    it('uses the legacy two-minute heartbeat threshold for non-windows providers', () => {
+        const staleOverTwoMinutes = new Date(
+            Date.now() - 3 * 60 * 1000
+        ).toISOString();
+
+        expect(
+            hasRecentTerminalHeartbeat(staleOverTwoMinutes, 'terminal_farm')
+        ).toBe(false);
     });
 });

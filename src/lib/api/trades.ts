@@ -10,7 +10,7 @@ import {
   type Trade, type TradeInsert, type TradeUpdate,
 } from '@/lib/db/schema';
 import {
-  eq, and, desc, asc, gte, lte, ilike,
+  eq, and, desc, asc, gte, lte, ilike, isNull,
 } from 'drizzle-orm';
 
 export type { Trade, TradeInsert, TradeUpdate };
@@ -19,9 +19,11 @@ export interface TradeFilters {
   status?: 'OPEN' | 'CLOSED' | 'open' | 'closed' | 'all';
   direction?: 'LONG' | 'SHORT' | 'all';
   playbookId?: string;
-  propAccountId?: string | null;
+  propAccountId?: string | null | 'unassigned';
   startDate?: string;
   endDate?: string;
+  exitStartDate?: string;
+  exitEndDate?: string;
   search?: string;
 }
 
@@ -46,7 +48,9 @@ export async function getTrades(
     if (filters?.playbookId) {
       conditions.push(eq(trades.playbookId, filters.playbookId));
     }
-    if (filters?.propAccountId) {
+    if (filters?.propAccountId === 'unassigned') {
+      conditions.push(isNull(trades.propAccountId));
+    } else if (filters?.propAccountId) {
       conditions.push(eq(trades.propAccountId, filters.propAccountId));
     }
     if (filters?.startDate) {
@@ -54,6 +58,12 @@ export async function getTrades(
     }
     if (filters?.endDate) {
       conditions.push(lte(trades.entryDate, new Date(filters.endDate)));
+    }
+    if (filters?.exitStartDate) {
+      conditions.push(gte(trades.exitDate, new Date(filters.exitStartDate)));
+    }
+    if (filters?.exitEndDate) {
+      conditions.push(lte(trades.exitDate, new Date(filters.exitEndDate)));
     }
     if (filters?.search) {
       conditions.push(ilike(trades.symbol, `%${filters.search}%`));
@@ -152,7 +162,7 @@ export async function getTradesByDateRange(
   userId: string,
   startDate: string,
   endDate: string,
-  propAccountId?: string | null
+  propAccountId?: string | null | 'unassigned'
 ): Promise<Trade[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const conditions: any[] = [
@@ -160,7 +170,9 @@ export async function getTradesByDateRange(
     gte(trades.entryDate, new Date(startDate)),
     lte(trades.entryDate, new Date(endDate)),
   ];
-  if (propAccountId) {
+  if (propAccountId === 'unassigned') {
+    conditions.push(isNull(trades.propAccountId));
+  } else if (propAccountId) {
     conditions.push(eq(trades.propAccountId, propAccountId));
   }
 

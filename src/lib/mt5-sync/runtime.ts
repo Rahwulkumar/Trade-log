@@ -1,10 +1,12 @@
 import type {
+    TerminalSyncProvider,
     TerminalStatus,
     TerminalSyncDiagnostics,
     WindowsMt5PythonMetadata,
 } from '@/lib/terminal-farm/types';
 
 export const WINDOWS_WORKER_HEARTBEAT_THRESHOLD_MS = 5 * 60 * 1000;
+export const LEGACY_TERMINAL_HEARTBEAT_THRESHOLD_MS = 2 * 60 * 1000;
 
 type AssignmentCandidate = {
     terminalId: string;
@@ -47,6 +49,26 @@ export function hasRecentWorkerHeartbeatIso(lastHeartbeat: string | null): boole
     }
 
     return Date.now() - lastBeatMs <= WINDOWS_WORKER_HEARTBEAT_THRESHOLD_MS;
+}
+
+export function hasRecentTerminalHeartbeat(
+    lastHeartbeat: string | null,
+    provider: TerminalSyncProvider
+): boolean {
+    if (provider === 'windows_mt5_python') {
+        return hasRecentWorkerHeartbeatIso(lastHeartbeat);
+    }
+
+    if (!lastHeartbeat) {
+        return false;
+    }
+
+    const lastBeatMs = new Date(lastHeartbeat).getTime();
+    if (Number.isNaN(lastBeatMs)) {
+        return false;
+    }
+
+    return Date.now() - lastBeatMs <= LEGACY_TERMINAL_HEARTBEAT_THRESHOLD_MS;
 }
 
 export function deriveWindowsMt5WorkerTerminalState(

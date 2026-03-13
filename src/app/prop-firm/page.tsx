@@ -221,6 +221,8 @@ export default function PropFirmPage() {
   const getTerminalSyncKey = useCallback(
     (result: TerminalStatusByPropAccountResult) =>
       [
+        result.terminal?.terminalId ?? "",
+        result.terminal?.status ?? "",
         result.terminal?.lastHeartbeat ?? "",
         result.terminal?.lastSyncAt ?? "",
         result.mt5Account?.balance ?? "",
@@ -501,6 +503,25 @@ export default function PropFirmPage() {
         setMt5Error(syncResult.error || "Failed to enable auto-sync");
         return;
       }
+
+      const normalizedBalance =
+        balanceNum != null && !Number.isNaN(balanceNum) ? balanceNum : null;
+
+      setTerminalStatus((previous) => ({
+        connected: false,
+        terminal: syncResult.terminal ?? previous?.terminal ?? null,
+        mt5AccountId: createResult.accountId,
+        mt5Account: {
+          mt5AccountId: createResult.accountId!,
+          server: mt5FormData.server,
+          login: mt5FormData.login,
+          accountName: `${mt5FormData.server} - ${mt5FormData.login}`,
+          balance: normalizedBalance,
+          equity: normalizedBalance,
+        },
+        diagnostics: previous?.diagnostics ?? null,
+        livePositions: previous?.livePositions ?? [],
+      }));
 
       await refreshTerminalStatus(selectedAccount.id, {
         reloadAccountsOnChange: true,
@@ -978,6 +999,12 @@ export default function PropFirmPage() {
                       {terminalStatus.mt5Account
                         ? `${terminalStatus.mt5Account.server} / ${terminalStatus.mt5Account.login}`
                         : "Not linked"}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border bg-background/40 p-3">
+                    <p className="text-xs text-muted-foreground">Terminal ID</p>
+                    <p className="mt-1 font-mono text-white break-all">
+                      {terminalStatus.terminal?.terminalId ?? "Awaiting assignment"}
                     </p>
                   </div>
                   <div className="rounded-md border border-border bg-background/40 p-3">
@@ -1472,6 +1499,12 @@ export default function PropFirmPage() {
                     · Login:{" "}
                     <span className="font-mono text-foreground">
                       {terminalStatus.mt5Account.login}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Terminal ID:{" "}
+                    <span className="font-mono text-foreground break-all">
+                      {terminalStatus.terminal?.terminalId ?? "Awaiting assignment"}
                     </span>
                   </p>
                   {terminalStatus.mt5Account.balance != null && (
