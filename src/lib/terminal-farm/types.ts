@@ -5,7 +5,7 @@
 
 // Terminal status enum matching database constraint
 export type TerminalStatus = 'PENDING' | 'STARTING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'ERROR';
-export type TerminalSyncProvider = 'terminal_farm' | 'metaapi';
+export type TerminalSyncProvider = 'terminal_farm' | 'metaapi' | 'windows_mt5_python';
 export type TerminalWebhookCode =
     | 'OK'
     | 'UNKNOWN_TERMINAL'
@@ -103,6 +103,7 @@ export interface TerminalTradePayload {
 export interface TerminalSyncPayload {
     terminalId: string;
     trades: TerminalTradePayload[];
+    syncCursor?: string;
 }
 
 export interface TerminalPositionPayload {
@@ -216,6 +217,31 @@ export interface MetaApiTerminalMetadata {
     lastDealsCursor?: string | null;
     lastDealsWindowStart?: string | null;
     lastError?: string | null;
+}
+
+export interface WindowsMt5PythonMetadata {
+    workerId?: string | null;
+    workerHost?: string | null;
+    loginState?: 'pending' | 'connected' | 'disconnected' | 'error';
+    lastHeartbeatAt?: string | null;
+    lastSuccessfulSyncAt?: string | null;
+    lastDealsCursor?: string | null;
+    lastError?: string | null;
+}
+
+export interface WindowsMt5WorkerAssignment {
+    terminalId: string;
+    mt5AccountId: string;
+    userId: string;
+    desiredState: 'RUNNING' | 'STOPPED';
+    accountName: string;
+    server: string;
+    login: string;
+    password: string;
+    lastHeartbeat: string | null;
+    lastSyncAt: string | null;
+    workerId: string | null;
+    workerHost: string | null;
 }
 
 export interface TerminalWebhookResponse {

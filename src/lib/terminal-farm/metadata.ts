@@ -3,6 +3,7 @@ import type {
     TerminalPositionPayload,
     TerminalSyncProvider,
     TerminalSyncDiagnostics,
+    WindowsMt5PythonMetadata,
 } from './types';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -52,7 +53,15 @@ export function readTerminalSyncProvider(
         return 'terminal_farm';
     }
 
-    return metadata.syncProvider === 'metaapi' ? 'metaapi' : 'terminal_farm';
+    if (metadata.syncProvider === 'metaapi') {
+        return 'metaapi';
+    }
+
+    if (metadata.syncProvider === 'windows_mt5_python') {
+        return 'windows_mt5_python';
+    }
+
+    return 'terminal_farm';
 }
 
 export function readMetaApiMetadata(
@@ -79,6 +88,21 @@ export function readMetaApiAccountId(
     return readMetaApiMetadata(metadata)?.accountId ?? null;
 }
 
+export function readWindowsMt5PythonMetadata(
+    metadata: Record<string, unknown> | null | undefined
+): WindowsMt5PythonMetadata | null {
+    if (!isRecord(metadata)) {
+        return null;
+    }
+
+    const worker = metadata.windowsMt5Python;
+    if (isRecord(worker)) {
+        return worker as unknown as WindowsMt5PythonMetadata;
+    }
+
+    return null;
+}
+
 export function mergeTerminalMetadata(
     metadata: Record<string, unknown> | null | undefined,
     updates: {
@@ -87,6 +111,7 @@ export function mergeTerminalMetadata(
         syncDiagnostics?: TerminalSyncDiagnostics;
         syncProvider?: TerminalSyncProvider;
         metaApi?: MetaApiTerminalMetadata;
+        windowsMt5Python?: WindowsMt5PythonMetadata;
         [key: string]: unknown;
     }
 ): Record<string, unknown> {
