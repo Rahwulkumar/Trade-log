@@ -1,5 +1,6 @@
 import { requireAuth } from '@/lib/auth/server';
-import { enableMetaApiAutoSync } from '@/lib/metaapi/service';
+import { buildMt5EaSetupDescriptor } from '@/lib/mt5/ea-setup';
+import { enableMt5AutoSync } from '@/lib/mt5-sync/service';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
@@ -27,7 +28,7 @@ export async function POST(
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    const terminal = await enableMetaApiAutoSync(accountId, userId);
+    const terminal = await enableMt5AutoSync(accountId, userId);
 
     return NextResponse.json({
       success: true,
@@ -37,6 +38,7 @@ export async function POST(
         status: terminal.status,
         createdAt: terminal.createdAt,
       },
+      eaSetup: buildMt5EaSetupDescriptor(_request, accountId, terminal.id),
     });
   } catch (error) {
     console.error('[EnableAutoSync] Error:', error);

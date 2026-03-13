@@ -1,5 +1,6 @@
 import { requireAuth } from '@/lib/auth/server';
-import { refreshMetaApiTerminalStatus } from '@/lib/metaapi/service';
+import { buildMt5EaSetupDescriptor } from '@/lib/mt5/ea-setup';
+import { refreshMt5SyncStatus } from '@/lib/mt5-sync/service';
 import { getTerminalByAccountId } from '@/lib/terminal-farm/service';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -28,7 +29,7 @@ export async function GET(
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    await refreshMetaApiTerminalStatus(accountId, userId, {
+    await refreshMt5SyncStatus(accountId, userId, {
       createIfMissing: false,
     });
 
@@ -47,6 +48,7 @@ export async function GET(
         lastSyncAt: terminal.lastSyncAt,
         errorMessage: terminal.errorMessage,
       },
+      eaSetup: buildMt5EaSetupDescriptor(_request, accountId, terminal.id),
     });
   } catch (error) {
     console.error('[TerminalStatus] Error:', error);

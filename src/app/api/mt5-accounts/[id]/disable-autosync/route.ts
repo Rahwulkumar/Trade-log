@@ -1,5 +1,5 @@
 import { requireAuth } from '@/lib/auth/server';
-import { disableMetaApiAutoSync } from '@/lib/metaapi/service';
+import { disableMt5AutoSync } from '@/lib/mt5-sync/service';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function DELETE(
@@ -27,7 +27,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    await disableMetaApiAutoSync(accountId, userId);
+    await disableMt5AutoSync(accountId, userId);
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

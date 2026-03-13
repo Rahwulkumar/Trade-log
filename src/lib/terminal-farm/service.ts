@@ -4,7 +4,7 @@
  * Uses Neon (Drizzle) — no Supabase.
  */
 
-import { eq, inArray, like, asc, and, isNull, sql } from 'drizzle-orm';
+import { eq, inArray, like, asc, and, isNull, sql, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
 import {
@@ -529,7 +529,7 @@ export async function getOrchestratorConfig(): Promise<OrchestratorTerminalConfi
         .where(inArray(terminalInstances.status, ['PENDING', 'STARTING', 'RUNNING', 'STOPPING']));
 
     const terminals = candidateTerminals.filter(
-        terminal => readTerminalSyncProvider(terminal.metadata as Record<string, unknown>) !== 'metaapi'
+        terminal => readTerminalSyncProvider(terminal.metadata as Record<string, unknown>) === 'terminal_farm'
     );
 
     const config: OrchestratorTerminalConfig[] = [];
@@ -872,6 +872,42 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
     let imported = 0;
     let skipped = 0;
     const errors: Array<{ ticket: string; error: string }> = [];
+    const seenDealTickets = new Set<string>();
+
+    const incomingDealTickets = Array.from(
+        new Set(
+            data.trades
+                .map(trade => trade.ticket?.trim())
+                .filter((ticket): ticket is string => Boolean(ticket))
+        )
+    );
+
+    if (incomingDealTickets.length > 0) {
+        const existingDealTickets = await db
+            .select({
+                externalTicket: trades.externalTicket,
+                externalDealId: trades.externalDealId,
+            })
+            .from(trades)
+            .where(
+                and(
+                    eq(trades.mt5AccountId, terminal.accountId),
+                    or(
+                        inArray(trades.externalTicket, incomingDealTickets),
+                        inArray(trades.externalDealId, incomingDealTickets)
+                    )
+                )
+            );
+
+        for (const existingTicket of existingDealTickets) {
+            if (existingTicket.externalTicket) {
+                seenDealTickets.add(existingTicket.externalTicket);
+            }
+            if (existingTicket.externalDealId) {
+                seenDealTickets.add(existingTicket.externalDealId);
+            }
+        }
+    }
 
     const positionIds = data.trades
         .filter(t => t.positionId)
@@ -1009,6 +1045,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
         notes: trade.positionId != null
             ? `Auto-synced via Terminal Farm. Position ID: ${trade.positionId}`
             : `Auto-synced from MT5. Ticket: ${trade.ticket}`,
+        externalTicket: trade.ticket,
         externalId: trade.positionId != null ? trade.positionId.toString() : null,
         externalDealId: trade.ticket,
         contractSize: trade.contractSize != null ? String(trade.contractSize) : null,
@@ -1068,6 +1105,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
         stopLoss: trade.stopLoss != null ? String(trade.stopLoss) : null,
         takeProfit: trade.takeProfit != null ? String(trade.takeProfit) : null,
         notes: note ?? `Orphan Exit Synced (Entry missing). Position ID: ${positionIdString}`,
+        externalTicket: trade.ticket,
         externalId: positionIdString,
         externalDealId: trade.ticket,
         contractSize: trade.contractSize != null ? String(trade.contractSize) : null,
@@ -1077,6 +1115,11 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
 
     for (const trade of data.trades) {
         try {
+            if (seenDealTickets.has(trade.ticket)) {
+                skipped++;
+                continue;
+            }
+
             if (trade.positionId) {
                 const positionIdString = trade.positionId.toString();
                 const isEntry = trade.entryType === 0;
@@ -1520,8 +1563,8 @@ export async function queueFetchCandles(
         return;
     }
 
-    if (readTerminalSyncProvider(terminal.metadata) === 'metaapi') {
-        console.log('[TerminalFarm] MetaApi-backed account does not use terminal command queue, falling back to Twelve Data');
+    if (readTerminalSyncProvider(terminal.metadata) !== 'terminal_farm') {
+        console.log('[TerminalFarm] Non-terminal-farm account does not use terminal command queue, falling back to Twelve Data');
         return;
     }
 

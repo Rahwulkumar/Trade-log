@@ -48,6 +48,7 @@ export const TerminalTradePayloadSchema = z.object({
 export const TerminalSyncPayloadSchema = z.object({
     terminalId: z.string().uuid(),
     trades: z.array(TerminalTradePayloadSchema),
+    syncCursor: z.string().min(1).optional(),
 });
 
 export const TerminalPositionPayloadSchema = z.object({

@@ -11,6 +11,7 @@ const isPublicPageRoute = createRouteMatcher([
 
 const isPublicApiRoute = createRouteMatcher([
   '/api/webhook/terminal(.*)',
+  '/api/internal/mt5-worker(.*)',
   '/api/orchestrator(.*)',
 ]);
 

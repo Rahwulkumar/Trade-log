@@ -62,3 +62,11 @@ full_errors.txt
 build_errors.log
 tsc_error.log
 supabase_debug.log
+
+# MT5 local runtime artifacts
+ea/*.local.set
+ea/compile*.log
+windows-mt5-worker/.venv/
+windows-mt5-worker/logs/
+windows-mt5-worker/artifacts/
+windows-mt5-worker/__pycache__/
