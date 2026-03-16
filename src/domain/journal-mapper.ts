@@ -194,6 +194,35 @@ export function isRawTradeJournaled(t: Trade): boolean {
   return isTradeJournaled(mapTradeToViewModel(t));
 }
 
+// ─── Draft → API update payload (camelCase for Drizzle/REST) ────────────────
+
+/**
+ * Converts a JournalEntryDraft into a flat object for PATCH /api/trades/:id.
+ * Uses camelCase keys matching the Drizzle schema.
+ */
+export function mapDraftToApiUpdate(draft: JournalEntryDraft): Record<string, unknown> {
+  return {
+    notes: draft.notes || null,
+    feelings: draft.feelings || null,
+    observations: draft.observations || null,
+    screenshots: draft.screenshots.length
+      ? draft.screenshots.map((s) => ({ url: s.url, timeframe: s.timeframe }))
+      : null,
+    tfObservations: Object.keys(draft.tfObservations).length
+      ? draft.tfObservations
+      : null,
+    setupTags: draft.setupTags.length ? draft.setupTags : null,
+    mistakeTags: draft.mistakeTags.length ? draft.mistakeTags : null,
+    conviction: draft.conviction,
+    entryRating: draft.entryRating,
+    exitRating: draft.exitRating,
+    mae: draft.mae,
+    mfe: draft.mfe,
+    executionNotes: draft.executionNotes || null,
+    executionArrays: draft.executionArrays.length ? draft.executionArrays : null,
+  };
+}
+
 // ─── TradeScreenshot interop ────────────────────────────────────────────────
 
 /** Convert JournalScreenshot back to the SupabaseScreenshot shape for components

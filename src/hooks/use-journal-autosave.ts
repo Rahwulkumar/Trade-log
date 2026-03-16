@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { JournalEntryDraft } from "@/domain/journal-types";
-import { mapDraftToTradeUpdate } from "@/domain/journal-mapper";
-import { createClient } from "@/lib/supabase/client";
+import { mapDraftToApiUpdate } from "@/domain/journal-mapper";
 
 // ─── useJournalAutosave ─────────────────────────────────────────────────────
 // Replaces the ad-hoc useEffect + handleSave pattern in TradeJournal.
@@ -130,18 +129,19 @@ export function useJournalAutosave({
 
     setSaving(true);
     try {
-      const supabase = createClient();
-      const payload = mapDraftToTradeUpdate(draftRef.current);
-      const { error } = await supabase
-        .from("trades")
-        .update(payload)
-        .eq("id", tradeIdRef.current);
+      const payload = mapDraftToApiUpdate(draftRef.current);
+      const res = await fetch(`/api/trades/${tradeIdRef.current}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       // Reject if trade switched while saving
       if (gen !== genRef.current) return;
 
-      if (error) {
-        console.error("[Journal save error]", error.message, error.details);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("[Journal save error]", err);
         return;
       }
 

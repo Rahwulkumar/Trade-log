@@ -52,7 +52,7 @@ function CashflowTooltip({
           color: "var(--text-tertiary)",
           fontSize: "0.7rem",
           marginBottom: "0.4rem",
-          fontFamily: "var(--font-dm-sans)",
+          fontFamily: "var(--font-inter)",
         }}
       >
         {label}
@@ -66,7 +66,7 @@ function CashflowTooltip({
             style={{
               color: entry.color,
               fontSize: "0.75rem",
-              fontFamily: "var(--font-dm-sans)",
+              fontFamily: "var(--font-inter)",
             }}
           >
             {entry.name}
@@ -230,7 +230,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
             style={{
               fontSize: "0.71rem",
               color: "var(--text-tertiary)",
-              fontFamily: "var(--font-dm-sans)",
+              fontFamily: "var(--font-inter)",
             }}
           >
             <span
@@ -244,7 +244,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
             style={{
               fontSize: "0.71rem",
               color: "var(--text-tertiary)",
-              fontFamily: "var(--font-dm-sans)",
+              fontFamily: "var(--font-inter)",
             }}
           >
             <span
@@ -309,7 +309,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
               tick={{
                 fill: "var(--text-tertiary)",
                 fontSize: 10,
-                fontFamily: "var(--font-dm-sans)",
+                fontFamily: "var(--font-inter)",
               }}
               tickLine={false}
               axisLine={false}

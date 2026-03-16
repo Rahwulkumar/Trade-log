@@ -117,8 +117,12 @@ function getHeartbeatDiagnosticState(data: TerminalHeartbeatPayload): Pick<
         accountName.length > 0 || company.length > 0 || currency.length > 0;
     const hasFinancialState = balance > 0.00001 || equity > 0.00001;
     const hasTradingState = visibleDeals > 0 || openPositions > 0;
+    const hasLoginAndServer = Boolean(data.sessionInfo?.login?.trim() && data.sessionInfo?.server?.trim());
+    // Only flag as unloaded when syncState is absent — if the EA is actively sending syncState
+    // it is running, so treat it as connected even if the broker omits identity/balance fields
+    // (common with prop firm SIM accounts that don't populate company/currency/accountName).
     const appearsUnloaded =
-        Boolean(data.sessionInfo?.login?.trim() && data.sessionInfo?.server?.trim()) &&
+        hasLoginAndServer &&
         !hasAccountIdentity &&
         !hasFinancialState &&
         !hasTradingState;
@@ -137,15 +141,9 @@ function getHeartbeatDiagnosticState(data: TerminalHeartbeatPayload): Pick<
         };
     }
 
-    if (appearsUnloaded) {
-        return {
-            code: 'ACCOUNT_NOT_LOADED',
-            message:
-                'MT5 is running but the broker account is not loaded. Login/server are present while account identity, balances, and history are empty. Seed the broker server files or verify the MT5 login session.',
-            lastSeenDealCount: visibleDeals,
-            lastSeenOpenPositionCount: openPositions,
-        };
-    }
+    // When syncState IS present the EA is actively running — skip the unloaded check.
+    // Prop firm SIM/demo servers often omit company, currency, and accountName, and may
+    // report zero balance on fresh or replayed accounts.  Trust the login+server pair.
 
     if (data.syncState.totalDeals === 0) {
         return {

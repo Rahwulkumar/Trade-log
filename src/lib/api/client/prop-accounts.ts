@@ -15,6 +15,15 @@ export interface ComplianceStatus {
   daysRemaining: number | null;
 }
 
+/** Default compliance — used inline to avoid N API calls (compliance is not yet implemented). */
+export const DEFAULT_COMPLIANCE: ComplianceStatus = {
+  isCompliant: true,
+  dailyDdRemaining: 100,
+  totalDdRemaining: 100,
+  profitProgress: null,
+  daysRemaining: null,
+};
+
 export async function getPropAccounts(): Promise<PropAccount[]> {
   try {
     const res = await fetch('/api/prop-accounts', { credentials: 'include' });
@@ -81,6 +90,22 @@ export async function deletePropAccount(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete prop account');
 }
 
+/**
+ * Recalculate balances for ALL non-MT5 accounts in one request.
+ * Uses 3 DB queries instead of N separate API calls.
+ */
+export async function recalculateAllBalances(): Promise<void> {
+  try {
+    await fetch('/api/prop-accounts/recalculate-all', {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch {
+    // Non-fatal — accounts load with existing balances
+  }
+}
+
+/** @deprecated Use recalculateAllBalances() instead to avoid N API calls. */
 export async function recalculateBalanceFromTrades(accountId: string): Promise<PropAccount | null> {
   try {
     const res = await fetch('/api/prop-accounts/recalculate-balance', {
@@ -96,22 +121,7 @@ export async function recalculateBalanceFromTrades(accountId: string): Promise<P
   }
 }
 
-export async function checkCompliance(accountId: string): Promise<ComplianceStatus> {
-  try {
-    const res = await fetch(`/api/prop-accounts/${accountId}/compliance`, { credentials: 'include' });
-    if (!res.ok) {
-      return { isCompliant: true, dailyDdRemaining: 100, totalDdRemaining: 100, profitProgress: null, daysRemaining: null };
-    }
-    return (
-      (await readJsonIfAvailable<ComplianceStatus>(res)) ?? {
-        isCompliant: true,
-        dailyDdRemaining: 100,
-        totalDdRemaining: 100,
-        profitProgress: null,
-        daysRemaining: null,
-      }
-    );
-  } catch {
-    return { isCompliant: true, dailyDdRemaining: 100, totalDdRemaining: 100, profitProgress: null, daysRemaining: null };
-  }
+/** @deprecated Compliance is not yet implemented — use DEFAULT_COMPLIANCE inline instead. */
+export async function checkCompliance(_accountId: string): Promise<ComplianceStatus> {
+  return DEFAULT_COMPLIANCE;
 }

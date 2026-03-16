@@ -1,3 +1,8 @@
+/**
+ * Analytics helpers read from /api/trades so dashboard and journal use the same
+ * filtered trade source after the Drizzle migration.
+ */
+
 import { getTrades } from '@/lib/api/client/trades';
 import type { TradeFilters } from '@/lib/api/trades';
 import { todayString } from '@/lib/utils/format';
@@ -19,19 +24,29 @@ export interface AnalyticsSummary {
 }
 
 type AnalyticsTrade = {
-    pnl?: unknown;
-    rMultiple?: unknown;
-    r_multiple?: unknown;
-    entryDate?: unknown;
-    entry_date?: unknown;
-    exitDate?: unknown;
-    exit_date?: unknown;
-};
+    pnl?: unknown
+    rMultiple?: unknown
+    r_multiple?: unknown
+    entryDate?: unknown
+    entry_date?: unknown
+    exitDate?: unknown
+    exit_date?: unknown
+}
 
 const EMPTY_SUMMARY: AnalyticsSummary = {
-    totalTrades: 0, winningTrades: 0, losingTrades: 0, winRate: 0,
-    totalPnl: 0, avgPnl: 0, avgRMultiple: 0, profitFactor: 0,
-    largestWin: 0, largestLoss: 0, avgWin: 0, avgLoss: 0, expectancy: 0,
+    totalTrades: 0,
+    winningTrades: 0,
+    losingTrades: 0,
+    winRate: 0,
+    totalPnl: 0,
+    avgPnl: 0,
+    avgRMultiple: 0,
+    profitFactor: 0,
+    largestWin: 0,
+    largestLoss: 0,
+    avgWin: 0,
+    avgLoss: 0,
+    expectancy: 0,
 };
 
 function toNumber(value: unknown): number {
@@ -60,6 +75,14 @@ function toDate(value: unknown): Date | null {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function getPnl(trade: AnalyticsTrade): number {
+    return toNumber(trade.pnl);
+}
+
+function getRMultiple(trade: AnalyticsTrade): number {
+    return toNumber(trade.rMultiple ?? trade.r_multiple);
+}
+
 function getEntryDate(trade: AnalyticsTrade): Date | null {
     return toDate(trade.entryDate ?? trade.entry_date);
 }
@@ -74,15 +97,16 @@ function normalizePropAccountId(
     if (!propAccountId) {
         return undefined;
     }
+
     return propAccountId;
 }
 
 function buildClosedTradeFilters(options: {
-    startDate?: string;
-    endDate?: string;
-    exitStartDate?: string;
-    exitEndDate?: string;
-    propAccountId?: string | null;
+    startDate?: string
+    endDate?: string
+    exitStartDate?: string
+    exitEndDate?: string
+    propAccountId?: string | null
 }): TradeFilters {
     return {
         status: 'closed',
@@ -95,11 +119,11 @@ function buildClosedTradeFilters(options: {
 }
 
 async function fetchClosedTrades(options: {
-    startDate?: string;
-    endDate?: string;
-    exitStartDate?: string;
-    exitEndDate?: string;
-    propAccountId?: string | null;
+    startDate?: string
+    endDate?: string
+    exitStartDate?: string
+    exitEndDate?: string
+    propAccountId?: string | null
 }): Promise<AnalyticsTrade[]> {
     const rows = await getTrades(buildClosedTradeFilters(options));
     return rows as unknown as AnalyticsTrade[];
@@ -119,12 +143,12 @@ export async function getAnalyticsSummary(
 
         if (closedTrades.length === 0) return EMPTY_SUMMARY;
 
-        const winners = closedTrades.filter(t => toNumber(t.pnl) > 0);
-        const losers = closedTrades.filter(t => toNumber(t.pnl) < 0);
+        const winners = closedTrades.filter((trade) => getPnl(trade) > 0);
+        const losers = closedTrades.filter((trade) => getPnl(trade) < 0);
 
-        const totalPnl = closedTrades.reduce((sum, t) => sum + toNumber(t.pnl), 0);
-        const grossProfit = winners.reduce((sum, t) => sum + toNumber(t.pnl), 0);
-        const grossLoss = Math.abs(losers.reduce((sum, t) => sum + toNumber(t.pnl), 0));
+        const totalPnl = closedTrades.reduce((sum, trade) => sum + getPnl(trade), 0);
+        const grossProfit = winners.reduce((sum, trade) => sum + getPnl(trade), 0);
+        const grossLoss = Math.abs(losers.reduce((sum, trade) => sum + getPnl(trade), 0));
 
         const winRate = (winners.length / closedTrades.length) * 100;
         const avgWin = winners.length > 0 ? grossProfit / winners.length : 0;
@@ -139,14 +163,10 @@ export async function getAnalyticsSummary(
             winRate,
             totalPnl,
             avgPnl: totalPnl / closedTrades.length,
-            avgRMultiple:
-                closedTrades.reduce(
-                    (sum, t) => sum + toNumber(t.rMultiple ?? t.r_multiple),
-                    0
-                ) / closedTrades.length,
+            avgRMultiple: closedTrades.reduce((sum, trade) => sum + getRMultiple(trade), 0) / closedTrades.length,
             profitFactor,
-            largestWin: winners.length > 0 ? Math.max(...winners.map(t => toNumber(t.pnl))) : 0,
-            largestLoss: losers.length > 0 ? Math.abs(Math.min(...losers.map(t => toNumber(t.pnl)))) : 0,
+            largestWin: winners.length > 0 ? Math.max(...winners.map(getPnl)) : 0,
+            largestLoss: losers.length > 0 ? Math.abs(Math.min(...losers.map(getPnl))) : 0,
             avgWin,
             avgLoss,
             expectancy,
@@ -190,17 +210,17 @@ export async function getEquityCurve(
 
         let runningBalance = startingBalance;
         const curve: EquityCurvePoint[] = [
-            { date: startDate || todayString(), balance: startingBalance, pnl: 0 }
+            { date: startDate || todayString(), balance: startingBalance, pnl: 0 },
         ];
 
         for (const trade of sortedTrades) {
-            const pnl = toNumber(trade.pnl);
-            runningBalance += pnl;
+            const pnl = getPnl(trade);
             const timestamp =
                 getExitDate(trade)?.toISOString() ??
                 getEntryDate(trade)?.toISOString() ??
                 todayString();
 
+            runningBalance += pnl;
             curve.push({
                 date: timestamp,
                 balance: runningBalance,
@@ -224,28 +244,27 @@ export interface DayPerformance {
 
 export async function getPerformanceByDay(propAccountId?: string | null): Promise<DayPerformance[]> {
     const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const empty = DAYS.slice(1, 6).map(day => ({ day, totalPnl: 0, trades: 0, winRate: 0 }));
+    const empty = DAYS.slice(1, 6).map((day) => ({ day, totalPnl: 0, trades: 0, winRate: 0 }));
 
     try {
         const trades = await fetchClosedTrades({ propAccountId });
         const dayStats: Record<string, { pnl: number; trades: number; wins: number }> = {};
-        DAYS.forEach(day => { dayStats[day] = { pnl: 0, trades: 0, wins: 0 }; });
+        DAYS.forEach((day) => {
+            dayStats[day] = { pnl: 0, trades: 0, wins: 0 };
+        });
 
         for (const trade of trades) {
-            const tradeDate = getEntryDate(trade);
-            if (!tradeDate) {
-                continue;
-            }
+            const entryDate = getEntryDate(trade);
+            if (!entryDate) continue;
 
-            const dayName = DAYS[tradeDate.getDay()];
-            const pnl = toNumber(trade.pnl);
-
+            const dayName = DAYS[entryDate.getDay()];
+            const pnl = getPnl(trade);
             dayStats[dayName].pnl += pnl;
             dayStats[dayName].trades++;
             if (pnl > 0) dayStats[dayName].wins++;
         }
 
-        return DAYS.slice(1, 6).map(day => ({
+        return DAYS.slice(1, 6).map((day) => ({
             day,
             totalPnl: dayStats[day].pnl,
             trades: dayStats[day].trades,
@@ -269,33 +288,39 @@ export async function getMonthlyPerformance(propAccountId?: string | null): Prom
     try {
         const trades = await fetchClosedTrades({ propAccountId });
         const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const monthStats: Record<string, { pnl: number; trades: number; wins: number }> = {};
+        const monthStats: Record<string, { monthIndex: number; pnl: number; trades: number; wins: number }> = {};
 
         for (const trade of trades) {
-            const tradeDate = getEntryDate(trade);
-            if (!tradeDate) {
-                continue;
+            const entryDate = getEntryDate(trade);
+            if (!entryDate) continue;
+
+            const monthIndex = entryDate.getMonth();
+            const key = `${entryDate.getFullYear()}-${monthIndex}`;
+            if (!monthStats[key]) {
+                monthStats[key] = { monthIndex, pnl: 0, trades: 0, wins: 0 };
             }
 
-            const key = `${tradeDate.getFullYear()}-${tradeDate.getMonth()}`;
-            if (!monthStats[key]) monthStats[key] = { pnl: 0, trades: 0, wins: 0 };
-
-            const pnl = toNumber(trade.pnl);
+            const pnl = getPnl(trade);
             monthStats[key].pnl += pnl;
             monthStats[key].trades++;
             if (pnl > 0) monthStats[key].wins++;
         }
 
-        return Object.entries(monthStats).map(([key, stats]) => {
-            const [year, month] = key.split('-').map(Number);
-            return {
-                month: MONTHS[month],
-                year,
-                totalPnl: stats.pnl,
-                trades: stats.trades,
-                winRate: stats.trades > 0 ? (stats.wins / stats.trades) * 100 : 0,
-            };
-        });
+        return Object.entries(monthStats)
+            .map(([key, stats]) => {
+                const [year] = key.split('-').map(Number);
+                return {
+                    month: MONTHS[stats.monthIndex],
+                    year,
+                    totalPnl: stats.pnl,
+                    trades: stats.trades,
+                    winRate: stats.trades > 0 ? (stats.wins / stats.trades) * 100 : 0,
+                };
+            })
+            .sort((left, right) => {
+                if (left.year !== right.year) return left.year - right.year;
+                return MONTHS.indexOf(left.month) - MONTHS.indexOf(right.month);
+            });
     } catch (err) {
         console.warn('[getMonthlyPerformance] unexpected error:', err);
         return [];
@@ -309,6 +334,7 @@ export async function getTodayStats(propAccountId?: string | null): Promise<{
     losses: number
 }> {
     const EMPTY = { pnl: 0, trades: 0, wins: 0, losses: 0 };
+
     try {
         const today = todayString();
         const closedTrades = await fetchClosedTrades({
@@ -317,11 +343,11 @@ export async function getTodayStats(propAccountId?: string | null): Promise<{
             exitEndDate: `${today}T23:59:59`,
         });
 
-        const wins = closedTrades.filter(t => toNumber(t.pnl) > 0).length;
-        const losses = closedTrades.filter(t => toNumber(t.pnl) < 0).length;
+        const wins = closedTrades.filter((trade) => getPnl(trade) > 0).length;
+        const losses = closedTrades.filter((trade) => getPnl(trade) < 0).length;
 
         return {
-            pnl: closedTrades.reduce((sum, t) => sum + toNumber(t.pnl), 0),
+            pnl: closedTrades.reduce((sum, trade) => sum + getPnl(trade), 0),
             trades: closedTrades.length,
             wins,
             losses,

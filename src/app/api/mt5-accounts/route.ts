@@ -1,7 +1,7 @@
 import { requireAuth } from '@/lib/auth/server';
 import { encrypt } from '@/lib/mt5/encryption';
 import { db } from '@/lib/db';
-import { mt5Accounts, propAccounts } from '@/lib/db/schema';
+import { mt5Accounts, propAccounts, trades } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -107,6 +107,68 @@ export async function POST(request: NextRequest) {
         },
         { status: 409 }
       );
+    }
+
+    // Reuse an existing MT5 login/server for this user instead of creating duplicates.
+    // This preserves the current terminal row and any imported trade history when the
+    // user reconnects the same MT5 account to a different prop account record.
+    const [existingLoginAccount] = await db
+      .select({
+        id: mt5Accounts.id,
+        propAccountId: mt5Accounts.propAccountId,
+      })
+      .from(mt5Accounts)
+      .where(
+        and(
+          eq(mt5Accounts.userId, userId),
+          eq(mt5Accounts.server, server),
+          eq(mt5Accounts.login, login)
+        )
+      )
+      .limit(1);
+
+    if (existingLoginAccount) {
+      const updatePayload: Record<string, string | Date> = {
+        propAccountId,
+        accountName: `${server} - ${login}`,
+        password: encryptedPassword,
+        updatedAt: new Date(),
+      };
+
+      if (balanceToSet !== null) {
+        updatePayload.balance = balanceToSet;
+        updatePayload.equity = balanceToSet;
+      }
+
+      await db
+        .update(mt5Accounts)
+        .set(updatePayload)
+        .where(eq(mt5Accounts.id, existingLoginAccount.id));
+
+      await db
+        .update(trades)
+        .set({ propAccountId })
+        .where(eq(trades.mt5AccountId, existingLoginAccount.id));
+
+      if (balanceToSet !== null) {
+        const propUpdates: Record<string, string | Date> = {
+          currentBalance: balanceToSet,
+          lastSyncedAt: new Date(),
+        };
+        if (Number(propAccount.accountSize) === 0) {
+          propUpdates.accountSize = balanceToSet;
+        }
+        await db
+          .update(propAccounts)
+          .set(propUpdates)
+          .where(and(eq(propAccounts.id, propAccountId), eq(propAccounts.userId, userId)));
+      }
+
+      return NextResponse.json({
+        success: true,
+        accountId: existingLoginAccount.id,
+        reusedExistingAccount: true,
+      });
     }
 
     // Create new MT5 account

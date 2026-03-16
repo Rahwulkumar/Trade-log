@@ -5,10 +5,9 @@ import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import {
   getPropAccounts,
-  // createPropAccount removed
   deletePropAccount,
-  checkCompliance,
-  recalculateBalanceFromTrades,
+  recalculateAllBalances,
+  DEFAULT_COMPLIANCE,
   type ComplianceStatus,
 } from "@/lib/api/client/prop-accounts";
 
@@ -109,7 +108,9 @@ export default function PropFirmPage() {
   const [error, setError] = useState<string | null>(null);
   const [isNewAccountOpen, setIsNewAccountOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
 
   // Terminal Farm State (includes stored MT5 account so we can show "using your details")
@@ -122,6 +123,7 @@ export default function PropFirmPage() {
     livePositions: TerminalStatusByPropAccountResult["livePositions"];
   } | null>(null);
   const lastTerminalSyncKeyRef = useRef<string | null>(null);
+  const isSubmittingRef = useRef(false);
   const [terminalLoading, setTerminalLoading] = useState(false);
   const [mt5FormData, setMt5FormData] = useState({
     server: "",
@@ -131,11 +133,10 @@ export default function PropFirmPage() {
   });
   const [mt5Error, setMt5Error] = useState<string | null>(null);
 
-  // Single Add Account form: firm name, phase type, start date, optional starting balance
+  // Single Add Account form: firm name, phase type, starting balance
   const [addForm, setAddForm] = useState({
     firmName: "",
     phaseType: "2-phase" as "2-phase" | "1-phase" | "zero-phase",
-    startDate: new Date().toISOString().split("T")[0],
     startingBalance: "",
   });
 
@@ -149,52 +150,36 @@ export default function PropFirmPage() {
       setLoading(true);
       setError(null);
 
-      const accountsData = await getPropAccounts();
-      const mt5Accounts = await getMT5Accounts();
-      const mt5LinkedPropAccountIds = new Set(
-        mt5Accounts
-          .map((a) => a.propAccountId)
-          .filter((id): id is string => Boolean(id)),
-      );
+      // Fetch accounts + MT5 linkage in parallel
+      const [accountsData, mt5AccountList] = await Promise.all([
+        getPropAccounts(),
+        getMT5Accounts(),
+      ]);
 
-      // Recalculate only non-MT5 accounts from trades.
-      // MT5-linked accounts should keep live balance from terminal heartbeat.
-      const nonMt5Accounts = accountsData.filter(
-        (account) => !mt5LinkedPropAccountIds.has(account.id),
+      const mt5LinkedIds = new Set(
+        mt5AccountList.map((a) => a.propAccountId).filter((id): id is string => Boolean(id)),
       );
-      if (nonMt5Accounts.length > 0) {
-        await Promise.all(
-          nonMt5Accounts.map((account) =>
-            recalculateBalanceFromTrades(account.id),
-          ),
-        );
+      const hasNonMt5 = accountsData.some((a) => !mt5LinkedIds.has(a.id));
+
+      // Fire-and-forget batch recalculate for non-MT5 accounts, then refetch once
+      let updatedAccountsData = accountsData;
+      if (hasNonMt5) {
+        await recalculateAllBalances();
+        updatedAccountsData = await getPropAccounts();
       }
 
-      // Refetch after any recalculation
-      const updatedAccountsData =
-        nonMt5Accounts.length > 0 ? await getPropAccounts() : accountsData;
-
-      // Get compliance for each account
-      const accountsWithCompliance = await Promise.all(
-        updatedAccountsData.map(async (account) => {
-          const compliance = await checkCompliance(account.id);
-          return {
-            ...normalizeAccount(account),
-            compliance,
-          } as PropAccountWithCompliance;
-        }),
+      // Inline compliance — not yet wired to real rules, avoids N API calls
+      const accountsWithCompliance: PropAccountWithCompliance[] = updatedAccountsData.map(
+        (account) => ({ ...normalizeAccount(account), compliance: DEFAULT_COMPLIANCE }),
       );
 
       setAccounts(accountsWithCompliance);
 
-      // Determine which account to show based on global selection or default to first
+      // Determine which account to show
       if (selectedAccountId && selectedAccountId !== "unassigned") {
-        const found = accountsWithCompliance.find(
-          (a) => a.id === selectedAccountId,
-        );
+        const found = accountsWithCompliance.find((a) => a.id === selectedAccountId);
         if (found) setSelectedAccount(found);
-        else if (accountsWithCompliance.length > 0)
-          setSelectedAccount(accountsWithCompliance[0]);
+        else if (accountsWithCompliance.length > 0) setSelectedAccount(accountsWithCompliance[0]);
       } else if (accountsWithCompliance.length > 0 && !selectedAccountId) {
         setSelectedAccount(accountsWithCompliance[0]);
       }
@@ -336,21 +321,33 @@ export default function PropFirmPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
+    if (isSubmittingRef.current) return;
 
     const firm = addForm.firmName?.trim();
     if (!firm) {
-      setError("Please enter your prop firm name.");
+      setFormError("Please enter your prop firm name.");
       return;
     }
 
+    const balanceNum = addForm.startingBalance.trim()
+      ? Number(addForm.startingBalance.replace(/[^0-9.-]/g, ""))
+      : NaN;
+    if (Number.isNaN(balanceNum) || balanceNum <= 0) {
+      setFormError("Please enter a valid starting balance greater than 0.");
+      return;
+    }
+
+    const accountName = `${firm} - ${addForm.phaseType}`;
+    // Case-insensitive duplicate check client-side (server also enforces this)
+    if (accounts.some((a) => a.accountName.toLowerCase() === accountName.toLowerCase())) {
+      setFormError(`An account named "${accountName}" already exists.`);
+      return;
+    }
+
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
-    setError(null);
+    setFormError(null);
     try {
-      const accountName = `${firm} - ${addForm.phaseType}`;
-      const balanceNum = addForm.startingBalance.trim()
-        ? Number(addForm.startingBalance.replace(/[^0-9.-]/g, ""))
-        : 0;
-      const useBalance = !Number.isNaN(balanceNum) && balanceNum > 0 ? String(balanceNum) : "0";
       const res = await fetch("/api/prop-accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -358,9 +355,9 @@ export default function PropFirmPage() {
         body: JSON.stringify({
           accountName,
           firmName: firm,
-          accountSize: useBalance,
-          currentBalance: useBalance,
-          startDate: addForm.startDate || new Date().toISOString().split("T")[0],
+          accountSize: String(balanceNum),
+          currentBalance: String(balanceNum),
+          startDate: new Date().toISOString().split("T")[0],
           status: "active",
           currentPhaseStatus: addForm.phaseType,
         }),
@@ -370,49 +367,41 @@ export default function PropFirmPage() {
         throw new Error(data?.error ?? "Failed to create account");
       }
       const newAccount = await res.json();
-      setAddForm({
-        firmName: "",
-        phaseType: "2-phase",
-        startDate: new Date().toISOString().split("T")[0],
-        startingBalance: "",
-      });
+      setAddForm({ firmName: "", phaseType: "2-phase", startingBalance: "" });
       setIsNewAccountOpen(false);
       await loadAccounts();
       await refreshPropAccounts?.();
       if (newAccount?.id) setSelectedAccountId(newAccount.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create account");
+      setFormError(err instanceof Error ? err.message : "Failed to create account");
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (
-      !confirm(
-        "Are you sure you want to delete this account? This will also delete any linked MT5 accounts and cannot be undone.",
-      )
-    )
-      return;
+    setDeleteConfirmId(id);
+  }
 
+  async function confirmDelete() {
+    const id = deleteConfirmId;
+    if (!id) return;
+    setDeleteConfirmId(null);
     setIsDeleting(id);
     setError(null);
 
     try {
       await deletePropAccount(id);
-
       setSelectedAccount(null);
       if (selectedAccountId === id) setSelectedAccountId(null);
       await loadAccounts();
       await refreshPropAccounts?.();
-      setError(null);
     } catch (err) {
       console.error("[Delete] Error deleting prop account:", err);
       const errorMessage =
         err instanceof Error ? err.message : "Failed to delete account";
-      setError(
-        `Failed to delete account: ${errorMessage}. Please check the browser console for details.`,
-      );
+      setError(`Failed to delete account: ${errorMessage}.`);
     } finally {
       setIsDeleting(null);
     }
@@ -535,11 +524,11 @@ export default function PropFirmPage() {
     }
   }
 
-  const getStatusColor = (percent: number, max: number) => {
+  const getStatusColor = (percent: number, max: number): React.CSSProperties => {
     const ratio = percent / max;
-    if (ratio < 0.5) return "bg-green-500";
-    if (ratio < 0.75) return "bg-yellow-500";
-    return "bg-red-500";
+    if (ratio < 0.5) return { background: "var(--profit-primary)" };
+    if (ratio < 0.75) return { background: "var(--accent-primary)" };
+    return { background: "var(--loss-primary)" };
   };
 
   // Auth checks
@@ -577,8 +566,40 @@ export default function PropFirmPage() {
     );
   }
 
+  const deleteTargetName = accounts.find((a) => a.id === deleteConfirmId)?.accountName ?? "";
+
   return (
     <div className="p-4 sm:p-5 lg:p-6 space-y-6 lg:space-y-8 max-w-[1280px]">
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <DialogContent className="sm:max-w-[420px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Delete account?</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              <strong className="text-foreground">{deleteTargetName}</strong> will be permanently deleted along with any linked MT5 connection. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-sm"
+              onClick={() => setDeleteConfirmId(null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center h-9 px-4 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+              style={{ background: "var(--loss-primary)", color: "#fff" }}
+              disabled={!!isDeleting}
+              onClick={confirmDelete}
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -616,7 +637,10 @@ export default function PropFirmPage() {
             open={isNewAccountOpen}
             onOpenChange={(open) => {
               setIsNewAccountOpen(open);
-              if (!open) setAddForm({ firmName: "", phaseType: "2-phase", startDate: new Date().toISOString().split("T")[0], startingBalance: "" });
+              if (!open) {
+                setAddForm({ firmName: "", phaseType: "2-phase", startingBalance: "" });
+                setFormError(null);
+              }
             }}
           >
             <DialogTrigger asChild>
@@ -664,32 +688,30 @@ export default function PropFirmPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add-start">When did this account start?</Label>
-                    <Input
-                      id="add-start"
-                      type="date"
-                      value={addForm.startDate}
-                      onChange={(e) => setAddForm({ ...addForm, startDate: e.target.value })}
-                      className="bg-card border-border"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="add-balance">Starting balance ($)</Label>
+                    <Label htmlFor="add-balance">
+                      Starting balance ($) <span style={{ color: "var(--loss-primary)" }}>*</span>
+                    </Label>
                     <Input
                       id="add-balance"
                       type="number"
-                      min="0"
+                      min="1"
                       step="1"
+                      required
                       placeholder="e.g. 10000"
                       value={addForm.startingBalance}
                       onChange={(e) => setAddForm({ ...addForm, startingBalance: e.target.value })}
                       className="bg-card border-border"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Optional. Enter your account size so the tracker shows the correct balance. You can also set this when connecting MT5.
+                      Enter your account size so the tracker shows the correct balance and drawdown.
                     </p>
                   </div>
                 </div>
+                {formError && (
+                  <p className="text-sm px-1 pb-2" style={{ color: "var(--loss-primary)" }}>
+                    {formError}
+                  </p>
+                )}
                 <DialogFooter>
                   <button
                     type="button"
@@ -701,7 +723,7 @@ export default function PropFirmPage() {
                   <button
                     type="submit"
                     className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-semibold hover:bg-[var(--accent-secondary)] transition-colors disabled:opacity-50"
-                    disabled={isSubmitting || !addForm.firmName.trim()}
+                    disabled={isSubmitting || !addForm.firmName.trim() || !addForm.startingBalance.trim()}
                   >
                     {isSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -718,7 +740,7 @@ export default function PropFirmPage() {
 
       {/* Error Message */}
       {error && (
-        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
+        <div className="p-4 rounded-lg" style={{ background: "var(--loss-bg)", border: "1px solid var(--border-active)", color: "var(--loss-primary)" }}>
           {error}
           <Button
             variant="ghost"
@@ -761,28 +783,46 @@ export default function PropFirmPage() {
           {accounts.map((account) => (
             <div
               key={account.id}
-              className="card-glow p-6 cursor-pointer hover:border-blue-500/50 transition-all group"
+              className="card-glow p-6 cursor-pointer transition-all group"
               onClick={() => handleAccountChange(account.id)}
             >
               <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold group-hover:text-blue-400 transition-colors">
+                <div className="flex-1 min-w-0 pr-2">
+                  <h3 className="text-lg font-semibold transition-colors truncate">
                     {account.name}
                   </h3>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground truncate">
                     {account.firm} • {account.phase}
                   </p>
                 </div>
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded px-2 py-0.5 text-xs font-medium capitalize",
-                    account.status === "active"
-                      ? "bg-[var(--profit-bg)] text-[var(--profit-primary)]"
-                      : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {account.status}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded px-2 py-0.5 text-xs font-medium capitalize",
+                      account.status === "active"
+                        ? "bg-[var(--profit-bg)] text-[var(--profit-primary)]"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {account.status}
+                  </span>
+                  <button
+                    type="button"
+                    className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30"
+                    style={{ color: "var(--loss-primary)" }}
+                    title="Delete account"
+                    disabled={isDeleting === account.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(account.id);
+                    }}
+                  >
+                    {isDeleting === account.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Trash2 className="h-3.5 w-3.5" />
+                    }
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -796,20 +836,15 @@ export default function PropFirmPage() {
                 <div className="flex justify-between text-sm items-center">
                   <span className="text-muted-foreground">Profit/Loss</span>
                   <span
-                    className={cn(
-                      "font-mono font-medium",
-                      account.current_balance >= account.initial_balance
-                        ? "text-green-400"
-                        : "text-red-400",
-                    )}
+                    className="font-mono font-medium"
+                    style={{
+                      color: account.current_balance >= account.initial_balance
+                        ? "var(--profit-primary)"
+                        : "var(--loss-primary)",
+                    }}
                   >
-                    {account.current_balance >= account.initial_balance
-                      ? "+"
-                      : ""}
-                    $
-                    {(
-                      account.current_balance - account.initial_balance
-                    ).toLocaleString()}
+                    {account.current_balance >= account.initial_balance ? "+" : ""}
+                    ${(account.current_balance - account.initial_balance).toLocaleString()}
                   </span>
                 </div>
 
@@ -819,16 +854,11 @@ export default function PropFirmPage() {
                     <div className="flex justify-between text-xs">
                       <span className="text-muted-foreground">Daily DD</span>
                       <span
-                        className={
-                          (account.daily_dd_current || 0) >
-                          toPercent(
-                            account.daily_dd_max || 0,
-                            account.initial_balance,
-                          ) *
-                            0.8
-                            ? "text-red-400"
-                            : "text-muted-foreground"
-                        }
+                        style={{
+                          color: (account.daily_dd_current || 0) > toPercent(account.daily_dd_max || 0, account.initial_balance) * 0.8
+                            ? "var(--loss-primary)"
+                            : "var(--text-secondary)",
+                        }}
                       >
                         {(account.daily_dd_current || 0).toFixed(1)}% /{" "}
                         {toPercent(
@@ -840,18 +870,10 @@ export default function PropFirmPage() {
                     </div>
                     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                       <div
-                        className={cn(
-                          "h-full rounded-full",
-                          getStatusColor(
-                            account.daily_dd_current || 0,
-                            toPercent(
-                              account.daily_dd_max || 0,
-                              account.initial_balance,
-                            ),
-                          ),
-                        )}
+                        className="h-full rounded-full"
                         style={{
                           width: `${((account.daily_dd_current || 0) / toPercent(account.daily_dd_max || 0, account.initial_balance)) * 100}%`,
+                          ...getStatusColor(account.daily_dd_current || 0, toPercent(account.daily_dd_max || 0, account.initial_balance)),
                         }}
                       />
                     </div>
@@ -870,8 +892,8 @@ export default function PropFirmPage() {
           <div className="card-glow p-6 md:col-span-2">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <Zap className="h-5 w-5 text-blue-400" />
+                <div className="p-2 rounded-lg" style={{ background: "var(--accent-soft)" }}>
+                  <Zap className="h-5 w-5" style={{ color: "var(--accent-primary)" }} />
                 </div>
                 <div>
                   <h2 className="headline-md">{selectedAccount.name}</h2>
@@ -920,7 +942,8 @@ export default function PropFirmPage() {
                   )}
                 </span>
                 <button
-                  className="p-2 hover:bg-red-500/10 rounded text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  style={{ color: "var(--loss-primary)" }}
                   onClick={() => handleDelete(selectedAccount.id)}
                   disabled={isDeleting === selectedAccount.id}
                 >
@@ -1100,18 +1123,10 @@ export default function PropFirmPage() {
                   </div>
                   <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div
-                      className={cn(
-                        "h-full rounded-full transition-all",
-                        getStatusColor(
-                          selectedAccount.daily_dd_current || 0,
-                          toPercent(
-                            selectedAccount.daily_dd_max || 0,
-                            selectedAccount.initial_balance,
-                          ),
-                        ),
-                      )}
+                      className="h-full rounded-full transition-all"
                       style={{
                         width: `${((selectedAccount.daily_dd_current || 0) / toPercent(selectedAccount.daily_dd_max || 0, selectedAccount.initial_balance)) * 100}%`,
+                        ...getStatusColor(selectedAccount.daily_dd_current || 0, toPercent(selectedAccount.daily_dd_max || 0, selectedAccount.initial_balance)),
                       }}
                     />
                   </div>
@@ -1143,18 +1158,10 @@ export default function PropFirmPage() {
                   </div>
                   <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div
-                      className={cn(
-                        "h-full rounded-full transition-all",
-                        getStatusColor(
-                          selectedAccount.total_dd_current || 0,
-                          toPercent(
-                            selectedAccount.total_dd_max || 0,
-                            selectedAccount.initial_balance,
-                          ),
-                        ),
-                      )}
+                      className="h-full rounded-full transition-all"
                       style={{
                         width: `${((selectedAccount.total_dd_current || 0) / toPercent(selectedAccount.total_dd_max || 0, selectedAccount.initial_balance)) * 100}%`,
+                        ...getStatusColor(selectedAccount.total_dd_current || 0, toPercent(selectedAccount.total_dd_max || 0, selectedAccount.initial_balance)),
                       }}
                     />
                   </div>
@@ -1244,12 +1251,12 @@ export default function PropFirmPage() {
                 <div>
                   <p className="text-sm font-medium">Status</p>
                   <p
-                    className={cn(
-                      "text-xs",
-                      selectedAccount.status === "active"
-                        ? "text-green-400"
-                        : "text-muted-foreground",
-                    )}
+                    className="text-xs"
+                    style={{
+                      color: selectedAccount.status === "active"
+                        ? "var(--profit-primary)"
+                        : "var(--text-secondary)",
+                    }}
                   >
                     {(selectedAccount.status || "").charAt(0).toUpperCase() +
                       (selectedAccount.status || "").slice(1)}
@@ -1279,7 +1286,7 @@ export default function PropFirmPage() {
         <DialogContent className="sm:max-w-[560px] bg-card border-border">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Cloud className="h-5 w-5 text-blue-400" />
+              <Cloud className="h-5 w-5" style={{ color: "var(--accent-primary)" }} />
               Connect MetaTrader 5
             </DialogTitle>
             <DialogDescription>
@@ -1296,7 +1303,7 @@ export default function PropFirmPage() {
             <div className="space-y-4 py-4">
               <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-4">
                 <div className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-400" />
+                  <CheckCircle2 className="mt-0.5 h-5 w-5" style={{ color: "var(--profit-primary)" }} />
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-white">
                       Terminal connected
@@ -1442,7 +1449,7 @@ export default function PropFirmPage() {
               )}
 
               {mt5Error && (
-                <p className="text-center text-sm text-red-400">{mt5Error}</p>
+                <p className="text-center text-sm" style={{ color: "var(--loss-primary)" }}>{mt5Error}</p>
               )}
 
               <DialogFooter className="gap-2 sm:justify-between">
@@ -1624,7 +1631,7 @@ export default function PropFirmPage() {
                 </div>
               </div>
 
-              {mt5Error && <p className="text-sm text-red-400">{mt5Error}</p>}
+              {mt5Error && <p className="text-sm" style={{ color: "var(--loss-primary)" }}>{mt5Error}</p>}
 
               <DialogFooter className="gap-2 sm:justify-between">
                 {terminalStatus?.mt5AccountId ? (

@@ -231,7 +231,10 @@ bool SendHeartbeat()
 
     string url = gBackendURL + "/api/webhook/terminal/heartbeat";
     int totalDeals = gLastDealCount;
-    if(HistorySelect(0, TimeCurrent()))
+    // Use a far-future sentinel so the upper bound never excludes history on SIM/demo
+    // accounts whose server clock is behind real time (TimeCurrent() may return a stale date).
+    datetime heartbeatTo = D'2099.12.31 23:59:59';
+    if(HistorySelect(0, heartbeatTo))
     {
         totalDeals = HistoryDealsTotal();
     }
@@ -318,7 +321,9 @@ bool SyncDealHistory(string reason)
     datetime fromDate = restoredSyncTime > 0
         ? (datetime)(restoredSyncTime - 86400)
         : (datetime)(TimeCurrent() - MathMax(1, gInitialHistoryDays) * 86400);
-    datetime toDate = TimeCurrent();
+    // Use a far-future sentinel so HistorySelect never misses deals on SIM/demo accounts
+    // where TimeCurrent() returns a server time that is behind real-world time.
+    datetime toDate = D'2099.12.31 23:59:59';
 
     if(!HistorySelect(fromDate, toDate))
     {

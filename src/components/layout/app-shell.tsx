@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 
@@ -11,6 +12,7 @@ interface AppShellProps {
 const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -20,6 +22,11 @@ export function AppShell({ children }: AppShellProps) {
       return false;
     }
   });
+
+  // Auth pages render without sidebar/header
+  if (pathname?.startsWith("/auth")) {
+    return <>{children}</>;
+  }
 
   const toggleCollapse = () => {
     setSidebarCollapsed((prev) => {
