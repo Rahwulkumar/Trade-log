@@ -20,19 +20,42 @@ export interface TerminalStatus {
 /**
  * Enable auto-sync for an MT5 account
  */
-export async function enableAutoSync(accountId: string): Promise<{ success: boolean; terminalId?: string; error?: string }> {
+export async function enableAutoSync(accountId: string): Promise<{
+    success: boolean;
+    terminalId?: string;
+    terminal?: TerminalStatus;
+    error?: string;
+}> {
     const response = await fetch(`/api/mt5-accounts/${accountId}/enable-autosync`, {
         method: 'POST',
         credentials: 'include',
     });
 
-    const data = await readJsonIfAvailable<{ error?: string; terminal?: { id?: string }; terminalId?: string }>(response);
+    const data = await readJsonIfAvailable<{
+        error?: string;
+        terminal?: {
+            id?: string;
+            status?: TerminalStatus['status'];
+        };
+        terminalId?: string;
+    }>(response);
 
     if (!response.ok) {
         return { success: false, error: data?.error || 'Failed to enable auto-sync' };
     }
 
-    return { success: true, terminalId: data?.terminal?.id || data?.terminalId };
+    const terminalId = data?.terminal?.id || data?.terminalId;
+    const terminal = terminalId
+        ? {
+              terminalId,
+              status: data?.terminal?.status || 'PENDING',
+              lastHeartbeat: null,
+              lastSyncAt: null,
+              errorMessage: null,
+          }
+        : undefined;
+
+    return { success: true, terminalId, terminal };
 }
 
 /**

@@ -17,6 +17,8 @@ function buildQuery(filters?: TradeFilters): string {
   if (filters.propAccountId) params.set('propAccountId', filters.propAccountId);
   if (filters.startDate) params.set('startDate', filters.startDate);
   if (filters.endDate) params.set('endDate', filters.endDate);
+  if (filters.exitStartDate) params.set('exitStartDate', filters.exitStartDate);
+  if (filters.exitEndDate) params.set('exitEndDate', filters.exitEndDate);
   if (filters.search) params.set('search', filters.search);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
