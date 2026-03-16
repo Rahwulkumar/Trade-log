@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { EnrichedTrade } from "@/domain/trade-types";
 import { Playbook } from "@/lib/supabase/types";
 import { BiasWidget } from "@/components/journal/bias-widget";
@@ -18,38 +17,43 @@ interface TradeDetailClientProps {
 
 export function TradeDetailClient({ initialTrade }: TradeDetailClientProps) {
   const { user } = useAuth();
-  const supabase = createClient();
   const [trade, setTrade] = useState<EnrichedTrade>(initialTrade);
 
   // Debounced Save Logic
-  const saveToSupabase = useCallback(
+  const saveTradeUpdate = useCallback(
     async (currentTrade: EnrichedTrade) => {
       if (!user) return;
       try {
-        const { error } = await supabase
-          .from("trades")
-          .update({
+        const response = await fetch(`/api/trades/${currentTrade.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
             tf_observations: currentTrade.tf_observations,
           })
-          .eq("id", currentTrade.id);
+        });
 
-        if (error) throw error;
+        if (!response.ok) {
+          throw new Error("Failed to save trade update");
+        }
       } catch (err) {
         console.error("Save failed", err);
       }
     },
-    [user, supabase],
+    [user],
   );
 
   // Auto-save effect
   useEffect(() => {
     const timer = setTimeout(() => {
       if (trade !== initialTrade) {
-        saveToSupabase(trade);
+        saveTradeUpdate(trade);
       }
     }, 1000); // Faster debounce for UI interactions
     return () => clearTimeout(timer);
-  }, [trade, saveToSupabase, initialTrade]);
+  }, [trade, saveTradeUpdate, initialTrade]);
 
   const handleTradeUpdate = (field: keyof EnrichedTrade, value: unknown) => {
     setTrade((prev) => ({ ...prev, [field]: value }));

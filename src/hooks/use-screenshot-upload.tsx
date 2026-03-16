@@ -4,8 +4,7 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 import { useState, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { uploadTradeScreenshot } from "@/lib/api/storage";
+import { getScreenshotUrl, uploadTradeScreenshot } from "@/lib/api/storage";
 import type { JournalScreenshot } from "@/domain/journal-types";
 
 export function useScreenshotUpload(
@@ -27,15 +26,11 @@ export function useScreenshotUpload(
     if (!file || !userId) return;
     setUploading(true);
     try {
-      const supabase = createClient();
       const path = await uploadTradeScreenshot(file, userId);
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("trade-screenshots").getPublicUrl(path);
       const newScreenshot: JournalScreenshot = {
         id: `temp-${Date.now()}`,
         tradeId,
-        url: publicUrl,
+        url: getScreenshotUrl(path),
         timeframe: pendingTf,
         createdAt: new Date().toISOString(),
       };

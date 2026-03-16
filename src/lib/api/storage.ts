@@ -2,6 +2,14 @@ import { createClient } from '@/lib/supabase/client'
 
 const BUCKET_NAME = 'trade-screenshots'
 
+function readStorageBaseUrl(): string {
+    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+    if (!baseUrl) {
+        throw new Error('Screenshot storage is not configured.')
+    }
+    return baseUrl.replace(/\/+$/, '')
+}
+
 /**
  * Upload a trade screenshot to Supabase Storage
  * @param file The image file to upload
@@ -54,13 +62,9 @@ export async function deleteTradeScreenshot(path: string): Promise<void> {
  * @returns The public URL
  */
 export function getScreenshotUrl(path: string): string {
-    const supabase = createClient()
-
-    const { data } = supabase.storage
-        .from(BUCKET_NAME)
-        .getPublicUrl(path)
-
-    return data.publicUrl
+    const baseUrl = readStorageBaseUrl()
+    const normalizedPath = path.replace(/^\/+/, '')
+    return `${baseUrl}/storage/v1/object/public/${BUCKET_NAME}/${normalizedPath}`
 }
 
 /**

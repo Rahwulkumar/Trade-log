@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { X, Upload, Image as ImageIcon, Loader2 } from "lucide-react";
 import Image from "next/image";
+import { getScreenshotUrl } from "@/lib/api/storage";
 import { cn } from "@/lib/utils";
 
 interface ScreenshotUploadProps {
@@ -213,9 +214,7 @@ function ScreenshotThumbnail({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // Construct the Supabase storage URL
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const imageUrl = `${supabaseUrl}/storage/v1/object/public/trade-screenshots/${path}`;
+  const imageUrl = getScreenshotUrl(path);
 
   return (
     <div className="relative group">

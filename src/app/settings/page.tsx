@@ -86,6 +86,7 @@ function SaveFeedback({
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { user, profile, refreshProfile } = useAuth();
+  const supabaseEnabled = false;
 
   // Profile form state
   const [firstName, setFirstName] = useState("");
@@ -122,10 +123,16 @@ export default function SettingsPage() {
   type AuditLog = { id: string; action: string; created_at: string; metadata: Record<string, unknown> | null };
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
-  const supabase = createClient();
 
   useEffect(() => {
     if (!user) return;
+    if (!supabaseEnabled) {
+      setAuditLogs([]);
+      setAuditLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
     setAuditLoading(true);
     supabase
       .from("audit_logs")
@@ -137,7 +144,7 @@ export default function SettingsPage() {
         setAuditLogs((data as AuditLog[]) ?? []);
         setAuditLoading(false);
       });
-  }, [user]); // eslint-disable-line
+  }, [supabaseEnabled, user]);
 
   // Sync form from profile when it loads
   useEffect(() => {
@@ -169,6 +176,12 @@ export default function SettingsPage() {
 
   async function handleSaveProfile() {
     if (!user) return;
+    if (!supabaseEnabled) {
+      setProfileSaveError("Profile settings are now managed outside Supabase.");
+      setProfileSaveStatus("error");
+      return;
+    }
+
     setProfileSaveStatus("saving");
     setProfileSaveError("");
     try {
@@ -193,6 +206,12 @@ export default function SettingsPage() {
 
   async function handleUpdatePassword() {
     if (!newPassword) return;
+    if (!supabaseEnabled) {
+      setPasswordSaveStatus("error");
+      setPasswordSaveError("Password updates are now managed outside Supabase.");
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       setPasswordSaveStatus("error");
       setPasswordSaveError("Passwords do not match.");
@@ -220,6 +239,12 @@ export default function SettingsPage() {
 
   async function handleSaveTrading() {
     if (!user) return;
+    if (!supabaseEnabled) {
+      setTradingSaveError("Trading defaults are now managed outside Supabase.");
+      setTradingSaveStatus("error");
+      return;
+    }
+
     setTradingSaveStatus("saving");
     setTradingSaveError("");
     try {
