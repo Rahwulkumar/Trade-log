@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import type { EconomicEvent } from "@/app/api/news/economic-calendar/route";
 import type { NewsAnalysisResult } from "@/lib/api/gemini";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // ─── Currency pairs quick-picks ───────────────────────────────────────────────
 const COMMON_PAIRS = [
@@ -386,14 +388,15 @@ export function NewsAIAgent({ events, onClose }: NewsAIAgentProps) {
             </p>
           </div>
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-sm"
           onClick={onClose}
-          className="relative z-10 p-1.5 rounded-[var(--radius-sm)] transition-colors hover:bg-[var(--surface-hover)]"
-          style={{ color: "var(--text-tertiary)" }}
+          className="relative z-10 rounded-[var(--radius-sm)] p-0 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
         >
           <X size={15} />
-        </button>
+        </Button>
       </div>
 
       {/* ── Input Area ── */}
@@ -409,36 +412,27 @@ export function NewsAIAgent({ events, onClose }: NewsAIAgentProps) {
           >
             Instrument / Pair
           </label>
-          <input
+          <Input
             type="text"
             value={pair}
             onChange={(e) => setPair(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === "Enter" && !question && analyze()}
             placeholder="EURUSD, XAUUSD, NQ…"
-            className="w-full px-3 py-2 rounded-[var(--radius-default)] border text-[0.84rem] font-mono font-bold outline-none transition-all"
+            className="w-full rounded-[var(--radius-default)] border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-2 text-[0.84rem] font-mono font-bold tracking-[0.04em] text-[var(--text-primary)] shadow-none focus-visible:border-[var(--accent-primary)] focus-visible:ring-0"
             style={{
-              background: "var(--surface-elevated)",
-              borderColor: "var(--border-default)",
-              color: "var(--text-primary)",
-              letterSpacing: "0.04em",
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = "var(--accent-primary)";
-              e.target.style.boxShadow = "0 0 0 3px var(--accent-glow)";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = "var(--border-default)";
-              e.target.style.boxShadow = "none";
+              caretColor: "var(--accent-primary)",
             }}
           />
           {/* Quick pair chips */}
           <div className="flex flex-wrap gap-1 mt-2">
             {COMMON_PAIRS.map((p) => (
-              <button
+              <Button
                 key={p}
                 type="button"
                 onClick={() => setPair(p)}
-                className="font-mono text-[0.61rem] font-semibold px-1.5 py-0.5 rounded transition-all"
+                variant="ghost"
+                size="sm"
+                className="h-auto rounded px-1.5 py-0.5 font-mono text-[0.61rem] font-semibold"
                 style={{
                   background: pair === p ? "var(--accent-soft)" : "transparent",
                   border: `1px solid ${pair === p ? "var(--accent-primary)" : "var(--border-subtle)"}`,
@@ -450,7 +444,7 @@ export function NewsAIAgent({ events, onClose }: NewsAIAgentProps) {
                 }}
               >
                 {p}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -470,14 +464,13 @@ export function NewsAIAgent({ events, onClose }: NewsAIAgentProps) {
               borderColor: "var(--border-default)",
             }}
           >
-            <input
+            <Input
               type="text"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && analyze()}
               placeholder={`Should I trade ${pair} right now?`}
-              className="flex-1 bg-transparent text-[0.76rem] font-medium outline-none"
-              style={{ color: "var(--text-primary)" }}
+              className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-[0.76rem] font-medium text-[var(--text-primary)] shadow-none focus-visible:ring-0"
             />
             <ChevronRight
               size={13}
@@ -487,11 +480,11 @@ export function NewsAIAgent({ events, onClose }: NewsAIAgentProps) {
         </div>
 
         {/* Analyze button */}
-        <button
+        <Button
           type="button"
           onClick={analyze}
           disabled={loading || !pair.trim()}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[var(--radius-default)] font-bold text-[0.82rem] transition-all"
+          className="h-auto w-full gap-2 rounded-[var(--radius-default)] py-2.5 text-[0.82rem] font-bold"
           style={{
             background:
               loading || !pair.trim()
@@ -502,7 +495,6 @@ export function NewsAIAgent({ events, onClose }: NewsAIAgentProps) {
               loading || !pair.trim()
                 ? "none"
                 : "0 4px 16px var(--accent-glow)",
-            cursor: loading || !pair.trim() ? "not-allowed" : "pointer",
           }}
         >
           {loading ? (
@@ -516,7 +508,7 @@ export function NewsAIAgent({ events, onClose }: NewsAIAgentProps) {
               Analyze with Gemini
             </>
           )}
-        </button>
+        </Button>
       </div>
 
       {/* ── Results Area ── */}
@@ -560,9 +552,15 @@ export function NewsAIAgent({ events, onClose }: NewsAIAgentProps) {
             >
               {error}
             </p>
-            <button type="button" onClick={analyze} className="shrink-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={analyze}
+              className="h-7 w-7 shrink-0 rounded-full p-0 text-[var(--loss-primary)] hover:bg-transparent hover:opacity-80"
+            >
               <RotateCcw size={13} style={{ color: "var(--loss-primary)" }} />
-            </button>
+            </Button>
           </div>
         )}
 

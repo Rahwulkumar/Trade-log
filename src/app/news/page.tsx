@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { EconomicEvent } from "@/app/api/news/economic-calendar/route";
 import { NewsAIAgent } from "@/components/news/news-ai-agent";
+import { Button } from "@/components/ui/button";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CURRENCIES = [
@@ -458,25 +459,24 @@ export default function NewsPage() {
               </div>
             </div>
 
-            <button
+            <Button
               type="button"
               onClick={fetchEvents}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-[var(--radius-default)] text-[0.73rem] font-semibold transition-all border"
+              variant="outline"
+              className="h-auto gap-1.5 rounded-[var(--radius-default)] border-[var(--border-default)] bg-[var(--surface-elevated)] px-3.5 py-2 text-[0.73rem] font-semibold text-[var(--text-secondary)] shadow-none"
               style={{
                 background: "var(--surface-elevated)",
-                borderColor: "var(--border-default)",
-                color: "var(--text-secondary)",
               }}
             >
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
               Refresh
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
               onClick={() => setShowAI((v) => !v)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-[var(--radius-default)] text-[0.73rem] font-semibold transition-all border"
+              className="h-auto gap-1.5 rounded-[var(--radius-default)] border px-3.5 py-2 text-[0.73rem] font-semibold"
               style={{
                 background: showAI
                   ? "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))"
@@ -488,7 +488,7 @@ export default function NewsPage() {
             >
               <Sparkles size={13} />
               AI Agent
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -502,11 +502,13 @@ export default function NewsPage() {
             }}
           >
             {DATE_RANGE_OPTS.map((opt) => (
-              <button
+              <Button
                 key={opt.key}
                 type="button"
                 onClick={() => setDateRange(opt.key)}
-                className="px-3 py-1 rounded-[var(--radius-sm)] text-[0.71rem] font-semibold transition-all"
+                variant="ghost"
+                size="sm"
+                className="h-auto rounded-[var(--radius-sm)] px-3 py-1 text-[0.71rem] font-semibold"
                 style={{
                   background:
                     dateRange === opt.key ? "var(--surface)" : "transparent",
@@ -519,7 +521,7 @@ export default function NewsPage() {
                 }}
               >
                 {opt.label}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -536,11 +538,13 @@ export default function NewsPage() {
             {IMPACT_OPTS.map((opt) => {
               const isActive = impact === opt.key;
               return (
-                <button
+                <Button
                   key={opt.key}
                   type="button"
                   onClick={() => setImpact(opt.key)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[0.69rem] font-semibold transition-all"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto gap-1.5 rounded-full px-2.5 py-1 text-[0.69rem] font-semibold"
                   style={{
                     background: isActive ? "var(--surface)" : "transparent",
                     color: isActive
@@ -549,13 +553,13 @@ export default function NewsPage() {
                     border: `1px solid ${isActive ? "var(--border-active)" : "transparent"}`,
                     boxShadow: isActive ? "var(--shadow-sm)" : "none",
                   }}
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: opt.dot }}
-                  />
-                  {opt.label}
-                </button>
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: opt.dot }}
+                    />
+                    {opt.label}
+                </Button>
               );
             })}
           </div>
@@ -572,11 +576,13 @@ export default function NewsPage() {
           {CURRENCIES.map((currency) => {
             const isSelected = selectedCurrencies.includes(currency.code);
             return (
-              <button
+              <Button
                 key={currency.code}
                 type="button"
                 onClick={() => toggleCurrency(currency.code)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[0.69rem] font-semibold transition-all border ${isSelected ? "currency-chip-active" : ""}`}
+                variant="ghost"
+                size="sm"
+                className={`h-auto gap-1.5 rounded-full px-2.5 py-1 text-[0.69rem] font-semibold border ${isSelected ? "currency-chip-active" : ""}`}
                 style={
                   !isSelected
                     ? {
@@ -589,18 +595,20 @@ export default function NewsPage() {
               >
                 <span>{currency.flag}</span>
                 <span>{currency.code}</span>
-              </button>
+              </Button>
             );
           })}
           {selectedCurrencies.length > 0 && (
-            <button
+            <Button
               type="button"
               onClick={() => setSelectedCurrencies([])}
-              className="text-[0.67rem] font-semibold ml-1 hover:opacity-70 transition-opacity"
+              variant="ghost"
+              size="sm"
+              className="ml-1 h-auto px-0 py-0 text-[0.67rem] font-semibold text-[var(--text-tertiary)] hover:bg-transparent hover:opacity-70"
               style={{ color: "var(--text-tertiary)" }}
             >
               Clear all
-            </button>
+            </Button>
           )}
         </div>
       </div>

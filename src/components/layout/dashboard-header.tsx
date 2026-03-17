@@ -7,6 +7,8 @@ import { Menu, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { useTheme } from "@/components/theme-provider";
 import { IconBell } from "@/components/ui/icons";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 // Map routes to page titles
 const PAGE_TITLES: Record<string, string> = {
@@ -41,10 +43,11 @@ function ThemeToggle() {
   const toggle = () => setTheme(isDark ? "light" : "dark");
 
   return (
-    <button
+    <Button
       onClick={toggle}
-      className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-default)] transition-colors hover:bg-[var(--surface-elevated)] shrink-0"
-      style={{ color: "var(--text-secondary)" }}
+      variant="ghost"
+      size="icon"
+      className="h-9 w-9 shrink-0 rounded-[var(--radius-default)] p-0 text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]"
       title={
         mounted
           ? isDark
@@ -60,7 +63,7 @@ function ThemeToggle() {
         ) : (
           <Moon size={16} strokeWidth={1.7} />
         ))}
-    </button>
+    </Button>
   );
 }
 
@@ -103,14 +106,15 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
       }}
     >
       {/* Hamburger — mobile only */}
-      <button
-        className="flex md:hidden h-9 w-9 items-center justify-center rounded-[var(--radius-default)] transition-colors hover:bg-[var(--surface-elevated)] shrink-0"
-        style={{ color: "var(--text-secondary)" }}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="flex h-9 w-9 shrink-0 rounded-[var(--radius-default)] p-0 text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)] md:hidden"
         onClick={onMobileMenuClick}
         aria-label="Open navigation"
       >
         <Menu size={19} strokeWidth={1.8} />
-      </button>
+      </Button>
 
       {/* Page title */}
       <h1
@@ -129,9 +133,10 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
       <ThemeToggle />
 
       {/* Notification bell */}
-      <button
-        className="relative flex h-9 w-9 items-center justify-center rounded-[var(--radius-default)] transition-colors hover:bg-[var(--surface-elevated)] shrink-0"
-        style={{ color: "var(--text-secondary)" }}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="relative h-9 w-9 shrink-0 rounded-[var(--radius-default)] p-0 text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]"
         title="Notifications"
       >
         <IconBell size={17} strokeWidth={1.7} />
@@ -139,12 +144,15 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
           className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full"
           style={{ background: "var(--accent-primary)" }}
         />
-      </button>
+      </Button>
 
       {/* User avatar pill */}
       <Link
         href="/profile"
-        className="flex items-center gap-2 sm:gap-2.5 rounded-[var(--radius-default)] px-2 sm:px-3 py-1.5 transition-colors hover:bg-[var(--surface-elevated)] shrink-0"
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "h-auto shrink-0 gap-2 rounded-[var(--radius-default)] px-2 py-1.5 hover:bg-[var(--surface-elevated)] sm:gap-2.5 sm:px-3",
+        )}
         style={{ border: "1px solid var(--border-default)" }}
       >
         <div

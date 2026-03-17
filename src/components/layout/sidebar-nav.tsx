@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { usePropAccount } from "@/components/prop-account-provider";
 import { useAuth } from "@/components/auth-provider";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   IconDashboard,
   IconAnalytics,
@@ -177,22 +178,16 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
         }}
       >
         {/* All Accounts option */}
-        <button
+        <Button
+          type="button"
           onClick={() => {
             setSelectedAccountId(null);
             setOpen(false);
           }}
-          className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+          variant="ghost"
+          className="h-auto w-full justify-start gap-2.5 rounded-none px-3 py-2.5 text-left hover:bg-[#163832] hover:text-inherit"
           style={{
             background: selectedAccountId === null ? T.active : "transparent",
-          }}
-          onMouseEnter={(e) => {
-            if (selectedAccountId !== null)
-              e.currentTarget.style.background = T.hover;
-          }}
-          onMouseLeave={(e) => {
-            if (selectedAccountId !== null)
-              e.currentTarget.style.background = "transparent";
           }}
         >
           <div
@@ -210,25 +205,21 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
           >
             All Accounts
           </span>
-        </button>
+        </Button>
         {/* Individual accounts */}
         {propAccounts.map((acct) => {
           const isSel = selectedAccountId === acct.id;
           return (
-            <button
+            <Button
               key={acct.id}
+              type="button"
               onClick={() => {
                 setSelectedAccountId(acct.id);
                 setOpen(false);
               }}
-              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+              variant="ghost"
+              className="h-auto w-full justify-start gap-2.5 rounded-none px-3 py-2.5 text-left hover:bg-[#163832] hover:text-inherit"
               style={{ background: isSel ? T.active : "transparent" }}
-              onMouseEnter={(e) => {
-                if (!isSel) e.currentTarget.style.background = T.hover;
-              }}
-              onMouseLeave={(e) => {
-                if (!isSel) e.currentTarget.style.background = "transparent";
-              }}
             >
               <div
                 className="h-1.5 w-1.5 rounded-full shrink-0"
@@ -243,7 +234,7 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
               >
                 {acct.accountName}
               </span>
-            </button>
+            </Button>
           );
         })}
         {/* Add account CTA when empty or always for quick access */}
@@ -251,10 +242,11 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
           <Link
             href="/prop-firm"
             onClick={() => setOpen(false)}
-            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "h-auto w-full justify-start gap-2.5 rounded-none px-3 py-2.5 text-left hover:bg-[#163832]",
+            )}
             style={{ color: T.accent }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = T.hover)}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
             <span style={{ fontSize: "0.75rem", fontWeight: 500 }}>+ Add account</span>
           </Link>
@@ -266,18 +258,16 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
   if (collapsed) {
     return (
       <div className="relative flex justify-center">
-        <button
+        <Button
+          type="button"
           title={selected?.accountName ?? "All Accounts"}
           onClick={() => setOpen((o) => !o)}
-          className="flex h-8 w-8 items-center justify-center rounded-[7px] transition-colors"
-          style={{ color: T.textSec }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = T.hover)}
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
+          variant="ghost"
+          size="icon-sm"
+          className="h-8 w-8 rounded-[7px] p-0 text-[#8EB69B] hover:bg-[#163832] hover:text-[#DAF1DE]"
         >
           <IconPropFirm size={14} strokeWidth={1.7} />
-        </button>
+        </Button>
         <AnimatePresence>
           {open && (
             <div className="absolute left-full bottom-0 ml-2">{Dropdown}</div>
@@ -289,14 +279,12 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div className="relative">
-      <button
+      <Button
+        type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 transition-all"
+        variant="ghost"
+        className="h-auto w-full justify-start gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[#DAF1DE] hover:bg-[#0B2B26] hover:text-[#DAF1DE]"
         style={{ background: open ? T.elevated : "transparent" }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = T.elevated)}
-        onMouseLeave={(e) => {
-          if (!open) e.currentTarget.style.background = "transparent";
-        }}
       >
         <span
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px]"
@@ -325,7 +313,7 @@ function AccountPicker({ collapsed }: { collapsed: boolean }) {
         >
           <IconChevronRight size={10} strokeWidth={2.5} />
         </motion.span>
-      </button>
+      </Button>
 
       <AnimatePresence>
         {open && (
@@ -483,22 +471,16 @@ function SidebarContent({
                           key={href}
                           href={href}
                           onClick={onNavClick}
-                          className="group relative flex items-center gap-2.5 rounded-[6px] transition-all duration-150"
+                          className={cn(
+                            buttonVariants({ variant: "ghost", size: "sm" }),
+                            "group relative h-auto w-full justify-start gap-2.5 rounded-[6px] px-[10px] py-[7px] text-[#8EB69B] transition-all duration-150 hover:bg-[#163832] hover:text-[#DAF1DE]",
+                          )}
                           style={{
-                            padding: "7px 10px 7px 12px",
                             color: active ? T.accent : T.textSec,
                             background: active ? T.accentDim : "transparent",
                             boxShadow: active
                               ? `inset 3px 0 0 ${T.accent}`
                               : `inset 3px 0 0 transparent`,
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!active)
-                              e.currentTarget.style.background = T.hover;
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!active)
-                              e.currentTarget.style.background = "transparent";
                           }}
                         >
                           <Icon
@@ -549,20 +531,16 @@ function SidebarContent({
                       href={href}
                       onClick={onNavClick}
                       title={label}
-                      className="group relative flex h-9 w-full items-center justify-center rounded-[6px] transition-all duration-150"
+                      className={cn(
+                        buttonVariants({ variant: "ghost", size: "icon" }),
+                        "group relative h-9 w-full rounded-[6px] p-0 text-[#8EB69B] transition-all duration-150 hover:bg-[#163832] hover:text-[#DAF1DE]",
+                      )}
                       style={{
                         color: active ? T.accent : T.textSec,
                         background: active ? T.accentDim : "transparent",
                         boxShadow: active
                           ? `inset 3px 0 0 ${T.accent}`
                           : `inset 3px 0 0 transparent`,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!active) e.currentTarget.style.background = T.hover;
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!active)
-                          e.currentTarget.style.background = "transparent";
                       }}
                     >
                       <Icon
@@ -623,12 +601,11 @@ function SidebarContent({
               href="/settings"
               onClick={onNavClick}
               title="Settings"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] transition-colors"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                "h-7 w-7 shrink-0 rounded-[6px] p-0 text-[#52796F] hover:bg-[#163832] hover:text-[#8EB69B]",
+              )}
               style={{ color: T.textTert }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = T.hover)}
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
             >
               <IconSettings size={13} strokeWidth={1.6} />
             </Link>
@@ -639,12 +616,11 @@ function SidebarContent({
               href="/settings"
               onClick={onNavClick}
               title="Settings"
-              className="flex h-8 w-8 items-center justify-center rounded-[7px] transition-colors"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                "h-8 w-8 rounded-[7px] p-0 text-[#52796F] hover:bg-[#163832] hover:text-[#8EB69B]",
+              )}
               style={{ color: T.textTert }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = T.hover)}
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
             >
               <IconSettings size={15} strokeWidth={1.6} />
             </Link>
@@ -653,19 +629,12 @@ function SidebarContent({
 
         {/* Collapse toggle */}
         {onToggleCollapse && (
-          <button
+          <Button
+            type="button"
             onClick={onToggleCollapse}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-[7px] py-1.5 transition-all"
-            style={{ color: T.textTert }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = T.hover;
-              e.currentTarget.style.color = T.textSec;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.color = T.textTert;
-            }}
+            variant="ghost"
+            className="mt-2 h-auto w-full gap-2 rounded-[7px] py-1.5 text-[#52796F] hover:bg-[#163832] hover:text-[#8EB69B]"
           >
             {collapsed ? (
               <ChevronsRight size={14} strokeWidth={1.8} />
@@ -675,7 +644,7 @@ function SidebarContent({
                 <span className="text-[0.68rem] font-medium">Collapse</span>
               </>
             )}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -753,18 +722,16 @@ export function SidebarNav({
               boxShadow: "8px 0 48px rgba(0,0,0,0.5)",
             }}
           >
-            <button
+            <Button
+              type="button"
               onClick={onMobileClose}
-              className="absolute top-4 right-4 z-10 flex h-7 w-7 items-center justify-center rounded-full transition-colors"
-              style={{ color: T.textTert }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = T.hover)}
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
+              variant="ghost"
+              size="icon-sm"
+              className="absolute right-4 top-4 z-10 h-7 w-7 rounded-full p-0 text-[#52796F] hover:bg-[#163832] hover:text-[#8EB69B]"
               aria-label="Close sidebar"
             >
               <X size={15} strokeWidth={2} />
-            </button>
+            </Button>
             <SidebarContent onNavClick={onMobileClose} />
           </motion.aside>
         )}

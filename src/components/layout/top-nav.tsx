@@ -6,6 +6,7 @@ import { Briefcase, Building2, Moon, Plus, Settings, Sun } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -93,52 +94,62 @@ export function TopNav() {
                 </SelectContent>
               </Select>
             ) : (
-              <Link
-                href="/prop-firm"
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+              <Button
+                asChild
+                variant="outline"
+                className="h-9 gap-1.5 border-border bg-card px-3 text-xs shadow-none"
               >
-                <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                Add account
-              </Link>
+                <Link href="/prop-firm">
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  Add account
+                </Link>
+              </Button>
             )
           )}
 
-          <Link
-            href="/prop-firm"
-            aria-label="Manage prop accounts"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          <Button
+            asChild
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 border-border bg-card text-muted-foreground shadow-none"
           >
-            <Briefcase className="h-4 w-4" />
-          </Link>
+            <Link href="/prop-firm" aria-label="Manage prop accounts">
+              <Briefcase className="h-4 w-4" />
+            </Link>
+          </Button>
 
-          <Link
-            href="/settings"
-            aria-label="Open settings"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          <Button
+            asChild
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 border-border bg-card text-muted-foreground shadow-none"
           >
-            <Settings className="h-4 w-4" />
-          </Link>
+            <Link href="/settings" aria-label="Open settings">
+              <Settings className="h-4 w-4" />
+            </Link>
+          </Button>
 
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon"
             aria-label="Toggle theme"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="h-9 w-9 border-border bg-card text-muted-foreground shadow-none"
           >
             {theme === "dark" ? (
               <Sun className="h-4 w-4" />
             ) : (
               <Moon className="h-4 w-4" />
             )}
-          </button>
+          </Button>
 
-          <Link
-            href="/trades?new=true"
-            className="inline-flex h-9 items-center gap-1 rounded-md border border-transparent bg-primary px-3 text-xs font-medium text-primary-foreground transition hover:brightness-105"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Log Trade</span>
-          </Link>
+          <Button asChild className="h-9 gap-1 px-3 text-xs">
+            <Link href="/trades?new=true">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Log Trade</span>
+            </Link>
+          </Button>
         </div>
       </div>
     </header>
