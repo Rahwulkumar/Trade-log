@@ -26,8 +26,14 @@ export function RecentTrades({ limit = 5, propAccountId }: RecentTradesProps) {
       }
 
       try {
-        const data = await getTrades({ status: "closed", propAccountId });
-        setTrades(data.slice(0, limit));
+        const data = await getTrades({
+          status: "closed",
+          propAccountId,
+          limit,
+          sortBy: "entryDate",
+          sortOrder: "desc",
+        });
+        setTrades(data);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (!msg.includes("Failed to fetch"))

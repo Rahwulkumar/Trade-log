@@ -7,6 +7,10 @@ import { getTrades } from '@/lib/api/client/trades';
 import type { TradeFilters } from '@/lib/api/trades';
 import { todayString } from '@/lib/utils/format';
 
+const ANALYTICS_CACHE_TTL_MS = 15_000;
+const analyticsResultCache = new Map<string, { expiresAt: number; value: unknown }>();
+const pendingAnalyticsComputations = new Map<string, Promise<unknown>>();
+
 export interface AnalyticsSummary {
     totalTrades: number
     winningTrades: number
@@ -21,6 +25,13 @@ export interface AnalyticsSummary {
     avgWin: number
     avgLoss: number
     expectancy: number
+}
+
+export interface AnalyticsOverview {
+    tradeCount: number
+    summary: AnalyticsSummary
+    equityCurve: EquityCurvePoint[]
+    performanceByDay: DayPerformance[]
 }
 
 type AnalyticsTrade = {
@@ -129,48 +140,229 @@ async function fetchClosedTrades(options: {
     return rows as unknown as AnalyticsTrade[];
 }
 
+function buildAnalyticsCacheKey(scope: string, ...parts: Array<string | number | null | undefined>): string {
+    return [scope, ...parts.map((part) => String(part ?? ''))].join('|');
+}
+
+async function getCachedAnalyticsResult<T>(
+    key: string,
+    compute: () => Promise<T>
+): Promise<T> {
+    const now = Date.now();
+    const cached = analyticsResultCache.get(key);
+    if (cached && cached.expiresAt > now) {
+        return cached.value as T;
+    }
+
+    const pending = pendingAnalyticsComputations.get(key);
+    if (pending) {
+        return pending as Promise<T>;
+    }
+
+    const computation = (async () => {
+        try {
+            const value = await compute();
+            analyticsResultCache.set(key, {
+                expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS,
+                value,
+            });
+            return value;
+        } finally {
+            pendingAnalyticsComputations.delete(key);
+        }
+    })();
+
+    pendingAnalyticsComputations.set(key, computation);
+    return computation;
+}
+
+function buildSummaryFromTrades(closedTrades: AnalyticsTrade[]): AnalyticsSummary {
+    if (closedTrades.length === 0) return EMPTY_SUMMARY;
+
+    const winners = closedTrades.filter((trade) => getPnl(trade) > 0);
+    const losers = closedTrades.filter((trade) => getPnl(trade) < 0);
+
+    const totalPnl = closedTrades.reduce((sum, trade) => sum + getPnl(trade), 0);
+    const grossProfit = winners.reduce((sum, trade) => sum + getPnl(trade), 0);
+    const grossLoss = Math.abs(losers.reduce((sum, trade) => sum + getPnl(trade), 0));
+
+    const winRate = (winners.length / closedTrades.length) * 100;
+    const avgWin = winners.length > 0 ? grossProfit / winners.length : 0;
+    const avgLoss = losers.length > 0 ? grossLoss / losers.length : 0;
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+    const expectancy = (winRate / 100 * avgWin) - ((1 - winRate / 100) * avgLoss);
+
+    return {
+        totalTrades: closedTrades.length,
+        winningTrades: winners.length,
+        losingTrades: losers.length,
+        winRate,
+        totalPnl,
+        avgPnl: totalPnl / closedTrades.length,
+        avgRMultiple: closedTrades.reduce((sum, trade) => sum + getRMultiple(trade), 0) / closedTrades.length,
+        profitFactor,
+        largestWin: winners.length > 0 ? Math.max(...winners.map(getPnl)) : 0,
+        largestLoss: losers.length > 0 ? Math.abs(Math.min(...losers.map(getPnl))) : 0,
+        avgWin,
+        avgLoss,
+        expectancy,
+    };
+}
+
+function buildEquityCurveFromTrades(
+    trades: AnalyticsTrade[],
+    startingBalance: number = 10000,
+    startDate?: string
+): EquityCurvePoint[] {
+    const sortedTrades = [...trades].sort((left, right) => {
+        const leftMs =
+            getExitDate(left)?.getTime() ??
+            getEntryDate(left)?.getTime() ??
+            0;
+        const rightMs =
+            getExitDate(right)?.getTime() ??
+            getEntryDate(right)?.getTime() ??
+            0;
+        return leftMs - rightMs;
+    });
+
+    let runningBalance = startingBalance;
+    const curve: EquityCurvePoint[] = [
+        { date: startDate || todayString(), balance: startingBalance, pnl: 0 },
+    ];
+
+    for (const trade of sortedTrades) {
+        const pnl = getPnl(trade);
+        const timestamp =
+            getExitDate(trade)?.toISOString() ??
+            getEntryDate(trade)?.toISOString() ??
+            todayString();
+
+        runningBalance += pnl;
+        curve.push({
+            date: timestamp,
+            balance: runningBalance,
+            pnl,
+        });
+    }
+
+    return curve;
+}
+
+function buildPerformanceByDayFromTrades(trades: AnalyticsTrade[]): DayPerformance[] {
+    const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayStats: Record<string, { pnl: number; trades: number; wins: number }> = {};
+    DAYS.forEach((day) => {
+        dayStats[day] = { pnl: 0, trades: 0, wins: 0 };
+    });
+
+    for (const trade of trades) {
+        const entryDate = getEntryDate(trade);
+        if (!entryDate) continue;
+
+        const dayName = DAYS[entryDate.getDay()];
+        const pnl = getPnl(trade);
+        dayStats[dayName].pnl += pnl;
+        dayStats[dayName].trades++;
+        if (pnl > 0) dayStats[dayName].wins++;
+    }
+
+    return DAYS.slice(1, 6).map((day) => ({
+        day,
+        totalPnl: dayStats[day].pnl,
+        trades: dayStats[day].trades,
+        winRate: dayStats[day].trades > 0 ? (dayStats[day].wins / dayStats[day].trades) * 100 : 0,
+    }));
+}
+
+function buildMonthlyPerformanceFromTrades(trades: AnalyticsTrade[]): MonthlyPerformance[] {
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthStats: Record<string, { monthIndex: number; pnl: number; trades: number; wins: number }> = {};
+
+    for (const trade of trades) {
+        const entryDate = getEntryDate(trade);
+        if (!entryDate) continue;
+
+        const monthIndex = entryDate.getMonth();
+        const key = `${entryDate.getFullYear()}-${monthIndex}`;
+        if (!monthStats[key]) {
+            monthStats[key] = { monthIndex, pnl: 0, trades: 0, wins: 0 };
+        }
+
+        const pnl = getPnl(trade);
+        monthStats[key].pnl += pnl;
+        monthStats[key].trades++;
+        if (pnl > 0) monthStats[key].wins++;
+    }
+
+    return Object.entries(monthStats)
+        .map(([key, stats]) => {
+            const [year] = key.split('-').map(Number);
+            return {
+                month: MONTHS[stats.monthIndex],
+                year,
+                totalPnl: stats.pnl,
+                trades: stats.trades,
+                winRate: stats.trades > 0 ? (stats.wins / stats.trades) * 100 : 0,
+            };
+        })
+        .sort((left, right) => {
+            if (left.year !== right.year) return left.year - right.year;
+            return MONTHS.indexOf(left.month) - MONTHS.indexOf(right.month);
+        });
+}
+
+function buildTodayStatsFromTrades(closedTrades: AnalyticsTrade[]): {
+    pnl: number
+    trades: number
+    wins: number
+    losses: number
+} {
+    const wins = closedTrades.filter((trade) => getPnl(trade) > 0).length;
+    const losses = closedTrades.filter((trade) => getPnl(trade) < 0).length;
+
+    return {
+        pnl: closedTrades.reduce((sum, trade) => sum + getPnl(trade), 0),
+        trades: closedTrades.length,
+        wins,
+        losses,
+    };
+}
+
+export async function getAnalyticsOverview(
+    startingBalance: number = 10000,
+    propAccountId?: string | null
+): Promise<AnalyticsOverview> {
+    const key = buildAnalyticsCacheKey('overview', startingBalance, propAccountId);
+
+    return getCachedAnalyticsResult(key, async () => {
+        const closedTrades = await fetchClosedTrades({ propAccountId });
+        return {
+            tradeCount: closedTrades.length,
+            summary: buildSummaryFromTrades(closedTrades),
+            equityCurve: buildEquityCurveFromTrades(closedTrades, startingBalance),
+            performanceByDay: buildPerformanceByDayFromTrades(closedTrades),
+        };
+    });
+}
+
 export async function getAnalyticsSummary(
     startDate?: string,
     endDate?: string,
     propAccountId?: string | null
 ): Promise<AnalyticsSummary> {
+    const key = buildAnalyticsCacheKey('summary', startDate, endDate, propAccountId);
+
     try {
-        const closedTrades = await fetchClosedTrades({
-            startDate,
-            endDate,
-            propAccountId,
+        return await getCachedAnalyticsResult(key, async () => {
+            const closedTrades = await fetchClosedTrades({
+                startDate,
+                endDate,
+                propAccountId,
+            });
+
+            return buildSummaryFromTrades(closedTrades);
         });
-
-        if (closedTrades.length === 0) return EMPTY_SUMMARY;
-
-        const winners = closedTrades.filter((trade) => getPnl(trade) > 0);
-        const losers = closedTrades.filter((trade) => getPnl(trade) < 0);
-
-        const totalPnl = closedTrades.reduce((sum, trade) => sum + getPnl(trade), 0);
-        const grossProfit = winners.reduce((sum, trade) => sum + getPnl(trade), 0);
-        const grossLoss = Math.abs(losers.reduce((sum, trade) => sum + getPnl(trade), 0));
-
-        const winRate = (winners.length / closedTrades.length) * 100;
-        const avgWin = winners.length > 0 ? grossProfit / winners.length : 0;
-        const avgLoss = losers.length > 0 ? grossLoss / losers.length : 0;
-        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
-        const expectancy = (winRate / 100 * avgWin) - ((1 - winRate / 100) * avgLoss);
-
-        return {
-            totalTrades: closedTrades.length,
-            winningTrades: winners.length,
-            losingTrades: losers.length,
-            winRate,
-            totalPnl,
-            avgPnl: totalPnl / closedTrades.length,
-            avgRMultiple: closedTrades.reduce((sum, trade) => sum + getRMultiple(trade), 0) / closedTrades.length,
-            profitFactor,
-            largestWin: winners.length > 0 ? Math.max(...winners.map(getPnl)) : 0,
-            largestLoss: losers.length > 0 ? Math.abs(Math.min(...losers.map(getPnl))) : 0,
-            avgWin,
-            avgLoss,
-            expectancy,
-        };
     } catch (err) {
         console.warn('[getAnalyticsSummary] unexpected error:', err);
         return EMPTY_SUMMARY;
@@ -189,46 +381,18 @@ export async function getEquityCurve(
     endDate?: string,
     propAccountId?: string | null
 ): Promise<EquityCurvePoint[]> {
+    const key = buildAnalyticsCacheKey('equity', startingBalance, startDate, endDate, propAccountId);
+
     try {
-        const trades = await fetchClosedTrades({
-            startDate,
-            endDate,
-            propAccountId,
-        });
-
-        const sortedTrades = [...trades].sort((left, right) => {
-            const leftMs =
-                getExitDate(left)?.getTime() ??
-                getEntryDate(left)?.getTime() ??
-                0;
-            const rightMs =
-                getExitDate(right)?.getTime() ??
-                getEntryDate(right)?.getTime() ??
-                0;
-            return leftMs - rightMs;
-        });
-
-        let runningBalance = startingBalance;
-        const curve: EquityCurvePoint[] = [
-            { date: startDate || todayString(), balance: startingBalance, pnl: 0 },
-        ];
-
-        for (const trade of sortedTrades) {
-            const pnl = getPnl(trade);
-            const timestamp =
-                getExitDate(trade)?.toISOString() ??
-                getEntryDate(trade)?.toISOString() ??
-                todayString();
-
-            runningBalance += pnl;
-            curve.push({
-                date: timestamp,
-                balance: runningBalance,
-                pnl,
+        return await getCachedAnalyticsResult(key, async () => {
+            const trades = await fetchClosedTrades({
+                startDate,
+                endDate,
+                propAccountId,
             });
-        }
 
-        return curve;
+            return buildEquityCurveFromTrades(trades, startingBalance, startDate);
+        });
     } catch (err) {
         console.warn('[getEquityCurve] unexpected error:', err);
         return [{ date: startDate || todayString(), balance: startingBalance, pnl: 0 }];
@@ -245,31 +409,13 @@ export interface DayPerformance {
 export async function getPerformanceByDay(propAccountId?: string | null): Promise<DayPerformance[]> {
     const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const empty = DAYS.slice(1, 6).map((day) => ({ day, totalPnl: 0, trades: 0, winRate: 0 }));
+    const key = buildAnalyticsCacheKey('day-performance', propAccountId);
 
     try {
-        const trades = await fetchClosedTrades({ propAccountId });
-        const dayStats: Record<string, { pnl: number; trades: number; wins: number }> = {};
-        DAYS.forEach((day) => {
-            dayStats[day] = { pnl: 0, trades: 0, wins: 0 };
+        return await getCachedAnalyticsResult(key, async () => {
+            const trades = await fetchClosedTrades({ propAccountId });
+            return buildPerformanceByDayFromTrades(trades);
         });
-
-        for (const trade of trades) {
-            const entryDate = getEntryDate(trade);
-            if (!entryDate) continue;
-
-            const dayName = DAYS[entryDate.getDay()];
-            const pnl = getPnl(trade);
-            dayStats[dayName].pnl += pnl;
-            dayStats[dayName].trades++;
-            if (pnl > 0) dayStats[dayName].wins++;
-        }
-
-        return DAYS.slice(1, 6).map((day) => ({
-            day,
-            totalPnl: dayStats[day].pnl,
-            trades: dayStats[day].trades,
-            winRate: dayStats[day].trades > 0 ? (dayStats[day].wins / dayStats[day].trades) * 100 : 0,
-        }));
     } catch (err) {
         console.warn('[getPerformanceByDay] unexpected error:', err);
         return empty;
@@ -285,42 +431,13 @@ export interface MonthlyPerformance {
 }
 
 export async function getMonthlyPerformance(propAccountId?: string | null): Promise<MonthlyPerformance[]> {
+    const key = buildAnalyticsCacheKey('monthly-performance', propAccountId);
+
     try {
-        const trades = await fetchClosedTrades({ propAccountId });
-        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const monthStats: Record<string, { monthIndex: number; pnl: number; trades: number; wins: number }> = {};
-
-        for (const trade of trades) {
-            const entryDate = getEntryDate(trade);
-            if (!entryDate) continue;
-
-            const monthIndex = entryDate.getMonth();
-            const key = `${entryDate.getFullYear()}-${monthIndex}`;
-            if (!monthStats[key]) {
-                monthStats[key] = { monthIndex, pnl: 0, trades: 0, wins: 0 };
-            }
-
-            const pnl = getPnl(trade);
-            monthStats[key].pnl += pnl;
-            monthStats[key].trades++;
-            if (pnl > 0) monthStats[key].wins++;
-        }
-
-        return Object.entries(monthStats)
-            .map(([key, stats]) => {
-                const [year] = key.split('-').map(Number);
-                return {
-                    month: MONTHS[stats.monthIndex],
-                    year,
-                    totalPnl: stats.pnl,
-                    trades: stats.trades,
-                    winRate: stats.trades > 0 ? (stats.wins / stats.trades) * 100 : 0,
-                };
-            })
-            .sort((left, right) => {
-                if (left.year !== right.year) return left.year - right.year;
-                return MONTHS.indexOf(left.month) - MONTHS.indexOf(right.month);
-            });
+        return await getCachedAnalyticsResult(key, async () => {
+            const trades = await fetchClosedTrades({ propAccountId });
+            return buildMonthlyPerformanceFromTrades(trades);
+        });
     } catch (err) {
         console.warn('[getMonthlyPerformance] unexpected error:', err);
         return [];
@@ -334,24 +451,19 @@ export async function getTodayStats(propAccountId?: string | null): Promise<{
     losses: number
 }> {
     const EMPTY = { pnl: 0, trades: 0, wins: 0, losses: 0 };
+    const today = todayString();
+    const key = buildAnalyticsCacheKey('today-stats', today, propAccountId);
 
     try {
-        const today = todayString();
-        const closedTrades = await fetchClosedTrades({
-            propAccountId,
-            exitStartDate: `${today}T00:00:00`,
-            exitEndDate: `${today}T23:59:59`,
+        return await getCachedAnalyticsResult(key, async () => {
+            const closedTrades = await fetchClosedTrades({
+                propAccountId,
+                exitStartDate: `${today}T00:00:00`,
+                exitEndDate: `${today}T23:59:59`,
+            });
+
+            return buildTodayStatsFromTrades(closedTrades);
         });
-
-        const wins = closedTrades.filter((trade) => getPnl(trade) > 0).length;
-        const losses = closedTrades.filter((trade) => getPnl(trade) < 0).length;
-
-        return {
-            pnl: closedTrades.reduce((sum, trade) => sum + getPnl(trade), 0),
-            trades: closedTrades.length,
-            wins,
-            losses,
-        };
     } catch (err) {
         console.warn('[getTodayStats] unexpected error:', err);
         return EMPTY;

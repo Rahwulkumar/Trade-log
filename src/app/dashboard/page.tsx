@@ -28,6 +28,7 @@ import {
 import { ArcProgress } from "@/components/ui/arc-progress";
 import { DrawdownGauge } from "@/components/ui/drawdown-gauge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { AppPanel, SectionHeader } from "@/components/ui/page-primitives";
 
 interface PropAccountWithCompliance extends PropAccount {
@@ -111,66 +112,68 @@ function StatCard({
   isNeutral?: boolean;
 }) {
   return (
-    <article className="surface p-5 flex flex-col gap-3">
-      <p className="text-label">{label}</p>
+    <Card className="surface gap-0 border-0 bg-transparent p-0 shadow-none">
+      <CardContent className="flex flex-col gap-3 p-5">
+        <p className="text-label">{label}</p>
 
-      <p
-        className="stat-large leading-none"
-        style={{
-          color: isNeutral
-            ? "var(--text-primary)"
-            : isGain === true
-              ? "var(--profit-primary)"
-              : isGain === false
-                ? "var(--loss-primary)"
-                : "var(--text-primary)",
-        }}
-      >
-        {value}
-      </p>
-
-      {secondaryValue && (
         <p
+          className="stat-large leading-none"
           style={{
-            fontSize: "0.72rem",
-            color: "var(--text-tertiary)",
+            color: isNeutral
+              ? "var(--text-primary)"
+              : isGain === true
+                ? "var(--profit-primary)"
+                : isGain === false
+                  ? "var(--loss-primary)"
+                  : "var(--text-primary)",
           }}
         >
-          {secondaryValue}
+          {value}
         </p>
-      )}
 
-      {trend && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={cn(
-              "badge-base flex items-center gap-1",
-              isGain ? "badge-profit" : "badge-loss",
-            )}
+        {secondaryValue && (
+          <p
             style={{
-              borderRadius: "999px",
-              fontSize: "0.63rem",
-              padding: "0.18rem 0.6rem",
-              fontWeight: 600,
+              fontSize: "0.72rem",
+              color: "var(--text-tertiary)",
             }}
           >
-            {isGain ? (
-              <IconArrowUp size={9} strokeWidth={2.5} />
-            ) : (
-              <IconArrowDown size={9} strokeWidth={2.5} />
-            )}
-            {trend}
-          </span>
-          {trendLabel && (
+            {secondaryValue}
+          </p>
+        )}
+
+        {trend && (
+          <div className="flex items-center gap-2 flex-wrap">
             <span
-              style={{ fontSize: "0.68rem", color: "var(--text-tertiary)" }}
+              className={cn(
+                "badge-base flex items-center gap-1",
+                isGain ? "badge-profit" : "badge-loss",
+              )}
+              style={{
+                borderRadius: "999px",
+                fontSize: "0.63rem",
+                padding: "0.18rem 0.6rem",
+                fontWeight: 600,
+              }}
             >
-              {trendLabel}
+              {isGain ? (
+                <IconArrowUp size={9} strokeWidth={2.5} />
+              ) : (
+                <IconArrowDown size={9} strokeWidth={2.5} />
+              )}
+              {trend}
             </span>
-          )}
-        </div>
-      )}
-    </article>
+            {trendLabel && (
+              <span
+                style={{ fontSize: "0.68rem", color: "var(--text-tertiary)" }}
+              >
+                {trendLabel}
+              </span>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -185,8 +188,8 @@ function AccountCard({
   username: string;
 }) {
   return (
-    <article
-      className="surface p-5 flex flex-col justify-between"
+    <Card
+      className="surface gap-0 border-0 bg-transparent p-0 shadow-none"
       style={{
         background: `
           radial-gradient(ellipse at 0% 100%, rgba(3,98,76,0.08) 0%, transparent 55%),
@@ -195,68 +198,70 @@ function AccountCard({
         minHeight: "140px",
       }}
     >
-      <div className="flex items-center justify-between mb-3">
+      <CardContent className="flex h-full flex-col justify-between p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <p
+              style={{
+                fontWeight: 600,
+                fontSize: "0.88rem",
+                color: "var(--text-primary)",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+                lineHeight: 1,
+              }}
+            >
+              {username}
+            </p>
+            <p
+              style={{
+                fontSize: "0.62rem",
+                color: "var(--text-tertiary)",
+                marginTop: "2px",
+              }}
+            >
+              {account?.accountName ?? "All Accounts"}
+            </p>
+          </div>
+          <span className="badge-toggle-on">ON</span>
+        </div>
+
         <div>
-          <p
-            style={{
-              fontWeight: 600,
-              fontSize: "0.88rem",
-              color: "var(--text-primary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              lineHeight: 1,
-            }}
-          >
-            {username}
+          <p className="text-label" style={{ marginBottom: "0.25rem" }}>
+            Balance
           </p>
           <p
+            className="mono"
             style={{
-              fontSize: "0.62rem",
-              color: "var(--text-tertiary)",
-              marginTop: "2px",
+              fontSize: "1.7rem",
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              lineHeight: 1,
+              letterSpacing: "-0.02em",
             }}
           >
-            {account?.accountName ?? "All Accounts"}
+            {fmt(balance)}
           </p>
         </div>
-        <span className="badge-toggle-on">ON</span>
-      </div>
 
-      <div>
-        <p className="text-label" style={{ marginBottom: "0.25rem" }}>
-          Balance
-        </p>
-        <p
-          className="mono"
-          style={{
-            fontSize: "1.7rem",
-            fontWeight: 600,
-            color: "var(--text-primary)",
-            lineHeight: 1,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          {fmt(balance)}
-        </p>
-      </div>
-
-      {/* Decorative mini bars */}
-      <div className="mt-3 flex items-end gap-0.5 h-8">
-        {[0.4, 0.6, 0.5, 0.75, 0.55, 0.9, 0.7, 0.85, 1.0, 0.8, 0.95, 0.6].map(
-          (h, i) => (
-            <div
-              key={i}
-              className="flex-1 rounded-sm"
-              style={{
-                height: `${h * 100}%`,
-                background:
-                  i % 3 === 0 ? "rgba(3,98,76,0.55)" : "rgba(3,98,76,0.18)",
-              }}
-            />
-          ),
-        )}
-      </div>
-    </article>
+        {/* Decorative mini bars */}
+        <div className="mt-3 flex h-8 items-end gap-0.5">
+          {[0.4, 0.6, 0.5, 0.75, 0.55, 0.9, 0.7, 0.85, 1.0, 0.8, 0.95, 0.6].map(
+            (h, i) => (
+              <div
+                key={i}
+                className="flex-1 rounded-sm"
+                style={{
+                  height: `${h * 100}%`,
+                  background:
+                    i % 3 === 0 ? "rgba(3,98,76,0.55)" : "rgba(3,98,76,0.18)",
+                }}
+              />
+            ),
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -570,6 +575,7 @@ export default function DashboardPage() {
             propAccountId={selectedAccountId}
             startDate={startOfMonth}
             endDate={endOfMonth}
+            summary={stats}
           />
           {/* Key metrics below donut */}
           <div className="mt-4">

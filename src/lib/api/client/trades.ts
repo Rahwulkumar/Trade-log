@@ -8,6 +8,10 @@ import type { Trade, TradeFilters } from '@/lib/api/trades';
 import { readJsonIfAvailable } from '@/lib/api/client/http';
 export type { Trade, TradeFilters };
 
+const TRADE_CACHE_TTL_MS = 15_000;
+const tradeResponseCache = new Map<string, { expiresAt: number; data: Trade[] }>();
+const pendingTradeRequests = new Map<string, Promise<Trade[]>>();
+
 function buildQuery(filters?: TradeFilters): string {
   if (!filters) return '';
   const params = new URLSearchParams();
@@ -20,15 +24,61 @@ function buildQuery(filters?: TradeFilters): string {
   if (filters.exitStartDate) params.set('exitStartDate', filters.exitStartDate);
   if (filters.exitEndDate) params.set('exitEndDate', filters.exitEndDate);
   if (filters.search) params.set('search', filters.search);
+  if (typeof filters.limit === 'number' && Number.isFinite(filters.limit)) {
+    params.set('limit', String(filters.limit));
+  }
+  if (typeof filters.offset === 'number' && Number.isFinite(filters.offset)) {
+    params.set('offset', String(filters.offset));
+  }
+  if (filters.sortBy) params.set('sortBy', filters.sortBy);
+  if (filters.sortOrder) params.set('sortOrder', filters.sortOrder);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
 
+function getCacheKey(filters?: TradeFilters): string {
+  return `/api/trades${buildQuery(filters)}`;
+}
+
+function clearTradeQueryCache() {
+  tradeResponseCache.clear();
+  pendingTradeRequests.clear();
+}
+
 export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
+  const cacheKey = getCacheKey(filters);
+  const now = Date.now();
+  const cached = tradeResponseCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.data;
+  }
+
+  const pending = pendingTradeRequests.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  const request = (async () => {
+    try {
+      const res = await fetch(cacheKey);
+      if (!res.ok) return [];
+      const data = (await readJsonIfAvailable<Trade[]>(res)) ?? [];
+      tradeResponseCache.set(cacheKey, {
+        expiresAt: Date.now() + TRADE_CACHE_TTL_MS,
+        data,
+      });
+      return data;
+    } catch {
+      return [];
+    } finally {
+      pendingTradeRequests.delete(cacheKey);
+    }
+  })();
+
+  pendingTradeRequests.set(cacheKey, request);
+
   try {
-    const res = await fetch(`/api/trades${buildQuery(filters)}`);
-    if (!res.ok) return [];
-    return (await readJsonIfAvailable<Trade[]>(res)) ?? [];
+    return await request;
   } catch {
     return [];
   }
@@ -56,6 +106,7 @@ export async function createTrade(trade: Omit<Trade, 'id' | 'userId' | 'createdA
   }
   const createdTrade = await readJsonIfAvailable<Trade>(res);
   if (!createdTrade) throw new Error('Failed to create trade');
+  clearTradeQueryCache();
   return createdTrade;
 }
 
@@ -68,12 +119,14 @@ export async function updateTrade(id: string, updates: Partial<Trade>): Promise<
   if (!res.ok) throw new Error('Failed to update trade');
   const trade = await readJsonIfAvailable<Trade>(res);
   if (!trade) throw new Error('Failed to update trade');
+  clearTradeQueryCache();
   return trade;
 }
 
 export async function deleteTrade(id: string): Promise<void> {
   const res = await fetch(`/api/trades/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete trade');
+  clearTradeQueryCache();
 }
 
 export async function getTradesByDateRange(

@@ -25,6 +25,10 @@ export interface TradeFilters {
   exitStartDate?: string;
   exitEndDate?: string;
   search?: string;
+  limit?: number;
+  offset?: number;
+  sortBy?: 'entryDate' | 'exitDate' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -69,11 +73,46 @@ export async function getTrades(
       conditions.push(ilike(trades.symbol, `%${filters.search}%`));
     }
 
-    return db
+    const orderColumn =
+      filters?.sortBy === 'exitDate'
+        ? trades.exitDate
+        : filters?.sortBy === 'createdAt'
+          ? trades.createdAt
+          : trades.entryDate;
+    const orderDirection =
+      filters?.sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+
+    const query = db
       .select()
       .from(trades)
       .where(and(...conditions))
-      .orderBy(desc(trades.entryDate));
+      .orderBy(orderDirection);
+
+    const hasLimit =
+      typeof filters?.limit === 'number' && Number.isFinite(filters.limit);
+    const hasOffset =
+      typeof filters?.offset === 'number' &&
+      Number.isFinite(filters.offset) &&
+      filters.offset > 0;
+
+    if (hasLimit && hasOffset) {
+      const safeLimit = Math.max(1, Math.min(filters.limit as number, 250));
+      const safeOffset = filters.offset as number;
+      return query
+        .limit(safeLimit)
+        .offset(safeOffset);
+    }
+
+    if (hasLimit) {
+      const safeLimit = Math.max(1, Math.min(filters.limit as number, 250));
+      return query.limit(safeLimit);
+    }
+
+    if (hasOffset) {
+      return query.offset(filters.offset as number);
+    }
+
+    return query;
   } catch (err) {
     console.warn('[getTrades] error:', err instanceof Error ? err.message : String(err));
     return [];

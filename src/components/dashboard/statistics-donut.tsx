@@ -3,12 +3,16 @@
 import { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useAuth } from "@/components/auth-provider";
-import { getAnalyticsSummary } from "@/lib/api/analytics";
+import {
+  getAnalyticsSummary,
+  type AnalyticsSummary,
+} from "@/lib/api/analytics";
 
 interface StatisticsProps {
   propAccountId?: string | null;
   startDate?: string;
   endDate?: string;
+  summary?: AnalyticsSummary | null;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -63,6 +67,7 @@ export function StatisticsDonut({
   propAccountId,
   startDate,
   endDate,
+  summary,
 }: StatisticsProps) {
   const { user, isConfigured, loading: authLoading } = useAuth();
   const [stats, setStats] = useState<{
@@ -84,20 +89,24 @@ export function StatisticsDonut({
         return;
       }
       try {
-        const now = new Date();
-        const start =
-          startDate ??
-          new Date(now.getFullYear(), now.getMonth(), 1)
-            .toISOString()
-            .split("T")[0];
-        const end =
-          endDate ??
-          new Date(now.getFullYear(), now.getMonth() + 1, 0)
-            .toISOString()
-            .split("T")[0];
-        const acct =
-          propAccountId === "unassigned" ? "unassigned" : propAccountId;
-        const data = await getAnalyticsSummary(start, end, acct);
+        const data = summary
+          ? summary
+          : await (async () => {
+              const now = new Date();
+              const start =
+                startDate ??
+                new Date(now.getFullYear(), now.getMonth(), 1)
+                  .toISOString()
+                  .split("T")[0];
+              const end =
+                endDate ??
+                new Date(now.getFullYear(), now.getMonth() + 1, 0)
+                  .toISOString()
+                  .split("T")[0];
+              const acct =
+                propAccountId === "unassigned" ? "unassigned" : propAccountId;
+              return getAnalyticsSummary(start, end, acct);
+            })();
 
         const breakEven =
           data.totalTrades - data.winningTrades - data.losingTrades;
@@ -119,7 +128,7 @@ export function StatisticsDonut({
       }
     }
     load();
-  }, [authLoading, user, isConfigured, propAccountId, startDate, endDate]);
+  }, [authLoading, user, isConfigured, propAccountId, startDate, endDate, summary]);
 
   const pieData = stats
     ? [
