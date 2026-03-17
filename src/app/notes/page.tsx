@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { format } from "date-fns";
 import { IconSearch } from "@/components/ui/icons";
 import {
@@ -21,6 +21,9 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Note {
@@ -110,26 +113,18 @@ function NoteListItem({
     note.content.replace(/#+\s/g, "").slice(0, 60) || "No content";
 
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
-      className="w-full text-left px-3 py-2.5 rounded-[var(--radius-default)] transition-all group"
+      variant="ghost"
+      className={cn(
+        "h-auto w-full justify-start whitespace-normal rounded-[var(--radius-default)] border px-3 py-2.5 text-left transition-all",
+        "hover:bg-[var(--surface-hover)] hover:text-inherit",
+      )}
       style={{
         background: isActive ? "var(--accent-soft)" : "transparent",
         border: `1px solid ${isActive ? "var(--accent-primary)" : "transparent"}`,
         boxShadow: isActive ? "0 0 10px var(--accent-glow)" : "none",
-      }}
-      onMouseEnter={(e) => {
-        if (!isActive) {
-          e.currentTarget.style.background = "var(--surface-hover)";
-          e.currentTarget.style.border = "1px solid var(--border-default)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isActive) {
-          e.currentTarget.style.background = "transparent";
-          e.currentTarget.style.border = "1px solid transparent";
-        }
       }}
     >
       <div className="flex items-center gap-2 mb-0.5">
@@ -176,7 +171,7 @@ function NoteListItem({
           {format(new Date(note.updatedAt), "MMM d")}
         </span>
       </div>
-    </button>
+    </Button>
   );
 }
 
@@ -206,7 +201,7 @@ function AutoTextarea({
   }, [value]);
 
   return (
-    <textarea
+    <Textarea
       ref={ref}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -237,13 +232,15 @@ function TagChip({
       <Hash size={9} />
       {label}
       {onRemove && (
-        <button
+        <Button
           type="button"
           onClick={onRemove}
-          className="hover:opacity-70 transition-opacity"
+          variant="ghost"
+          size="icon-sm"
+          className="h-4 w-4 rounded-full p-0 text-current hover:bg-transparent hover:opacity-70"
         >
           ×
-        </button>
+        </Button>
       )}
     </span>
   );
@@ -262,7 +259,19 @@ export default function NotesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeNote = notes.find((n) => n.id === activeId) ?? null;
+  const activeNote = useMemo(
+    () => notes.find((n) => n.id === activeId) ?? null,
+    [notes, activeId],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+    };
+  }, []);
 
   // Debounced save
   const updateNote = useCallback((id: string, patch: Partial<Note>) => {
@@ -325,21 +334,27 @@ export default function NotesPage() {
   };
 
   // Filtered + sorted
-  const filtered = notes
-    .filter((n) =>
-      search
-        ? n.title.toLowerCase().includes(search.toLowerCase()) ||
-          n.content.toLowerCase().includes(search.toLowerCase()) ||
-          n.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()))
-        : true,
-    )
-    .sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    });
+  const filtered = useMemo(() => {
+    const query = search.toLowerCase();
+    return [...notes]
+      .filter((n) =>
+        query
+          ? n.title.toLowerCase().includes(query) ||
+            n.content.toLowerCase().includes(query) ||
+            n.tags.some((t) => t.toLowerCase().includes(query))
+          : true,
+      )
+      .sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+  }, [notes, search]);
 
-  const pinnedCount = notes.filter((n) => n.pinned).length;
+  const pinnedCount = useMemo(
+    () => notes.filter((n) => n.pinned).length,
+    [notes],
+  );
 
   return (
     <div
@@ -381,10 +396,11 @@ export default function NotesPage() {
               Notebook
             </span>
           </div>
-          <button
+          <Button
             type="button"
             onClick={newNote}
-            className="relative z-10 flex items-center justify-center w-6 h-6 rounded-[var(--radius-sm)] transition-all hover:scale-110"
+            size="icon-sm"
+            className="relative z-10 h-6 w-6 rounded-[var(--radius-sm)] border-0 p-0 text-white transition-transform hover:scale-110 hover:text-white"
             style={{
               background:
                 "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))",
@@ -393,7 +409,7 @@ export default function NotesPage() {
             title="New note"
           >
             <Plus size={13} strokeWidth={2.5} color="#fff" />
-          </button>
+          </Button>
         </div>
 
         {/* Search */}
@@ -412,13 +428,12 @@ export default function NotesPage() {
               size={12}
               style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
             />
-            <input
+            <Input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search notes..."
-              className="flex-1 bg-transparent text-[0.72rem] outline-none"
-              style={{ color: "var(--text-primary)" }}
+              className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-[0.72rem] text-[var(--text-primary)] shadow-none focus-visible:ring-0"
             />
           </div>
         </div>
@@ -509,18 +524,16 @@ export default function NotesPage() {
             <div className="flex items-center gap-2">
               {/* Icon picker trigger */}
               <div className="relative">
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => setShowEmojiPicker((v) => !v)}
-                  className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-sm)] transition-all hover:scale-110"
-                  style={{
-                    background: "var(--accent-soft)",
-                    color: "var(--accent-primary)",
-                  }}
+                  className="h-7 w-7 rounded-[var(--radius-sm)] bg-[var(--accent-soft)] p-0 text-[var(--accent-primary)] hover:scale-110 hover:bg-[var(--accent-soft)] hover:text-[var(--accent-primary)]"
                   title="Change note icon"
                 >
                   <NoteIcon iconKey={activeNote.emoji} size={13} />
-                </button>
+                </Button>
                 {showEmojiPicker && (
                   <div
                     className="absolute left-0 top-full mt-1 z-50 p-2 rounded-[var(--radius-md)] flex flex-wrap gap-1"
@@ -532,18 +545,19 @@ export default function NotesPage() {
                     }}
                   >
                     {NOTE_ICON_KEYS.map((key) => (
-                      <button
+                      <Button
                         key={key}
                         type="button"
-                        className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-sm)] transition-all hover:scale-125 hover:bg-[var(--accent-soft)]"
-                        style={{ color: "var(--text-secondary)" }}
+                        variant="ghost"
+                        size="icon-sm"
+                        className="h-7 w-7 rounded-[var(--radius-sm)] p-0 text-[var(--text-secondary)] hover:scale-125 hover:bg-[var(--accent-soft)] hover:text-[var(--accent-primary)]"
                         onClick={() => {
                           updateNote(activeNote.id, { emoji: key });
                           setShowEmojiPicker(false);
                         }}
                       >
                         <NoteIcon iconKey={key} size={13} />
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 )}
@@ -570,10 +584,12 @@ export default function NotesPage() {
 
             {/* Actions */}
             <div className="flex items-center gap-1.5">
-              <button
+              <Button
                 type="button"
                 onClick={() => togglePin(activeNote.id)}
-                className="flex items-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] text-[0.68rem] font-medium transition-all"
+                variant="ghost"
+                size="sm"
+                className="h-auto gap-1 rounded-[var(--radius-sm)] px-2 py-1 text-[0.68rem] font-medium"
                 style={
                   activeNote.pinned
                     ? {
@@ -591,12 +607,14 @@ export default function NotesPage() {
                   fill={activeNote.pinned ? "currentColor" : "none"}
                 />
                 {activeNote.pinned ? "Pinned" : "Pin"}
-              </button>
+              </Button>
 
-              <button
+              <Button
                 type="button"
                 onClick={() => deleteNote(activeNote.id)}
-                className="flex items-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] text-[0.68rem] font-medium transition-all"
+                variant="ghost"
+                size="sm"
+                className="h-auto gap-1 rounded-[var(--radius-sm)] px-2 py-1 text-[0.68rem] font-medium hover:text-[var(--loss-primary)]"
                 style={{
                   background: "var(--loss-bg)",
                   color: "var(--loss-primary)",
@@ -604,7 +622,7 @@ export default function NotesPage() {
               >
                 <Trash2 size={11} />
                 Delete
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -612,19 +630,15 @@ export default function NotesPage() {
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-3xl px-8 py-10">
               {/* Title */}
-              <input
+              <Input
                 type="text"
                 value={activeNote.title}
                 onChange={(e) =>
                   updateNote(activeNote.id, { title: e.target.value })
                 }
                 placeholder="Untitled"
-                className="w-full bg-transparent outline-none mb-6 leading-tight"
+                className="mb-6 h-auto w-full border-0 bg-transparent px-0 py-0 text-[2.2rem] font-bold leading-tight tracking-[-0.03em] text-[var(--text-primary)] shadow-none focus-visible:ring-0"
                 style={{
-                  fontWeight: 700,
-                  fontSize: "2.2rem",
-                  color: "var(--text-primary)",
-                  letterSpacing: "-0.03em",
                   caretColor: "var(--accent-primary)",
                 }}
               />
@@ -639,7 +653,7 @@ export default function NotesPage() {
                   />
                 ))}
                 <div className="flex items-center gap-1">
-                  <input
+                  <Input
                     type="text"
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
@@ -650,8 +664,7 @@ export default function NotesPage() {
                       }
                     }}
                     placeholder="+ Add tag"
-                    className="bg-transparent outline-none text-[0.68rem]"
-                    style={{ color: "var(--text-tertiary)", width: "70px" }}
+                    className="h-auto w-[84px] border-0 bg-transparent px-0 py-0 text-[0.68rem] text-[var(--text-tertiary)] shadow-none focus-visible:ring-0"
                   />
                 </div>
               </div>

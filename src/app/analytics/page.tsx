@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ComposedChart,
@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/page-primitives";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { BarLoader } from "@/components/ui/loading";
 
@@ -46,13 +47,10 @@ import { CHART_COLORS } from "@/lib/constants/chart-colors";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import {
-  getEquityCurve,
-  getPerformanceByDay,
+  getAnalyticsOverview,
   type EquityCurvePoint,
   type DayPerformance,
 } from "@/lib/api/analytics";
-import { getTrades } from "@/lib/api/client/trades";
-import type { Trade } from "@/lib/db/schema";
 
 // ─── Dummy data ───────────────────────────────────────────────────────────────
 import {
@@ -126,8 +124,9 @@ function RiskCard({
     },
   }[q];
   return (
-    <article className="surface p-5 flex flex-col gap-3 card-enter">
-      <div className="flex items-start justify-between">
+    <Card className="surface card-enter gap-0 border-0 bg-transparent p-0 shadow-none">
+      <CardContent className="flex flex-col gap-3 p-5">
+        <div className="flex items-start justify-between">
         <span
           className="text-[11px] font-medium"
           style={{ color: "var(--text-secondary)" }}
@@ -145,32 +144,33 @@ function RiskCard({
         >
           {styles.tag}
         </Badge>
-      </div>
-      <p
-        className="mono counter-pop"
-        style={{
-          fontSize: "2rem",
-          fontWeight: 700,
-          letterSpacing: "-0.04em",
-          lineHeight: 1,
-          color: styles.color,
-        }}
-      >
-        {value.toFixed(2)}
-        <span
-          className="text-base ml-1"
+        </div>
+        <p
+          className="mono counter-pop"
+          style={{
+            fontSize: "2rem",
+            fontWeight: 700,
+            letterSpacing: "-0.04em",
+            lineHeight: 1,
+            color: styles.color,
+          }}
+        >
+          {value.toFixed(2)}
+          <span
+            className="text-base ml-1"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            {unit}
+          </span>
+        </p>
+        <p
+          className="text-[10px] leading-relaxed"
           style={{ color: "var(--text-tertiary)" }}
         >
-          {unit}
-        </span>
-      </p>
-      <p
-        className="text-[10px] leading-relaxed"
-        style={{ color: "var(--text-tertiary)" }}
-      >
-        {hint}
-      </p>
-    </article>
+          {hint}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -184,13 +184,13 @@ function SessionCard({
   color,
 }: (typeof DUMMY_SESSIONS)[0]) {
   return (
-    <article className="surface p-4 relative overflow-hidden">
+    <Card className="surface relative overflow-hidden gap-0 border-0 bg-transparent p-0 shadow-none">
       <div
         className="absolute top-0 left-0 w-1 h-full rounded-l-xl"
         style={{ background: color }}
       />
-      <div className="pl-2">
-        <div className="flex items-start justify-between mb-3">
+      <CardContent className="pl-6 pr-4 py-4">
+        <div className="mb-3 flex items-start justify-between">
           <div>
             <h4 className="text-sm font-semibold">{session}</h4>
             <p
@@ -240,8 +240,8 @@ function SessionCard({
           className="h-1"
           style={{ "--progress-fg": color } as React.CSSProperties}
         />
-      </div>
-    </article>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -300,7 +300,7 @@ export default function AnalyticsPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
   const { selectedAccountId } = usePropAccount();
   const [loading, setLoading] = useState(true);
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [tradeCount, setTradeCount] = useState(0);
   const [equityCurve, setEquityCurve] = useState<EquityCurvePoint[]>([]);
   const [dayPerf, setDayPerf] = useState<DayPerformance[]>([]);
 
@@ -314,14 +314,10 @@ export default function AnalyticsPage() {
         setLoading(true);
         const id =
           selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
-        const [t, eq, dp] = await Promise.all([
-          getTrades({ status: "closed", propAccountId: id }),
-          getEquityCurve(10000, undefined, undefined, id),
-          getPerformanceByDay(id),
-        ]);
-        setTrades(t);
-        setEquityCurve(eq);
-        setDayPerf(dp);
+        const overview = await getAnalyticsOverview(10000, id);
+        setTradeCount(overview.tradeCount);
+        setEquityCurve(overview.equityCurve);
+        setDayPerf(overview.performanceByDay);
       } catch (e) {
         console.error(e);
       } finally {
@@ -331,21 +327,29 @@ export default function AnalyticsPage() {
     if (!authLoading) load();
   }, [user, isConfigured, authLoading, selectedAccountId]);
 
-  const useDummy = !loading && trades.length === 0;
-  const eqData = useDummy
-    ? DUMMY_EQUITY
-    : equityCurve.map((p) => ({
-        date: (p.date ?? "").slice(5),
-        balance: p.balance,
-      }));
-  const dowData = useDummy
-    ? DUMMY_DOW
-    : dayPerf.map((d) => ({
-        day: d.day,
-        trades: d.trades,
-        winRate: d.winRate ?? 0,
-        totalPnl: d.totalPnl,
-      }));
+  const useDummy = !loading && tradeCount === 0;
+  const eqData = useMemo(
+    () =>
+      useDummy
+        ? DUMMY_EQUITY
+        : equityCurve.map((p) => ({
+            date: (p.date ?? "").slice(5),
+            balance: p.balance,
+          })),
+    [equityCurve, useDummy],
+  );
+  const dowData = useMemo(
+    () =>
+      useDummy
+        ? DUMMY_DOW
+        : dayPerf.map((d) => ({
+            day: d.day,
+            trades: d.trades,
+            winRate: d.winRate ?? 0,
+            totalPnl: d.totalPnl,
+          })),
+    [dayPerf, useDummy],
+  );
 
   if (!authLoading && !isConfigured)
     return (

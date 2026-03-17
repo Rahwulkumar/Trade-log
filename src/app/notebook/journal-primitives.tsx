@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { getScreenshotUrl } from "@/lib/api/storage";
 import type { TradeScreenshot } from "@/lib/supabase/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 /* ═══ JCard — premium journal card with strong visual header ════════════ */
 export function JCard({
@@ -158,10 +161,12 @@ export function Chip({
   style?: React.CSSProperties;
 }) {
   return (
-    <button
+    <Button
       disabled={disabled}
       onClick={onClick}
-      className="text-[0.62rem] font-semibold px-2 py-1 rounded-full transition-all border disabled:opacity-30"
+      variant="ghost"
+      size="sm"
+      className="h-auto rounded-full border px-2 py-1 text-[0.62rem] font-semibold disabled:opacity-30"
       style={
         active
           ? (style ?? {
@@ -177,7 +182,7 @@ export function Chip({
       }
     >
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -269,12 +274,14 @@ export function CreatableTagPicker({
             >
               {s}
               {!disabled && (
-                <button
+                <Button
                   onClick={() => onToggle(s)}
-                  className="opacity-50 hover:opacity-100 ml-0.5"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="ml-0.5 h-4 w-4 rounded-full p-0 opacity-50 hover:bg-transparent hover:opacity-100"
                 >
                   ×
-                </button>
+                </Button>
               )}
             </span>
           ))}
@@ -282,16 +289,18 @@ export function CreatableTagPicker({
       )}
       {!disabled && (
         <div className="relative">
-          <button
+          <Button
             onClick={() => setOpen(!open)}
-            className="text-[0.62rem] font-medium px-2 py-1 rounded border transition-colors hover:bg-[var(--surface-elevated)]"
+            variant="ghost"
+            size="sm"
+            className="h-auto rounded border px-2 py-1 text-[0.62rem] font-medium hover:bg-[var(--surface-elevated)]"
             style={{
               borderColor: "var(--border-default)",
               color: "var(--text-tertiary)",
             }}
           >
             + Add
-          </button>
+          </Button>
           {open && (
             <div
               className="absolute top-full left-0 mt-1 z-40 w-52 rounded-[var(--radius-md)] border overflow-hidden"
@@ -305,7 +314,7 @@ export function CreatableTagPicker({
                 className="px-2.5 py-1.5 border-b"
                 style={{ borderColor: "var(--border-subtle)" }}
               >
-                <input
+                <Input
                   autoFocus
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
@@ -318,39 +327,40 @@ export function CreatableTagPicker({
                       setOpen(false);
                     }
                   }}
-                  className="w-full text-[0.68rem] bg-transparent focus:outline-none"
-                  style={{ color: "var(--text-primary)" }}
+                  className="h-auto w-full border-0 bg-transparent px-0 py-0 text-[0.68rem] text-[var(--text-primary)] shadow-none focus-visible:ring-0"
                 />
               </div>
               <div className="max-h-36 overflow-y-auto p-0.5">
                 {canCreate && (
-                  <button
+                  <Button
                     onClick={() => {
                       onCreateTag?.(q.trim());
                       onToggle(q.trim());
                       setQ("");
                       setOpen(false);
                     }}
-                    className="w-full text-left px-2 py-1 rounded text-[0.68rem] font-semibold transition-colors hover:bg-[var(--surface-elevated)]"
+                    variant="ghost"
+                    className="h-auto w-full justify-start rounded px-2 py-1 text-left text-[0.68rem] font-semibold hover:bg-[var(--surface-elevated)]"
                     style={{ color: "var(--accent-primary)" }}
                   >
                     + Create &ldquo;{q.trim()}&rdquo;
-                  </button>
+                  </Button>
                 )}
                 {results
                   .filter((r) => !selected.includes(r))
                   .map((r) => (
-                    <button
+                    <Button
                       key={r}
                       onClick={() => {
                         onToggle(r);
                         setQ("");
                       }}
-                      className="w-full text-left px-2 py-1 rounded text-[0.68rem] transition-colors hover:bg-[var(--surface-elevated)]"
+                      variant="ghost"
+                      className="h-auto w-full justify-start rounded px-2 py-1 text-left text-[0.68rem] hover:bg-[var(--surface-elevated)]"
                       style={{ color: "var(--text-secondary)" }}
                     >
                       {r}
-                    </button>
+                    </Button>
                   ))}
               </div>
             </div>
@@ -376,17 +386,15 @@ export function CompactTextarea({
   disabled?: boolean;
 }) {
   return (
-    <textarea
+    <Textarea
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows ?? 2}
-      className="w-full text-[0.72rem] leading-relaxed px-2.5 py-2 rounded-[var(--radius-sm)] border bg-transparent focus:outline-none focus:ring-1 resize-none disabled:opacity-30"
+      className="w-full resize-none rounded-[var(--radius-sm)] border-[var(--border-default)] bg-transparent px-2.5 py-2 text-[0.72rem] leading-relaxed text-[var(--text-primary)] shadow-none focus-visible:ring-1 disabled:opacity-30"
       style={
         {
-          borderColor: "var(--border-default)",
-          color: "var(--text-primary)",
           "--tw-ring-color": "var(--accent-primary)",
         } as React.CSSProperties
       }
@@ -409,17 +417,15 @@ export function CompactInput({
   disabled?: boolean;
 }) {
   return (
-    <input
+    <Input
       type={type ?? "text"}
       value={value ?? ""}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder ?? "—"}
-      className="w-full text-[0.72rem] mono px-2.5 py-1.5 rounded-[var(--radius-sm)] border bg-transparent focus:outline-none focus:ring-1 disabled:opacity-30"
+      className="w-full rounded-[var(--radius-sm)] border-[var(--border-default)] bg-transparent px-2.5 py-1.5 text-[0.72rem] text-[var(--text-primary)] shadow-none focus-visible:ring-1 disabled:opacity-30"
       style={
         {
-          borderColor: "var(--border-default)",
-          color: "var(--text-primary)",
           "--tw-ring-color": "var(--accent-primary)",
         } as React.CSSProperties
       }
@@ -451,20 +457,22 @@ export function NamedScreenshotGrid({
       {items.map((s, i) => {
         const url = s.url?.startsWith("http") ? s.url : getScreenshotUrl(s.url);
         return (
-          <button
+          <Button
             key={i}
             onClick={() => onView(url)}
-            className="relative w-16 h-11 overflow-hidden rounded-[var(--radius-sm)] border transition-shadow hover:shadow-md"
+            variant="ghost"
+            className="relative h-11 w-16 overflow-hidden rounded-[var(--radius-sm)] border p-0 transition-shadow hover:shadow-md"
             style={{ borderColor: "var(--border-default)" }}
           >
             <Image src={url} alt="" fill className="object-cover" unoptimized />
-          </button>
+          </Button>
         );
       })}
       {!isDummy && !naming && (
-        <button
+        <Button
           onClick={() => setNaming(true)}
-          className="w-16 h-11 flex items-center justify-center rounded-[var(--radius-sm)] border border-dashed transition-colors hover:border-[var(--accent-primary)] hover:bg-[var(--accent-soft)]"
+          variant="ghost"
+          className="h-11 w-16 rounded-[var(--radius-sm)] border border-dashed p-0 transition-colors hover:border-[var(--accent-primary)] hover:bg-[var(--accent-soft)]"
           style={{
             borderColor: "var(--border-active)",
             color: "var(--text-tertiary)",
@@ -480,20 +488,16 @@ export function NamedScreenshotGrid({
           >
             <path d="M10 4v12M4 10h12" />
           </svg>
-        </button>
+        </Button>
       )}
       {naming && (
         <div className="flex items-center gap-1">
-          <input
+          <Input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Name..."
-            className="text-[0.68rem] px-2 py-1 w-24 rounded border bg-transparent focus:outline-none"
-            style={{
-              borderColor: "var(--border-default)",
-              color: "var(--text-primary)",
-            }}
+            className="h-auto w-24 rounded border-[var(--border-default)] bg-transparent px-2 py-1 text-[0.68rem] text-[var(--text-primary)] shadow-none focus-visible:ring-0"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 onUpload(tf, name || tf);
@@ -506,17 +510,18 @@ export function NamedScreenshotGrid({
               }
             }}
           />
-          <button
+          <Button
             onClick={() => {
               onUpload(tf, name || tf);
               setName("");
               setNaming(false);
             }}
-            className="text-[0.6rem] font-semibold px-1.5 py-1 rounded"
+            size="sm"
+            className="h-auto rounded px-1.5 py-1 text-[0.6rem] font-semibold text-white"
             style={{ background: "var(--accent-primary)", color: "#fff" }}
           >
             Go
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -552,11 +557,13 @@ export function QualityRating({
               ? "var(--loss-bg)"
               : "var(--surface-elevated)";
         return (
-          <button
+          <Button
             key={opt}
             disabled={disabled}
             onClick={() => onChange(on ? null : opt)}
-            className="text-[0.58rem] font-semibold px-2 py-0.5 rounded-full transition-all border disabled:opacity-30"
+            variant="ghost"
+            size="sm"
+            className="h-auto rounded-full border px-2 py-0.5 text-[0.58rem] font-semibold disabled:opacity-30"
             style={
               on
                 ? { background: bg, color: col, borderColor: col }
@@ -568,7 +575,7 @@ export function QualityRating({
             }
           >
             {opt}
-          </button>
+          </Button>
         );
       })}
     </FieldRow>

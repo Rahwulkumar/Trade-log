@@ -21,6 +21,9 @@ import {
   Library,
 } from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { getTrades } from "@/lib/api/client/trades";
 import { getTerminalStatusByPropAccount } from "@/lib/api/terminal-farm";
 import { useAuth } from "@/components/auth-provider";
@@ -309,23 +312,23 @@ function TradeJournal({
           ) : null}
           {/* Back to view is only shown when trade already has journal data */}
           {onBackToView && (
-            <button
+            <Button
               onClick={onBackToView}
-              className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0 jnl-hover-border"
+              variant="outline"
+              size="sm"
+              className="h-auto shrink-0 gap-1.5 rounded-[7px] border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-1.5 text-[0.72rem] font-semibold text-[var(--text-secondary)] shadow-none hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
               style={{
-                background: "var(--surface-elevated)",
-                border: "1px solid var(--border-default)",
-                color: "var(--text-secondary)",
                 fontSize: "0.72rem",
               }}
             >
               <ChevronLeft size={11} strokeWidth={2.2} />
               View
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 font-semibold transition-all shrink-0 jnl-hover-accent-bg"
+            size="sm"
+            className="h-auto shrink-0 gap-1.5 rounded-[7px] px-3 py-1.5 text-[0.72rem] font-semibold text-[var(--text-inverse)]"
             style={{
               background: ACCENT,
               color: "var(--text-inverse)",
@@ -334,7 +337,7 @@ function TradeJournal({
           >
             <Save size={11} strokeWidth={2.2} />
             Save
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -347,12 +350,12 @@ function TradeJournal({
         }}
       >
         {TABS.map(({ id, label, Icon }) => (
-          <button
+          <Button
             key={id}
             onClick={() => setActiveTab(id)}
-            className="flex items-center gap-1.5 px-3 py-2.5 font-semibold transition-all"
+            variant="ghost"
+            className="h-auto gap-1.5 rounded-none border-b-2 px-3 py-2.5 text-[0.73rem] font-semibold"
             style={{
-              fontSize: "0.73rem",
               color: activeTab === id ? ACCENT : "var(--text-tertiary)",
               borderBottom:
                 activeTab === id
@@ -363,7 +366,7 @@ function TradeJournal({
           >
             <Icon size={12} strokeWidth={2} />
             {label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -384,25 +387,14 @@ function TradeJournal({
                 {/* Main notes textarea */}
                 <div className="space-y-2">
                   <SecLabel label="Trade Journal Entry" />
-                  <textarea
+                  <Textarea
                     value={state.notes}
                     onChange={(e) => update({ notes: e.target.value })}
                     placeholder={`Write about this trade"¦\n\n"¢ What was the setup and did it match your playbook?\n"¢ How did you manage the position "” any deviations?\n"¢ What was your psychology like during the trade?\n"¢ Key lessons and what you'd do differently.`}
-                    className="w-full resize-none rounded-[10px] p-4 font-mono leading-loose outline-none transition-all"
+                    className="min-h-[240px] w-full resize-none rounded-[10px] border-[var(--border-subtle)] bg-[var(--surface-elevated)] p-4 font-mono text-[0.82rem] leading-loose text-[var(--text-primary)] shadow-none focus-visible:border-[var(--border-active)] focus-visible:ring-0"
                     style={{
-                      minHeight: "240px",
-                      fontSize: "0.82rem",
-                      color: "var(--text-primary)",
-                      background: "var(--surface-elevated)",
-                      border: "1px solid var(--border-subtle)",
                       lineHeight: 1.8,
                     }}
-                    onFocus={(e) =>
-                      (e.target.style.borderColor = "var(--border-active)")
-                    }
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "var(--border-subtle)")
-                    }
                   />
                 </div>
 
@@ -741,18 +733,19 @@ export default function JournalPage() {
             {entryTrade ? (
               /* Breadcrumb mode */
               <>
-                <button
+                <Button
                   onClick={() => setEntryTrade(null)}
-                  className="flex items-center gap-1.5 transition-colors jnl-hover-text-accent"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto gap-1.5 px-0 text-[0.72rem] font-semibold text-[var(--text-tertiary)] hover:bg-transparent"
                   style={{
-                    color: "var(--text-tertiary)",
                     fontSize: "0.72rem",
                     fontWeight: 600,
                   }}
                 >
                   <ChevronLeft size={14} strokeWidth={2.5} />
                   Journal Library
-                </button>
+                </Button>
                 <div
                   className="flex items-center gap-1.5"
                   style={{ fontSize: "0.65rem" }}
@@ -817,15 +810,15 @@ export default function JournalPage() {
                   ].map(({ id, label, Icon }) => {
                     const isActive = pageMode === id;
                     return (
-                      <button
+                      <Button
                         key={id}
                         onClick={() => {
                           setPageMode(id);
                           setSelectedTrade(null);
                         }}
-                        className="flex items-center gap-1.5 px-4 h-full transition-colors"
+                        variant="ghost"
+                        className="h-full gap-1.5 rounded-none border-b-2 px-4 text-[0.72rem] transition-colors"
                         style={{
-                          fontSize: "0.72rem",
                           fontWeight: isActive ? 600 : 500,
                           color: isActive
                             ? "var(--text-primary)"
@@ -838,22 +831,25 @@ export default function JournalPage() {
                       >
                         <Icon size={11} />
                         {label}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
-                <Link
-                  href="/trades?new=true"
-                  className="flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 font-semibold transition-all"
+                <Button
+                  asChild
+                  size="sm"
+                  className="h-auto gap-1.5 rounded-[8px] px-3 py-1.5 text-[0.72rem] font-semibold text-white"
                   style={{
                     background: ACCENT,
                     color: "#fff",
                     fontSize: "0.72rem",
                   }}
                 >
-                  <Plus size={11} strokeWidth={2.5} />
-                  New Trade
-                </Link>
+                  <Link href="/trades?new=true">
+                    <Plus size={11} strokeWidth={2.5} />
+                    New Trade
+                  </Link>
+                </Button>
               </>
             )}
           </div>
@@ -1067,13 +1063,14 @@ export default function JournalPage() {
                         {pendingTrades.length} un-journaled
                       </span>
                     </div>
-                    <button
+                    <Button
                       onClick={load}
-                      className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors jnl-hover-surface"
-                      style={{ color: "var(--text-tertiary)" }}
+                      variant="ghost"
+                      size="icon-sm"
+                      className="h-7 w-7 rounded-[6px] p-0 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                     >
                       <RefreshCw size={11} strokeWidth={1.8} />
-                    </button>
+                    </Button>
                   </div>
 
                   <div
@@ -1105,26 +1102,21 @@ export default function JournalPage() {
                         size={10}
                         style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
                       />
-                      <input
+                      <Input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search symbol..."
-                        className="flex-1 min-w-0 bg-transparent outline-none py-1.5"
-                        style={{
-                          fontSize: "0.73rem",
-                          color: "var(--text-primary)",
-                        }}
+                        className="h-auto min-w-0 flex-1 border-0 bg-transparent px-0 py-1.5 text-[0.73rem] text-[var(--text-primary)] shadow-none focus-visible:ring-0"
                       />
                       {search && (
-                        <button
+                        <Button
                           onClick={() => setSearch("")}
-                          style={{
-                            color: "var(--text-tertiary)",
-                            flexShrink: 0,
-                          }}
+                          variant="ghost"
+                          size="icon-sm"
+                          className="h-5 w-5 shrink-0 rounded-full p-0 text-[var(--text-tertiary)] hover:bg-transparent hover:text-[var(--text-primary)]"
                         >
                           <X size={9} />
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -1139,13 +1131,12 @@ export default function JournalPage() {
                     >
                       {(["all", "WIN", "LOSS", "OPEN"] as const).map(
                         (val, i) => (
-                          <button
+                          <Button
                             key={val}
                             onClick={() => setOutcome(val)}
-                            className="font-semibold transition-colors"
+                            variant="ghost"
+                            className="h-auto rounded-none px-[7px] py-1 text-[0.62rem] font-semibold"
                             style={{
-                              fontSize: "0.62rem",
-                              padding: "4px 7px",
                               background:
                                 outcome === val
                                   ? ACCENT + "22"
@@ -1167,7 +1158,7 @@ export default function JournalPage() {
                                 : val === "LOSS"
                                   ? "L"
                                   : "O"}
-                          </button>
+                          </Button>
                         ),
                       )}
                     </div>
@@ -1176,13 +1167,12 @@ export default function JournalPage() {
                       style={{ border: "1px solid var(--border-subtle)" }}
                     >
                       {(["all", "LONG", "SHORT"] as const).map((val, i) => (
-                        <button
+                        <Button
                           key={val}
                           onClick={() => setDirection(val)}
-                          className="font-semibold transition-colors"
+                          variant="ghost"
+                          className="h-auto rounded-none px-[7px] py-1 text-[0.62rem] font-semibold"
                           style={{
-                            fontSize: "0.62rem",
-                            padding: "4px 7px",
                             background:
                               direction === val
                                 ? ACCENT + "22"
@@ -1198,7 +1188,7 @@ export default function JournalPage() {
                           }}
                         >
                           {val === "all" ? "All" : val === "LONG" ? "L" : "S"}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                     <span

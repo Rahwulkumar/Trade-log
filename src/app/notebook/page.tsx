@@ -12,6 +12,9 @@ import { JournalEditor } from "@/components/journal/journal-editor";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { Plus, Pin, PinOff, Trash2, Search, FileText } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Note {
@@ -102,22 +105,26 @@ function NoteItem({
       {/* Action buttons — appear on hover */}
       {hovered && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-          <button
+          <Button
             onClick={(e) => { e.stopPropagation(); onPin(); }}
-            className="p-1 rounded transition-colors hover:bg-[var(--surface-elevated)]"
+            variant="ghost"
+            size="icon-sm"
+            className="h-6 w-6 rounded p-0 hover:bg-[var(--surface-elevated)]"
             title={note.pinned ? "Unpin" : "Pin"}
           >
             {note.pinned
               ? <PinOff size={11} style={{ color: "var(--accent-primary)" }} />
               : <Pin size={11} style={{ color: "var(--text-tertiary)" }} />}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="p-1 rounded transition-colors hover:bg-[var(--surface-elevated)]"
+            variant="ghost"
+            size="icon-sm"
+            className="h-6 w-6 rounded p-0 hover:bg-[var(--surface-elevated)]"
             title="Delete"
           >
             <Trash2 size={11} style={{ color: "var(--loss-primary)" }} />
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -159,14 +166,16 @@ function EmojiPicker({
       }}
     >
       {EMOJI_OPTIONS.map((e) => (
-        <button
+        <Button
           key={e}
           onClick={() => { onSelect(e); onClose(); }}
-          className="w-8 h-8 flex items-center justify-center rounded text-xl transition-colors hover:bg-[var(--surface-elevated)]"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 rounded p-0 text-xl hover:bg-[var(--surface-elevated)]"
           style={{ background: e === current ? "var(--accent-soft)" : undefined }}
         >
           {e}
-        </button>
+        </Button>
       ))}
     </motion.div>
   );
@@ -186,13 +195,13 @@ function EmptyEditor({ onCreate }: { onCreate: () => void }) {
         </p>
         <p className="text-[0.8rem]">Pick a note from the list or create a new one.</p>
       </div>
-      <button
+      <Button
         onClick={onCreate}
-        className="mt-1 px-4 py-2 rounded-[var(--radius-sm)] text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+        className="mt-1 h-auto rounded-[var(--radius-sm)] px-4 py-2 text-sm font-semibold"
         style={{ background: "var(--accent-primary)", color: "#fff" }}
       >
         New note
-      </button>
+      </Button>
     </div>
   );
 }
@@ -245,6 +254,7 @@ export default function NotebookPage() {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRequestSeq = useRef(0);
 
   // ── Load notes ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -268,6 +278,15 @@ export default function NotebookPage() {
     [notes, selectedId],
   );
 
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+    };
+  }, []);
+
   // ── CRUD ────────────────────────────────────────────────────────────────────
   const createNote = useCallback(async () => {
     if (!user) return;
@@ -283,19 +302,22 @@ export default function NotebookPage() {
   const updateNote = useCallback(
     (field: string, value: unknown) => {
       if (!selectedId) return;
+      const noteId = selectedId;
       setNotes((prev) =>
         prev.map((n) =>
-          n.id === selectedId
+          n.id === noteId
             ? { ...n, [field]: value, updated_at: new Date().toISOString() }
             : n,
         ),
       );
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      const requestSeq = ++saveRequestSeq.current;
       saveTimer.current = setTimeout(async () => {
         try {
-          const updated = await updateNoteApi(selectedId, { [field]: value });
+          const updated = await updateNoteApi(noteId, { [field]: value });
+          if (requestSeq !== saveRequestSeq.current) return;
           setNotes((prev) =>
-            prev.map((n) => (n.id === selectedId ? updated : n)),
+            prev.map((n) => (n.id === noteId ? updated : n)),
           );
         } catch {
           // ignore
@@ -348,8 +370,14 @@ export default function NotebookPage() {
     );
   }, [notes, search]);
 
-  const pinnedNotes = filtered.filter((n) => n.pinned);
-  const unpinnedNotes = filtered.filter((n) => !n.pinned);
+  const { pinnedNotes, unpinnedNotes } = useMemo(() => {
+    const grouped = { pinnedNotes: [] as Note[], unpinnedNotes: [] as Note[] };
+    for (const note of filtered) {
+      if (note.pinned) grouped.pinnedNotes.push(note);
+      else grouped.unpinnedNotes.push(note);
+    }
+    return grouped;
+  }, [filtered]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -377,13 +405,15 @@ export default function NotebookPage() {
           >
             Notebook
           </span>
-          <button
+          <Button
             onClick={createNote}
-            className="w-6 h-6 flex items-center justify-center rounded transition-colors hover:bg-[var(--surface-raised)]"
+            variant="ghost"
+            size="icon-sm"
+            className="h-6 w-6 rounded p-0 hover:bg-[var(--surface-raised)]"
             title="New note"
           >
             <Plus size={14} style={{ color: "var(--accent-primary)" }} />
-          </button>
+          </Button>
         </div>
 
         {/* Search */}
@@ -396,12 +426,11 @@ export default function NotebookPage() {
             }}
           >
             <Search size={11} style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
-            <input
+            <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search notes…"
-              className="flex-1 bg-transparent text-[0.73rem] outline-none placeholder:opacity-40"
-              style={{ color: "var(--text-primary)" }}
+              className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-[0.73rem] text-[var(--text-primary)] shadow-none placeholder:opacity-40 focus-visible:ring-0"
             />
           </div>
         </div>
@@ -421,13 +450,15 @@ export default function NotebookPage() {
                 {search ? "No notes match your search." : "No notes yet."}
               </p>
               {!search && (
-                <button
+                <Button
                   onClick={createNote}
-                  className="mt-3 text-[0.72rem] font-semibold transition-opacity hover:opacity-80"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-3 h-auto px-0 py-0 text-[0.72rem] font-semibold text-[var(--accent-primary)] hover:bg-transparent hover:opacity-80"
                   style={{ color: "var(--accent-primary)" }}
                 >
                   Create your first note →
-                </button>
+                </Button>
               )}
             </div>
           ) : (
@@ -523,13 +554,14 @@ export default function NotebookPage() {
             <div className="max-w-2xl mx-auto px-10 pt-12 pb-20">
               {/* ── Emoji icon (click to change) ── */}
               <div className="relative inline-block mb-5">
-                <button
+                <Button
                   onClick={() => setEmojiPickerOpen((v) => !v)}
-                  className="text-5xl leading-none select-none transition-transform duration-150 hover:scale-110 active:scale-95 block"
+                  variant="ghost"
+                  className="block h-auto p-0 text-5xl leading-none transition-transform duration-150 hover:scale-110 hover:bg-transparent active:scale-95"
                   title="Change icon"
                 >
                   {selected.icon}
-                </button>
+                </Button>
                 <AnimatePresence>
                   {emojiPickerOpen && (
                     <EmojiPicker
@@ -542,7 +574,7 @@ export default function NotebookPage() {
               </div>
 
               {/* ── Title ── */}
-              <textarea
+              <Textarea
                 value={selected.title}
                 onChange={(e) => {
                   e.target.style.height = "auto";
@@ -559,7 +591,7 @@ export default function NotebookPage() {
                 }}
                 placeholder="Untitled"
                 rows={1}
-                className="w-full bg-transparent border-none outline-none resize-none overflow-hidden font-bold placeholder:opacity-20 leading-tight"
+                className="w-full resize-none overflow-hidden border-0 bg-transparent p-0 font-bold leading-tight shadow-none placeholder:opacity-20 focus-visible:ring-0"
                 style={{
                   fontSize: "2.4rem",
                   fontFamily: "var(--font-syne)",
@@ -576,9 +608,11 @@ export default function NotebookPage() {
                   {format(new Date(selected.updated_at), "MMM d, yyyy · HH:mm")}
                 </span>
                 <span style={{ opacity: 0.4 }}>·</span>
-                <button
+                <Button
                   onClick={() => togglePin(selected.id)}
-                  className="flex items-center gap-1 transition-colors hover:text-[var(--accent-primary)]"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto gap-1 px-0 py-0 hover:bg-transparent hover:text-[var(--accent-primary)]"
                 >
                   {selected.pinned ? (
                     <>
@@ -591,15 +625,17 @@ export default function NotebookPage() {
                       <span>Pin</span>
                     </>
                   )}
-                </button>
+                </Button>
                 <span style={{ opacity: 0.4 }}>·</span>
-                <button
+                <Button
                   onClick={() => deleteNote(selected.id)}
-                  className="flex items-center gap-1 transition-colors hover:text-[var(--loss-primary)]"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto gap-1 px-0 py-0 hover:bg-transparent hover:text-[var(--loss-primary)]"
                 >
                   <Trash2 size={10} />
                   <span>Delete</span>
-                </button>
+                </Button>
               </div>
 
               {/* ── Divider ── */}

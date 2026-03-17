@@ -3,6 +3,8 @@
 import { useState, useRef, KeyboardEvent } from "react";
 import { X, Search, Plus } from "lucide-react";
 import { ICT_SETUP_TAGS, ICT_MISTAKE_TAGS } from "@/lib/constants/ict-tags";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface TagSelectorProps {
   type: "setup" | "mistake";
@@ -91,13 +93,16 @@ export function TagSelector({ type, value, onChange }: TagSelectorProps) {
                   <span style={{ fontSize: "0.6rem", opacity: 0.7 }}>✦</span>
                 )}
                 {tag}
-                <button
+                <Button
                   type="button"
                   onClick={() => onChange(value.filter((t) => t !== tag))}
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-4 w-4 rounded-full p-0 hover:bg-transparent"
                   style={{ color: activeColor, opacity: 0.7 }}
                 >
                   <X size={10} />
-                </button>
+                </Button>
               </span>
             );
           })}
@@ -116,34 +121,35 @@ export function TagSelector({ type, value, onChange }: TagSelectorProps) {
           size={12}
           style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
         />
-        <input
+        <Input
           ref={inputRef}
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={`Search or create ${isSetup ? "setup" : "mistake"} tag…`}
-          className="flex-1 bg-transparent outline-none py-2.5"
-          style={{ fontSize: "0.75rem", color: "var(--text-primary)" }}
+          className="h-auto flex-1 border-0 bg-transparent px-0 py-2.5 text-[0.75rem] text-[var(--text-primary)] shadow-none focus-visible:ring-0"
         />
         {search && (
-          <button
+          <Button
             type="button"
             onClick={() => setSearch("")}
-            style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
+            variant="ghost"
+            size="icon-sm"
+            className="h-5 w-5 shrink-0 rounded-full p-0 text-[var(--text-tertiary)] hover:bg-transparent"
           >
             <X size={10} />
-          </button>
+          </Button>
         )}
         {/* Custom create button */}
         {canCreate && (
-          <button
+          <Button
             type="button"
             onClick={createCustom}
             title={`Create tag "${trimmed}"`}
-            className="flex items-center gap-1 rounded-[5px] px-2 py-1 font-semibold shrink-0 transition-all"
+            size="sm"
+            className="h-auto shrink-0 gap-1 rounded-[5px] px-2 py-1 text-[0.62rem] font-semibold"
             style={{
-              fontSize: "0.62rem",
               background: activeBg,
               color: activeColor,
               border: `1px solid ${activeBorder}`,
@@ -151,7 +157,7 @@ export function TagSelector({ type, value, onChange }: TagSelectorProps) {
           >
             <Plus size={9} strokeWidth={2.5} />
             Create
-          </button>
+          </Button>
         )}
       </div>
 
@@ -183,11 +189,12 @@ export function TagSelector({ type, value, onChange }: TagSelectorProps) {
       <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto">
         {/* Custom tags not in preset list */}
         {customTags.map((tag) => (
-          <button
+          <Button
             key={tag}
             type="button"
             onClick={() => toggle(tag)}
-            className="rounded-full font-medium transition-all duration-150"
+            variant="ghost"
+            className="h-auto rounded-full font-medium transition-all duration-150"
             style={{
               padding: "4px 12px",
               fontSize: "0.72rem",
@@ -204,18 +211,19 @@ export function TagSelector({ type, value, onChange }: TagSelectorProps) {
             }}
           >
             ✦ {tag}
-          </button>
+          </Button>
         ))}
 
         {/* Preset tags */}
         {filteredPresets.map((tag) => {
           const on = value.includes(tag);
           return (
-            <button
+            <Button
               key={tag}
               type="button"
               onClick={() => toggle(tag)}
-              className="rounded-full font-medium transition-all duration-150"
+              variant="ghost"
+              className="h-auto rounded-full font-medium transition-all duration-150"
               style={{
                 padding: "4px 12px",
                 fontSize: "0.72rem",
@@ -227,7 +235,7 @@ export function TagSelector({ type, value, onChange }: TagSelectorProps) {
               }}
             >
               {tag}
-            </button>
+            </Button>
           );
         })}
 
