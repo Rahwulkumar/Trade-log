@@ -20,7 +20,26 @@ import {
 import { sql } from 'drizzle-orm';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROFILES
+// APP USERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const appUsers = pgTable('app_users', {
+  id: text('id').primaryKey(), // Clerk user id (e.g. user_xxx)
+  email: text('email'),
+  fullName: text('full_name'),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  avatarUrl: text('avatar_url'),
+  timezone: text('timezone').default('utc'),
+  defaultRiskPercent: doublePrecision('default_risk_percent').default(1),
+  defaultRrRatio: doublePrecision('default_rr_ratio').default(2),
+  defaultTimeframe: text('default_timeframe').default('h4'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY PROFILES
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const profiles = pgTable('profiles', {
@@ -306,6 +325,9 @@ export const journalEntries = pgTable('journal_entries', {
 
 export type Profile = typeof profiles.$inferSelect;
 export type ProfileInsert = typeof profiles.$inferInsert;
+
+export type AppUser = typeof appUsers.$inferSelect;
+export type AppUserInsert = typeof appUsers.$inferInsert;
 
 export type PropFirm = typeof propFirms.$inferSelect;
 export type PropFirmInsert = typeof propFirms.$inferInsert;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Download, Monitor, Moon, ShieldCheck, Sun, Trash2 } from "lucide-react";
+import { useClerk } from "@clerk/nextjs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/components/auth-provider";
-import { createClient } from "@/lib/supabase/client";
+import { updateCurrentUserProfile } from "@/lib/api/client/profile";
 import { cn } from "@/lib/utils";
 import {
   AppPageHeader,
@@ -86,27 +87,20 @@ function SaveFeedback({
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { user, profile, refreshProfile } = useAuth();
-  const supabaseEnabled = false;
+  const { openUserProfile } = useClerk();
 
   // Profile form state
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [timezone, setTimezone] = useState("utc");
+  const [firstName, setFirstName] = useState<string | undefined>(undefined);
+  const [lastName, setLastName] = useState<string | undefined>(undefined);
+  const [timezone, setTimezone] = useState<string | undefined>(undefined);
   const [profileSaveStatus, setProfileSaveStatus] =
     useState<SaveStatus>("idle");
   const [profileSaveError, setProfileSaveError] = useState("");
 
-  // Password form state
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordSaveStatus, setPasswordSaveStatus] =
-    useState<SaveStatus>("idle");
-  const [passwordSaveError, setPasswordSaveError] = useState("");
-
   // Trading settings state
-  const [defaultRisk, setDefaultRisk] = useState("1");
-  const [defaultRR, setDefaultRR] = useState("2");
-  const [defaultTimeframe, setDefaultTimeframe] = useState("h4");
+  const [defaultRisk, setDefaultRisk] = useState<string | undefined>(undefined);
+  const [defaultRR, setDefaultRR] = useState<string | undefined>(undefined);
+  const [defaultTimeframe, setDefaultTimeframe] = useState<string | undefined>(undefined);
   const [tradingSaveStatus, setTradingSaveStatus] =
     useState<SaveStatus>("idle");
   const [tradingSaveError, setTradingSaveError] = useState("");
@@ -119,51 +113,23 @@ export default function SettingsPage() {
     drawdownAlert: true,
   });
 
-  // Activity log state
-  type AuditLog = { id: string; action: string; created_at: string; metadata: Record<string, unknown> | null };
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [auditLoading, setAuditLoading] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    if (!supabaseEnabled) {
-      setAuditLogs([]);
-      setAuditLoading(false);
-      return;
-    }
-
-    const supabase = createClient();
-    setAuditLoading(true);
-    supabase
-      .from("audit_logs")
-      .select("id, action, created_at, metadata")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        setAuditLogs((data as AuditLog[]) ?? []);
-        setAuditLoading(false);
-      });
-  }, [supabaseEnabled, user]);
-
-  // Sync form from profile when it loads
-  useEffect(() => {
-    if (!profile) return;
-    setFirstName(profile.first_name ?? "");
-    setLastName(profile.last_name ?? "");
-    setTimezone(profile.timezone ?? "utc");
-    setDefaultRisk(String(profile.default_risk_percent ?? 1));
-    setDefaultRR(String(profile.default_rr_ratio ?? 2));
-  }, [profile]);
+  const resolvedFirstName = firstName ?? profile?.first_name ?? "";
+  const resolvedLastName = lastName ?? profile?.last_name ?? "";
+  const resolvedTimezone = timezone ?? profile?.timezone ?? "utc";
+  const resolvedDefaultRisk =
+    defaultRisk ?? String(profile?.default_risk_percent ?? 1);
+  const resolvedDefaultRR = defaultRR ?? String(profile?.default_rr_ratio ?? 2);
+  const resolvedDefaultTimeframe =
+    defaultTimeframe ?? profile?.default_timeframe ?? "h4";
 
   const avatarInitials = useMemo(() => {
-    const f = firstName.trim();
-    const l = lastName.trim();
+    const f = resolvedFirstName.trim();
+    const l = resolvedLastName.trim();
     if (f && l) return `${f[0]}${l[0]}`.toUpperCase();
     if (f) return f[0].toUpperCase();
     if (user?.email) return user.email[0].toUpperCase();
     return "?";
-  }, [firstName, lastName, user]);
+  }, [resolvedFirstName, resolvedLastName, user]);
 
   const notificationRows = useMemo(
     () =>
@@ -176,26 +142,19 @@ export default function SettingsPage() {
 
   async function handleSaveProfile() {
     if (!user) return;
-    if (!supabaseEnabled) {
-      setProfileSaveError("Profile settings are now managed outside Supabase.");
-      setProfileSaveStatus("error");
-      return;
-    }
 
     setProfileSaveStatus("saving");
     setProfileSaveError("");
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: firstName.trim() || null,
-          last_name: lastName.trim() || null,
-          timezone,
-        })
-        .eq("id", user.id);
-      if (error) throw error;
+      await updateCurrentUserProfile({
+        first_name: resolvedFirstName.trim() || null,
+        last_name: resolvedLastName.trim() || null,
+        timezone: resolvedTimezone,
+      });
       await refreshProfile();
+      setFirstName(undefined);
+      setLastName(undefined);
+      setTimezone(undefined);
       setProfileSaveStatus("saved");
       setTimeout(() => setProfileSaveStatus("idle"), 3000);
     } catch (err) {
@@ -204,66 +163,35 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleUpdatePassword() {
-    if (!newPassword) return;
-    if (!supabaseEnabled) {
-      setPasswordSaveStatus("error");
-      setPasswordSaveError("Password updates are now managed outside Supabase.");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordSaveStatus("error");
-      setPasswordSaveError("Passwords do not match.");
-      return;
-    }
-    setPasswordSaveStatus("saving");
-    setPasswordSaveError("");
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-      if (error) throw error;
-      setNewPassword("");
-      setConfirmPassword("");
-      setPasswordSaveStatus("saved");
-      setTimeout(() => setPasswordSaveStatus("idle"), 3000);
-    } catch (err) {
-      setPasswordSaveError(
-        err instanceof Error ? err.message : "Unknown error",
-      );
-      setPasswordSaveStatus("error");
-    }
-  }
-
   async function handleSaveTrading() {
     if (!user) return;
-    if (!supabaseEnabled) {
-      setTradingSaveError("Trading defaults are now managed outside Supabase.");
-      setTradingSaveStatus("error");
-      return;
-    }
 
     setTradingSaveStatus("saving");
     setTradingSaveError("");
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          default_risk_percent: parseFloat(defaultRisk) || null,
-          default_rr_ratio: parseFloat(defaultRR) || null,
-        })
-        .eq("id", user.id);
-      if (error) throw error;
+      await updateCurrentUserProfile({
+        default_risk_percent: Number.isFinite(parseFloat(resolvedDefaultRisk))
+          ? parseFloat(resolvedDefaultRisk)
+          : null,
+        default_rr_ratio: Number.isFinite(parseFloat(resolvedDefaultRR))
+          ? parseFloat(resolvedDefaultRR)
+          : null,
+        default_timeframe: resolvedDefaultTimeframe || null,
+      });
       await refreshProfile();
+      setDefaultRisk(undefined);
+      setDefaultRR(undefined);
+      setDefaultTimeframe(undefined);
       setTradingSaveStatus("saved");
       setTimeout(() => setTradingSaveStatus("idle"), 3000);
     } catch (err) {
       setTradingSaveError(err instanceof Error ? err.message : "Unknown error");
       setTradingSaveStatus("error");
     }
+  }
+
+  function handleManageSecurity() {
+    openUserProfile();
   }
 
   return (
@@ -319,7 +247,7 @@ export default function SettingsPage() {
                 <Label htmlFor="first-name">First Name</Label>
                 <Input
                   id="first-name"
-                  value={firstName}
+                  value={resolvedFirstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   placeholder="First name"
                 />
@@ -328,7 +256,7 @@ export default function SettingsPage() {
                 <Label htmlFor="last-name">Last Name</Label>
                 <Input
                   id="last-name"
-                  value={lastName}
+                  value={resolvedLastName}
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="Last name"
                 />
@@ -351,7 +279,7 @@ export default function SettingsPage() {
 
             <div className="mb-6 space-y-2">
               <Label htmlFor="timezone">Timezone</Label>
-              <Select value={timezone} onValueChange={setTimezone}>
+              <Select value={resolvedTimezone} onValueChange={setTimezone}>
                 <SelectTrigger id="timezone" className="max-w-[280px]">
                   <SelectValue placeholder="Select timezone" />
                 </SelectTrigger>
@@ -382,43 +310,19 @@ export default function SettingsPage() {
 
           <AppPanel>
             <PanelTitle
-              title="Password"
-              subtitle="Change your password to keep your account secure."
+              title="Password & Security"
+              subtitle="Authentication and password changes are managed by Clerk."
             />
 
-            <div className="mb-6 grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm Password</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
-              </div>
-            </div>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Open the Clerk account portal to update your password, active
+              sessions, and other authentication settings.
+            </p>
 
             <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                onClick={handleUpdatePassword}
-                disabled={passwordSaveStatus === "saving" || !newPassword}
-              >
-                Update Password
+              <Button variant="outline" onClick={handleManageSecurity}>
+                Manage Security
               </Button>
-              <SaveFeedback
-                status={passwordSaveStatus}
-                errorMessage={passwordSaveError}
-              />
             </div>
           </AppPanel>
         </TabsContent>
@@ -518,7 +422,7 @@ export default function SettingsPage() {
                   type="number"
                   step="0.1"
                   min="0"
-                  value={defaultRisk}
+                  value={resolvedDefaultRisk}
                   onChange={(e) => setDefaultRisk(e.target.value)}
                 />
               </div>
@@ -529,7 +433,7 @@ export default function SettingsPage() {
                   type="number"
                   step="0.5"
                   min="0"
-                  value={defaultRR}
+                  value={resolvedDefaultRR}
                   onChange={(e) => setDefaultRR(e.target.value)}
                 />
               </div>
@@ -538,7 +442,7 @@ export default function SettingsPage() {
             <div className="mb-6 space-y-2">
               <Label htmlFor="default-timeframe">Default Timeframe</Label>
               <Select
-                value={defaultTimeframe}
+                value={resolvedDefaultTimeframe}
                 onValueChange={setDefaultTimeframe}
               >
                 <SelectTrigger id="default-timeframe" className="max-w-[200px]">
@@ -597,34 +501,9 @@ export default function SettingsPage() {
               <ShieldCheck size={14} />
               <span className="text-[0.68rem] font-semibold uppercase tracking-wider">Security History</span>
             </div>
-            {auditLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-8 rounded-md skeleton" />
-                ))}
-              </div>
-            ) : auditLogs.length === 0 ? (
-              <p className="text-[0.75rem] py-4 text-center" style={{ color: "var(--text-tertiary)" }}>
-                No activity recorded yet.
-              </p>
-            ) : (
-              <div className="space-y-1">
-                {auditLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex items-center justify-between px-3 py-2 rounded-[var(--radius-sm)] text-[0.72rem]"
-                    style={{ background: "var(--surface-elevated)" }}
-                  >
-                    <span className="font-medium" style={{ color: "var(--text-primary)" }}>
-                      {log.action}
-                    </span>
-                    <span className="mono" style={{ color: "var(--text-tertiary)" }}>
-                      {new Date(log.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <p className="text-[0.75rem] py-4 text-center" style={{ color: "var(--text-tertiary)" }}>
+              Activity history will return once the legacy audit log table is migrated to Clerk user IDs.
+            </p>
           </AppPanel>
 
           <section

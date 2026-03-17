@@ -1,7 +1,15 @@
 "use client";
 
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, ReactNode, useEffect, useMemo, useState } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
+import { getCurrentUserProfile } from "@/lib/api/client/profile";
+import {
+  DEFAULT_APP_RISK_PERCENT,
+  DEFAULT_APP_RR_RATIO,
+  DEFAULT_APP_TIMEFRAME,
+  DEFAULT_APP_TIMEZONE,
+  type AppUserProfile,
+} from "@/lib/types/app-user-profile";
 
 interface ClerkUser {
   id: string;
@@ -21,25 +29,105 @@ interface AuthContextType {
   user: ClerkUser | null;
   loading: boolean;
   isConfigured: boolean;
-  profile: {
-    full_name: string | null | undefined;
-    avatar_url: string;
-    first_name: string | null;
-    last_name: string | null;
-    timezone: string | null;
-    default_risk_percent: number | null;
-    default_rr_ratio: number | null;
-  } | null;
+  profile: AppUserProfile | null;
   refreshProfile: () => Promise<void>;
   session: null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function buildFallbackProfile(user: {
+  id: string;
+  primaryEmailAddress?: { emailAddress: string } | null;
+  fullName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  imageUrl: string;
+} | null | undefined): AppUserProfile | null {
+  if (!user) return null;
+  return {
+    id: user.id,
+    email: user.primaryEmailAddress?.emailAddress ?? null,
+    full_name: user.fullName ?? null,
+    first_name: user.firstName ?? null,
+    last_name: user.lastName ?? null,
+    avatar_url: user.imageUrl ?? null,
+    timezone: DEFAULT_APP_TIMEZONE,
+    default_risk_percent: DEFAULT_APP_RISK_PERCENT,
+    default_rr_ratio: DEFAULT_APP_RR_RATIO,
+    default_timeframe: DEFAULT_APP_TIMEFRAME,
+    created_at: null,
+    updated_at: null,
+  };
+}
+
 // Inner component — must be inside <ClerkProvider> in the tree
 function ClerkAuthConsumer({ children }: { children: ReactNode }) {
   const { user, isLoaded, isSignedIn } = useUser();
   const { signOut: clerkSignOut } = useClerk();
+  const [remoteProfile, setRemoteProfile] = useState<AppUserProfile | null>(null);
+  const userId = user?.id ?? null;
+  const userEmail = user?.primaryEmailAddress?.emailAddress;
+  const userFullName = user?.fullName ?? null;
+  const userFirstName = user?.firstName ?? null;
+  const userLastName = user?.lastName ?? null;
+  const userImageUrl = user?.imageUrl ?? null;
+
+  async function refreshProfile() {
+    if (!userId) {
+      setRemoteProfile(null);
+      return;
+    }
+
+    const syncedProfile = await getCurrentUserProfile();
+    setRemoteProfile(syncedProfile);
+  }
+
+  useEffect(() => {
+    if (!isLoaded || !userId) return;
+
+    let cancelled = false;
+    void (async () => {
+      const syncedProfile = await getCurrentUserProfile();
+      if (!cancelled && syncedProfile?.id === userId) {
+        setRemoteProfile(syncedProfile);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isLoaded,
+    userId,
+  ]);
+
+  const profile = useMemo(() => {
+    const fallback = buildFallbackProfile(
+      userId
+        ? {
+            id: userId,
+            primaryEmailAddress: userEmail ? { emailAddress: userEmail } : null,
+            fullName: userFullName,
+            firstName: userFirstName,
+            lastName: userLastName,
+            imageUrl: userImageUrl ?? "",
+          }
+        : null,
+    );
+    if (!fallback) return null;
+    if (!remoteProfile || remoteProfile.id !== fallback.id) {
+      return fallback;
+    }
+
+    return {
+      ...fallback,
+      ...remoteProfile,
+      email: remoteProfile.email ?? fallback.email,
+      full_name: remoteProfile.full_name ?? fallback.full_name,
+      avatar_url: remoteProfile.avatar_url ?? fallback.avatar_url,
+    };
+  }, [remoteProfile, userEmail, userFirstName, userFullName, userId, userImageUrl, userLastName]);
 
   return (
     <AuthContext.Provider
@@ -62,18 +150,8 @@ function ClerkAuthConsumer({ children }: { children: ReactNode }) {
           : null,
         loading: !isLoaded,
         isConfigured: true,
-        profile: user
-          ? {
-              full_name: user.fullName,
-              avatar_url: user.imageUrl,
-              first_name: user.firstName ?? null,
-              last_name: user.lastName ?? null,
-              timezone: null,
-              default_risk_percent: null,
-              default_rr_ratio: null,
-            }
-          : null,
-        refreshProfile: async () => {}, // Clerk auto-refreshes
+        profile,
+        refreshProfile,
         session: null,
       }}
     >
