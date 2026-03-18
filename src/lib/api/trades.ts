@@ -31,6 +31,15 @@ export interface TradeFilters {
   sortOrder?: 'asc' | 'desc';
 }
 
+function normalizeTradeStatus(value?: string | null): 'OPEN' | 'CLOSED' | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toUpperCase();
+  if (normalized === 'OPEN' || normalized === 'CLOSED') {
+    return normalized;
+  }
+  return undefined;
+}
+
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 export async function getTrades(
@@ -134,9 +143,14 @@ export async function createTrade(
   userId: string,
   trade: Omit<TradeInsert, 'userId'>
 ): Promise<Trade> {
+  const normalizedStatus = normalizeTradeStatus(trade.status);
   const [row] = await db
     .insert(trades)
-    .values({ ...trade, userId })
+    .values({
+      ...trade,
+      ...(normalizedStatus ? { status: normalizedStatus } : {}),
+      userId,
+    })
     .returning();
   return row;
 }
@@ -146,9 +160,13 @@ export async function updateTrade(
   userId: string,
   updates: TradeUpdate
 ): Promise<Trade> {
+  const normalizedStatus = normalizeTradeStatus(updates.status);
   const [row] = await db
     .update(trades)
-    .set(updates)
+    .set({
+      ...updates,
+      ...(updates.status !== undefined ? { status: normalizedStatus ?? 'OPEN' } : {}),
+    })
     .where(and(eq(trades.id, id), eq(trades.userId, userId)))
     .returning();
   if (!row) throw new Error('Trade not found');

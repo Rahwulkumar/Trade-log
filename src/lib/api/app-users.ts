@@ -55,34 +55,33 @@ async function getClerkUserOrThrow() {
 export async function getOrCreateCurrentAppUserProfile(): Promise<AppUserProfile> {
   const clerkUser = await getClerkUserOrThrow();
   const primaryEmail = clerkUser.primaryEmailAddress?.emailAddress ?? null;
-  const [existing] = await db
-    .select()
-    .from(appUsers)
-    .where(eq(appUsers.id, clerkUser.id))
-    .limit(1);
+  const [created] = await db
+    .insert(appUsers)
+    .values({
+      id: clerkUser.id,
+      email: primaryEmail,
+      fullName: trimToNull(clerkUser.fullName),
+      firstName: trimToNull(clerkUser.firstName),
+      lastName: trimToNull(clerkUser.lastName),
+      avatarUrl: clerkUser.imageUrl ?? null,
+      timezone: DEFAULT_APP_TIMEZONE,
+      defaultRiskPercent: DEFAULT_APP_RISK_PERCENT,
+      defaultRrRatio: DEFAULT_APP_RR_RATIO,
+      defaultTimeframe: DEFAULT_APP_TIMEFRAME,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  const [existing] = created
+    ? [created]
+    : await db
+        .select()
+        .from(appUsers)
+        .where(eq(appUsers.id, clerkUser.id))
+        .limit(1);
 
   if (!existing) {
-    const [created] = await db
-      .insert(appUsers)
-      .values({
-        id: clerkUser.id,
-        email: primaryEmail,
-        fullName: trimToNull(clerkUser.fullName),
-        firstName: trimToNull(clerkUser.firstName),
-        lastName: trimToNull(clerkUser.lastName),
-        avatarUrl: clerkUser.imageUrl ?? null,
-        timezone: DEFAULT_APP_TIMEZONE,
-        defaultRiskPercent: DEFAULT_APP_RISK_PERCENT,
-        defaultRrRatio: DEFAULT_APP_RR_RATIO,
-        defaultTimeframe: DEFAULT_APP_TIMEFRAME,
-      })
-      .returning();
-
-    if (!created) {
-      throw new Error('Failed to provision app user');
-    }
-
-    return toProfile(created);
+    throw new Error('Failed to provision app user');
   }
 
   const nextFullName = buildFullName(

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/server';
 import {
+  deletePropAccount,
   getPropAccount,
   updatePropAccount,
-  deletePropAccount,
 } from '@/lib/api/prop-accounts';
 import { resetMt5SyncByPropAccount } from '@/lib/terminal-farm/service';
+import { parsePropAccountUpdatePayload } from '@/lib/validation/prop-accounts';
 
 export async function GET(
   _request: NextRequest,
@@ -30,10 +31,27 @@ export async function PATCH(
   if (error) return error;
 
   const { id } = await params;
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  const result = parsePropAccountUpdatePayload(body);
+  if (!result.success) {
+    return NextResponse.json(
+      {
+        error: 'Invalid prop account update payload',
+        details: result.error.flatten(),
+      },
+      { status: 400 },
+    );
+  }
+
+  if (Object.keys(result.data).length === 0) {
+    return NextResponse.json(
+      { error: 'At least one field must be provided' },
+      { status: 400 },
+    );
+  }
 
   try {
-    const account = await updatePropAccount(id, userId, body);
+    const account = await updatePropAccount(id, userId, result.data);
     return NextResponse.json(account);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to update prop account';

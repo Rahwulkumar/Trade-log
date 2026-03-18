@@ -80,7 +80,7 @@ function ClerkAuthConsumer({ children }: { children: ReactNode }) {
     }
 
     const syncedProfile = await getCurrentUserProfile();
-    setRemoteProfile(syncedProfile);
+    setRemoteProfile(syncedProfile?.id === userId ? syncedProfile : null);
   }
 
   useEffect(() => {
@@ -100,6 +100,9 @@ function ClerkAuthConsumer({ children }: { children: ReactNode }) {
   }, [
     isLoaded,
     userId,
+    userEmail,
+    userFullName,
+    userImageUrl,
   ]);
 
   const profile = useMemo(() => {

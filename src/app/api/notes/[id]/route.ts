@@ -1,8 +1,9 @@
 import { requireAuth } from '@/lib/auth/server';
 import { db } from '@/lib/db';
 import { notes } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
+import { parseNoteUpdatePayload } from '@/lib/validation/notes';
 
 function toNoteRow(row: typeof notes.$inferSelect) {
   return {
@@ -17,7 +18,6 @@ function toNoteRow(row: typeof notes.$inferSelect) {
   };
 }
 
-/** PATCH /api/notes/[id] — Update a note (title, content, icon, pinned, tags) */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -26,14 +26,24 @@ export async function PATCH(
   if (error) return error;
 
   const { id } = await params;
-  const body = await request.json().catch(() => ({}));
+  const body = await request.json().catch(() => null);
+  const result = parseNoteUpdatePayload(body);
+  if (!result.success) {
+    return NextResponse.json(
+      {
+        error: 'Invalid note update payload',
+        details: result.error.flatten(),
+      },
+      { status: 400 },
+    );
+  }
 
   const updates: Partial<typeof notes.$inferInsert> = {};
-  if (body.title !== undefined) updates.title = body.title;
-  if (body.content !== undefined) updates.content = body.content;
-  if (body.icon !== undefined) updates.icon = body.icon;
-  if (typeof body.pinned === 'boolean') updates.pinned = body.pinned;
-  if (Array.isArray(body.tags)) updates.tags = body.tags;
+  if (result.data.title !== undefined) updates.title = result.data.title ?? 'Untitled';
+  if (result.data.content !== undefined) updates.content = result.data.content;
+  if (result.data.icon !== undefined) updates.icon = result.data.icon ?? '📝';
+  if (result.data.pinned !== undefined) updates.pinned = result.data.pinned;
+  if (result.data.tags !== undefined) updates.tags = result.data.tags;
 
   if (Object.keys(updates).length === 0) {
     const [existing] = await db
@@ -57,7 +67,6 @@ export async function PATCH(
   return NextResponse.json(toNoteRow(row));
 }
 
-/** DELETE /api/notes/[id] */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

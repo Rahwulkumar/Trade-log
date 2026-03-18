@@ -1,9 +1,10 @@
 import { requireAuth } from '@/lib/auth/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { getPropAccounts, getActivePropAccounts, createPropAccount } from '@/lib/api/prop-accounts';
+import { createPropAccount, getActivePropAccounts, getPropAccounts } from '@/lib/api/prop-accounts';
 import { db } from '@/lib/db';
 import { propAccounts } from '@/lib/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
+import { parsePropAccountCreatePayload } from '@/lib/validation/prop-accounts';
 
 export async function GET(request: NextRequest) {
   const { userId, error } = await requireAuth();
@@ -23,21 +24,20 @@ export async function POST(request: NextRequest) {
   const { userId, error } = await requireAuth();
   if (error) return error;
 
-  const body = await request.json();
-
-  // Validate required fields
-  const firmName = (body.firmName ?? body.accountName ?? '').trim();
-  const accountName = (body.accountName ?? '').trim();
-  const accountSize = Number(body.accountSize);
-
-  if (!firmName && !accountName) {
-    return NextResponse.json({ error: 'Firm name is required.' }, { status: 400 });
-  }
-  if (!accountSize || accountSize <= 0) {
-    return NextResponse.json({ error: 'A valid starting balance is required.' }, { status: 400 });
+  const body = await request.json().catch(() => null);
+  const result = parsePropAccountCreatePayload(body);
+  if (!result.success) {
+    return NextResponse.json(
+      {
+        error: 'Invalid prop account payload',
+        details: result.error.flatten(),
+      },
+      { status: 400 },
+    );
   }
 
-  // Case-insensitive duplicate check — prevents "FTMO - 2-phase" vs "ftmo - 2-phase"
+  const { accountName } = result.data;
+
   const [existing] = await db
     .select({ id: propAccounts.id })
     .from(propAccounts)
@@ -52,10 +52,15 @@ export async function POST(request: NextRequest) {
   if (existing) {
     return NextResponse.json(
       { error: `An account named "${accountName}" already exists.` },
-      { status: 409 }
+      { status: 409 },
     );
   }
 
-  const account = await createPropAccount(userId, body);
-  return NextResponse.json(account, { status: 201 });
+  try {
+    const account = await createPropAccount(userId, result.data);
+    return NextResponse.json(account, { status: 201 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to create prop account';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }

@@ -5,6 +5,7 @@ import {
   getPlaybook,
   updatePlaybook,
 } from '@/lib/api/playbooks';
+import { parsePlaybookUpdatePayload } from '@/lib/validation/playbooks';
 
 export async function GET(
   _request: NextRequest,
@@ -31,10 +32,27 @@ export async function PATCH(
   if (error) return error;
 
   const { id } = await params;
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  const result = parsePlaybookUpdatePayload(body);
+  if (!result.success) {
+    return NextResponse.json(
+      {
+        error: 'Invalid playbook update payload',
+        details: result.error.flatten(),
+      },
+      { status: 400 },
+    );
+  }
+
+  if (Object.keys(result.data).length === 0) {
+    return NextResponse.json(
+      { error: 'At least one field must be provided' },
+      { status: 400 },
+    );
+  }
 
   try {
-    const playbook = await updatePlaybook(id, userId, body);
+    const playbook = await updatePlaybook(id, userId, result.data);
     return NextResponse.json(playbook);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to update playbook';

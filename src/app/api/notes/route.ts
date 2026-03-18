@@ -1,10 +1,10 @@
 import { requireAuth } from '@/lib/auth/server';
 import { db } from '@/lib/db';
 import { notes } from '@/lib/db/schema';
-import { desc, eq, and } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
+import { parseNoteCreatePayload } from '@/lib/validation/notes';
 
-/** Map Drizzle row to snake_case for notebook frontend */
 function toNoteRow(row: typeof notes.$inferSelect) {
   return {
     id: row.id,
@@ -18,7 +18,6 @@ function toNoteRow(row: typeof notes.$inferSelect) {
   };
 }
 
-/** GET /api/notes — List current user's notes (pinned first, then by updated_at desc) */
 export async function GET() {
   const { userId, error } = await requireAuth();
   if (error) return error;
@@ -32,14 +31,24 @@ export async function GET() {
   return NextResponse.json(rows.map(toNoteRow));
 }
 
-/** POST /api/notes — Create a note */
 export async function POST(request: NextRequest) {
   const { userId, error } = await requireAuth();
   if (error) return error;
 
-  const body = await request.json().catch(() => ({}));
-  const title = (body.title as string) ?? 'Untitled';
-  const icon = (body.icon as string) ?? '📝';
+  const body = await request.json().catch(() => null);
+  const result = parseNoteCreatePayload(body);
+  if (!result.success) {
+    return NextResponse.json(
+      {
+        error: 'Invalid note payload',
+        details: result.error.flatten(),
+      },
+      { status: 400 },
+    );
+  }
+
+  const title = result.data.title?.trim() || 'Untitled';
+  const icon = result.data.icon?.trim() || '📝';
 
   const [row] = await db
     .insert(notes)

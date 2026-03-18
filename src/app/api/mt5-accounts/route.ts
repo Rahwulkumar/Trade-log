@@ -1,9 +1,12 @@
 import { requireAuth } from '@/lib/auth/server';
+import { apiError, apiSuccess, apiValidationError } from '@/lib/api/http';
 import { encrypt } from '@/lib/mt5/encryption';
 import { db } from '@/lib/db';
 import { mt5Accounts, propAccounts, trades } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
+import { parseMt5AccountCreatePayload } from '@/lib/validation/mt5-accounts';
+import { checkRateLimit, createRateLimitResponse, getRateLimitClientId } from '@/lib/rate-limit';
 
 /** GET /api/mt5-accounts — List current user's MT5 accounts (for validation vs prop account size). */
 export async function GET() {
@@ -40,7 +43,7 @@ export async function GET() {
     );
   } catch (err) {
     console.error('[MT5 Accounts GET]', err);
-    return NextResponse.json({ error: 'Failed to fetch MT5 accounts' }, { status: 500 });
+    return apiError(500, 'Failed to fetch MT5 accounts');
   }
 }
 
@@ -49,14 +52,22 @@ export async function POST(request: NextRequest) {
     const { userId, error } = await requireAuth();
     if (error) return error;
 
-    const body = await request.json();
-    const { propAccountId, server, login, password, currentBalance } = body as {
-      propAccountId: string;
-      server: string;
-      login: string;
-      password: string;
-      currentBalance?: number | null;
-    };
+    const rateLimit = checkRateLimit(
+      `api:mt5-create:${getRateLimitClientId(request, userId)}`,
+      10,
+      5 * 60_000
+    );
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit.retryAfterMs, 'MT5 setup limit exceeded');
+    }
+
+    const body = await request.json().catch(() => null);
+    const result = parseMt5AccountCreatePayload(body);
+    if (!result.success) {
+      return apiValidationError('Invalid MT5 account payload', result.error.flatten());
+    }
+
+    const { propAccountId, server, login, password, currentBalance } = result.data;
 
     // Verify the prop account exists and belongs to this user, and get account size
     const [propAccount] = await db
@@ -66,7 +77,7 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (!propAccount) {
-      return NextResponse.json({ error: 'Prop account not found' }, { status: 404 });
+      return apiError(404, 'Prop account not found');
     }
 
     const propSize = Number(propAccount.accountSize ?? 0);
@@ -76,6 +87,7 @@ export async function POST(request: NextRequest) {
       if (diff > tolerance) {
         return NextResponse.json(
           {
+            success: false,
             error: `MT5 balance ($${currentBalance.toLocaleString()}) does not match this prop account size ($${propSize.toLocaleString()}). Choose the correct prop account or verify your balance.`,
             code: 'BALANCE_MISMATCH',
           },
@@ -140,16 +152,6 @@ export async function POST(request: NextRequest) {
         updatePayload.equity = balanceToSet;
       }
 
-      await db
-        .update(mt5Accounts)
-        .set(updatePayload)
-        .where(eq(mt5Accounts.id, existingLoginAccount.id));
-
-      await db
-        .update(trades)
-        .set({ propAccountId })
-        .where(eq(trades.mt5AccountId, existingLoginAccount.id));
-
       if (balanceToSet !== null) {
         const propUpdates: Record<string, string | Date> = {
           currentBalance: balanceToSet,
@@ -158,14 +160,34 @@ export async function POST(request: NextRequest) {
         if (Number(propAccount.accountSize) === 0) {
           propUpdates.accountSize = balanceToSet;
         }
-        await db
-          .update(propAccounts)
-          .set(propUpdates)
-          .where(and(eq(propAccounts.id, propAccountId), eq(propAccounts.userId, userId)));
+        await db.batch([
+          db
+            .update(mt5Accounts)
+            .set(updatePayload)
+            .where(eq(mt5Accounts.id, existingLoginAccount.id)),
+          db
+            .update(trades)
+            .set({ propAccountId })
+            .where(eq(trades.mt5AccountId, existingLoginAccount.id)),
+          db
+            .update(propAccounts)
+            .set(propUpdates)
+            .where(and(eq(propAccounts.id, propAccountId), eq(propAccounts.userId, userId))),
+        ]);
+      } else {
+        await db.batch([
+          db
+            .update(mt5Accounts)
+            .set(updatePayload)
+            .where(eq(mt5Accounts.id, existingLoginAccount.id)),
+          db
+            .update(trades)
+            .set({ propAccountId })
+            .where(eq(trades.mt5AccountId, existingLoginAccount.id)),
+        ]);
       }
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         accountId: existingLoginAccount.id,
         reusedExistingAccount: true,
       });
@@ -181,11 +203,6 @@ export async function POST(request: NextRequest) {
       password: encryptedPassword,
       ...(balanceToSet !== null && { balance: balanceToSet, equity: balanceToSet }),
     };
-    const [newAccount] = await db
-      .insert(mt5Accounts)
-      .values(insertPayload)
-      .returning({ id: mt5Accounts.id });
-
     if (balanceToSet !== null) {
       const propUpdates: Record<string, string | Date> = {
         currentBalance: balanceToSet,
@@ -194,16 +211,32 @@ export async function POST(request: NextRequest) {
       if (Number(propAccount.accountSize) === 0) {
         propUpdates.accountSize = balanceToSet;
       }
-      await db
-        .update(propAccounts)
-        .set(propUpdates)
-        .where(and(eq(propAccounts.id, propAccountId), eq(propAccounts.userId, userId)));
+      const [insertedAccounts] = await db.batch([
+        db
+          .insert(mt5Accounts)
+          .values(insertPayload)
+          .returning({ id: mt5Accounts.id }),
+        db
+          .update(propAccounts)
+          .set(propUpdates)
+          .where(and(eq(propAccounts.id, propAccountId), eq(propAccounts.userId, userId))),
+      ]);
+      const [newAccount] = insertedAccounts as Array<{ id: string }>;
+      return apiSuccess({ accountId: newAccount.id });
     }
 
-    return NextResponse.json({ success: true, accountId: newAccount.id });
+    const [insertedAccounts] = await db.batch([
+      db
+        .insert(mt5Accounts)
+        .values(insertPayload)
+        .returning({ id: mt5Accounts.id }),
+    ]);
+    const [newAccount] = insertedAccounts as Array<{ id: string }>;
+
+    return apiSuccess({ accountId: newAccount.id });
   } catch (error) {
     console.error('[MT5 Account] Error:', error);
     const message = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError(500, message);
   }
 }

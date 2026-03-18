@@ -149,7 +149,7 @@ export const trades = pgTable('trades', {
   // Core trade data
   symbol: text('symbol').notNull(),
   direction: text('direction').notNull(), // LONG | SHORT
-  status: text('status').notNull().default('open'), // open | closed
+  status: text('status').notNull().default('OPEN'), // OPEN | CLOSED
 
   // Price data
   entryPrice: numeric('entry_price').notNull(),

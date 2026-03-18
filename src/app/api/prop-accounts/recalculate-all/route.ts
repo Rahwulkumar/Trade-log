@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/auth/server';
+import { apiError, apiSuccess } from '@/lib/api/http';
 import { db } from '@/lib/db';
 import { propAccounts, mt5Accounts, trades } from '@/lib/db/schema';
 import { eq, inArray, sql, and } from 'drizzle-orm';
+import { checkRateLimit, createRateLimitResponse, getRateLimitClientId } from '@/lib/rate-limit';
 
 /**
  * POST /api/prop-accounts/recalculate-all
@@ -11,11 +13,23 @@ import { eq, inArray, sql, and } from 'drizzle-orm';
  * instead of N separate API calls. MT5-linked accounts are skipped — their
  * balance is sourced from the terminal heartbeat.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   const { userId, error } = await requireAuth();
   if (error) return error;
 
   try {
+    const rateLimit = checkRateLimit(
+      `api:prop-recalculate-all:${getRateLimitClientId(request, userId)}`,
+      12,
+      60_000
+    );
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(
+        rateLimit.retryAfterMs,
+        'Prop account recalculation limit exceeded'
+      );
+    }
+
     // 1. Get all prop accounts and MT5-linked IDs in parallel
     const [allAccounts, mt5Rows] = await Promise.all([
       db
@@ -32,7 +46,7 @@ export async function POST() {
     const nonMt5 = allAccounts.filter((a) => !mt5Ids.has(a.id));
 
     if (nonMt5.length === 0) {
-      return NextResponse.json({ updated: 0 });
+      return apiSuccess({ updated: 0 });
     }
 
     // 2. Sum PnL grouped by prop account — single query
@@ -70,9 +84,9 @@ export async function POST() {
       })
     );
 
-    return NextResponse.json({ updated: nonMt5.length });
+    return apiSuccess({ updated: nonMt5.length });
   } catch (err) {
     console.error('[RecalculateAll] Error:', err);
-    return NextResponse.json({ error: 'Failed to recalculate balances' }, { status: 500 });
+    return apiError(500, 'Failed to recalculate balances');
   }
 }

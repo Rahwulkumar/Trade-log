@@ -1,7 +1,9 @@
 import { requireAuth } from '@/lib/auth/server';
+import { apiError, apiSuccess } from '@/lib/api/http';
 import { buildMt5EaSetupDescriptor } from '@/lib/mt5/ea-setup';
 import { enableMt5AutoSync } from '@/lib/mt5-sync/service';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { checkRateLimit, createRateLimitResponse, getRateLimitClientId } from '@/lib/rate-limit';
 
 export async function POST(
   _request: NextRequest,
@@ -10,6 +12,15 @@ export async function POST(
   try {
     const { userId, error } = await requireAuth();
     if (error) return error;
+
+    const rateLimit = checkRateLimit(
+      `api:mt5-enable:${getRateLimitClientId(_request, userId)}`,
+      12,
+      60_000
+    );
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit.retryAfterMs, 'MT5 enable limit exceeded');
+    }
 
     const { id: accountId } = await params;
 
@@ -25,13 +36,12 @@ export async function POST(
       .limit(1);
 
     if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      return apiError(404, 'Account not found');
     }
 
     const terminal = await enableMt5AutoSync(accountId, userId);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       terminalId: terminal.id,
       terminal: {
         id: terminal.id,
@@ -43,6 +53,6 @@ export async function POST(
   } catch (error) {
     console.error('[EnableAutoSync] Error:', error);
     const message = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiError(500, message);
   }
 }

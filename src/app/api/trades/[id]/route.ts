@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/server';
 import { deleteTrade, getTrade, updateTrade } from '@/lib/api/trades';
+import { parseTradeUpdatePayload } from '@/lib/validation/trades';
 
 export async function GET(
   _request: NextRequest,
@@ -27,10 +28,27 @@ export async function PATCH(
   if (error) return error;
 
   const { id } = await params;
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  const result = parseTradeUpdatePayload(body);
+  if (!result.success) {
+    return NextResponse.json(
+      {
+        error: 'Invalid trade update payload',
+        details: result.error.flatten(),
+      },
+      { status: 400 },
+    );
+  }
+
+  if (Object.keys(result.data).length === 0) {
+    return NextResponse.json(
+      { error: 'At least one field must be provided' },
+      { status: 400 },
+    );
+  }
 
   try {
-    const trade = await updateTrade(id, userId, body);
+    const trade = await updateTrade(id, userId, result.data);
     return NextResponse.json(trade);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to update trade';

@@ -2,6 +2,7 @@ import { requireAuth } from '@/lib/auth/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getTrades, createTrade } from '@/lib/api/trades';
 import type { TradeFilters } from '@/lib/api/trades';
+import { parseTradeCreatePayload } from '@/lib/validation/trades';
 
 function parseOptionalInt(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -39,7 +40,24 @@ export async function POST(request: NextRequest) {
   const { userId, error } = await requireAuth();
   if (error) return error;
 
-  const body = await request.json();
-  const trade = await createTrade(userId, body);
-  return NextResponse.json(trade, { status: 201 });
+  const body = await request.json().catch(() => null);
+  const result = parseTradeCreatePayload(body);
+  if (!result.success) {
+    return NextResponse.json(
+      {
+        error: 'Invalid trade payload',
+        details: result.error.flatten(),
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const trade = await createTrade(userId, result.data);
+    return NextResponse.json(trade, { status: 201 });
+  } catch (routeError) {
+    const message =
+      routeError instanceof Error ? routeError.message : 'Failed to create trade';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }

@@ -1,24 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { NextRequest } from 'next/server';
+import { requireAdminOrSecret } from '@/lib/auth/server';
+import { apiError, apiSuccess } from '@/lib/api/http';
 import { db } from '@/lib/db';
 import { terminalInstances } from '@/lib/db/schema';
 import { inArray } from 'drizzle-orm';
 import { calculateTerminalHealth } from '@/lib/terminal-farm/metrics';
 
 export async function GET(request: NextRequest) {
-  // Accept either a browser session OR the orchestrator secret header
-  const orchestratorSecret = process.env.ORCHESTRATOR_SECRET;
-  const authHeader = request.headers.get('authorization');
-
-  if (orchestratorSecret && authHeader === `Bearer ${orchestratorSecret}`) {
-    // Orchestrator machine-to-machine auth — proceed
-  } else {
-    // Fall back to Clerk user session check
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-  }
+  const access = await requireAdminOrSecret(request, {
+    secretEnvVar: 'ORCHESTRATOR_SECRET',
+    headerNames: ['authorization'],
+  });
+  if (access.error) return access.error;
 
   try {
     const terminals = await db
@@ -29,30 +22,30 @@ export async function GET(request: NextRequest) {
         lastSyncAt: terminalInstances.lastSyncAt,
       })
       .from(terminalInstances)
-      .where(
-        inArray(terminalInstances.status, ['PENDING', 'STARTING', 'RUNNING', 'STOPPING'])
-      );
+      .where(inArray(terminalInstances.status, ['PENDING', 'STARTING', 'RUNNING', 'STOPPING']));
 
-    const health = terminals.map(t => calculateTerminalHealth({
-      id: t.id,
-      status: t.status,
-      last_heartbeat: t.lastHeartbeat?.toISOString() ?? null,
-      last_sync_at: t.lastSyncAt?.toISOString() ?? null,
-    }));
+    const health = terminals.map((terminal) =>
+      calculateTerminalHealth({
+        id: terminal.id,
+        status: terminal.status,
+        last_heartbeat: terminal.lastHeartbeat?.toISOString() ?? null,
+        last_sync_at: terminal.lastSyncAt?.toISOString() ?? null,
+      }),
+    );
 
     const summary = {
       total: health.length,
-      healthy: health.filter(h => h.isHealthy).length,
-      unhealthy: health.filter(h => !h.isHealthy).length,
-      byStatus: health.reduce((acc, h) => {
-        acc[h.status] = (acc[h.status] || 0) + 1;
+      healthy: health.filter((item) => item.isHealthy).length,
+      unhealthy: health.filter((item) => !item.isHealthy).length,
+      byStatus: health.reduce((acc, item) => {
+        acc[item.status] = (acc[item.status] || 0) + 1;
         return acc;
       }, {} as Record<string, number>),
     };
 
-    return NextResponse.json({ success: true, summary, terminals: health });
+    return apiSuccess({ summary, terminals: health });
   } catch (error) {
     console.error('[TerminalFarm/Health] Error:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return apiError(500, 'Internal server error');
   }
 }

@@ -1,0 +1,223 @@
+import { z } from 'zod';
+
+type JsonRecord = Record<string, unknown>;
+
+const uuidSchema = z.string().uuid();
+const trimmedString = (max: number) => z.string().trim().max(max);
+const nullableString = (max: number) =>
+  z.union([z.string(), z.null()]).transform((value) => {
+    if (value === null) return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed.slice(0, max) : null;
+  });
+
+const nullableUuid = z.union([uuidSchema, z.null()]);
+
+const numericString = z.union([z.number().finite(), z.string().trim().min(1)]).transform(
+  (value, ctx) => {
+    const raw = typeof value === 'number' ? String(value) : value.trim();
+    if (!Number.isFinite(Number(raw))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Expected a numeric value',
+      });
+      return z.NEVER;
+    }
+    return raw;
+  },
+);
+
+const nullableNumericString = z.union([z.number().finite(), z.string().trim().min(1), z.null()]).transform(
+  (value, ctx) => {
+    if (value === null) return null;
+    const raw = typeof value === 'number' ? String(value) : value.trim();
+    if (!Number.isFinite(Number(raw))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Expected a numeric value',
+      });
+      return z.NEVER;
+    }
+    return raw;
+  },
+);
+
+const nullableDate = z.union([z.string(), z.date(), z.null()]).transform((value, ctx) => {
+  if (value === null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Expected a valid date',
+    });
+    return z.NEVER;
+  }
+  return date;
+});
+
+const requiredDate = z.union([z.string(), z.date()]).transform((value, ctx) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Expected a valid date',
+    });
+    return z.NEVER;
+  }
+  return date;
+});
+
+const nullableNumber = z.union([z.number().finite(), z.null()]);
+const nullableBoolean = z.union([z.boolean(), z.null()]);
+const nullableInteger = z.union([z.number().int(), z.string().trim().min(1), z.null()]).transform(
+  (value, ctx) => {
+    if (value === null) return null;
+    const parsed = typeof value === 'number' ? value : Number.parseInt(value, 10);
+    if (!Number.isInteger(parsed)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Expected an integer value',
+      });
+      return z.NEVER;
+    }
+    return parsed;
+  },
+);
+
+const stringArray = z.array(z.string().trim().min(1).max(120)).max(50);
+const qualityRating = z.union([z.enum(['Good', 'Neutral', 'Poor']), z.null()]);
+const tradeStatus = z
+  .enum(['OPEN', 'CLOSED', 'open', 'closed'])
+  .transform((value) => value.toUpperCase() as 'OPEN' | 'CLOSED');
+const direction = z.enum(['LONG', 'SHORT']);
+
+const tfObservations = z.union([
+  z.record(
+    z.string(),
+    z.object({
+      bias: z.string().trim().max(120).optional(),
+      notes: z.string().trim().max(4000).optional(),
+    }),
+  ),
+  z.null(),
+]);
+
+const screenshotEntry = z.union([
+  z.string().trim().min(1).max(4000),
+  z.object({
+    url: z.string().trim().min(1).max(4000),
+    timeframe: z.string().trim().max(64).optional(),
+    created_at: z.string().trim().max(128).optional(),
+  }),
+]);
+
+const tradeCreateSchema = z
+  .object({
+    symbol: trimmedString(32).min(1),
+    direction,
+    status: tradeStatus.optional().default('OPEN'),
+    entryPrice: numericString,
+    exitPrice: nullableNumericString.optional(),
+    positionSize: numericString,
+    stopLoss: nullableNumericString.optional(),
+    takeProfit: nullableNumericString.optional(),
+    pnl: nullableNumericString.optional(),
+    rMultiple: nullableNumericString.optional(),
+    commission: nullableNumericString.optional(),
+    swap: nullableNumericString.optional(),
+    entryDate: requiredDate,
+    exitDate: nullableDate.optional(),
+    propAccountId: nullableUuid.optional(),
+    playbookId: nullableUuid.optional(),
+    notes: nullableString(10000).optional(),
+    feelings: nullableString(4000).optional(),
+    observations: nullableString(10000).optional(),
+    screenshots: z.array(screenshotEntry).max(50).optional(),
+    chartData: z.union([z.record(z.string(), z.unknown()), z.array(z.unknown()), z.null()]).optional(),
+    mae: nullableNumber.optional(),
+    mfe: nullableNumber.optional(),
+    session: nullableString(64).optional(),
+    marketCondition: nullableString(64).optional(),
+    setupTags: stringArray.nullable().optional(),
+    mistakeTags: stringArray.nullable().optional(),
+    entryRating: qualityRating.optional(),
+    exitRating: qualityRating.optional(),
+    managementRating: qualityRating.optional(),
+    conviction: z.union([z.number().int().min(1).max(5), z.null()]).optional(),
+    lessonLearned: nullableString(4000).optional(),
+    wouldTakeAgain: nullableBoolean.optional(),
+    tfObservations: tfObservations.optional(),
+    executionNotes: nullableString(10000).optional(),
+    executionArrays: stringArray.nullable().optional(),
+    externalTicket: nullableString(128).optional(),
+    externalId: nullableString(128).optional(),
+    externalDealId: nullableString(128).optional(),
+    mt5AccountId: nullableUuid.optional(),
+    contractSize: nullableNumericString.optional(),
+    assetType: nullableString(64).optional(),
+    magicNumber: nullableInteger.optional(),
+  })
+  .strict();
+
+const tradeUpdateSchema = tradeCreateSchema.partial();
+
+function normalizeTradePayload(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return raw;
+  }
+
+  const source = raw as JsonRecord;
+  const normalized: JsonRecord = { ...source };
+  const aliases: Record<string, string> = {
+    prop_account_id: 'propAccountId',
+    playbook_id: 'playbookId',
+    entry_price: 'entryPrice',
+    exit_price: 'exitPrice',
+    position_size: 'positionSize',
+    stop_loss: 'stopLoss',
+    take_profit: 'takeProfit',
+    entry_date: 'entryDate',
+    exit_date: 'exitDate',
+    r_multiple: 'rMultiple',
+    chart_data: 'chartData',
+    market_condition: 'marketCondition',
+    setup_tags: 'setupTags',
+    mistake_tags: 'mistakeTags',
+    entry_rating: 'entryRating',
+    exit_rating: 'exitRating',
+    management_rating: 'managementRating',
+    lesson_learned: 'lessonLearned',
+    would_take_again: 'wouldTakeAgain',
+    tf_observations: 'tfObservations',
+    execution_notes: 'executionNotes',
+    execution_arrays: 'executionArrays',
+    external_ticket: 'externalTicket',
+    external_id: 'externalId',
+    external_deal_id: 'externalDealId',
+    mt5_account_id: 'mt5AccountId',
+    contract_size: 'contractSize',
+    asset_type: 'assetType',
+    magic_number: 'magicNumber',
+  };
+
+  for (const [from, to] of Object.entries(aliases)) {
+    if (normalized[to] === undefined && source[from] !== undefined) {
+      normalized[to] = source[from];
+    }
+    delete normalized[from];
+  }
+
+  return normalized;
+}
+
+export function parseTradeCreatePayload(
+  raw: unknown,
+): ReturnType<typeof tradeCreateSchema.safeParse> {
+  return tradeCreateSchema.safeParse(normalizeTradePayload(raw));
+}
+
+export function parseTradeUpdatePayload(
+  raw: unknown,
+): ReturnType<typeof tradeUpdateSchema.safeParse> {
+  return tradeUpdateSchema.safeParse(normalizeTradePayload(raw));
+}

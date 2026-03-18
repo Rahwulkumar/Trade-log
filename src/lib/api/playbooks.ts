@@ -111,7 +111,7 @@ export async function getPlaybookStats(
   const conditions = [
     eq(trades.playbookId, playbookId),
     eq(trades.userId, userId),
-    eq(trades.status, 'closed'),
+    eq(trades.status, 'CLOSED'),
   ];
   if (propAccountId) {
     const { eq: deq } = await import('drizzle-orm');

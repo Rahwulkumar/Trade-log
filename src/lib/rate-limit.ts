@@ -4,6 +4,8 @@
  * For multi-instance deploys, replace with Upstash Redis.
  */
 
+import { NextResponse } from 'next/server';
+
 interface RateLimitStore {
     timestamps: number[];
 }
@@ -42,4 +44,37 @@ export function checkRateLimit(
 
     entry.timestamps.push(now);
     return { allowed: true, retryAfterMs: 0 };
+}
+
+export function getRateLimitClientId(request: Request, userId?: string | null): string {
+    if (userId) {
+        return `user:${userId}`;
+    }
+
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const candidateIp =
+        forwardedFor?.split(',')[0]?.trim() ||
+        request.headers.get('cf-connecting-ip')?.trim() ||
+        request.headers.get('x-real-ip')?.trim();
+
+    if (candidateIp) {
+        return `ip:${candidateIp}`;
+    }
+
+    return 'anonymous';
+}
+
+export function createRateLimitResponse(
+    retryAfterMs: number,
+    error = 'Too many requests'
+): NextResponse {
+    return NextResponse.json(
+        { success: false, error },
+        {
+            status: 429,
+            headers: {
+                'Retry-After': String(Math.max(1, Math.ceil(retryAfterMs / 1000))),
+            },
+        }
+    );
 }

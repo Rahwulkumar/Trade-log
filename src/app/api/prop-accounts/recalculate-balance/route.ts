@@ -1,9 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/auth/server';
 import { getPropAccount, updatePropAccount } from '@/lib/api/prop-accounts';
+import { apiError, apiSuccess, apiValidationError } from '@/lib/api/http';
 import { db } from '@/lib/db';
 import { mt5Accounts, trades } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
+import { parseRecalculateBalancePayload } from '@/lib/validation/recalculate-balance';
+import { checkRateLimit, createRateLimitResponse, getRateLimitClientId } from '@/lib/rate-limit';
 
 /**
  * POST /api/prop-accounts/recalculate-balance
@@ -16,16 +19,31 @@ export async function POST(req: NextRequest) {
     if (authError) return authError;
 
     try {
-        const body = await req.json();
-        const { accountId } = body;
-
-        if (!accountId) {
-            return NextResponse.json({ error: 'Account ID required' }, { status: 400 });
+        const rateLimit = checkRateLimit(
+            `api:prop-recalculate-one:${getRateLimitClientId(req, userId)}`,
+            30,
+            60_000
+        );
+        if (!rateLimit.allowed) {
+            return createRateLimitResponse(
+                rateLimit.retryAfterMs,
+                'Prop account recalculation limit exceeded'
+            );
         }
+
+        const body = await req.json().catch(() => null);
+        const result = parseRecalculateBalancePayload(body);
+        if (!result.success) {
+            return apiValidationError(
+                'Invalid prop account recalculation payload',
+                result.error.flatten()
+            );
+        }
+        const { accountId } = result.data;
 
         const account = await getPropAccount(accountId, userId);
         if (!account) {
-            return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+            return apiError(404, 'Account not found');
         }
 
         // If this prop account is linked to MT5 and has been synced before,
@@ -71,8 +89,7 @@ export async function POST(req: NextRequest) {
             currentBalance: String(newBalance),
         });
 
-        return NextResponse.json({
-            success: true,
+        return apiSuccess({
             balance: newBalance,
             pnl: totalPnl,
             tradeCount: linkedTrades.length,
@@ -80,9 +97,6 @@ export async function POST(req: NextRequest) {
         });
     } catch (err) {
         console.error('[Recalculate] Exception:', err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : 'Internal error' },
-            { status: 500 }
-        );
+        return apiError(500, err instanceof Error ? err.message : 'Internal error');
     }
 }
