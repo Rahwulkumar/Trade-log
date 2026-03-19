@@ -22,6 +22,25 @@ class Mt5Client:
         self._portable = portable
         self._timeout_ms = timeout_ms
 
+    def discover_current_session(self) -> Any | None:
+        if mt5 is None:
+            raise Mt5RuntimeError(
+                f"MetaTrader5 package is not available: {IMPORT_ERROR}"
+            )
+
+        initialized = self._initialize()
+        if not initialized:
+            error = mt5.last_error()
+            raise Mt5RuntimeError(
+                f"MT5 initialize() without credentials failed: {error}"
+            )
+
+        account_info = mt5.account_info()
+        if account_info is None:
+            return None
+
+        return account_info
+
     def connect(self, login: str, password: str, server: str) -> None:
         if mt5 is None:
             raise Mt5RuntimeError(
