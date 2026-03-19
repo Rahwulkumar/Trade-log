@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { useAuth } from "@/components/auth-provider";
 import { getTrades } from "@/lib/api/client/trades";
+import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 interface CashflowProps {
@@ -21,8 +22,9 @@ interface CashflowProps {
 
 interface MonthBucket {
   label: string;
-  Winners: number; // green bars
-  Losers: number; // dark bars (absolute value)
+  sortKey: number;
+  grossProfit: number;
+  grossLoss: number;
 }
 
 // Custom tooltip
@@ -57,7 +59,7 @@ function CashflowTooltip({
       >
         {label}
       </p>
-      {payload.map((entry) => (
+        {payload.map((entry) => (
         <div
           key={entry.name}
           className="flex items-center justify-between gap-4"
@@ -153,38 +155,40 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
           let label: string;
 
           if (period === "1W") {
-            key = d.toLocaleDateString("en-US", { weekday: "short" });
-            label = key;
+            key = d.toISOString().split("T")[0];
+            label = d.toLocaleDateString("en-US", { weekday: "short" });
           } else {
             key = `${d.getFullYear()}-${d.getMonth()}`;
             label = `${monthLabels[d.getMonth()]}`;
           }
 
           if (!buckets.has(key))
-            buckets.set(key, { label, Winners: 0, Losers: 0 });
+            buckets.set(key, {
+              label,
+              sortKey:
+                period === "1W"
+                  ? new Date(
+                      d.getFullYear(),
+                      d.getMonth(),
+                      d.getDate(),
+                    ).getTime()
+                  : new Date(d.getFullYear(), d.getMonth(), 1).getTime(),
+              grossProfit: 0,
+              grossLoss: 0,
+            });
           const bucket = buckets.get(key)!;
-          const p = Number(trade.pnl ?? 0);
-          if (p >= 0) bucket.Winners += p;
-          else bucket.Losers += Math.abs(p);
+          const pnl = getTradeNetPnl(trade);
+          if (pnl >= 0) bucket.grossProfit += pnl;
+          else bucket.grossLoss += Math.abs(pnl);
         }
 
-        const sorted = Array.from(buckets.entries())
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([, v]) => v);
+        const sorted = Array.from(buckets.values()).sort(
+          (left, right) => left.sortKey - right.sortKey,
+        );
 
-        if (sorted.length === 0) {
-          // Empty state visual
-          const demo: MonthBucket[] = monthLabels.slice(0, 8).map((l) => ({
-            label: l,
-            Winners: 0,
-            Losers: 0,
-          }));
-          setData(demo);
-        } else {
-          setData(sorted);
-        }
+        setData(sorted);
 
-        const net = trades.reduce((sum, t) => sum + Number(t.pnl ?? 0), 0);
+        const net = trades.reduce((sum, trade) => sum + getTradeNetPnl(trade), 0);
         setTotalPnl(net);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -237,7 +241,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
               className="legend-dot"
               style={{ background: "var(--profit-primary)" }}
             />
-            Winners
+            Gross Profit
           </span>
           <span
             className="flex items-center gap-1.5"
@@ -251,7 +255,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
               className="legend-dot"
               style={{ background: "var(--loss-primary)" }}
             />
-            Losers
+            Gross Loss
           </span>
         </div>
       </div>
@@ -261,7 +265,19 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
           className="flex items-center justify-center h-[200px]"
           style={{ color: "var(--text-tertiary)", fontSize: "0.8rem" }}
         >
-          Loading chart…
+          Loading chart...
+        </div>
+      ) : data.length === 0 ? (
+        <div
+          className="flex h-[220px] items-center justify-center rounded-xl border"
+          style={{
+            borderColor: "var(--border-subtle)",
+            color: "var(--text-tertiary)",
+            fontSize: "0.82rem",
+            background: "var(--surface-elevated)",
+          }}
+        >
+          No closed trades in this period.
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
@@ -330,13 +346,15 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
               cursor={{ fill: "var(--surface-hover)", radius: 4 }}
             />
             <Bar
-              dataKey="Winners"
+              dataKey="grossProfit"
+              name="Gross Profit"
               fill="url(#winnerGrad)"
               radius={[4, 4, 0, 0]}
               maxBarSize={22}
             />
             <Bar
-              dataKey="Losers"
+              dataKey="grossLoss"
+              name="Gross Loss"
               fill="url(#loserGrad)"
               radius={[4, 4, 0, 0]}
               maxBarSize={22}

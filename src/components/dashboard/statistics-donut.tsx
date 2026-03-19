@@ -3,10 +3,8 @@
 import { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useAuth } from "@/components/auth-provider";
-import {
-  getAnalyticsSummary,
-  type AnalyticsSummary,
-} from "@/lib/api/analytics";
+import { getAnalyticsPayloadClient } from "@/lib/api/client/analytics";
+import type { AnalyticsSummary } from "@/lib/analytics/types";
 
 interface StatisticsProps {
   propAccountId?: string | null;
@@ -78,47 +76,62 @@ export function StatisticsDonut({
     winRate: number;
     income: number;
     expense: number;
+    netPnl: number;
   } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!summary);
+
+  function buildStats(data: AnalyticsSummary) {
+    const breakEven =
+      data.totalTrades - data.winningTrades - data.losingTrades;
+    return {
+      wins: data.winningTrades,
+      losses: data.losingTrades,
+      breakEven: Math.max(0, breakEven),
+      total: data.totalTrades,
+      winRate: data.winRate,
+      income: Math.abs(data.avgWin) * data.winningTrades,
+      expense: Math.abs(data.avgLoss) * data.losingTrades,
+      netPnl: data.totalNetPnl,
+    };
+  }
 
   useEffect(() => {
     async function load() {
+      if (summary) {
+        setStats(buildStats(summary));
+        setLoading(false);
+        return;
+      }
       if (authLoading) return;
       if (!isConfigured || !user) {
         setLoading(false);
         return;
       }
       try {
-        const data = summary
-          ? summary
-          : await (async () => {
-              const now = new Date();
-              const start =
-                startDate ??
-                new Date(now.getFullYear(), now.getMonth(), 1)
-                  .toISOString()
-                  .split("T")[0];
-              const end =
-                endDate ??
-                new Date(now.getFullYear(), now.getMonth() + 1, 0)
-                  .toISOString()
-                  .split("T")[0];
-              const acct =
-                propAccountId === "unassigned" ? "unassigned" : propAccountId;
-              return getAnalyticsSummary(start, end, acct);
-            })();
-
-        const breakEven =
-          data.totalTrades - data.winningTrades - data.losingTrades;
-        setStats({
-          wins: data.winningTrades,
-          losses: data.losingTrades,
-          breakEven: Math.max(0, breakEven),
-          total: data.totalTrades,
-          winRate: data.winRate,
-          income: Math.abs(data.avgWin) * data.winningTrades,
-          expense: Math.abs(data.avgLoss) * data.losingTrades,
+        const now = new Date();
+        const start =
+          startDate ??
+          new Date(now.getFullYear(), now.getMonth(), 1)
+            .toISOString()
+            .split("T")[0];
+        const end =
+          endDate ??
+          new Date(now.getFullYear(), now.getMonth() + 1, 0)
+            .toISOString()
+            .split("T")[0];
+        const acct =
+          propAccountId === "unassigned" ? "unassigned" : propAccountId;
+        const payload = await getAnalyticsPayloadClient({
+          account: acct,
+          from: start,
+          to: end,
         });
+        if (!payload) {
+          setStats(null);
+          return;
+        }
+
+        setStats(buildStats(payload.summary));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (!msg.includes("Failed to fetch"))
@@ -188,8 +201,9 @@ export function StatisticsDonut({
                   lineHeight: 1,
                 }}
               >
-                ${stats.income - stats.expense >= 0 ? "+" : ""}
-                {(stats.income - stats.expense).toLocaleString(undefined, {
+                {stats.netPnl >= 0 ? "+" : "-"}$
+                {stats.netPnl.toLocaleString(undefined, {
+                  signDisplay: "never",
                   maximumFractionDigits: 0,
                 })}
               </span>
@@ -208,7 +222,7 @@ export function StatisticsDonut({
             <span
               style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}
             >
-              {loading ? "…" : "No data"}
+              {loading ? "..." : "No data"}
             </span>
           )}
         </div>

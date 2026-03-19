@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth-provider";
 import { getTrades } from "@/lib/api/client/trades";
 import { NoTradesEmpty } from "@/components/ui/empty-state";
 import { getPnLColor, getDirectionColor } from "@/lib/utils/trade-colors";
+import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 import type { Trade } from "@/lib/db/schema";
 
 interface RecentTradesProps {
@@ -18,7 +19,7 @@ interface RecentTradesProps {
 // Derive outcome from pnl + status
 function getOutcome(trade: Trade): "WIN" | "LOSS" | "OPEN" | "EVEN" {
   if (trade.status === "OPEN") return "OPEN";
-  const pnl = Number(trade.pnl) || 0;
+  const pnl = getTradeNetPnl(trade);
   if (pnl > 0) return "WIN";
   if (pnl < 0) return "LOSS";
   return "EVEN";
@@ -58,7 +59,7 @@ function SkeletonRow() {
 // ─── Trade row ────────────────────────────────────────────────────────────────
 function TradeRow({ trade }: { trade: Trade }) {
   const outcome = getOutcome(trade);
-  const pnl = Number(trade.pnl) || 0;
+  const pnl = getTradeNetPnl(trade);
   const rMultiple = trade.rMultiple ? Number(trade.rMultiple) : null;
   const entryDate = new Date(trade.entryDate);
   const exitDate = trade.exitDate ? new Date(trade.exitDate) : null;
@@ -175,7 +176,7 @@ export function RecentTrades({ limit = 5, propAccountId, initialTrades }: Recent
           status: "closed",
           propAccountId,
           limit,
-          sortBy: "entryDate",
+          sortBy: "exitDate",
           sortOrder: "desc",
         });
         setTrades(data);

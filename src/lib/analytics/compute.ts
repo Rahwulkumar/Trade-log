@@ -305,7 +305,7 @@ function buildHoldBuckets(entries: Array<{ seconds: number; pnl: number }>): Hol
   }));
 }
 
-function buildStreakStats(results: Array<'W' | 'L'>): StreakStats {
+function buildStreakStats(results: Array<'W' | 'L' | 'B'>): StreakStats {
   let current = 0;
   let currentType: 'win' | 'loss' | 'flat' = 'flat';
   let longestWin = 0;
@@ -320,12 +320,17 @@ function buildStreakStats(results: Array<'W' | 'L'>): StreakStats {
       longestWin = Math.max(longestWin, activeWin);
       currentType = 'win';
       current = activeWin;
-    } else {
+    } else if (result === 'L') {
       activeLoss += 1;
       activeWin = 0;
       longestLoss = Math.max(longestLoss, activeLoss);
       currentType = 'loss';
       current = activeLoss;
+    } else {
+      activeWin = 0;
+      activeLoss = 0;
+      currentType = 'flat';
+      current = 0;
     }
   }
 
@@ -602,7 +607,7 @@ export function computeAnalytics(
   const rollingRMeans: number[] = [];
   const riskFractions: number[] = [];
   const maeMfe: MaeMfePoint[] = [];
-  const results: Array<'W' | 'L'> = [];
+  const results: Array<'W' | 'L' | 'B'> = [];
 
   let winningTrades = 0;
   let losingTrades = 0;
@@ -686,7 +691,7 @@ export function computeAnalytics(
       results.push('L');
     } else {
       breakevenTrades += 1;
-      results.push('L');
+      results.push('B');
     }
 
     if (rMultiple != null && Number.isFinite(rMultiple) && Math.abs(rMultiple) > 0) {

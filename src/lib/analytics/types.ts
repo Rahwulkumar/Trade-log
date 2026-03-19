@@ -119,7 +119,7 @@ export interface StreakStats {
   currentType: 'win' | 'loss' | 'flat';
   longestWin: number;
   longestLoss: number;
-  recentTrades: Array<'W' | 'L'>;
+  recentTrades: Array<'W' | 'L' | 'B'>;
 }
 
 export interface ConsistencyScore {

@@ -21,6 +21,7 @@ import {
 import { Activity, Download, TrendingDown, TrendingUp } from 'lucide-react';
 
 import { AnalyticsAccountSync } from '@/app/analytics/analytics-account-sync';
+import { AnalyticsControls } from '@/app/analytics/analytics-controls';
 import type { AnalyticsPayload, SessionBucket } from '@/lib/analytics/types';
 import { CHART_COLORS } from '@/lib/constants/chart-colors';
 import {
@@ -228,6 +229,26 @@ function SessionCard(props: SessionBucket) {
             {formatSignedCurrency(props.pnl)}
           </span>
         </div>
+        <div className="grid grid-cols-3 gap-2 text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+          <div>
+            <p>Trades</p>
+            <p className="mono mt-0.5 text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {props.trades}
+            </p>
+          </div>
+          <div>
+            <p>Win Rate</p>
+            <p className="mono mt-0.5 text-[11px] font-semibold" style={{ color: props.winRate >= 50 ? 'var(--profit-primary)' : 'var(--loss-primary)' }}>
+              {props.winRate.toFixed(0)}%
+            </p>
+          </div>
+          <div>
+            <p>Avg Trade</p>
+            <p className="mono mt-0.5 text-[11px] font-semibold" style={{ color: props.avgPnl >= 0 ? 'var(--profit-primary)' : 'var(--loss-primary)' }}>
+              {formatSignedCurrency(props.avgPnl)}
+            </p>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -306,10 +327,14 @@ function StatList({
 export function AnalyticsClient({
   payload,
   accountScope,
+  currentFrom,
+  currentTo,
   shouldSyncSelection,
 }: {
   payload: AnalyticsPayload;
   accountScope: string;
+  currentFrom: string | null;
+  currentTo: string | null;
   shouldSyncSelection: boolean;
 }) {
   const eqData = payload.equity.map((point) => ({
@@ -329,6 +354,56 @@ export function AnalyticsClient({
     1,
   );
 
+  const handleExport = () => {
+    const summaryRows = [
+      ['Metric', 'Value'],
+      ['Account Scope', payload.meta.accountLabel],
+      ['Time Zone', payload.meta.timeZone],
+      ['Trades', String(payload.summary.totalTrades)],
+      ['Win Rate', `${payload.summary.winRate.toFixed(2)}%`],
+      ['Total Net P&L', payload.summary.totalNetPnl.toFixed(2)],
+      ['Profit Factor', payload.summary.profitFactor == null ? '' : payload.summary.profitFactor.toFixed(2)],
+      ['Expectancy', payload.summary.expectancy.toFixed(2)],
+      [],
+      ['Instrument', 'Trades', 'Win Rate', 'Profit Factor', 'Total P&L'],
+      ...payload.instruments.map((instrument) => [
+        instrument.symbol,
+        String(instrument.trades),
+        instrument.winRate.toFixed(2),
+        instrument.pf == null ? '' : instrument.pf.toFixed(2),
+        instrument.totalPnl.toFixed(2),
+      ]),
+      [],
+      ['Strategy', 'Trades', 'Win Rate', 'Profit Factor', 'Total P&L'],
+      ...payload.strategies.map((strategy) => [
+        strategy.strategy,
+        String(strategy.trades),
+        strategy.winRate.toFixed(2),
+        strategy.pf == null ? '' : strategy.pf.toFixed(2),
+        strategy.totalPnl.toFixed(2),
+      ]),
+    ];
+
+    const csv = summaryRows
+      .map((row) =>
+        row
+          .map((value) => {
+            const normalized = String(value ?? '');
+            return `"${normalized.replaceAll('"', '""')}"`;
+          })
+          .join(','),
+      )
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `analytics-${payload.meta.accountLabel.replaceAll(/\s+/g, '-').toLowerCase()}-${payload.meta.generatedAt.slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (payload.meta.tradeCount === 0) {
     return (
       <div className="page-root page-sections">
@@ -339,11 +414,17 @@ export function AnalyticsClient({
           description="Realized analytics from your closed trades."
           icon={<Activity size={18} color="white" />}
         />
+        <AnalyticsControls
+          currentAccount={accountScope}
+          currentFrom={currentFrom}
+          currentTo={currentTo}
+          timeZone={payload.meta.timeZone}
+        />
         <AppPanel className="max-w-2xl">
           <p className="text-lg font-semibold">No closed trades yet</p>
           <p className="mt-2 text-sm" style={{ color: 'var(--text-tertiary)' }}>
-            The analytics page now renders only from real closed trades. Sync or
-            journal trades to unlock it.
+            The analytics page now renders only from real closed trades. Adjust
+            the account/date filters above or sync more trades to populate it.
           </p>
           <div className="mt-5">
             <Button asChild>
@@ -364,11 +445,18 @@ export function AnalyticsClient({
         description={`Live analytics for ${payload.meta.accountLabel} from ${payload.meta.tradeCount} closed trades.`}
         icon={<Activity size={18} color="white" />}
         actions={
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="h-4 w-4" />
             Export
           </Button>
         }
+      />
+
+      <AnalyticsControls
+        currentAccount={accountScope}
+        currentFrom={currentFrom}
+        currentTo={currentTo}
+        timeZone={payload.meta.timeZone}
       />
 
       <div
@@ -381,7 +469,10 @@ export function AnalyticsClient({
       >
         Coverage: R-multiple {payload.meta.coverage.rMultiplePercent}%,
         MAE/MFE {payload.meta.coverage.maeMfePercent}%, stored session{' '}
-        {payload.meta.coverage.sessionPercent}%.
+        {payload.meta.coverage.sessionPercent}%, stop-loss coverage{' '}
+        {payload.meta.coverage.stopLossPercent}%, normalized risk sample{' '}
+        {payload.meta.coverage.riskSamplePercent}%. Net P&L includes tracked
+        commission and swap costs.
       </div>
 
       <section>
@@ -412,7 +503,7 @@ export function AnalyticsClient({
                 ? '--'
                 : `${payload.summary.profitFactor.toFixed(2)}x`
             }
-            sub={`Gross ${formatCurrency(payload.summary.totalGrossPnl)}, costs ${formatSignedCurrency(-payload.summary.totalCosts)}.`}
+            sub={`Gross ${formatCurrency(payload.summary.totalGrossPnl)}, costs ${formatSignedCurrency(payload.summary.totalCosts)}.`}
             tone={
               payload.summary.profitFactor == null
                 ? 'neutral'
@@ -459,7 +550,7 @@ export function AnalyticsClient({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <RiskCard label="Sharpe Ratio" value={payload.risk.sharpe} hint="Daily realized return divided by daily volatility." good={1} excellent={1.5} />
           <RiskCard label="Sortino Ratio" value={payload.risk.sortino} hint="Daily realized return divided by downside deviation." good={1.5} excellent={2} />
-          <RiskCard label="Calmar Ratio" value={payload.risk.calmar} hint="Filtered-window CAGR divided by max drawdown." good={2} excellent={3} />
+          <RiskCard label="Calmar Ratio" value={payload.risk.calmar} hint="First-close to last-close CAGR divided by max drawdown." good={2} excellent={3} />
           <RiskCard label="Recovery Factor" value={payload.risk.recoveryFactor} hint="Total net profit divided by maximum drawdown amount." good={2} excellent={4} />
           <RiskCard label="Risk of Ruin" value={payload.risk.riskOfRuin} unit="%" hint="Monte Carlo estimate from empirical R outcomes." good={5} excellent={2} />
         </div>
@@ -648,7 +739,11 @@ export function AnalyticsClient({
       </section>
 
       <section>
-        <SectionHeader eyebrow="Timing Intelligence" title="Session & Time Analysis" />
+        <SectionHeader
+          eyebrow="Timing Intelligence"
+          title="Session & Time Analysis"
+          subtitle={`Session cards use UTC market windows. Day/hour charts use ${payload.meta.timeZone} entry time.`}
+        />
         <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {payload.time.session.length > 0 ? (
             payload.time.session.map((session) => <SessionCard key={session.session} {...session} />)
@@ -728,12 +823,24 @@ export function AnalyticsClient({
                   key={`${trade}-${index}`}
                   className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[10px] font-bold"
                   style={{
-                    background: trade === 'W' ? 'var(--profit-bg)' : 'var(--loss-bg)',
-                    color: trade === 'W' ? 'var(--profit-primary)' : 'var(--loss-primary)',
+                    background:
+                      trade === 'W'
+                        ? 'var(--profit-bg)'
+                        : trade === 'L'
+                          ? 'var(--loss-bg)'
+                          : 'var(--surface-elevated)',
+                    color:
+                      trade === 'W'
+                        ? 'var(--profit-primary)'
+                        : trade === 'L'
+                          ? 'var(--loss-primary)'
+                          : 'var(--text-secondary)',
                     border: `1px solid ${
                       trade === 'W'
                         ? 'color-mix(in srgb, var(--profit-primary) 30%, transparent)'
-                        : 'color-mix(in srgb, var(--loss-primary) 30%, transparent)'
+                        : trade === 'L'
+                          ? 'color-mix(in srgb, var(--loss-primary) 30%, transparent)'
+                          : 'var(--border-subtle)'
                     }`,
                   }}
                 >
@@ -747,27 +854,47 @@ export function AnalyticsClient({
                 background:
                   payload.streaks.currentType === 'win'
                     ? 'var(--profit-bg)'
-                    : 'var(--loss-bg)',
+                    : payload.streaks.currentType === 'loss'
+                      ? 'var(--loss-bg)'
+                      : 'var(--surface-elevated)',
                 border: `1px solid ${
                   payload.streaks.currentType === 'win'
                     ? 'color-mix(in srgb, var(--profit-primary) 25%, transparent)'
-                    : 'color-mix(in srgb, var(--loss-primary) 25%, transparent)'
+                    : payload.streaks.currentType === 'loss'
+                      ? 'color-mix(in srgb, var(--loss-primary) 25%, transparent)'
+                      : 'var(--border-subtle)'
                 }`,
               }}
             >
               {payload.streaks.currentType === 'win' ? (
                 <TrendingUp size={20} style={{ color: 'var(--profit-primary)' }} />
-              ) : (
+              ) : payload.streaks.currentType === 'loss' ? (
                 <TrendingDown size={20} style={{ color: 'var(--loss-primary)' }} />
+              ) : (
+                <Activity size={20} style={{ color: 'var(--text-secondary)' }} />
               )}
               <div>
                 <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
                   Current Streak
                 </p>
-                <p className="mono text-2xl font-bold" style={{ color: payload.streaks.currentType === 'win' ? 'var(--profit-primary)' : 'var(--loss-primary)' }}>
+                <p
+                  className="mono text-2xl font-bold"
+                  style={{
+                    color:
+                      payload.streaks.currentType === 'win'
+                        ? 'var(--profit-primary)'
+                        : payload.streaks.currentType === 'loss'
+                          ? 'var(--loss-primary)'
+                          : 'var(--text-primary)',
+                  }}
+                >
                   {payload.streaks.current}{' '}
                   <span className="text-sm">
-                    {payload.streaks.currentType === 'win' ? 'wins' : 'losses'}
+                    {payload.streaks.currentType === 'win'
+                      ? 'wins'
+                      : payload.streaks.currentType === 'loss'
+                        ? 'losses'
+                        : 'flat'}
                   </span>
                 </p>
               </div>
@@ -823,6 +950,9 @@ export function AnalyticsClient({
                     <Progress value={Number(value)} className="h-1.5" />
                   </div>
                 ))}
+                <p className="pt-1 text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+                  Weighted 35% sizing, 25% timing, 25% payoff stability, 15% stop adherence.
+                </p>
               </div>
             </AppPanel>
           ) : (
@@ -856,65 +986,69 @@ export function AnalyticsClient({
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <AppPanel>
             <PanelTitle title="By Instrument" subtitle="Win rate, profit factor, average hold time, and total P&L per symbol." />
-            <div className="space-y-2">
-              <div className="grid px-3 pb-2 text-[9px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)' }}>
-                <span>Symbol</span>
-                <span className="text-right">Trades</span>
-                <span className="text-right">Win%</span>
-                <span className="text-right">PF</span>
-                <span className="text-right">Avg P&L</span>
-                <span className="text-right">Total</span>
-              </div>
-              {payload.instruments.map((instrument) => (
-                <div key={instrument.symbol} className="grid items-center rounded-lg px-3 py-2.5" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)' }}>
-                  <div>
-                    <span className="text-[12px] font-bold">{instrument.symbol}</span>
-                    <p className="mt-0.5 text-[9px]" style={{ color: 'var(--text-tertiary)' }}>
-                      avg {instrument.avgHold}
-                    </p>
-                  </div>
-                  <span className="mono text-right text-[11px]">{instrument.trades}</span>
-                  <span className="mono text-right text-[11px] font-semibold">{instrument.winRate.toFixed(0)}%</span>
-                  <span className="mono text-right text-[11px]">
-                    {instrument.pf == null ? '--' : `${instrument.pf.toFixed(1)}x`}
-                  </span>
-                  <span className="mono text-right text-[11px]" style={{ color: instrument.avgPnl >= 0 ? 'var(--profit-primary)' : 'var(--loss-primary)' }}>
-                    {formatSignedCurrency(instrument.avgPnl)}
-                  </span>
-                  <span className="mono text-right text-[12px] font-bold" style={{ color: instrument.totalPnl >= 0 ? 'var(--profit-primary)' : 'var(--loss-primary)' }}>
-                    {formatSignedCurrency(instrument.totalPnl)}
-                  </span>
+            <div className="overflow-x-auto">
+              <div className="min-w-[640px] space-y-2">
+                <div className="grid px-3 pb-2 text-[9px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <span>Symbol</span>
+                  <span className="text-right">Trades</span>
+                  <span className="text-right">Win%</span>
+                  <span className="text-right">PF</span>
+                  <span className="text-right">Avg P&L</span>
+                  <span className="text-right">Total</span>
                 </div>
-              ))}
+                {payload.instruments.map((instrument) => (
+                  <div key={instrument.symbol} className="grid items-center rounded-lg px-3 py-2.5" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)' }}>
+                    <div>
+                      <span className="text-[12px] font-bold">{instrument.symbol}</span>
+                      <p className="mt-0.5 text-[9px]" style={{ color: 'var(--text-tertiary)' }}>
+                        avg {instrument.avgHold}
+                      </p>
+                    </div>
+                    <span className="mono text-right text-[11px]">{instrument.trades}</span>
+                    <span className="mono text-right text-[11px] font-semibold">{instrument.winRate.toFixed(0)}%</span>
+                    <span className="mono text-right text-[11px]">
+                      {instrument.pf == null ? '--' : `${instrument.pf.toFixed(1)}x`}
+                    </span>
+                    <span className="mono text-right text-[11px]" style={{ color: instrument.avgPnl >= 0 ? 'var(--profit-primary)' : 'var(--loss-primary)' }}>
+                      {formatSignedCurrency(instrument.avgPnl)}
+                    </span>
+                    <span className="mono text-right text-[12px] font-bold" style={{ color: instrument.totalPnl >= 0 ? 'var(--profit-primary)' : 'var(--loss-primary)' }}>
+                      {formatSignedCurrency(instrument.totalPnl)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </AppPanel>
 
           <AppPanel>
             <PanelTitle title="By Strategy" subtitle="Playbook-level performance, including unassigned trades." />
-            <div className="space-y-2">
-              <div className="grid px-3 pb-2 text-[9px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: '2.5fr 1fr 1fr 1fr 1fr', color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)' }}>
-                <span>Strategy</span>
-                <span className="text-right">Trades</span>
-                <span className="text-right">Win%</span>
-                <span className="text-right">PF</span>
-                <span className="text-right">Total</span>
-              </div>
-              {payload.strategies.map((strategy) => (
-                <div key={strategy.strategy} className="grid items-center rounded-lg px-3 py-3" style={{ gridTemplateColumns: '2.5fr 1fr 1fr 1fr 1fr', background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)' }}>
-                  <div>
-                    <span className="text-[11px] font-semibold">{strategy.strategy}</span>
-                    <Progress value={strategy.winRate} className="mt-1.5 h-1" />
-                  </div>
-                  <span className="mono text-right text-[11px]">{strategy.trades}</span>
-                  <span className="mono text-right text-[11px] font-semibold">{strategy.winRate.toFixed(0)}%</span>
-                  <span className="mono text-right text-[11px]">
-                    {strategy.pf == null ? '--' : `${strategy.pf.toFixed(1)}x`}
-                  </span>
-                  <span className="mono text-right text-[12px] font-bold" style={{ color: strategy.totalPnl >= 0 ? 'var(--profit-primary)' : 'var(--loss-primary)' }}>
-                    {formatSignedCurrency(strategy.totalPnl)}
-                  </span>
+            <div className="overflow-x-auto">
+              <div className="min-w-[620px] space-y-2">
+                <div className="grid px-3 pb-2 text-[9px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: '2.5fr 1fr 1fr 1fr 1fr', color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <span>Strategy</span>
+                  <span className="text-right">Trades</span>
+                  <span className="text-right">Win%</span>
+                  <span className="text-right">PF</span>
+                  <span className="text-right">Total</span>
                 </div>
-              ))}
+                {payload.strategies.map((strategy) => (
+                  <div key={strategy.strategy} className="grid items-center rounded-lg px-3 py-3" style={{ gridTemplateColumns: '2.5fr 1fr 1fr 1fr 1fr', background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)' }}>
+                    <div>
+                      <span className="text-[11px] font-semibold">{strategy.strategy}</span>
+                      <Progress value={strategy.winRate} className="mt-1.5 h-1" />
+                    </div>
+                    <span className="mono text-right text-[11px]">{strategy.trades}</span>
+                    <span className="mono text-right text-[11px] font-semibold">{strategy.winRate.toFixed(0)}%</span>
+                    <span className="mono text-right text-[11px]">
+                      {strategy.pf == null ? '--' : `${strategy.pf.toFixed(1)}x`}
+                    </span>
+                    <span className="mono text-right text-[12px] font-bold" style={{ color: strategy.totalPnl >= 0 ? 'var(--profit-primary)' : 'var(--loss-primary)' }}>
+                      {formatSignedCurrency(strategy.totalPnl)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </AppPanel>
         </div>

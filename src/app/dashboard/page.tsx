@@ -1,60 +1,94 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { CashflowChart } from "@/components/dashboard/cashflow-chart";
-import { StatisticsDonut } from "@/components/dashboard/statistics-donut";
-import { TopPlaybooks } from "@/components/dashboard/playbooks-widget";
-import { RecentTrades } from "@/components/dashboard/recent-trades";
-import { TradingCalendar } from "@/components/calendar";
-import { cn } from "@/lib/utils";
-import { useAuth } from "@/components/auth-provider";
-import { usePropAccount } from "@/components/prop-account-provider";
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+
+import { TradingCalendar } from '@/components/calendar';
+import { useAuth } from '@/components/auth-provider';
+import { usePropAccount } from '@/components/prop-account-provider';
+import { CashflowChart } from '@/components/dashboard/cashflow-chart';
+import { RecentTrades } from '@/components/dashboard/recent-trades';
+import { StatisticsDonut } from '@/components/dashboard/statistics-donut';
+import { TodayPlanWidget } from '@/components/dashboard/today-plan-widget';
+import { TopPlaybooks } from '@/components/dashboard/playbooks-widget';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { ArcProgress } from '@/components/ui/arc-progress';
+import { DrawdownGauge } from '@/components/ui/drawdown-gauge';
 import {
-  getAnalyticsSummary,
-  getTodayStats,
-  type AnalyticsSummary,
-} from "@/lib/api/analytics";
-import { getTrades } from "@/lib/api/client/trades";
+  AppPanel,
+  SectionHeader,
+} from '@/components/ui/page-primitives';
+import {
+  IconAnalytics,
+  IconArrowDown,
+  IconArrowUp,
+  IconDashboard,
+  IconPlus,
+  IconPropFirm,
+} from '@/components/ui/icons';
+import { cn } from '@/lib/utils';
+import { getAnalyticsPayloadClient } from '@/lib/api/client/analytics';
 import {
   getAllPlaybooksWithStats,
   type PlaybookStats,
-} from "@/lib/api/client/playbooks";
-import { checkCompliance } from "@/lib/api/client/prop-accounts";
-import type { PropAccount } from "@/lib/db/schema";
-import type { Trade } from "@/lib/db/schema";
-import {
-  IconAnalytics,
-  IconPropFirm,
-  IconArrowUp,
-  IconArrowDown,
-  IconPlus,
-  IconDashboard,
-} from "@/components/ui/icons";
-import { ArcProgress } from "@/components/ui/arc-progress";
-import { DrawdownGauge } from "@/components/ui/drawdown-gauge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { AppPanel, SectionHeader } from "@/components/ui/page-primitives";
-import { TodayPlanWidget } from "@/components/dashboard/today-plan-widget";
+} from '@/lib/api/client/playbooks';
+import { getPropFirmChallenge, type PropFirmChallengeDetails } from '@/lib/api/client/prop-firm-challenges';
+import { getTrades } from '@/lib/api/client/trades';
+import type { AnalyticsPayload } from '@/lib/analytics/types';
+import type { PropAccount, Trade } from '@/lib/db/schema';
 
-interface PropAccountWithCompliance extends PropAccount {
-  compliance?: { profitProgress: number | null };
+type ChartPeriod = '1W' | '1M' | '3M' | 'YTD';
+
+const CHART_PERIODS: ChartPeriod[] = ['1W', '1M', '3M', 'YTD'];
+
+function fmt(value: number | null | undefined) {
+  const safe = Number(value ?? 0);
+  return `$${safe.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
-type ChartPeriod = "1W" | "1M" | "3M" | "YTD";
-const CHART_PERIODS: ChartPeriod[] = ["1W", "1M", "3M", "YTD"];
-
-// ─── Formatting helpers ─────────────────────────────────────────────────────
-function fmt(v: number | null | undefined) {
-  if (v == null) return "$0";
-  return `$${Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
-function signedFmt(v: number) {
-  return `${v >= 0 ? "+" : "-"}${fmt(v)}`;
+function fmtAbs(value: number | null | undefined) {
+  return fmt(Math.abs(Number(value ?? 0)));
 }
 
-// ─── Stat Row — label + value with optional gain/loss color ─────────────────
+function signedFmt(value: number) {
+  return `${value >= 0 ? '+' : '-'}${fmtAbs(value)}`;
+}
+
+function toDateInput(date: Date) {
+  return date.toISOString().split('T')[0];
+}
+
+function formatScopeLabel(from: string, to: string) {
+  const fromLabel = new Date(`${from}T00:00:00`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const toLabel = new Date(`${to}T00:00:00`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  return `${fromLabel} - ${toLabel}`;
+}
+
+function chartPeriodLabel(period: ChartPeriod) {
+  switch (period) {
+    case '1W':
+      return 'Last 7 days';
+    case '3M':
+      return 'Last 3 months';
+    case 'YTD':
+      return 'Year to date';
+    default:
+      return 'Last 30 days';
+  }
+}
+
+function monthDeltaLabel(current: number, previous: number | null) {
+  if (previous == null) return undefined;
+  return signedFmt(current - previous);
+}
+
 function StatRow({
   label,
   value,
@@ -68,31 +102,31 @@ function StatRow({
 }) {
   const color =
     isGain === true
-      ? "var(--profit-primary)"
+      ? 'var(--profit-primary)'
       : isGain === false
-        ? "var(--loss-primary)"
-        : "var(--text-primary)";
+        ? 'var(--loss-primary)'
+        : 'var(--text-primary)';
 
   return (
     <div
       className="flex items-center justify-between py-2.5"
-      style={{ borderBottom: "1px solid var(--border-subtle)" }}
+      style={{ borderBottom: '1px solid var(--border-subtle)' }}
     >
       <span
         className="text-label"
         style={{
-          textTransform: "none",
+          textTransform: 'none',
           letterSpacing: 0,
           fontWeight: 500,
-          color: "var(--text-secondary)",
-          fontSize: "0.78rem",
+          color: 'var(--text-secondary)',
+          fontSize: '0.78rem',
         }}
       >
         {label}
       </span>
       <span
-        className={mono ? "mono" : ""}
-        style={{ fontSize: "0.84rem", fontWeight: 600, color }}
+        className={mono ? 'mono' : ''}
+        style={{ fontSize: '0.84rem', fontWeight: 600, color }}
       >
         {value}
       </span>
@@ -100,7 +134,6 @@ function StatRow({
   );
 }
 
-// ─── Stat Card (hero top-row cards) ─────────────────────────────────────────
 function StatCard({
   label,
   value,
@@ -108,6 +141,7 @@ function StatCard({
   trend,
   trendLabel,
   isGain,
+  trendIsPositive,
   isNeutral = false,
 }: {
   label: string;
@@ -116,8 +150,11 @@ function StatCard({
   trend?: string;
   trendLabel?: string;
   isGain?: boolean;
+  trendIsPositive?: boolean;
   isNeutral?: boolean;
 }) {
+  const trendPositive = trendIsPositive ?? isGain ?? false;
+
   return (
     <Card className="surface gap-0 border-0 bg-transparent p-0 shadow-none">
       <CardContent className="flex flex-col gap-3 p-5">
@@ -127,12 +164,12 @@ function StatCard({
           className="stat-large leading-none"
           style={{
             color: isNeutral
-              ? "var(--text-primary)"
+              ? 'var(--text-primary)'
               : isGain === true
-                ? "var(--profit-primary)"
+                ? 'var(--profit-primary)'
                 : isGain === false
-                  ? "var(--loss-primary)"
-                  : "var(--text-primary)",
+                  ? 'var(--loss-primary)'
+                  : 'var(--text-primary)',
           }}
         >
           {value}
@@ -141,8 +178,8 @@ function StatCard({
         {secondaryValue && (
           <p
             style={{
-              fontSize: "0.72rem",
-              color: "var(--text-tertiary)",
+              fontSize: '0.72rem',
+              color: 'var(--text-tertiary)',
             }}
           >
             {secondaryValue}
@@ -153,17 +190,17 @@ function StatCard({
           <div className="flex items-center gap-2 flex-wrap">
             <span
               className={cn(
-                "badge-base flex items-center gap-1",
-                isGain ? "badge-profit" : "badge-loss",
+                'badge-base flex items-center gap-1',
+                trendPositive ? 'badge-profit' : 'badge-loss',
               )}
               style={{
-                borderRadius: "999px",
-                fontSize: "0.63rem",
-                padding: "0.18rem 0.6rem",
+                borderRadius: '999px',
+                fontSize: '0.63rem',
+                padding: '0.18rem 0.6rem',
                 fontWeight: 600,
               }}
             >
-              {isGain ? (
+              {trendPositive ? (
                 <IconArrowUp size={9} strokeWidth={2.5} />
               ) : (
                 <IconArrowDown size={9} strokeWidth={2.5} />
@@ -172,7 +209,7 @@ function StatCard({
             </span>
             {trendLabel && (
               <span
-                style={{ fontSize: "0.68rem", color: "var(--text-tertiary)" }}
+                style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}
               >
                 {trendLabel}
               </span>
@@ -184,25 +221,34 @@ function StatCard({
   );
 }
 
-// ─── Account Card ───────────────────────────────────────────────────────────
 function AccountCard({
   account,
-  balance,
   username,
+  scopeLabel,
+  scopeBadge,
 }: {
-  account: PropAccountWithCompliance | null;
-  balance: number;
+  account: PropAccount | null;
   username: string;
+  scopeLabel: string;
+  scopeBadge: string;
 }) {
+  const hasAccount = Boolean(account);
+  const balanceValue = hasAccount
+    ? fmt(Number(account?.currentBalance ?? account?.accountSize ?? 0))
+    : scopeLabel;
+  const accountSizeValue = hasAccount
+    ? fmt(Number(account?.accountSize ?? 0))
+    : null;
+
   return (
     <Card
       className="surface gap-0 border-0 bg-transparent p-0 shadow-none"
       style={{
         background: `
-          radial-gradient(ellipse at 0% 100%, rgba(3,98,76,0.08) 0%, transparent 55%),
+          radial-gradient(ellipse at 0% 100%, color-mix(in srgb, var(--accent-primary) 18%, transparent) 0%, transparent 55%),
           var(--surface)
         `,
-        minHeight: "140px",
+        minHeight: '140px',
       }}
     >
       <CardContent className="flex h-full flex-col justify-between p-5">
@@ -211,10 +257,10 @@ function AccountCard({
             <p
               style={{
                 fontWeight: 600,
-                fontSize: "0.88rem",
-                color: "var(--text-primary)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
+                fontSize: '0.88rem',
+                color: 'var(--text-primary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
                 lineHeight: 1,
               }}
             >
@@ -222,46 +268,60 @@ function AccountCard({
             </p>
             <p
               style={{
-                fontSize: "0.62rem",
-                color: "var(--text-tertiary)",
-                marginTop: "2px",
+                fontSize: '0.62rem',
+                color: 'var(--text-tertiary)',
+                marginTop: '2px',
               }}
             >
-              {account?.accountName ?? "All Accounts"}
+              {hasAccount ? account?.accountName : scopeLabel}
             </p>
           </div>
-          <span className="badge-toggle-on">ON</span>
+          <span className={hasAccount ? 'badge-accent capitalize' : 'badge-toggle-on'}>
+            {hasAccount ? account?.status : scopeBadge}
+          </span>
         </div>
 
         <div>
-          <p className="text-label" style={{ marginBottom: "0.25rem" }}>
-            Balance
+          <p className="text-label" style={{ marginBottom: '0.25rem' }}>
+            {hasAccount ? 'Balance' : 'Scope'}
           </p>
           <p
             className="mono"
             style={{
-              fontSize: "1.7rem",
+              fontSize: '1.7rem',
               fontWeight: 600,
-              color: "var(--text-primary)",
+              color: 'var(--text-primary)',
               lineHeight: 1,
-              letterSpacing: "-0.02em",
+              letterSpacing: '-0.02em',
             }}
           >
-            {fmt(balance)}
+            {balanceValue}
           </p>
+          {hasAccount && accountSizeValue ? (
+            <p
+              style={{
+                marginTop: '0.3rem',
+                fontSize: '0.68rem',
+                color: 'var(--text-tertiary)',
+              }}
+            >
+              Account size {accountSizeValue}
+            </p>
+          ) : null}
         </div>
 
-        {/* Decorative mini bars */}
         <div className="mt-3 flex h-8 items-end gap-0.5">
           {[0.4, 0.6, 0.5, 0.75, 0.55, 0.9, 0.7, 0.85, 1.0, 0.8, 0.95, 0.6].map(
-            (h, i) => (
+            (height, index) => (
               <div
-                key={i}
+                key={index}
                 className="flex-1 rounded-sm"
                 style={{
-                  height: `${h * 100}%`,
+                  height: `${height * 100}%`,
                   background:
-                    i % 3 === 0 ? "rgba(3,98,76,0.55)" : "rgba(3,98,76,0.18)",
+                    index % 3 === 0
+                      ? 'color-mix(in srgb, var(--accent-primary) 55%, transparent)'
+                      : 'color-mix(in srgb, var(--accent-primary) 20%, transparent)',
                 }}
               />
             ),
@@ -272,7 +332,6 @@ function AccountCard({
   );
 }
 
-// ─── Inline quick-stat strip inside a card ──────────────────────────────────
 function QuickStatStrip({
   label,
   value,
@@ -284,15 +343,15 @@ function QuickStatStrip({
 }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <p className="text-label" style={{ fontSize: "0.6rem" }}>
+      <p className="text-label" style={{ fontSize: '0.6rem' }}>
         {label}
       </p>
       <p
         className="mono"
         style={{
-          fontSize: "0.92rem",
+          fontSize: '0.92rem',
           fontWeight: 600,
-          color: color ?? "var(--text-primary)",
+          color: color ?? 'var(--text-primary)',
         }}
       >
         {value}
@@ -301,7 +360,6 @@ function QuickStatStrip({
   );
 }
 
-// ─── Skeleton ───────────────────────────────────────────────────────────────
 function StatSkeleton() {
   return (
     <div className="surface p-5 flex flex-col gap-3">
@@ -312,116 +370,228 @@ function StatSkeleton() {
   );
 }
 
-// ─── Dashboard Page ─────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
   const { selectedAccountId, propAccounts } = usePropAccount();
 
-  const [stats, setStats] = useState<AnalyticsSummary | null>(null);
-  const [todayStats, setTodayStats] = useState<{
-    pnl: number;
-    trades: number;
-  } | null>(null);
-  const [propAccount, setPropAccount] =
-    useState<PropAccountWithCompliance | null>(null);
+  const [currentMonthAnalytics, setCurrentMonthAnalytics] =
+    useState<AnalyticsPayload | null>(null);
+  const [previousMonthAnalytics, setPreviousMonthAnalytics] =
+    useState<AnalyticsPayload | null>(null);
+  const [todayAnalytics, setTodayAnalytics] =
+    useState<AnalyticsPayload | null>(null);
+  const [selectedAccountAnalytics, setSelectedAccountAnalytics] =
+    useState<AnalyticsPayload | null>(null);
+  const [selectedChallenge, setSelectedChallenge] =
+    useState<PropFirmChallengeDetails | null>(null);
   const [recentTrades, setRecentTrades] = useState<Trade[] | null>(null);
   const [topPlaybooks, setTopPlaybooks] = useState<PlaybookStats[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("1M");
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1M');
 
-  const username = user?.email ? user.email.split("@")[0] : "Trader";
+  const username = user?.email ? user.email.split('@')[0] : 'Trader';
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    .toISOString()
-    .split("T")[0];
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    .toISOString()
-    .split("T")[0];
+  const startOfMonth = toDateInput(new Date(now.getFullYear(), now.getMonth(), 1));
+  const endOfMonth = toDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  const startOfPreviousMonth = toDateInput(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  const endOfPreviousMonth = toDateInput(new Date(now.getFullYear(), now.getMonth(), 0));
+  const today = toDateInput(now);
 
   const greeting = (() => {
-    const h = now.getHours();
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
-    return "Good evening";
+    const hour = now.getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   })();
 
-  // ── Centralized data fetch — everything in one parallel burst ──────────
+  const scopeParam =
+    selectedAccountId === 'unassigned'
+      ? 'unassigned'
+      : selectedAccountId ?? 'all';
+
+  const selectedPropAccount = useMemo(() => {
+    if (!selectedAccountId || selectedAccountId === 'unassigned') {
+      return null;
+    }
+    return propAccounts.find((account) => account.id === selectedAccountId) ?? null;
+  }, [propAccounts, selectedAccountId]);
+
   useEffect(() => {
     async function load() {
       if (!isConfigured || !user) {
         setLoading(false);
         return;
       }
-      try {
-        const acct =
-          selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
 
-        // Fetch ALL data in parallel — eliminates waterfall from child components
-        const [analyticsData, todayData, tradesData, playbooksData] = await Promise.all([
-          getAnalyticsSummary(startOfMonth, endOfMonth, acct),
-          getTodayStats(acct),
-          getTrades({
-            status: "closed",
-            propAccountId: acct ?? undefined,
-            limit: 5,
-            sortBy: "entryDate",
-            sortOrder: "desc",
+      try {
+        const challengePromise =
+          selectedPropAccount?.challengeId
+            ? getPropFirmChallenge(selectedPropAccount.challengeId)
+            : Promise.resolve(null);
+
+        const [
+          currentMonth,
+          previousMonth,
+          todayPayload,
+          accountPayload,
+          tradesData,
+          playbooksData,
+          challengeData,
+        ] = await Promise.all([
+          getAnalyticsPayloadClient({
+            account: scopeParam,
+            from: startOfMonth,
+            to: endOfMonth,
           }),
-          getAllPlaybooksWithStats(acct).then((data) =>
-            data.sort((a, b) => b.totalPnl - a.totalPnl).slice(0, 4)
-          ),
+          getAnalyticsPayloadClient({
+            account: scopeParam,
+            from: startOfPreviousMonth,
+            to: endOfPreviousMonth,
+          }),
+          getAnalyticsPayloadClient({
+            account: scopeParam,
+            from: today,
+            to: today,
+          }),
+          selectedPropAccount
+            ? getAnalyticsPayloadClient({ account: selectedPropAccount.id })
+            : Promise.resolve(null),
+          getTrades({
+            status: 'closed',
+            propAccountId:
+              selectedAccountId === 'unassigned'
+                ? 'unassigned'
+                : selectedAccountId ?? undefined,
+            limit: 5,
+            sortBy: 'exitDate',
+            sortOrder: 'desc',
+          }),
+          getAllPlaybooksWithStats(
+            selectedAccountId === 'unassigned'
+              ? 'unassigned'
+              : selectedAccountId,
+          ).then((data) => data.sort((left, right) => right.totalPnl - left.totalPnl).slice(0, 4)),
+          challengePromise,
         ]);
 
-        setStats(analyticsData);
-        setTodayStats(todayData);
+        setCurrentMonthAnalytics(currentMonth);
+        setPreviousMonthAnalytics(previousMonth);
+        setTodayAnalytics(todayPayload);
+        setSelectedAccountAnalytics(accountPayload);
         setRecentTrades(tradesData);
         setTopPlaybooks(playbooksData);
-
-        const targetId =
-          selectedAccountId && selectedAccountId !== "unassigned"
-            ? selectedAccountId
-            : propAccounts[0]?.id;
-
-        if (targetId) {
-          const account = propAccounts.find((a) => a.id === targetId);
-          if (account) {
-            const compliance = await checkCompliance(account.id);
-            setPropAccount({
-              ...account,
-              compliance: { profitProgress: compliance.profitProgress },
-            } as PropAccountWithCompliance);
-          } else setPropAccount(null);
-        } else setPropAccount(null);
-      } catch (err) {
-        console.error("Dashboard:", err);
+        setSelectedChallenge(challengeData);
+      } catch (error) {
+        console.error('Dashboard:', error);
       } finally {
         setLoading(false);
       }
     }
-    if (!authLoading) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isConfigured, authLoading, selectedAccountId, propAccounts]);
 
-  const totalPnl = stats?.totalPnl ?? 0;
-  const totalIncome = stats ? Math.abs(stats.avgWin) * stats.winningTrades : 0;
-  const totalExpense = stats ? Math.abs(stats.avgLoss) * stats.losingTrades : 0;
-  const winRate = stats?.winRate ?? 0;
-  const balance = Number(propAccount?.currentBalance ?? Math.max(totalPnl, 0));
+    if (!authLoading) {
+      load();
+    }
+  }, [
+    authLoading,
+    endOfMonth,
+    endOfPreviousMonth,
+    isConfigured,
+    scopeParam,
+    selectedAccountId,
+    selectedPropAccount,
+    startOfMonth,
+    startOfPreviousMonth,
+    today,
+    user,
+  ]);
+
+  const summary = currentMonthAnalytics?.summary ?? null;
+  const totalPnl = summary?.totalNetPnl ?? 0;
+  const totalIncome = summary ? summary.avgWin * summary.winningTrades : 0;
+  const totalExpense = summary ? summary.avgLoss * summary.losingTrades : 0;
+  const winRate = summary?.winRate ?? 0;
+  const previousMonthNetPnl = previousMonthAnalytics?.summary.totalNetPnl ?? null;
+  const monthDeltaValue =
+    previousMonthNetPnl == null ? null : totalPnl - previousMonthNetPnl;
+  const monthDelta = monthDeltaLabel(
+    totalPnl,
+    previousMonthNetPnl,
+  );
+  const monthScopeLabel = formatScopeLabel(startOfMonth, endOfMonth);
+  const accountScopeLabel =
+    selectedAccountId === 'unassigned'
+      ? 'Unassigned trades'
+      : selectedPropAccount?.accountName ?? 'All accounts';
+  const accountScopeBadge =
+    selectedAccountId === 'unassigned' ? 'UNASSIGNED' : 'ALL';
+
   const profitFactor =
-    stats?.profitFactor === Infinity
-      ? "∞"
-      : (stats?.profitFactor ?? 0).toFixed(2);
+    summary?.profitFactor == null
+      ? '--'
+      : summary.profitFactor === Infinity
+        ? 'INF'
+        : summary.profitFactor.toFixed(2);
+
+  const challengeInitialBalance = Number(
+    selectedChallenge?.initial_balance ??
+      selectedPropAccount?.accountSize ??
+      0,
+  );
+  const currentBalance = Number(
+    selectedPropAccount?.currentBalance ??
+      selectedPropAccount?.accountSize ??
+      selectedChallenge?.initial_balance ??
+      0,
+  );
+  const profitTargetPercent = selectedChallenge?.profit_target_percent ?? null;
+  const profitTargetAmount =
+    profitTargetPercent != null
+      ? (challengeInitialBalance * profitTargetPercent) / 100
+      : null;
+  const profitProgressAmount = Math.max(0, currentBalance - challengeInitialBalance);
+  const profitProgressPercent =
+    profitTargetAmount && profitTargetAmount > 0
+      ? Math.min((profitProgressAmount / profitTargetAmount) * 100, 100)
+      : 0;
+
+  const dailyLimitPercent =
+    selectedChallenge?.daily_loss_percent ??
+    (selectedChallenge?.daily_loss_amount != null && challengeInitialBalance > 0
+      ? (selectedChallenge.daily_loss_amount / challengeInitialBalance) * 100
+      : null);
+  const totalLimitPercent =
+    selectedChallenge?.max_loss_percent ??
+    (selectedChallenge?.max_loss_amount != null && challengeInitialBalance > 0
+      ? (selectedChallenge.max_loss_amount / challengeInitialBalance) * 100
+      : null);
+
+  const todayLossUsedPercent =
+    todayAnalytics && challengeInitialBalance > 0
+      ? Math.max(0, -todayAnalytics.summary.totalNetPnl / challengeInitialBalance) * 100
+      : 0;
+  const totalLossUsedPercent =
+    challengeInitialBalance > 0
+      ? Math.max(0, (challengeInitialBalance - currentBalance) / challengeInitialBalance) * 100
+      : 0;
+  const hasChallengeRules =
+    dailyLimitPercent != null || totalLimitPercent != null;
+  const approachingLossLimit =
+    (dailyLimitPercent != null &&
+      dailyLimitPercent > 0 &&
+      todayLossUsedPercent / dailyLimitPercent >= 0.8) ||
+    (totalLimitPercent != null &&
+      totalLimitPercent > 0 &&
+      totalLossUsedPercent / totalLimitPercent >= 0.8);
 
   return (
     <div className="page-root page-sections">
-      {/* ── HERO GREETING BAND ────────────────────────────────────── */}
       <header className="stagger-1 flex items-center justify-between gap-4 py-1">
         <div className="flex items-center gap-3">
           <div
             className="flex h-9 w-9 items-center justify-center rounded-[10px] shrink-0"
             style={{
-              background: "var(--accent-soft)",
-              color: "var(--accent-primary)",
+              background: 'var(--accent-soft)',
+              color: 'var(--accent-primary)',
             }}
           >
             <IconDashboard size={17} strokeWidth={1.8} />
@@ -430,9 +600,9 @@ export default function DashboardPage() {
             <h1
               style={{
                 fontWeight: 700,
-                fontSize: "1.25rem",
-                letterSpacing: "-0.025em",
-                color: "var(--text-primary)",
+                fontSize: '1.25rem',
+                letterSpacing: '-0.025em',
+                color: 'var(--text-primary)',
                 lineHeight: 1.1,
               }}
             >
@@ -440,91 +610,103 @@ export default function DashboardPage() {
             </h1>
             <p
               className="text-label mt-0.5"
-              style={{ textTransform: "none", letterSpacing: 0 }}
+              style={{ textTransform: 'none', letterSpacing: 0 }}
             >
-              {new Date().toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
               })}
             </p>
           </div>
         </div>
-        <Button asChild className="hidden sm:inline-flex">
-          <Link href="/analytics">
+        <Button asChild>
+          <Link href={`/analytics?account=${scopeParam}`}>
             <IconAnalytics size={13} strokeWidth={2} />
             Analytics
           </Link>
         </Button>
       </header>
 
-      {/* ── ROW 1: Account card + 3 stat cards ────────────────────── */}
-      <section className="stagger-2 grid grid-cols-1 sm:grid-cols-2 gap-4 lg:grid-cols-4 2xl:grid-cols-5">
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
-        ) : (
-          <>
-            <AccountCard
-              account={propAccount}
-              balance={balance}
-              username={username}
-            />
-
-            <StatCard
-              label="Gross Profit"
-              value={fmt(totalIncome)}
-              secondaryValue={
-                stats ? `${stats.winningTrades} winning trades` : undefined
-              }
-              trend={winRate > 50 ? `${winRate.toFixed(0)}% WR` : undefined}
-              trendLabel={stats ? `${stats.winningTrades} wins` : undefined}
-              isGain={true}
-            />
-
-            <StatCard
-              label="Gross Loss"
-              value={fmt(totalExpense)}
-              secondaryValue={
-                stats ? `${stats.losingTrades} losing trades` : undefined
-              }
-              trend={
-                100 - winRate > 0
-                  ? `${(100 - winRate).toFixed(0)}% LR`
-                  : undefined
-              }
-              trendLabel={stats ? `${stats.losingTrades} losses` : undefined}
-              isGain={false}
-            />
-
-            <StatCard
-              label="Net P&L"
-              value={fmt(Math.abs(totalPnl))}
-              secondaryValue={`PF ${profitFactor}`}
-              trend={
-                totalPnl !== 0
-                  ? totalPnl >= 0
-                    ? `+${((totalPnl / Math.max(totalIncome, 1)) * 100).toFixed(1)}%`
-                    : `-${((Math.abs(totalPnl) / Math.max(totalExpense, 1)) * 100).toFixed(1)}%`
-                  : undefined
-              }
-              trendLabel="vs last month"
-              isGain={totalPnl >= 0}
-            />
-          </>
+      <section className="stagger-2 space-y-3">
+        {!loading && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="badge-accent rounded-full px-2.5 py-1">
+              This month
+            </span>
+            <span style={{ color: 'var(--text-tertiary)' }}>
+              {monthScopeLabel} - {accountScopeLabel}
+            </span>
+          </div>
         )}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, index) => <StatSkeleton key={index} />)
+          ) : (
+            <>
+              <AccountCard
+                account={selectedPropAccount}
+                username={username}
+                scopeLabel={accountScopeLabel}
+                scopeBadge={accountScopeBadge}
+              />
+
+              <StatCard
+                label="Gross Profit"
+                value={fmtAbs(totalIncome)}
+                secondaryValue={
+                  summary
+                    ? `${summary.winningTrades} winning trades - ${winRate.toFixed(0)}% win rate`
+                    : undefined
+                }
+                isGain
+              />
+
+              <StatCard
+                label="Gross Loss"
+                value={fmtAbs(totalExpense)}
+                secondaryValue={
+                  summary
+                    ? `${summary.losingTrades} losing trades - ${(100 - winRate).toFixed(0)}% loss rate`
+                    : undefined
+                }
+                isGain={false}
+              />
+
+              <StatCard
+                label="Net P&L"
+                value={signedFmt(totalPnl)}
+                secondaryValue={`PF ${profitFactor}`}
+                trend={monthDelta}
+                trendLabel="vs last month"
+                isGain={totalPnl >= 0}
+                trendIsPositive={monthDeltaValue == null ? undefined : monthDeltaValue >= 0}
+              />
+            </>
+          )}
+        </div>
       </section>
 
-      {/* ── ROW 2: Quick stats strip ───────────────────────────────── */}
       {!loading && (
         <section className="stagger-3 surface p-5">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 divide-x divide-[var(--border-subtle)]">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>
+              Today only
+            </span>
+            <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+              Monthly cards above use {monthScopeLabel}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 divide-x divide-[var(--border-subtle)] sm:grid-cols-4">
             <QuickStatStrip
               label="Today's P&L"
-              value={signedFmt(todayStats?.pnl ?? 0)}
+              value={signedFmt(todayAnalytics?.summary.totalNetPnl ?? 0)}
               color={
-                (todayStats?.pnl ?? 0) >= 0
-                  ? "var(--profit-primary)"
-                  : "var(--loss-primary)"
+                (todayAnalytics?.summary.totalNetPnl ?? 0) >= 0
+                  ? 'var(--profit-primary)'
+                  : 'var(--loss-primary)'
               }
             />
             <div className="pl-4">
@@ -532,29 +714,29 @@ export default function DashboardPage() {
                 label="Win Rate"
                 value={`${winRate.toFixed(1)}%`}
                 color={
-                  winRate > 50
-                    ? "var(--profit-primary)"
-                    : winRate < 50
-                      ? "var(--loss-primary)"
-                      : "var(--text-primary)"
+                  winRate >= 55
+                    ? 'var(--profit-primary)'
+                    : winRate >= 45
+                      ? 'var(--warning-primary)'
+                      : 'var(--loss-primary)'
                 }
               />
             </div>
             <div className="pl-4">
               <QuickStatStrip
-                label="Avg R:R"
-                value={`${(stats?.avgRMultiple ?? 0).toFixed(2)}R`}
+                label="Avg Realized R"
+                value={`${(summary?.avgRMultiple ?? 0).toFixed(2)}R`}
                 color={
-                  (stats?.avgRMultiple ?? 0) > 1
-                    ? "var(--profit-primary)"
-                    : "var(--text-secondary)"
+                  (summary?.avgRMultiple ?? 0) >= 0
+                    ? 'var(--profit-primary)'
+                    : 'var(--loss-primary)'
                 }
               />
             </div>
             <div className="pl-4">
               <QuickStatStrip
                 label="Best Trade"
-                value={fmt(stats?.largestWin ?? 0)}
+                value={fmt(summary?.largestWin ?? 0)}
                 color="var(--profit-primary)"
               />
             </div>
@@ -562,23 +744,21 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* ── ROW 3: Cashflow chart + Statistics donut ──────────────── */}
       <section className="stagger-4 grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {/* Cashflow — 2/3 */}
-        <AppPanel className="lg:col-span-2 p-6">
+        <AppPanel className="p-6 lg:col-span-2">
           <SectionHeader
             title="Performance"
-            subtitle={`Gross Profit vs Loss · ${new Date().getFullYear()}`}
+            subtitle={`Gross profit vs gross loss - ${chartPeriodLabel(chartPeriod)}`}
             action={
               <div className="seg-control">
-                {CHART_PERIODS.map((p) => (
+                {CHART_PERIODS.map((period) => (
                   <button
-                    key={p}
+                    key={period}
                     type="button"
-                    onClick={() => setChartPeriod(p)}
-                    className={cn("seg-item", chartPeriod === p && "active")}
+                    onClick={() => setChartPeriod(period)}
+                    className={cn('seg-item', chartPeriod === period && 'active')}
                   >
-                    {p}
+                    {period}
                   </button>
                 ))}
               </div>
@@ -590,36 +770,34 @@ export default function DashboardPage() {
           />
         </AppPanel>
 
-        {/* Statistics donut — 1/3 */}
-        <AppPanel className="p-6 flex flex-col">
+        <AppPanel className="flex flex-col p-6">
           <SectionHeader
             title="Distribution"
-            subtitle="Win / Loss / Break-even"
+            subtitle={`Win / Loss / Break-even - ${monthScopeLabel}`}
           />
           <StatisticsDonut
             propAccountId={selectedAccountId}
             startDate={startOfMonth}
             endDate={endOfMonth}
-            summary={stats}
+            summary={summary}
           />
-          {/* Key metrics below donut */}
           <div className="mt-4">
             <StatRow
               label="Profit Factor"
               value={profitFactor}
-              isGain={(stats?.profitFactor ?? 0) > 1}
+              isGain={(summary?.profitFactor ?? 0) > 1}
               mono
             />
-            <StatRow label="Avg Win" value={fmt(stats?.avgWin)} isGain mono />
+            <StatRow label="Avg Win" value={fmt(summary?.avgWin)} isGain mono />
             <StatRow
               label="Avg Loss"
-              value={fmt(Math.abs(stats?.avgLoss ?? 0))}
+              value={fmtAbs(summary?.avgLoss ?? 0)}
               isGain={false}
               mono
             />
             <StatRow
               label="Largest Win"
-              value={fmt(stats?.largestWin)}
+              value={fmt(summary?.largestWin)}
               isGain
               mono
             />
@@ -627,103 +805,167 @@ export default function DashboardPage() {
         </AppPanel>
       </section>
 
-      {/* ── ROW 4: Today's Plan ──────────────────────────────────── */}
       <section className="stagger-5">
         <TodayPlanWidget />
       </section>
 
-      {/* ── ROW 5: Top Strategies + Prop Firm ────────────────────── */}
       <section className="stagger-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Top Strategies */}
         <AppPanel className="p-6">
           <SectionHeader
             title="Top Strategies"
             subtitle="Performance by playbook"
             action={
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/playbooks">View all →</Link>
+                <Link href="/playbooks">View all {'->'}</Link>
               </Button>
             }
           />
-          <TopPlaybooks propAccountId={selectedAccountId} initialPlaybooks={topPlaybooks ?? undefined} />
+          <TopPlaybooks
+            propAccountId={selectedAccountId}
+            initialPlaybooks={topPlaybooks ?? undefined}
+          />
         </AppPanel>
 
-        {/* Prop Firm Card */}
         <AppPanel className="p-6">
           <div className="mb-4 flex items-start justify-between">
             <div className="flex items-start gap-3">
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px]"
                 style={{
-                  background: "var(--accent-soft)",
-                  color: "var(--accent-primary)",
+                  background: 'var(--accent-soft)',
+                  color: 'var(--accent-primary)',
                 }}
               >
                 <IconPropFirm size={15} strokeWidth={1.75} />
               </div>
               <div>
                 <h2 className="headline-md">
-                  {propAccount?.accountName ?? "Prop Firm"}
+                  {selectedPropAccount?.accountName ?? 'Prop Firm'}
                 </h2>
                 <p
                   className="text-label mt-0.5"
-                  style={{ textTransform: "none", letterSpacing: 0 }}
+                  style={{ textTransform: 'none', letterSpacing: 0 }}
                 >
-                  {propAccount
-                    ? `${fmt(Number(propAccount.accountSize))} funded account`
-                    : "Add a prop account below"}
+                  {selectedPropAccount
+                    ? `${fmt(challengeInitialBalance)} challenge balance - ${selectedChallenge?.firm?.name ?? selectedPropAccount.firmName ?? 'Prop'}`
+                    : propAccounts.length > 0
+                      ? 'Select a specific prop account to view compliance'
+                      : 'Add a prop account to track compliance'}
                 </p>
               </div>
             </div>
-            {propAccount && (
+            {selectedPropAccount && (
               <span
                 className="badge-accent capitalize"
-                style={{ borderRadius: "999px", fontSize: "0.64rem" }}
+                style={{ borderRadius: '999px', fontSize: '0.64rem' }}
               >
-                {propAccount.status}
+                {selectedPropAccount.status}
               </span>
             )}
           </div>
 
-          {propAccount ? (
+          {selectedPropAccount ? (
             <div className="space-y-5">
               <div className="flex items-center gap-5">
-                <ArcProgress
-                  percent={propAccount.compliance?.profitProgress ?? 0}
-                />
+                <ArcProgress percent={profitProgressPercent} />
                 <div className="flex-1 space-y-3">
                   <div>
                     <p className="text-label mb-0.5">Current Balance</p>
-                    <p className="stat-medium">
-                      {fmt(Number(propAccount.currentBalance ?? 0))}
-                    </p>
+                    <p className="stat-medium">{fmt(currentBalance)}</p>
                   </div>
                   <div>
-                    <p className="text-label mb-0.5">Profit Target</p>
+                    <p className="text-label mb-0.5">Profit Progress</p>
                     <p className="stat-medium profit">
-                      {propAccount.compliance?.profitProgress != null
-                        ? fmt(propAccount.compliance.profitProgress)
-                        : "N/A"}
+                      {profitTargetAmount != null
+                        ? `${fmt(profitProgressAmount)} / ${fmt(profitTargetAmount)}`
+                        : fmt(profitProgressAmount)}
                     </p>
                   </div>
                 </div>
               </div>
-              <div
-                className="space-y-3"
-                style={{
-                  borderTop: "1px solid var(--border-subtle)",
-                  paddingTop: "1rem",
-                }}
-              >
-                <DrawdownGauge label="Daily Drawdown" used={0} max={5} />
-                <DrawdownGauge label="Total Drawdown" used={0} max={10} />
+
+              {hasChallengeRules ? (
+                <div
+                  className="grid gap-3 sm:grid-cols-2"
+                  style={{
+                    borderTop: '1px solid var(--border-subtle)',
+                    paddingTop: '1rem',
+                  }}
+                >
+                  <DrawdownGauge
+                    label="Daily Loss Used"
+                    used={todayLossUsedPercent}
+                    max={dailyLimitPercent ?? 0}
+                  />
+                  <DrawdownGauge
+                    label="Total Loss Used"
+                    used={totalLossUsedPercent}
+                    max={totalLimitPercent ?? 0}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="rounded-xl px-4 py-3 text-sm"
+                  style={{
+                    background: 'var(--surface-elevated)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  Challenge drawdown rules are not configured for this account yet.
+                </div>
+              )}
+
+              {approachingLossLimit ? (
+                <div
+                  className="rounded-xl px-4 py-3 text-sm"
+                  style={{
+                    background: 'var(--warning-bg)',
+                    border:
+                      '1px solid color-mix(in srgb, var(--warning-primary) 28%, transparent)',
+                    color: 'var(--warning-primary)',
+                  }}
+                >
+                  Loss-limit buffer is getting tight. Review daily and total drawdown before placing another trade.
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                <StatRow
+                  label="Peak-to-Trough Drawdown"
+                  value={
+                    selectedAccountAnalytics?.drawdown.maxDrawdownPercent == null
+                      ? '--'
+                      : `${selectedAccountAnalytics.drawdown.maxDrawdownPercent.toFixed(2)}%`
+                  }
+                  isGain={false}
+                  mono
+                />
+                <StatRow
+                  label="Current from Peak"
+                  value={
+                    selectedAccountAnalytics?.drawdown.currentFromPeakPercent == null
+                      ? '--'
+                      : `${selectedAccountAnalytics.drawdown.currentFromPeakPercent.toFixed(2)}%`
+                  }
+                  isGain={false}
+                  mono
+                />
+                <StatRow
+                  label="Last Synced"
+                  value={
+                    selectedPropAccount.lastSyncedAt
+                      ? new Date(selectedPropAccount.lastSyncedAt).toLocaleString()
+                      : 'No sync yet'
+                  }
+                />
               </div>
             </div>
           ) : (
             <div className="py-8">
               <div
                 className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{ background: "var(--accent-soft)" }}
+                style={{ background: 'var(--accent-soft)' }}
               >
                 <IconAnalytics
                   size={20}
@@ -731,23 +973,27 @@ export default function DashboardPage() {
                 />
               </div>
               <p
-                style={{ color: "var(--text-secondary)", fontSize: "0.83rem" }}
+                style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}
               >
-                No prop account linked
+                {propAccounts.length > 0
+                  ? 'Choose a prop account to unlock live compliance'
+                  : 'No prop account linked'}
               </p>
               <p
                 style={{
-                  color: "var(--text-tertiary)",
-                  fontSize: "0.72rem",
-                  marginTop: "0.25rem",
+                  color: 'var(--text-tertiary)',
+                  fontSize: '0.72rem',
+                  marginTop: '0.25rem',
                 }}
               >
-                Add your funded account to track compliance
+                {propAccounts.length > 0
+                  ? 'The dashboard no longer guesses which funded account to display.'
+                  : 'Add your funded account to track challenge balance, drawdown, and target progress.'}
               </p>
               <Button asChild className="mt-4">
                 <Link href="/prop-firm">
                   <IconPlus size={13} strokeWidth={2} />
-                  Add Account
+                  {propAccounts.length > 0 ? 'Manage Accounts' : 'Add Account'}
                 </Link>
               </Button>
             </div>
@@ -755,21 +1001,22 @@ export default function DashboardPage() {
         </AppPanel>
       </section>
 
-      {/* ── ROW 5: Recent Trades ───────────────────────────────────── */}
       <AppPanel className="p-6">
         <SectionHeader
           title="Recent Trades"
           subtitle="Latest trading activity"
           action={
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/analytics">View analytics →</Link>
+              <Link href={`/analytics?account=${scopeParam}`}>View analytics {'->'}</Link>
             </Button>
           }
         />
-        <RecentTrades propAccountId={selectedAccountId} initialTrades={recentTrades ?? undefined} />
+        <RecentTrades
+          propAccountId={selectedAccountId}
+          initialTrades={recentTrades ?? undefined}
+        />
       </AppPanel>
 
-      {/* ── ROW 6: Trading Calendar ────────────────────────────────── */}
       <AppPanel id="calendar" className="scroll-mt-8 p-6">
         <SectionHeader title="Trading Calendar" subtitle="Daily P&L overview" />
         <TradingCalendar embedded />

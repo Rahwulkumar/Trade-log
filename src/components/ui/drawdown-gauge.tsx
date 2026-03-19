@@ -11,9 +11,11 @@ export function DrawdownGauge({
   used: number;
   max: number;
 }) {
-  const pct = Math.min((used / max) * 100, 100);
-  const color =
-    pct < 50
+  const hasLimit = Number.isFinite(max) && max > 0;
+  const pct = hasLimit ? Math.min((used / max) * 100, 100) : 0;
+  const color = !hasLimit
+    ? "var(--text-secondary)"
+    : pct < 50
       ? "var(--profit-primary)"
       : pct < 80
         ? "var(--warning-primary)"
@@ -23,8 +25,17 @@ export function DrawdownGauge({
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-label">{label}</span>
         <span className="mono" style={{ fontSize: "0.73rem", color }}>
-          -{used.toFixed(1)}%
-          <span style={{ color: "var(--text-tertiary)" }}> / {max}%</span>
+          {hasLimit ? (
+            <>
+              -{used.toFixed(1)}%
+              <span style={{ color: "var(--text-tertiary)" }}>
+                {" "}
+                / {max.toFixed(1)}%
+              </span>
+            </>
+          ) : (
+            "--"
+          )}
         </span>
       </div>
       <div

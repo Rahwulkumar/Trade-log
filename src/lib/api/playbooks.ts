@@ -9,7 +9,8 @@ import {
   playbooks, trades,
   type Playbook, type PlaybookInsert,
 } from '@/lib/db/schema';
-import { eq, and, desc, asc } from 'drizzle-orm';
+import { eq, and, desc, asc, isNull } from 'drizzle-orm';
+import { getTradeNetPnl } from '@/lib/utils/trade-pnl';
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
@@ -113,18 +114,25 @@ export async function getPlaybookStats(
     eq(trades.userId, userId),
     eq(trades.status, 'CLOSED'),
   ];
-  if (propAccountId) {
-    const { eq: deq } = await import('drizzle-orm');
-    conditions.push(deq(trades.propAccountId, propAccountId));
+  if (propAccountId === 'unassigned') {
+    conditions.push(isNull(trades.propAccountId));
+  } else if (propAccountId) {
+    conditions.push(eq(trades.propAccountId, propAccountId));
   }
 
   const closedTrades = await db
-    .select({ pnl: trades.pnl, rMultiple: trades.rMultiple })
+    .select({
+      pnl: trades.pnl,
+      pnlIncludesCosts: trades.pnlIncludesCosts,
+      commission: trades.commission,
+      swap: trades.swap,
+      rMultiple: trades.rMultiple,
+    })
     .from(trades)
     .where(and(...conditions));
 
   const pnlNums = closedTrades.map(t => ({
-    pnl: Number(t.pnl ?? 0),
+    pnl: getTradeNetPnl(t),
     rMultiple: t.rMultiple != null ? Number(t.rMultiple) : 0,
   }));
 
