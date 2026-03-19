@@ -643,40 +643,50 @@ html.dark .glow-card:hover {
 .verdict-trade {
   background: var(--profit-bg);
   border: 1px solid var(--profit-primary);
-  box-shadow: 0 0 20px rgba(3, 98, 76, 0.20), 0 4px 12px rgba(3, 98, 76, 0.12);
+  box-shadow: 0 0 20px rgba(13, 155, 110, 0.20), 0 4px 12px rgba(13, 155, 110, 0.12);
 }
 html.dark .verdict-trade {
   box-shadow: 0 0 24px rgba(16, 185, 129, 0.28), 0 4px 16px rgba(16, 185, 129, 0.14);
 }
 .verdict-caution {
-  background: rgba(245, 158, 11, 0.07);
-  border: 1px solid rgba(245, 158, 11, 0.50);
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.14), 0 4px 12px rgba(245, 158, 11, 0.08);
+  background: var(--warning-bg);
+  border: 1px solid rgba(240, 165, 0, 0.50);
+  box-shadow: 0 0 20px rgba(240, 165, 0, 0.14), 0 4px 12px rgba(240, 165, 0, 0.08);
 }
 .verdict-avoid {
   background: var(--loss-bg);
   border: 1px solid var(--loss-primary);
-  box-shadow: 0 0 20px rgba(255, 68, 85, 0.18), 0 4px 12px rgba(255, 68, 85, 0.10);
+  box-shadow: 0 0 20px rgba(224, 82, 90, 0.18), 0 4px 12px rgba(224, 82, 90, 0.10);
 }
 
 /* ─── Impact glow badges ─── */
 .impact-high {
   background: var(--loss-bg);
   color: var(--loss-primary);
-  border: 1px solid rgba(255, 68, 85, 0.30);
-  box-shadow: 0 0 8px rgba(255, 68, 85, 0.20);
+  border: 1px solid rgba(224, 82, 90, 0.30);
+  box-shadow: 0 0 8px rgba(224, 82, 90, 0.20);
 }
 .impact-medium {
-  background: rgba(245, 158, 11, 0.10);
-  color: #d97706;
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.15);
+  background: var(--warning-bg);
+  color: var(--warning-primary);
+  border: 1px solid rgba(240, 165, 0, 0.35);
+  box-shadow: 0 0 8px rgba(240, 165, 0, 0.15);
 }
-html.dark .impact-medium { color: #f59e0b; }
 .impact-low {
   background: var(--surface-elevated);
   color: var(--text-tertiary);
   border: 1px solid var(--border-default);
+}
+
+/* ─── Danger zone button (settings) ─── */
+.btn-danger-zone {
+  border-color: rgba(224, 82, 90, 0.35);
+  color: var(--loss-primary);
+}
+.btn-danger-zone:hover {
+  background: rgba(224, 82, 90, 0.12);
+  color: var(--loss-primary);
+  border-color: rgba(224, 82, 90, 0.55);
 }
 
 /* ─── Shimmer animation ─── */

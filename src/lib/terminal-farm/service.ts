@@ -360,6 +360,7 @@ function buildClosedTradeUpdate(
 ): TradeUpdateData {
     return {
         status: 'CLOSED',
+        pnlIncludesCosts: false,
         ...(linkedPropAccountId ? { propAccountId: linkedPropAccountId } : {}),
         exitDate: requireTradeDate(trade.openTime, `trade ${trade.ticket} openTime`),
         exitPrice: trade.openPrice != null ? String(trade.openPrice) : null,
@@ -1033,6 +1034,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
         symbol: trade.symbol,
         direction: inferOpenDirectionFromDeal(trade.type),
         status: 'OPEN',
+        pnlIncludesCosts: false,
         entryDate: requireTradeDate(trade.openTime, `trade ${trade.ticket} openTime`),
         entryPrice: String(trade.openPrice ?? 0),
         positionSize: String(trade.volume ?? 0),
@@ -1092,6 +1094,7 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
         symbol: trade.symbol,
         direction: inferClosedPositionDirectionFromExit(trade.type),
         status: 'CLOSED',
+        pnlIncludesCosts: false,
         entryDate: requireTradeDate(trade.openTime, `trade ${trade.ticket} openTime`),
         entryPrice: '0',
         exitDate: requireTradeDate(trade.openTime, `trade ${trade.ticket} openTime`),

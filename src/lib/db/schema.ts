@@ -9,6 +9,7 @@ import {
   uuid,
   text,
   boolean,
+  index,
   numeric,
   integer,
   smallint,
@@ -121,7 +122,9 @@ export const propAccounts = pgTable('prop_accounts', {
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('prop_accounts_user_status_idx').on(table.userId, table.status),
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYBOOKS
@@ -187,6 +190,7 @@ export const trades = pgTable('trades', {
 
   // P&L
   pnl: numeric('pnl'),
+  pnlIncludesCosts: boolean('pnl_includes_costs').notNull().default(true),
   rMultiple: numeric('r_multiple'),
   commission: numeric('commission').default('0'),
   swap: numeric('swap').default('0'),
@@ -234,7 +238,23 @@ export const trades = pgTable('trades', {
   contractSize: numeric('contract_size'),
   assetType: text('asset_type'), // FOREX | CRYPTO | INDICES | COMMODITIES | STOCKS
   magicNumber: bigint('magic_number', { mode: 'number' }),
-});
+}, (table) => [
+  index('trades_user_status_exit_idx').on(table.userId, table.status, table.exitDate),
+  index('trades_user_status_prop_exit_idx').on(
+    table.userId,
+    table.status,
+    table.propAccountId,
+    table.exitDate,
+  ),
+  index('trades_mt5_account_external_deal_idx').on(
+    table.mt5AccountId,
+    table.externalDealId,
+  ),
+  index('trades_mt5_account_external_id_idx').on(
+    table.mt5AccountId,
+    table.externalId,
+  ),
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MT5 ACCOUNTS

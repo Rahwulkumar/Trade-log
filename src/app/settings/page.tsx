@@ -19,7 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/components/auth-provider";
 import { updateCurrentUserProfile } from "@/lib/api/client/profile";
-import { cn } from "@/lib/utils";
 import {
   AppPageHeader,
   AppPanel,
@@ -249,7 +248,7 @@ export default function SettingsPage() {
       />
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="h-auto flex-wrap gap-2 rounded-md border border-border bg-card p-1">
+        <TabsList className="h-auto flex-wrap gap-2 rounded-md border p-1" style={{ background: "var(--surface)", borderColor: "var(--border-default)" }}>
           {SETTINGS_TABS.map((tab) => (
             <TabsTrigger
               key={tab.id}
@@ -386,12 +385,12 @@ export default function SettingsPage() {
                   key={value}
                   type="button"
                   onClick={() => setTheme(value)}
-                  className={cn(
-                    "rounded-md border p-4 text-center transition-colors",
+                  className="rounded-md border p-4 text-center transition-colors"
+                  style={
                     theme === value
-                      ? "border-accent-primary bg-accent/70"
-                      : "border-border hover:bg-accent/40",
-                  )}
+                      ? { borderColor: "var(--accent-primary)", background: "var(--accent-muted)" }
+                      : { borderColor: "var(--border-default)" }
+                  }
                 >
                   <Icon className="mx-auto mb-2 h-5 w-5" />
                   <span className="text-sm font-medium">{label}</span>
@@ -658,7 +657,8 @@ export default function SettingsPage() {
               ].map((action) => (
                 <div
                   key={action.title}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-500/25 bg-red-500/10 p-4"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-4"
+                  style={{ borderColor: "rgba(224, 82, 90, 0.25)", background: "var(--loss-bg)" }}
                 >
                   <div>
                     <p className="font-medium">{action.title}</p>
@@ -668,7 +668,7 @@ export default function SettingsPage() {
                   </div>
                   <Button
                     variant="outline"
-                    className="border-red-500/35 text-red-300 hover:bg-red-500/20 hover:text-red-200"
+                    className="btn-danger-zone"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
