@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Download, Monitor, Moon, ShieldCheck, Sun, Trash2 } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import { Download, GripVertical, Monitor, Moon, Plus, ShieldCheck, Sun, Trash2, X } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -74,7 +74,7 @@ function SaveFeedback({
 }) {
   if (status === "idle") return null;
   if (status === "saving")
-    return <p className="text-sm text-muted-foreground">Saving…</p>;
+    return <p style={{ color: "var(--text-tertiary)" }} className="text-sm">Saving…</p>;
   if (status === "saved")
     return <p className="text-sm text-[var(--profit-primary)]">Saved.</p>;
   return (
@@ -105,6 +105,12 @@ export default function SettingsPage() {
     useState<SaveStatus>("idle");
   const [tradingSaveError, setTradingSaveError] = useState("");
 
+  // Trading Rules state
+  const [tradingRules, setTradingRules] = useState<string[] | undefined>(undefined);
+  const [newRuleText, setNewRuleText] = useState("");
+  const [rulesSaveStatus, setRulesSaveStatus] = useState<SaveStatus>("idle");
+  const [rulesSaveError, setRulesSaveError] = useState("");
+
   // Notifications state
   const [notifications, setNotifications] = useState({
     email: true,
@@ -112,6 +118,46 @@ export default function SettingsPage() {
     weeklyReport: true,
     drawdownAlert: true,
   });
+
+  const resolvedRules = tradingRules ?? profile?.trading_rules ?? [];
+
+  const saveRules = useCallback(async (rules: string[]) => {
+    setRulesSaveStatus("saving");
+    setRulesSaveError("");
+    try {
+      await updateCurrentUserProfile({ trading_rules: rules });
+      await refreshProfile();
+      setRulesSaveStatus("saved");
+      setTimeout(() => setRulesSaveStatus("idle"), 2000);
+    } catch (err) {
+      setRulesSaveError(err instanceof Error ? err.message : "Unknown error");
+      setRulesSaveStatus("error");
+    }
+  }, [refreshProfile]);
+
+  function addRule() {
+    const text = newRuleText.trim();
+    if (!text) return;
+    const next = [...resolvedRules, text];
+    setTradingRules(next);
+    setNewRuleText("");
+    saveRules(next);
+  }
+
+  function deleteRule(index: number) {
+    const next = resolvedRules.filter((_, i) => i !== index);
+    setTradingRules(next);
+    saveRules(next);
+  }
+
+  function moveRule(index: number, dir: -1 | 1) {
+    const next = [...resolvedRules];
+    const swap = index + dir;
+    if (swap < 0 || swap >= next.length) return;
+    [next[index], next[swap]] = [next[swap], next[index]];
+    setTradingRules(next);
+    saveRules(next);
+  }
 
   const resolvedFirstName = firstName ?? profile?.first_name ?? "";
   const resolvedLastName = lastName ?? profile?.last_name ?? "";
@@ -236,7 +282,7 @@ export default function SettingsPage() {
                 <Button variant="outline" size="sm" disabled>
                   Change Photo
                 </Button>
-                <p className="mt-2 text-xs text-muted-foreground">
+                <p className="mt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
                   JPG, PNG, or GIF. Max file size 2MB.
                 </p>
               </div>
@@ -272,7 +318,7 @@ export default function SettingsPage() {
                 readOnly
                 className="opacity-60 cursor-not-allowed"
               />
-              <p className="text-xs text-muted-foreground">
+              <p style={{ color: "var(--text-tertiary)" }} className="text-xs">
                 Email changes are managed through your authentication provider.
               </p>
             </div>
@@ -314,7 +360,7 @@ export default function SettingsPage() {
               subtitle="Authentication and password changes are managed by Clerk."
             />
 
-            <p className="mb-6 text-sm text-muted-foreground">
+            <p style={{ color: "var(--text-tertiary)" }} className="mb-6 text-sm">
               Open the Clerk account portal to update your password, active
               sessions, and other authentication settings.
             </p>
@@ -387,7 +433,7 @@ export default function SettingsPage() {
                 >
                   <div>
                     <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p style={{ color: "var(--text-tertiary)" }} className="text-sm">
                       {item.description}
                     </p>
                   </div>
@@ -471,6 +517,87 @@ export default function SettingsPage() {
               />
             </div>
           </AppPanel>
+          <AppPanel>
+            <PanelTitle
+              title="Universal Trading Rules"
+              subtitle="Rules that apply to every trade, regardless of strategy. Shown in your daily plan checklist."
+            />
+
+            {/* Add new rule */}
+            <div className="mb-4 flex gap-2">
+              <Input
+                placeholder="e.g. Never risk more than 1% per trade"
+                value={newRuleText}
+                onChange={(e) => setNewRuleText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addRule()}
+                maxLength={300}
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                onClick={addRule}
+                disabled={!newRuleText.trim()}
+                aria-label="Add rule"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Rules list */}
+            {resolvedRules.length === 0 ? (
+              <p className="py-4 text-center text-[0.75rem]" style={{ color: "var(--text-tertiary)" }}>
+                No rules yet. Add your first rule above.
+              </p>
+            ) : (
+              <ol className="space-y-2">
+                {resolvedRules.map((rule, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center gap-2 rounded-[var(--radius-md)] px-3 py-2.5"
+                    style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}
+                  >
+                    <GripVertical className="h-4 w-4 shrink-0" style={{ color: "var(--text-tertiary)" }} />
+                    <span className="flex-1 text-sm leading-snug">{rule}</span>
+                    <div className="flex shrink-0 gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => moveRule(i, -1)}
+                        disabled={i === 0}
+                        className="rounded p-1 transition-colors disabled:opacity-25"
+                        style={{ color: "var(--text-secondary)" }}
+                        aria-label="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveRule(i, 1)}
+                        disabled={i === resolvedRules.length - 1}
+                        className="rounded p-1 transition-colors disabled:opacity-25"
+                        style={{ color: "var(--text-secondary)" }}
+                        aria-label="Move down"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteRule(i)}
+                        className="rounded p-1 transition-colors"
+                        style={{ color: "var(--text-tertiary)" }}
+                        aria-label="Delete rule"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            <div className="mt-4">
+              <SaveFeedback status={rulesSaveStatus} errorMessage={rulesSaveError} />
+            </div>
+          </AppPanel>
         </TabsContent>
 
         <TabsContent value="data" className="space-y-6">
@@ -535,7 +662,7 @@ export default function SettingsPage() {
                 >
                   <div>
                     <p className="font-medium">{action.title}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p style={{ color: "var(--text-tertiary)" }} className="text-sm">
                       {action.description}
                     </p>
                   </div>

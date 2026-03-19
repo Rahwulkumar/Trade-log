@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { asc, eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { mt5Accounts, terminalInstances } from '@/lib/db/schema';
 import { decrypt } from '@/lib/mt5/encryption';
@@ -125,7 +125,7 @@ export async function getWindowsMt5WorkerAssignments(
         })
         .from(terminalInstances)
         .innerJoin(mt5Accounts, eq(terminalInstances.accountId, mt5Accounts.id))
-        .orderBy(asc(terminalInstances.createdAt));
+        .orderBy(desc(terminalInstances.createdAt));
 
     const candidates = rows.filter(isWindowsWorkerRow).map(toCandidate);
     const selectedTerminalId = selectWindowsMt5WorkerCandidate(

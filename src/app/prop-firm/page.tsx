@@ -552,12 +552,13 @@ export default function PropFirmPage() {
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <div className="surface p-8 text-center max-w-md">
           <h2 className="text-xl font-semibold mb-2">Login Required</h2>
-          <p className="text-muted-foreground mb-4">
+          <p className="mb-4" style={{ color: "var(--text-tertiary)" }}>
             Please sign in to manage your prop accounts.
           </p>
           <a
             href="/auth/login"
-            className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-medium hover:bg-[var(--accent-secondary)] transition-colors"
+            className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-sm font-medium hover:bg-[var(--accent-secondary)] transition-colors"
+            style={{ color: "var(--text-primary)" }}
           >
             Sign In
           </a>
@@ -572,17 +573,20 @@ export default function PropFirmPage() {
     <div className="p-4 sm:p-5 lg:p-6 space-y-6 lg:space-y-8 max-w-[1280px]">
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
-        <DialogContent className="sm:max-w-[420px] bg-card border-border">
+        <DialogContent className="sm:max-w-[420px]" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}>
           <DialogHeader>
             <DialogTitle>Delete account?</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              <strong className="text-foreground">{deleteTargetName}</strong> will be permanently deleted along with any linked MT5 connection. This cannot be undone.
+            <DialogDescription style={{ color: "var(--text-tertiary)" }}>
+              <strong style={{ color: "var(--text-primary)" }}>{deleteTargetName}</strong> will be permanently deleted along with any linked MT5 connection. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <button
               type="button"
-              className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-sm"
+              className="inline-flex items-center justify-center h-9 px-4 rounded-lg text-sm"
+              style={{ border: "1px solid var(--border-default)", color: "var(--text-tertiary)", transition: "background-color 0.15s ease, color 0.15s ease" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--text-primary)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-tertiary)"; }}
               onClick={() => setDeleteConfirmId(null)}
             >
               Cancel
@@ -612,7 +616,7 @@ export default function PropFirmPage() {
             value={selectedAccount?.id || "all"}
             onValueChange={handleAccountChange}
           >
-            <SelectTrigger className="w-full sm:w-[280px] bg-card border-border" aria-label="Select account">
+            <SelectTrigger className="w-full sm:w-[280px]" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }} aria-label="Select account">
               <SelectValue placeholder={accounts.length === 0 ? "No accounts yet" : "Select account"} />
             </SelectTrigger>
             <SelectContent>
@@ -649,11 +653,11 @@ export default function PropFirmPage() {
                 Add Account
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] bg-card border-border">
+            <DialogContent className="sm:max-w-[500px]" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}>
               <form onSubmit={handleSubmit}>
                 <DialogHeader>
                   <DialogTitle>Add Prop Account</DialogTitle>
-                  <DialogDescription className="text-muted-foreground">
+                  <DialogDescription style={{ color: "var(--text-tertiary)" }}>
                     Track your prop firm challenge or funded account.
                   </DialogDescription>
                 </DialogHeader>
@@ -665,7 +669,7 @@ export default function PropFirmPage() {
                       placeholder="e.g. FTMO, Funding Pips, The5ers"
                       value={addForm.firmName}
                       onChange={(e) => setAddForm({ ...addForm, firmName: e.target.value })}
-                      className="bg-card border-border"
+                      style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}
                       autoComplete="organization"
                     />
                   </div>
@@ -677,7 +681,7 @@ export default function PropFirmPage() {
                         setAddForm({ ...addForm, phaseType: v })
                       }
                     >
-                      <SelectTrigger id="add-phase" className="bg-card border-border">
+                      <SelectTrigger id="add-phase" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -700,9 +704,9 @@ export default function PropFirmPage() {
                       placeholder="e.g. 10000"
                       value={addForm.startingBalance}
                       onChange={(e) => setAddForm({ ...addForm, startingBalance: e.target.value })}
-                      className="bg-card border-border"
+                      style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                       Enter your account size so the tracker shows the correct balance and drawdown.
                     </p>
                   </div>
@@ -715,7 +719,10 @@ export default function PropFirmPage() {
                 <DialogFooter>
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-sm"
+                    className="inline-flex items-center justify-center h-9 px-4 rounded-lg text-sm"
+                    style={{ border: "1px solid var(--border-default)", color: "var(--text-tertiary)", transition: "background-color 0.15s ease, color 0.15s ease" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--text-primary)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-tertiary)"; }}
                     onClick={() => setIsNewAccountOpen(false)}
                   >
                     Cancel
@@ -756,15 +763,15 @@ export default function PropFirmPage() {
       {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--text-tertiary)" }} />
         </div>
       )}
 
       {/* Empty State */}
       {!loading && accounts.length === 0 && (
         <div className="surface p-12">
-          <Zap className="h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground mb-4">
+          <Zap className="h-12 w-12 mb-4" style={{ color: "var(--text-tertiary)" }} />
+          <p className="mb-4" style={{ color: "var(--text-tertiary)" }}>
             No prop accounts yet. Add one to start tracking!
           </p>
           <button
@@ -791,7 +798,7 @@ export default function PropFirmPage() {
                   <h3 className="text-lg font-semibold transition-colors truncate">
                     {account.name}
                   </h3>
-                  <p className="text-sm text-muted-foreground truncate">
+                  <p className="text-sm truncate" style={{ color: "var(--text-tertiary)" }}>
                     {account.firm} • {account.phase}
                   </p>
                 </div>
@@ -801,7 +808,7 @@ export default function PropFirmPage() {
                       "inline-flex items-center rounded px-2 py-0.5 text-xs font-medium capitalize",
                       account.status === "active"
                         ? "bg-[var(--profit-bg)] text-[var(--profit-primary)]"
-                        : "bg-muted text-muted-foreground",
+                        : "",
                     )}
                   >
                     {account.status}
@@ -827,14 +834,14 @@ export default function PropFirmPage() {
 
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Balance</span>
+                  <span style={{ color: "var(--text-tertiary)" }}>Balance</span>
                   <span className="font-mono text-lg">
                     ${account.current_balance.toLocaleString()}
                   </span>
                 </div>
 
                 <div className="flex justify-between text-sm items-center">
-                  <span className="text-muted-foreground">Profit/Loss</span>
+                  <span style={{ color: "var(--text-tertiary)" }}>Profit/Loss</span>
                   <span
                     className="font-mono font-medium"
                     style={{
@@ -850,9 +857,9 @@ export default function PropFirmPage() {
 
                 {/* Drawdown Progress Mini */}
                 {account.daily_dd_max && (
-                  <div className="space-y-1 pt-2 border-t border-border-subtle">
+                  <div className="space-y-1 pt-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
                     <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Daily DD</span>
+                      <span style={{ color: "var(--text-tertiary)" }}>Daily DD</span>
                       <span
                         style={{
                           color: (account.daily_dd_current || 0) > toPercent(account.daily_dd_max || 0, account.initial_balance) * 0.8
@@ -868,7 +875,7 @@ export default function PropFirmPage() {
                         %
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
                       <div
                         className="h-full rounded-full"
                         style={{
@@ -897,7 +904,7 @@ export default function PropFirmPage() {
                 </div>
                 <div>
                   <h2 className="headline-md">{selectedAccount.name}</h2>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
                     {selectedAccount.firm} • {selectedAccount.phase}
                   </p>
                 </div>
@@ -957,7 +964,7 @@ export default function PropFirmPage() {
             </div>
 
             {/* Account Balance */}
-            <div className="flex justify-between items-center p-4 rounded-lg bg-muted/20 border border-border-subtle mb-6">
+            <div className="flex justify-between items-center p-4 rounded-lg mb-6" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
               <div>
                 <p className="text-label">Current Balance</p>
                 <p className="stat-huge mt-1">
@@ -991,13 +998,13 @@ export default function PropFirmPage() {
             {(terminalStatus?.mt5Account ||
               terminalStatus?.terminal ||
               terminalStatus?.diagnostics) && (
-              <div className="mb-6 rounded-lg border border-border-subtle bg-muted/20 p-4">
+              <div className="mb-6 rounded-lg p-4" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface-elevated)" }}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                       MT5 Sync Status
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
                       {terminalStatus.connected
                         ? "Terminal connected and reporting."
                         : "Terminal not currently connected."}
@@ -1007,8 +1014,8 @@ export default function PropFirmPage() {
                     className={cn(
                       "inline-flex rounded px-2 py-1 text-[11px] font-medium",
                       terminalStatus.connected
-                        ? "bg-green-500/15 text-green-300"
-                        : "bg-amber-500/15 text-amber-300",
+                        ? "bg-[var(--profit-bg)] text-[var(--profit-primary)]"
+                        : "bg-[var(--warning-bg)] text-[var(--warning-primary)]",
                     )}
                   >
                     {terminalStatus.terminal?.status ?? "NOT_LINKED"}
@@ -1016,29 +1023,29 @@ export default function PropFirmPage() {
                 </div>
 
                 <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-                  <div className="rounded-md border border-border bg-background/40 p-3">
-                    <p className="text-xs text-muted-foreground">MT5 account</p>
-                    <p className="mt-1 font-mono text-white">
+                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
+                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>MT5 account</p>
+                    <p className="mt-1 font-mono" style={{ color: "var(--text-primary)" }}>
                       {terminalStatus.mt5Account
                         ? `${terminalStatus.mt5Account.server} / ${terminalStatus.mt5Account.login}`
                         : "Not linked"}
                     </p>
                   </div>
-                  <div className="rounded-md border border-border bg-background/40 p-3">
-                    <p className="text-xs text-muted-foreground">Terminal ID</p>
-                    <p className="mt-1 font-mono text-white break-all">
+                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
+                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Terminal ID</p>
+                    <p className="mt-1 font-mono break-all" style={{ color: "var(--text-primary)" }}>
                       {terminalStatus.terminal?.terminalId ?? "Awaiting assignment"}
                     </p>
                   </div>
-                  <div className="rounded-md border border-border bg-background/40 p-3">
-                    <p className="text-xs text-muted-foreground">Diagnostic</p>
-                    <p className="mt-1 font-mono text-white">
+                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
+                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Diagnostic</p>
+                    <p className="mt-1 font-mono" style={{ color: "var(--text-primary)" }}>
                       {terminalStatus.diagnostics?.code ?? "NO_HEARTBEAT"}
                     </p>
                   </div>
-                  <div className="rounded-md border border-border bg-background/40 p-3">
-                    <p className="text-xs text-muted-foreground">Last heartbeat</p>
-                    <p className="mt-1 text-white">
+                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
+                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Last heartbeat</p>
+                    <p className="mt-1" style={{ color: "var(--text-primary)" }}>
                       {terminalStatus.terminal?.lastHeartbeat
                         ? new Date(
                             terminalStatus.terminal.lastHeartbeat,
@@ -1046,16 +1053,16 @@ export default function PropFirmPage() {
                         : "Never"}
                     </p>
                   </div>
-                  <div className="rounded-md border border-border bg-background/40 p-3">
-                    <p className="text-xs text-muted-foreground">Live positions</p>
-                    <p className="mt-1 text-white">
+                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
+                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Live positions</p>
+                    <p className="mt-1" style={{ color: "var(--text-primary)" }}>
                       {terminalStatus.livePositions.length}
                     </p>
                   </div>
                 </div>
 
                 {terminalStatus.diagnostics?.message && (
-                  <div className="mt-3 rounded-md border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+                  <div className="mt-3 rounded-md p-3 text-xs" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)", color: "var(--text-tertiary)" }}>
                     {terminalStatus.diagnostics.message}
                   </div>
                 )}
@@ -1063,10 +1070,10 @@ export default function PropFirmPage() {
                 {terminalStatus.livePositions.length > 0 && (
                   <div className="mt-4 space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-white">
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                         Live MT5 Positions
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                         Not yet imported into journal analytics
                       </p>
                     </div>
@@ -1074,13 +1081,14 @@ export default function PropFirmPage() {
                       {terminalStatus.livePositions.map((position) => (
                         <div
                           key={`${position.ticket}-${position.positionId ?? "live"}`}
-                          className="flex items-center justify-between rounded-md border border-border bg-background/40 px-3 py-2 text-xs"
+                          className="flex items-center justify-between rounded-md px-3 py-2 text-xs"
+                        style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}
                         >
                           <div>
-                            <p className="font-medium text-white">
+                            <p className="font-medium" style={{ color: "var(--text-primary)" }}>
                               {position.symbol} {position.type}
                             </p>
-                            <p className="text-muted-foreground">
+                            <p style={{ color: "var(--text-tertiary)" }}>
                               {position.volume} lots at {position.openPrice}
                             </p>
                           </div>
@@ -1093,7 +1101,7 @@ export default function PropFirmPage() {
                             >
                               ${position.profit.toLocaleString()}
                             </p>
-                            <p className="text-muted-foreground">
+                            <p style={{ color: "var(--text-tertiary)" }}>
                               Current: {position.currentPrice}
                             </p>
                           </div>
@@ -1109,7 +1117,7 @@ export default function PropFirmPage() {
             <div className="grid gap-4 md:grid-cols-2">
               {/* Daily Drawdown */}
               {selectedAccount.daily_dd_max && (
-                <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border-subtle">
+                <div className="space-y-3 p-4 rounded-lg" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Daily Drawdown</span>
                     <span className="text-sm">
@@ -1121,7 +1129,7 @@ export default function PropFirmPage() {
                       %
                     </span>
                   </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
                     <div
                       className="h-full rounded-full transition-all"
                       style={{
@@ -1130,7 +1138,7 @@ export default function PropFirmPage() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                     {(
                       toPercent(
                         selectedAccount.daily_dd_max || 0,
@@ -1144,7 +1152,7 @@ export default function PropFirmPage() {
 
               {/* Total Drawdown */}
               {selectedAccount.total_dd_max && (
-                <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border-subtle">
+                <div className="space-y-3 p-4 rounded-lg" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Total Drawdown</span>
                     <span className="text-sm">
@@ -1156,7 +1164,7 @@ export default function PropFirmPage() {
                       %
                     </span>
                   </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
                     <div
                       className="h-full rounded-full transition-all"
                       style={{
@@ -1165,7 +1173,7 @@ export default function PropFirmPage() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                     {(
                       toPercent(
                         selectedAccount.total_dd_max || 0,
@@ -1181,7 +1189,7 @@ export default function PropFirmPage() {
             {/* Profit Target */}
             {selectedAccount.profit_target &&
               selectedAccount.compliance?.profitProgress !== null && (
-                <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border-subtle mt-4">
+                <div className="space-y-3 p-4 rounded-lg mt-4" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Profit Target</span>
                     <span className="text-sm">
@@ -1196,15 +1204,16 @@ export default function PropFirmPage() {
                       %
                     </span>
                   </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                      className="h-full rounded-full"
                       style={{
+                        background: "var(--accent-primary)",
                         width: `${Math.min(((selectedAccount.compliance?.profitProgress || 0) / toPercent(selectedAccount.profit_target, selectedAccount.initial_balance)) * 100, 100)}%`,
                       }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                     {(
                       toPercent(
                         selectedAccount.profit_target,
@@ -1221,10 +1230,10 @@ export default function PropFirmPage() {
           <div className="space-y-4">
             <div className="surface p-6">
               <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-muted-foreground" />
+                <Calendar className="h-5 w-5" style={{ color: "var(--text-tertiary)" }} />
                 <div>
                   <p className="text-sm font-medium">Started</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                     {selectedAccount.start_date
                       ? new Date(
                           selectedAccount.start_date,
@@ -1236,10 +1245,10 @@ export default function PropFirmPage() {
             </div>
             <div className="surface p-6">
               <div className="flex items-center gap-3">
-                <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                <BarChart3 className="h-5 w-5" style={{ color: "var(--text-tertiary)" }} />
                 <div>
                   <p className="text-sm font-medium">Initial Balance</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                     ${selectedAccount.initial_balance.toLocaleString()}
                   </p>
                 </div>
@@ -1247,7 +1256,7 @@ export default function PropFirmPage() {
             </div>
             <div className="surface p-6">
               <div className="flex items-center gap-3">
-                <Shield className="h-5 w-5 text-muted-foreground" />
+                <Shield className="h-5 w-5" style={{ color: "var(--text-tertiary)" }} />
                 <div>
                   <p className="text-sm font-medium">Status</p>
                   <p
@@ -1283,7 +1292,7 @@ export default function PropFirmPage() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-[560px] bg-card border-border">
+        <DialogContent className="sm:max-w-[560px]" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Cloud className="h-5 w-5" style={{ color: "var(--accent-primary)" }} />
@@ -1297,31 +1306,31 @@ export default function PropFirmPage() {
 
           {terminalLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--text-tertiary)" }} />
             </div>
           ) : terminalStatus?.connected ? (
             <div className="space-y-4 py-4">
-              <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-4">
+              <div className="rounded-lg p-4" style={{ border: "1px solid var(--profit-primary)", background: "var(--profit-bg)" }}>
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 h-5 w-5" style={{ color: "var(--profit-primary)" }} />
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                       Terminal connected
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                       Terminal ID:{" "}
-                      <span className="font-mono text-foreground">
+                      <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                         {terminalStatus.terminal?.terminalId ?? "Unknown"}
                       </span>
                     </p>
                     {terminalStatus.mt5Account && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                         Linked MT5 session:{" "}
-                        <span className="font-mono text-foreground">
+                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                           {terminalStatus.mt5Account.server}
                         </span>{" "}
                         /{" "}
-                        <span className="font-mono text-foreground">
+                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                           {terminalStatus.mt5Account.login}
                         </span>
                       </p>
@@ -1330,10 +1339,10 @@ export default function PropFirmPage() {
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4 text-sm">
+              <div className="space-y-3 rounded-lg p-4 text-sm" style={{ border: "1px solid var(--border-default)", background: "var(--surface-elevated)" }}>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Last heartbeat</span>
-                  <span className="text-right text-white">
+                  <span style={{ color: "var(--text-tertiary)" }}>Last heartbeat</span>
+                  <span className="text-right" style={{ color: "var(--text-primary)" }}>
                     {terminalStatus.terminal?.lastHeartbeat
                       ? new Date(
                           terminalStatus.terminal.lastHeartbeat,
@@ -1342,14 +1351,14 @@ export default function PropFirmPage() {
                   </span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Terminal status</span>
-                  <span className="text-right text-white">
+                  <span style={{ color: "var(--text-tertiary)" }}>Terminal status</span>
+                  <span className="text-right" style={{ color: "var(--text-primary)" }}>
                     {terminalStatus.terminal?.status ?? "UNKNOWN"}
                   </span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Last trade sync</span>
-                  <span className="text-right text-white">
+                  <span style={{ color: "var(--text-tertiary)" }}>Last trade sync</span>
+                  <span className="text-right" style={{ color: "var(--text-primary)" }}>
                     {terminalStatus.terminal?.lastSyncAt
                       ? new Date(
                           terminalStatus.terminal.lastSyncAt,
@@ -1360,38 +1369,38 @@ export default function PropFirmPage() {
                 {terminalStatus.diagnostics && (
                   <>
                     <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">
+                      <span style={{ color: "var(--text-tertiary)" }}>
                         Diagnostic code
                       </span>
-                      <span className="text-right font-mono text-white">
+                      <span className="text-right font-mono" style={{ color: "var(--text-primary)" }}>
                         {terminalStatus.diagnostics.code}
                       </span>
                     </div>
-                    <div className="rounded-md border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+                    <div className="rounded-md p-3 text-xs" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)", color: "var(--text-tertiary)" }}>
                       {terminalStatus.diagnostics.message}
                     </div>
-                    <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                    <div className="grid gap-2 text-xs sm:grid-cols-2" style={{ color: "var(--text-tertiary)" }}>
                       <div>
                         Last imported:{" "}
-                        <span className="font-mono text-foreground">
+                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                           {terminalStatus.diagnostics.lastTradeImportCount ?? 0}
                         </span>
                       </div>
                       <div>
                         Last skipped:{" "}
-                        <span className="font-mono text-foreground">
+                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                           {terminalStatus.diagnostics.lastTradeSkipCount ?? 0}
                         </span>
                       </div>
                       <div>
                         Last seen deals:{" "}
-                        <span className="font-mono text-foreground">
+                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                           {terminalStatus.diagnostics.lastSeenDealCount ?? 0}
                         </span>
                       </div>
                       <div>
                         Live positions:{" "}
-                        <span className="font-mono text-foreground">
+                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                           {terminalStatus.livePositions.length}
                         </span>
                       </div>
@@ -1399,19 +1408,19 @@ export default function PropFirmPage() {
                   </>
                 )}
                 {terminalStatus.terminal?.errorMessage && (
-                  <div className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-300">
+                  <div className="rounded-md p-3 text-xs" style={{ border: "1px solid var(--loss-primary)", background: "var(--loss-bg)", color: "var(--loss-primary)" }}>
                     {terminalStatus.terminal.errorMessage}
                   </div>
                 )}
               </div>
 
               {terminalStatus.livePositions.length > 0 && (
-                <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+                <div className="space-y-2 rounded-lg p-4" style={{ border: "1px solid var(--border-default)", background: "var(--surface-elevated)" }}>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                       Live MT5 Positions
                     </p>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                       {terminalStatus.livePositions.length} open
                     </span>
                   </div>
@@ -1419,13 +1428,14 @@ export default function PropFirmPage() {
                     {terminalStatus.livePositions.map((position) => (
                       <div
                         key={`${position.ticket}-${position.positionId ?? "live"}`}
-                        className="flex items-center justify-between rounded-md border border-border bg-background/40 px-3 py-2 text-xs"
+                        className="flex items-center justify-between rounded-md px-3 py-2 text-xs"
+                        style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}
                       >
                         <div className="space-y-1">
-                          <p className="font-medium text-white">
+                          <p className="font-medium" style={{ color: "var(--text-primary)" }}>
                             {position.symbol} {position.type}
                           </p>
-                          <p className="text-muted-foreground">
+                          <p style={{ color: "var(--text-tertiary)" }}>
                             {position.volume} lots at {position.openPrice}
                           </p>
                         </div>
@@ -1438,7 +1448,7 @@ export default function PropFirmPage() {
                           >
                             ${position.profit.toLocaleString()}
                           </p>
-                          <p className="text-muted-foreground">
+                          <p style={{ color: "var(--text-tertiary)" }}>
                             Current: {position.currentPrice}
                           </p>
                         </div>
@@ -1494,30 +1504,30 @@ export default function PropFirmPage() {
           ) : (
             <div className="space-y-4 py-4">
               {terminalStatus?.mt5Account && (
-                <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm">
-                  <p className="font-medium text-foreground">
+                <div className="rounded-lg p-4 text-sm" style={{ border: "1px solid var(--border-default)", background: "var(--surface-elevated)" }}>
+                  <p className="font-medium" style={{ color: "var(--text-primary)" }}>
                     Saved MT5 account
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
                     Server:{" "}
-                    <span className="font-mono text-foreground">
+                    <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                       {terminalStatus.mt5Account.server}
                     </span>{" "}
                     · Login:{" "}
-                    <span className="font-mono text-foreground">
+                    <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                       {terminalStatus.mt5Account.login}
                     </span>
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
                     Terminal ID:{" "}
-                    <span className="font-mono text-foreground break-all">
+                    <span className="font-mono break-all" style={{ color: "var(--text-primary)" }}>
                       {terminalStatus.terminal?.terminalId ?? "Awaiting assignment"}
                     </span>
                   </p>
                   {terminalStatus.mt5Account.balance != null && (
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
                       Last broker balance:{" "}
-                      <span className="font-mono text-foreground">
+                      <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                         $
                         {Number(
                           terminalStatus.mt5Account.balance,
@@ -1526,16 +1536,16 @@ export default function PropFirmPage() {
                     </p>
                   )}
                   {terminalStatus.terminal?.status && (
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
                       Terminal status:{" "}
-                      <span className="font-mono text-foreground">
+                      <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                         {terminalStatus.terminal.status}
                       </span>
                     </p>
                   )}
                   {terminalStatus.diagnostics && (
-                    <p className="mt-2 rounded-md border border-border bg-background/40 p-3 text-xs text-muted-foreground">
-                      <span className="font-mono text-foreground">
+                    <p className="mt-2 rounded-md p-3 text-xs" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)", color: "var(--text-tertiary)" }}>
+                      <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                         {terminalStatus.diagnostics.code}
                       </span>{" "}
                       · {terminalStatus.diagnostics.message}
@@ -1545,8 +1555,8 @@ export default function PropFirmPage() {
               )}
 
               {selectedAccount && (
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-                  <span className="text-muted-foreground">
+                <div className="rounded-lg p-3 text-sm" style={{ border: "1px solid var(--accent-primary)", background: "var(--accent-soft)" }}>
+                  <span style={{ color: "var(--text-tertiary)" }}>
                     This prop account size:{" "}
                   </span>
                   <span className="font-mono font-semibold">
@@ -1557,7 +1567,7 @@ export default function PropFirmPage() {
                         0,
                     ).toLocaleString()}
                   </span>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
                     Re-enter your MT5 credentials to create a fresh terminal
                     link. Existing imported trades will stay attached to this
                     prop account.
@@ -1605,7 +1615,7 @@ export default function PropFirmPage() {
                     }
                     className="mt-1"
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
                     Use the investor password if your broker supports it.
                   </p>
                 </div>
@@ -1677,7 +1687,7 @@ export default function PropFirmPage() {
                 </Button>
               </DialogFooter>
 
-              <p className="text-center text-xs text-muted-foreground">
+              <p className="text-center text-xs" style={{ color: "var(--text-tertiary)" }}>
                 Terminal Farm runs MT5 in Docker and now exposes terminal state,
                 diagnostics, and live positions directly in the app.
               </p>

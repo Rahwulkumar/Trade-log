@@ -43,8 +43,8 @@ function DonutTooltip({
         borderRadius: "var(--radius-md)",
         padding: "0.55rem 0.85rem",
         fontSize: "0.78rem",
-        fontFamily: "var(--font-dm-sans)",
-        boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
+        fontFamily: "var(--font-inter)",
+        boxShadow: "var(--shadow-lg)",
       }}
     >
       <span style={{ color: "var(--text-secondary)", marginRight: "0.5rem" }}>
@@ -197,7 +197,7 @@ export function StatisticsDonut({
                 style={{
                   fontSize: "0.62rem",
                   color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-dm-sans)",
+                  fontFamily: "var(--font-inter)",
                   marginTop: "2px",
                 }}
               >
@@ -254,7 +254,7 @@ export function StatisticsDonut({
                     fontSize: "0.78rem",
                     fontWeight: 500,
                     color: "var(--text-primary)",
-                    fontFamily: "var(--font-dm-sans)",
+                    fontFamily: "var(--font-inter)",
                     lineHeight: 1.2,
                   }}
                 >
@@ -264,7 +264,7 @@ export function StatisticsDonut({
                   style={{
                     fontSize: "0.63rem",
                     color: "var(--text-tertiary)",
-                    fontFamily: "var(--font-dm-sans)",
+                    fontFamily: "var(--font-inter)",
                   }}
                 >
                   {count} trade{count !== 1 ? "s" : ""}

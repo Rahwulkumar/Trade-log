@@ -13,6 +13,7 @@ const updateProfileSchema = z.object({
   default_risk_percent: z.number().finite().min(0).max(100).nullable().optional(),
   default_rr_ratio: z.number().finite().min(0).max(100).nullable().optional(),
   default_timeframe: z.enum(['m15', 'm30', 'h1', 'h4', 'd1']).nullable().optional(),
+  trading_rules: z.array(z.string().trim().max(300)).max(100).optional(),
 });
 
 export async function GET() {

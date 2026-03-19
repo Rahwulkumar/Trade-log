@@ -1,30 +1,175 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 import { useAuth } from "@/components/auth-provider";
 import { getTrades } from "@/lib/api/client/trades";
+import { NoTradesEmpty } from "@/components/ui/empty-state";
+import { getPnLColor, getDirectionColor } from "@/lib/utils/trade-colors";
 import type { Trade } from "@/lib/db/schema";
 
 interface RecentTradesProps {
   limit?: number;
   propAccountId?: string | null;
+  /** Pre-fetched trades from parent — skips internal fetch when provided */
+  initialTrades?: Trade[];
 }
 
-export function RecentTrades({ limit = 5, propAccountId }: RecentTradesProps) {
+// Derive outcome from pnl + status
+function getOutcome(trade: Trade): "WIN" | "LOSS" | "OPEN" | "EVEN" {
+  if (trade.status === "OPEN") return "OPEN";
+  const pnl = Number(trade.pnl) || 0;
+  if (pnl > 0) return "WIN";
+  if (pnl < 0) return "LOSS";
+  return "EVEN";
+}
+
+function outcomeStyle(outcome: string): React.CSSProperties {
+  if (outcome === "WIN") return { color: "var(--profit-primary)", background: "var(--profit-bg)" };
+  if (outcome === "LOSS") return { color: "var(--loss-primary)", background: "var(--loss-bg)" };
+  return { color: "var(--text-secondary)", background: "var(--surface-elevated)" };
+}
+
+function tradeDuration(entry: Date, exit: Date | null): string | null {
+  if (!exit) return null;
+  const totalMin = Math.floor((exit.getTime() - entry.getTime()) / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// ─── Skeleton row ─────────────────────────────────────────────────────────────
+function SkeletonRow() {
+  return (
+    <div className="flex items-center gap-3 px-5 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+      <div className="skeleton h-2 w-2 rounded-full shrink-0" />
+      <div className="flex-1 space-y-1.5">
+        <div className="skeleton h-3 w-24 rounded" />
+        <div className="skeleton h-2 w-36 rounded" />
+      </div>
+      <div className="text-right space-y-1.5">
+        <div className="skeleton h-3 w-16 rounded ml-auto" />
+        <div className="skeleton h-2 w-10 rounded ml-auto" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Trade row ────────────────────────────────────────────────────────────────
+function TradeRow({ trade }: { trade: Trade }) {
+  const outcome = getOutcome(trade);
+  const pnl = Number(trade.pnl) || 0;
+  const rMultiple = trade.rMultiple ? Number(trade.rMultiple) : null;
+  const entryDate = new Date(trade.entryDate);
+  const exitDate = trade.exitDate ? new Date(trade.exitDate) : null;
+  const duration = tradeDuration(entryDate, exitDate);
+  const dirColor = getDirectionColor(trade.direction);
+  const pnlColor = getPnLColor(pnl);
+
+  return (
+    <div
+      className="flex items-start justify-between gap-4 px-5 py-3.5"
+      style={{ borderBottom: "1px solid var(--border-subtle)" }}
+    >
+      {/* Left: direction dot + info */}
+      <div className="flex items-start gap-3 min-w-0">
+        <span
+          className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+          style={{ background: dirColor }}
+        />
+        <div className="min-w-0">
+          {/* Row 1: symbol + direction chip + session */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className="text-[0.875rem] font-semibold leading-none"
+              style={{ fontFamily: "var(--font-syne)", color: "var(--text-primary)" }}
+            >
+              {trade.symbol}
+            </span>
+            <span
+              className="text-[0.65rem] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
+              style={{
+                color: dirColor,
+                background: trade.direction === "LONG" ? "var(--profit-bg)" : "var(--loss-bg)",
+              }}
+            >
+              {trade.direction}
+            </span>
+            {trade.session && (
+              <span
+                className="text-[0.65rem] font-medium px-1.5 py-0.5 rounded"
+                style={{ color: "var(--text-tertiary)", background: "var(--surface-elevated)" }}
+              >
+                {trade.session}
+              </span>
+            )}
+          </div>
+          {/* Row 2: date · duration · R */}
+          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[0.7rem]" style={{ color: "var(--text-tertiary)" }}>
+              {format(entryDate, "MMM d · HH:mm")}
+            </span>
+            {duration && (
+              <>
+                <span style={{ color: "var(--border-default)" }}>·</span>
+                <span className="text-[0.7rem]" style={{ color: "var(--text-tertiary)" }}>
+                  {duration}
+                </span>
+              </>
+            )}
+            {rMultiple !== null && (
+              <>
+                <span style={{ color: "var(--border-default)" }}>·</span>
+                <span
+                  className="text-[0.7rem]"
+                  style={{
+                    fontFamily: "var(--font-jb-mono)",
+                    color: rMultiple >= 0 ? "var(--profit-primary)" : "var(--loss-primary)",
+                  }}
+                >
+                  {rMultiple >= 0 ? "+" : ""}{rMultiple.toFixed(1)}R
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right: outcome badge + pnl */}
+      <div className="text-right shrink-0">
+        <div
+          className="inline-block text-[0.65rem] font-bold uppercase tracking-wide px-2 py-0.5 rounded mb-1"
+          style={outcomeStyle(outcome)}
+        >
+          {outcome}
+        </div>
+        <div
+          className="text-[0.875rem] font-semibold"
+          style={{ fontFamily: "var(--font-jb-mono)", color: pnlColor }}
+        >
+          {pnl >= 0 ? "+" : "−"}${Math.abs(pnl).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
+export function RecentTrades({ limit = 5, propAccountId, initialTrades }: RecentTradesProps) {
   const { user, isConfigured, loading: authLoading } = useAuth();
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [trades, setTrades] = useState<Trade[]>(initialTrades ?? []);
+  const [loading, setLoading] = useState(!initialTrades);
 
   useEffect(() => {
+    // Skip fetch if parent already provided data
+    if (initialTrades) return;
+
     async function loadTrades() {
       if (authLoading) return;
       if (!isConfigured || !user) {
         setLoading(false);
         return;
       }
-
       try {
         const data = await getTrades({
           status: "closed",
@@ -36,112 +181,37 @@ export function RecentTrades({ limit = 5, propAccountId }: RecentTradesProps) {
         setTrades(data);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes("Failed to fetch"))
-          console.error("Failed to load recent trades:", err);
+        if (!msg.includes("Failed to fetch")) console.error("Failed to load recent trades:", err);
       } finally {
         setLoading(false);
       }
     }
-
     loadTrades();
-  }, [authLoading, user, isConfigured, limit, propAccountId]);
+  }, [authLoading, user, isConfigured, limit, propAccountId, initialTrades]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div>
+        {Array.from({ length: limit }).map((_, i) => (
+          <SkeletonRow key={i} />
+        ))}
       </div>
     );
   }
 
   if (trades.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>No trades yet. Start logging your trades!</p>
+      <div className="px-5 py-8">
+        <NoTradesEmpty />
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm text-left">
-        <thead className="text-xs text-muted-foreground uppercase bg-muted/30 border-b border-border">
-          <tr>
-            <th className="px-4 py-3 font-medium">Symbol</th>
-            <th className="px-4 py-3 font-medium">Direction</th>
-            <th className="px-4 py-3 font-medium text-right">Entry</th>
-            <th className="px-4 py-3 font-medium text-right">Exit</th>
-            <th className="px-4 py-3 font-medium text-right">P&L</th>
-            <th className="px-4 py-3 font-medium text-right">R-Multiple</th>
-            <th className="px-4 py-3 font-medium text-right">Date</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {trades.map((trade) => (
-            <tr
-              key={trade.id}
-              className="group cursor-pointer hover:bg-muted/30 transition-colors"
-            >
-              <td className="px-4 py-3 font-medium text-foreground">
-                {trade.symbol}
-              </td>
-              <td className="px-4 py-3">
-                <div
-                  className={cn(
-                    "inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border",
-                    trade.direction === "LONG"
-                      ? "bg-[var(--profit-bg)] text-[var(--profit-primary)] border-[var(--profit-primary)]/20"
-                      : "bg-[var(--loss-bg)] text-[var(--loss-primary)] border-[var(--loss-primary)]/20",
-                  )}
-                >
-                  {trade.direction === "LONG" ? (
-                    <ArrowUp className="h-3 w-3" />
-                  ) : (
-                    <ArrowDown className="h-3 w-3" />
-                  )}
-                  {trade.direction}
-                </div>
-              </td>
-              <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-                {trade.entryPrice}
-              </td>
-              <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-                {trade.exitPrice || "-"}
-              </td>
-              <td
-                className={cn(
-                  "px-4 py-3 text-right font-mono font-medium",
-                  (Number(trade.pnl) || 0) >= 0
-                    ? "text-[var(--profit-primary)]"
-                    : "text-[var(--loss-primary)]",
-                )}
-              >
-                {(Number(trade.pnl) || 0) >= 0 ? "+" : ""}
-                {(Number(trade.pnl) || 0).toFixed(2)}
-              </td>
-              <td
-                className={cn(
-                  "px-4 py-3 text-right font-mono",
-                  (Number(trade.rMultiple) || 0) >= 0
-                    ? "text-[var(--profit-primary)]"
-                    : "text-[var(--loss-primary)]",
-                )}
-              >
-                {trade.rMultiple
-                  ? `${Number(trade.rMultiple) >= 0 ? "+" : ""}${Number(trade.rMultiple).toFixed(1)}R`
-                  : "-"}
-              </td>
-              <td className="px-4 py-3 text-right text-muted-foreground">
-                {new Date(trade.entryDate).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div>
+      {trades.map((trade) => (
+        <TradeRow key={trade.id} trade={trade} />
+      ))}
     </div>
   );
 }

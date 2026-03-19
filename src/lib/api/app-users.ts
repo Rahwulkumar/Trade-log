@@ -39,6 +39,7 @@ function toProfile(row: typeof appUsers.$inferSelect): AppUserProfile {
     default_risk_percent: row.defaultRiskPercent ?? null,
     default_rr_ratio: row.defaultRrRatio ?? null,
     default_timeframe: row.defaultTimeframe ?? null,
+    trading_rules: (row.tradingRules as string[]) ?? [],
     created_at: row.createdAt?.toISOString() ?? null,
     updated_at: row.updatedAt?.toISOString() ?? null,
   };
@@ -133,6 +134,8 @@ export async function updateCurrentAppUserProfile(
     updates.default_timeframe !== undefined
       ? trimToNull(updates.default_timeframe)
       : existing.default_timeframe;
+  const nextTradingRules =
+    updates.trading_rules !== undefined ? updates.trading_rules : existing.trading_rules;
 
   const [updated] = await db
     .update(appUsers)
@@ -146,6 +149,7 @@ export async function updateCurrentAppUserProfile(
       defaultRiskPercent: nextDefaultRisk ?? DEFAULT_APP_RISK_PERCENT,
       defaultRrRatio: nextDefaultRr ?? DEFAULT_APP_RR_RATIO,
       defaultTimeframe: nextDefaultTimeframe ?? DEFAULT_APP_TIMEFRAME,
+      tradingRules: nextTradingRules,
       updatedAt: new Date(),
     })
     .where(eq(appUsers.id, clerkUser.id))

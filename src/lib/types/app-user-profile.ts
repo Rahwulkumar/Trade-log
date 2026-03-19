@@ -14,6 +14,7 @@ export interface AppUserProfile {
   default_risk_percent: number | null;
   default_rr_ratio: number | null;
   default_timeframe: string | null;
+  trading_rules: string[];
   created_at: string | null;
   updated_at: string | null;
 }
@@ -25,4 +26,5 @@ export interface AppUserProfileUpdate {
   default_risk_percent?: number | null;
   default_rr_ratio?: number | null;
   default_timeframe?: string | null;
+  trading_rules?: string[];
 }

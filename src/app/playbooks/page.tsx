@@ -238,7 +238,7 @@ export default function PlaybooksPage() {
     return (
       <AppPanel className="mt-8 max-w-xl">
         <h2 className="headline-md">Supabase Not Configured</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm" style={{ color: "var(--text-tertiary)" }}>
           Add your Supabase credentials to enable playbooks.
         </p>
       </AppPanel>
@@ -249,7 +249,7 @@ export default function PlaybooksPage() {
     return (
       <AppPanel className="mt-8 max-w-xl">
         <h2 className="headline-md">Login Required</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm" style={{ color: "var(--text-tertiary)" }}>
           Sign in to view and manage your strategy playbooks.
         </p>
         <Button asChild className="mt-4">
@@ -272,7 +272,7 @@ export default function PlaybooksPage() {
               size="icon"
               onClick={loadPlaybooks}
               title="Refresh playbooks"
-              className="border-border bg-card hover:bg-accent"
+              className="border-[var(--border-default)] bg-[var(--surface)] hover:bg-[var(--surface-hover)]"
               aria-label="Refresh playbooks"
             >
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
@@ -374,7 +374,7 @@ export default function PlaybooksPage() {
       />
 
       {error && (
-        <div className="rounded-md border border-red-500/35 bg-red-500/10 p-3 text-sm text-red-300">
+        <div className="rounded-md p-3 text-sm" style={{ border: "1px solid var(--loss-primary)", background: "var(--loss-bg)", color: "var(--loss-primary)" }}>
           {error}
           <button
             type="button"
@@ -424,14 +424,14 @@ export default function PlaybooksPage() {
 
       {loading && (
         <AppPanel className="flex min-h-[180px] items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--text-tertiary)" }} />
         </AppPanel>
       )}
 
       {!loading && playbooks.length === 0 && (
         <AppPanel className="py-14">
-          <BookOpen className="mb-4 h-10 w-10 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
+          <BookOpen className="mb-4 h-10 w-10" style={{ color: "var(--text-tertiary)" }} />
+          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
             No playbooks yet. Start by creating your first strategy template.
           </p>
           <Button onClick={() => setIsNewPlaybookOpen(true)} className="mt-5">

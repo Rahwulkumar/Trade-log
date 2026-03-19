@@ -1,24 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import {
   getAllPlaybooksWithStats,
   type PlaybookStats,
 } from "@/lib/api/client/playbooks";
+import { NoDataEmpty } from "@/components/ui/empty-state";
+import { getPnLColor } from "@/lib/utils/trade-colors";
 
 interface TopPlaybooksProps {
   propAccountId?: string | null;
+  /** Pre-fetched playbooks from parent — skips internal fetch when provided */
+  initialPlaybooks?: PlaybookStats[];
 }
 
-export function TopPlaybooks({ propAccountId }: TopPlaybooksProps) {
+export function TopPlaybooks({ propAccountId, initialPlaybooks }: TopPlaybooksProps) {
   const { user, isConfigured, loading: authLoading } = useAuth();
-  const [playbooks, setPlaybooks] = useState<PlaybookStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [playbooks, setPlaybooks] = useState<PlaybookStats[]>(initialPlaybooks ?? []);
+  const [loading, setLoading] = useState(!initialPlaybooks);
 
   useEffect(() => {
+    // Skip fetch if parent already provided data
+    if (initialPlaybooks) return;
+
     async function loadPlaybooks() {
       if (authLoading) return;
       if (!isConfigured || !user) {
@@ -41,62 +47,72 @@ export function TopPlaybooks({ propAccountId }: TopPlaybooksProps) {
     }
 
     loadPlaybooks();
-  }, [authLoading, user, isConfigured, propAccountId]);
+  }, [authLoading, user, isConfigured, propAccountId, initialPlaybooks]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-2 px-1">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="skeleton h-14 rounded-lg"
+            style={{ borderRadius: "var(--radius-md)" }}
+          />
+        ))}
       </div>
     );
   }
 
   if (playbooks.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>No playbooks yet. Create your trading strategies!</p>
+      <div className="py-4">
+        <NoDataEmpty />
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      {playbooks.map((pb) => (
-        <div
-          key={pb.playbook.id}
-          className="flex cursor-pointer items-center justify-between rounded-lg border border-border-subtle bg-muted/20 p-4 transition-colors hover:bg-accent/40"
-        >
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+      {playbooks.map((pb) => {
+        const pnlColor = getPnLColor(pb.totalPnl);
+        return (
+          <div
+            key={pb.playbook.id}
+            className="flex items-center justify-between p-4"
+            style={{
+              background: "var(--surface-raised)",
+              border: "1px solid var(--border-subtle)",
+              borderRadius: "var(--radius-md)",
+            }}
+          >
+            <div className="flex items-center gap-3 min-w-0">
               {pb.totalPnl >= 0 ? (
-                <TrendingUp className="h-4 w-4 text-[var(--profit-primary)]" />
+                <TrendingUp className="h-4 w-4 shrink-0" style={{ color: "var(--profit-primary)" }} />
               ) : (
-                <TrendingDown className="h-4 w-4 text-[var(--loss-primary)]" />
+                <TrendingDown className="h-4 w-4 shrink-0" style={{ color: "var(--loss-primary)" }} />
               )}
-              <span className="font-medium">{pb.playbook.name}</span>
+              <div className="min-w-0">
+                <p
+                  className="text-[0.8125rem] font-medium truncate"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {pb.playbook.name}
+                </p>
+                <p className="text-[0.7rem]" style={{ color: "var(--text-tertiary)" }}>
+                  {pb.totalTrades} trades · {pb.winRate.toFixed(1)}% win
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-6">
-            <div className="text-right">
-              <span className="text-sm text-muted-foreground">
-                {pb.winRate.toFixed(1)}%
-              </span>
-            </div>
-            <div className="text-right w-24">
-              <span
-                className={cn(
-                  "font-semibold mono",
-                  pb.totalPnl >= 0 ? "profit" : "loss",
-                )}
-              >
-                {pb.totalPnl >= 0 ? "+" : ""}$
-                {Math.abs(pb.totalPnl).toLocaleString()}
-              </span>
-            </div>
+            <span
+              className="text-[0.875rem] font-semibold shrink-0"
+              style={{ fontFamily: "var(--font-jb-mono)", color: pnlColor }}
+            >
+              {pb.totalPnl >= 0 ? "+" : "−"}${Math.abs(pb.totalPnl).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

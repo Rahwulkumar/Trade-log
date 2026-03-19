@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { mt5Accounts, terminalInstances } from '@/lib/db/schema';
 import { enableMetaApiAutoSync, disableMetaApiAutoSync, refreshMetaApiTerminalStatus } from '@/lib/metaapi/service';
@@ -192,13 +192,15 @@ async function enableWindowsMt5PythonAutoSync(
         throw new Error('Account not found');
     }
 
+    await disableOtherWindowsMt5PythonAccounts(accountId, userId);
     await setTerminalEnabled(accountId, true);
     return ensureWindowsWorkerTerminal(accountId, userId);
 }
 
 async function disableWindowsMt5PythonAutoSync(
     accountId: string,
-    userId: string
+    userId: string,
+    message = 'Windows MT5 worker sync is disabled for this account.'
 ): Promise<void> {
     const account = await getOwnedAccount(accountId, userId);
     if (!account) {
@@ -214,7 +216,7 @@ async function disableWindowsMt5PythonAutoSync(
 
     const diagnostics = buildDiagnostics(readTerminalSyncDiagnostics(terminal.metadata), {
         code: 'TERMINAL_DISABLED',
-        message: 'Windows MT5 worker sync is disabled for this account.',
+        message,
         lastHeartbeatAt: terminal.lastHeartbeat ?? undefined,
     });
 
@@ -227,6 +229,8 @@ async function disableWindowsMt5PythonAutoSync(
                 syncProvider: 'windows_mt5_python',
                 windowsMt5Python: {
                     ...(readWindowsMt5PythonMetadata(terminal.metadata) ?? {}),
+                    workerId: null,
+                    workerHost: null,
                     loginState: 'disconnected',
                     lastError: null,
                 },
@@ -234,6 +238,42 @@ async function disableWindowsMt5PythonAutoSync(
             }),
         })
         .where(eq(terminalInstances.id, terminal.id));
+}
+
+async function disableOtherWindowsMt5PythonAccounts(
+    accountId: string,
+    userId: string
+): Promise<void> {
+    const otherTerminals = await db
+        .select({
+            accountId: terminalInstances.accountId,
+            metadata: terminalInstances.metadata,
+        })
+        .from(terminalInstances)
+        .where(
+            and(
+                eq(terminalInstances.userId, userId),
+                ne(terminalInstances.accountId, accountId)
+            )
+        );
+
+    const otherWindowsAccountIds = new Set(
+        otherTerminals
+            .filter(terminal =>
+                readTerminalSyncProvider(
+                    terminal.metadata as Record<string, unknown> | null | undefined
+                ) === 'windows_mt5_python'
+            )
+            .map(terminal => terminal.accountId)
+    );
+
+    for (const otherAccountId of otherWindowsAccountIds) {
+        await disableWindowsMt5PythonAutoSync(
+            otherAccountId,
+            userId,
+            'Windows MT5 worker sync was disabled because a newer MT5 account was enabled for this user.'
+        );
+    }
 }
 
 async function refreshWindowsMt5PythonStatus(

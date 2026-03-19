@@ -56,6 +56,7 @@ function buildFallbackProfile(user: {
     default_risk_percent: DEFAULT_APP_RISK_PERCENT,
     default_rr_ratio: DEFAULT_APP_RR_RATIO,
     default_timeframe: DEFAULT_APP_TIMEFRAME,
+    trading_rules: [],
     created_at: null,
     updated_at: null,
   };

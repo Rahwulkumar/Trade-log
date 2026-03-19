@@ -70,12 +70,12 @@
   --border-default:   rgba(5, 31, 32, 0.16);   /* was 0.10 — medium definition */
   --border-active:    rgba(5, 31, 32, 0.28);   /* was 0.18 — accent hover/focus */
 
-  /* ── Accents — Bangladesh Green (UI interactive only) ── */
-  --accent-primary:   #03624C;   /* Bangladesh Green — buttons, focus, active nav */
-  --accent-secondary: #2CC299;   /* Mountain Meadow — hover highlights */
-  --accent-soft:      rgba(3, 98, 76, 0.08);
-  --accent-muted:     rgba(3, 98, 76, 0.15);
-  --accent-glow:      rgba(3, 98, 76, 0.22);
+  /* ── Accents — Vivid Emerald (UI interactive only) ── */
+  --accent-primary:   #0ABF76;   /* Vivid Emerald — energetic, readable on light bg */
+  --accent-secondary: #3DD68C;   /* Lighter mint — hover/secondary */
+  --accent-soft:      rgba(10, 191, 118, 0.10);
+  --accent-muted:     rgba(10, 191, 118, 0.18);
+  --accent-glow:      rgba(10, 191, 118, 0.28);
 
   /* ── Functional P&L (distinct from UI accent) ── */
   --profit-primary:   #0D9B6E;   /* Emerald — readable on white, visibly distinct from accent */
@@ -118,11 +118,11 @@
   --border-default:   rgba(218, 241, 222, 0.12);
   --border-active:    rgba(44, 194, 153, 0.35);
 
-  /* Light-mode sidebar accent: matches :root --accent-primary (#03624C) */
-  --accent-primary:   #03624C;
-  --accent-secondary: #2CC299;
-  --accent-soft:      rgba(3, 98, 76, 0.18);
-  --accent-glow:      rgba(3, 98, 76, 0.35);
+  /* Light-mode sidebar accent: matches :root --accent-primary */
+  --accent-primary:   #0ABF76;
+  --accent-secondary: #3DD68C;
+  --accent-soft:      rgba(10, 191, 118, 0.18);
+  --accent-glow:      rgba(10, 191, 118, 0.35);
 
   color: var(--text-primary);
 }
@@ -148,7 +148,7 @@ html.dark {
   /* Borders */
   --border-subtle:    rgba(255, 255, 255, 0.06);
   --border-default:   rgba(255, 255, 255, 0.10);
-  --border-active:    rgba(3, 98, 76, 0.45);
+  --border-active:    rgba(10, 191, 118, 0.45);
 
   /* Text — neutral off-whites for readability */
   --text-primary:     #E6EDF3;
@@ -344,7 +344,7 @@ p.stat-medium.profit { color: var(--profit-primary); }
   font-size: 0.7rem;
   font-weight: 500;
   color: var(--text-secondary);
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 .seg-item.active {
   background: var(--surface); /* White */
@@ -369,13 +369,13 @@ p.stat-medium.profit { color: var(--profit-primary); }
 .badge-toggle-on {
   display: inline-flex;
   align-items: center; justify-content: center;
-  background: #03624C;
-  color: #DAF1DE;
+  background: var(--accent-primary);
+  color: #ffffff;
   font-size: 0.65rem;
   font-weight: 700;
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
-  box-shadow: 0 2px 5px rgba(3, 98, 76, 0.35);
+  box-shadow: 0 2px 5px var(--accent-glow);
 }
 
 /* Sidebar Nav Item Active State - preserved dark mode feel if inside sidebar-theme */
@@ -389,19 +389,19 @@ p.stat-medium.profit { color: var(--profit-primary); }
   font-size: 0.84rem;
   font-weight: 500;
   color: var(--text-secondary);
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 .nav-item:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
 }
 .nav-item.active {
-  background: #03624C;           /* Bangladesh Green — calm active state */
-  color: #DAF1DE !important;     /* Lightest Image 2 swatch — readable on dark green */
-  box-shadow: 0 4px 14px rgba(3, 98, 76, 0.35);
+  background: var(--accent-primary);
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px var(--accent-glow);
 }
 .nav-item.active svg {
-  color: #DAF1DE !important;
+  color: rgba(255,255,255,0.85) !important;
 }
 
 /* Legend items */
@@ -459,21 +459,21 @@ p.stat-medium.profit { color: var(--profit-primary); }
   border-radius: var(--radius-default);
   font-size: 0.84rem;
   font-weight: 500;
-  font-family: var(--font-dm-sans), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   white-space: nowrap;
   border: none;
 }
 .btn-primary {
-  background: #03624C;
-  color: #DAF1DE;
+  background: var(--accent-primary);
+  color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(3, 98, 76, 0.35);
+  box-shadow: 0 2px 8px var(--accent-glow);
 }
 .btn-primary:hover {
-  background: #02503D;
-  box-shadow: 0 4px 14px rgba(3, 98, 76, 0.45);
+  background: var(--accent-secondary);
+  box-shadow: 0 4px 14px var(--accent-glow);
   transform: translateY(-1px);
 }
 .btn-secondary {

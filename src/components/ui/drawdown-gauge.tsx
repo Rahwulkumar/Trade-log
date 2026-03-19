@@ -34,15 +34,15 @@ export function DrawdownGauge({
         <div className="absolute inset-0 flex">
           <div
             className="h-full"
-            style={{ width: "50%", background: "rgba(78,203,6,0.15)" }}
+            style={{ width: "50%", background: "var(--profit-bg)" }}
           />
           <div
             className="h-full"
-            style={{ width: "30%", background: "rgba(240,165,0,0.12)" }}
+            style={{ width: "30%", background: "var(--warning-bg)" }}
           />
           <div
             className="h-full flex-1"
-            style={{ background: "rgba(224,82,90,0.12)" }}
+            style={{ background: "var(--loss-bg)" }}
           />
         </div>
         <div

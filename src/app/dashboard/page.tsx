@@ -15,8 +15,14 @@ import {
   getTodayStats,
   type AnalyticsSummary,
 } from "@/lib/api/analytics";
+import { getTrades } from "@/lib/api/client/trades";
+import {
+  getAllPlaybooksWithStats,
+  type PlaybookStats,
+} from "@/lib/api/client/playbooks";
 import { checkCompliance } from "@/lib/api/client/prop-accounts";
 import type { PropAccount } from "@/lib/db/schema";
+import type { Trade } from "@/lib/db/schema";
 import {
   IconAnalytics,
   IconPropFirm,
@@ -30,6 +36,7 @@ import { DrawdownGauge } from "@/components/ui/drawdown-gauge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppPanel, SectionHeader } from "@/components/ui/page-primitives";
+import { TodayPlanWidget } from "@/components/dashboard/today-plan-widget";
 
 interface PropAccountWithCompliance extends PropAccount {
   compliance?: { profitProgress: number | null };
@@ -317,6 +324,8 @@ export default function DashboardPage() {
   } | null>(null);
   const [propAccount, setPropAccount] =
     useState<PropAccountWithCompliance | null>(null);
+  const [recentTrades, setRecentTrades] = useState<Trade[] | null>(null);
+  const [topPlaybooks, setTopPlaybooks] = useState<PlaybookStats[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("1M");
 
@@ -336,6 +345,7 @@ export default function DashboardPage() {
     return "Good evening";
   })();
 
+  // ── Centralized data fetch — everything in one parallel burst ──────────
   useEffect(() => {
     async function load() {
       if (!isConfigured || !user) {
@@ -345,12 +355,27 @@ export default function DashboardPage() {
       try {
         const acct =
           selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
-        const [analyticsData, todayData] = await Promise.all([
+
+        // Fetch ALL data in parallel — eliminates waterfall from child components
+        const [analyticsData, todayData, tradesData, playbooksData] = await Promise.all([
           getAnalyticsSummary(startOfMonth, endOfMonth, acct),
           getTodayStats(acct),
+          getTrades({
+            status: "closed",
+            propAccountId: acct ?? undefined,
+            limit: 5,
+            sortBy: "entryDate",
+            sortOrder: "desc",
+          }),
+          getAllPlaybooksWithStats(acct).then((data) =>
+            data.sort((a, b) => b.totalPnl - a.totalPnl).slice(0, 4)
+          ),
         ]);
+
         setStats(analyticsData);
         setTodayStats(todayData);
+        setRecentTrades(tradesData);
+        setTopPlaybooks(playbooksData);
 
         const targetId =
           selectedAccountId && selectedAccountId !== "unassigned"
@@ -602,7 +627,12 @@ export default function DashboardPage() {
         </AppPanel>
       </section>
 
-      {/* ── ROW 4: Top Strategies + Prop Firm ────────────────────── */}
+      {/* ── ROW 4: Today's Plan ──────────────────────────────────── */}
+      <section className="stagger-5">
+        <TodayPlanWidget />
+      </section>
+
+      {/* ── ROW 5: Top Strategies + Prop Firm ────────────────────── */}
       <section className="stagger-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Top Strategies */}
         <AppPanel className="p-6">
@@ -615,7 +645,7 @@ export default function DashboardPage() {
               </Button>
             }
           />
-          <TopPlaybooks propAccountId={selectedAccountId} />
+          <TopPlaybooks propAccountId={selectedAccountId} initialPlaybooks={topPlaybooks ?? undefined} />
         </AppPanel>
 
         {/* Prop Firm Card */}
@@ -736,7 +766,7 @@ export default function DashboardPage() {
             </Button>
           }
         />
-        <RecentTrades propAccountId={selectedAccountId} />
+        <RecentTrades propAccountId={selectedAccountId} initialTrades={recentTrades ?? undefined} />
       </AppPanel>
 
       {/* ── ROW 6: Trading Calendar ────────────────────────────────── */}

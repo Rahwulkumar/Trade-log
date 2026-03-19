@@ -16,6 +16,8 @@ import {
   doublePrecision,
   jsonb,
   timestamp,
+  date,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -34,6 +36,7 @@ export const appUsers = pgTable('app_users', {
   defaultRiskPercent: doublePrecision('default_risk_percent').default(1),
   defaultRrRatio: doublePrecision('default_rr_ratio').default(2),
   defaultTimeframe: text('default_timeframe').default('h4'),
+  tradingRules: jsonb('trading_rules').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -135,6 +138,30 @@ export const playbooks = pgTable('playbooks', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DAILY PLANS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const dailyPlans = pgTable('daily_plans', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: text('user_id').notNull().references(() => appUsers.id, { onDelete: 'cascade' }),
+  date: date('date').notNull(),
+  bias: text('bias'), // Bullish | Neutral | Bearish
+  playbookId: uuid('playbook_id').references(() => playbooks.id, { onDelete: 'set null' }),
+  maxTrades: integer('max_trades'),
+  dailyLimit: doublePrecision('daily_limit'),
+  universalRulesChecked: text('universal_rules_checked').array().notNull().default(sql`'{}'`),
+  strategyRulesChecked: text('strategy_rules_checked').array().notNull().default(sql`'{}'`),
+  preNote: text('pre_note'),
+  dayGrade: text('day_grade'), // A | B | C | D | F
+  wentWell: text('went_well'),
+  wentWrong: text('went_wrong'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('daily_plans_user_date_idx').on(table.userId, table.date),
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADES  (the core table — 50+ columns across 26 migrations)
@@ -362,4 +389,7 @@ export type TagInsert = typeof tags.$inferInsert;
 
 export type JournalEntry = typeof journalEntries.$inferSelect;
 export type JournalEntryInsert = typeof journalEntries.$inferInsert;
+
+export type DailyPlan = typeof dailyPlans.$inferSelect;
+export type DailyPlanInsert = typeof dailyPlans.$inferInsert;
 

@@ -50,7 +50,7 @@ export function ArcProgress({ percent }: { percent: number }) {
         textAnchor="middle"
         fill="var(--text-tertiary)"
         fontSize="8"
-        fontFamily="var(--font-dm-sans)"
+        fontFamily="var(--font-inter)"
       >
         To Target
       </text>

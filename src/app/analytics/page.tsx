@@ -355,7 +355,7 @@ export default function AnalyticsPage() {
     return (
       <AppPanel className="mt-8 max-w-md">
         <h2 className="mb-2 text-xl font-semibold">Auth Not Configured</h2>
-        <p className="text-muted-foreground">
+        <p style={{ color: "var(--text-tertiary)" }} className="">
           Please add your Clerk credentials to continue.
         </p>
       </AppPanel>
@@ -365,7 +365,7 @@ export default function AnalyticsPage() {
     return (
       <AppPanel className="mt-8 max-w-md">
         <h2 className="mb-2 text-xl font-semibold">Login Required</h2>
-        <p className="mb-4 text-muted-foreground">
+        <p style={{ color: "var(--text-tertiary)" }} className="mb-4">
           Please sign in to view analytics.
         </p>
         <Button asChild className="mt-4">
