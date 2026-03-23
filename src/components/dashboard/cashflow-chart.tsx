@@ -166,7 +166,7 @@ export const CashflowChart = memo(function CashflowChart({
 
   return (
     <div className="h-full w-full">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-label" style={{ marginBottom: "0.1rem" }}>
             Net P&L
@@ -188,7 +188,7 @@ export const CashflowChart = memo(function CashflowChart({
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
           <span
             className="flex items-center gap-1.5"
             style={{

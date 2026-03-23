@@ -335,32 +335,22 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
 
   return (
     <div className={cn("space-y-6", embedded ? "space-y-5" : "space-y-8")}>
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-1">
-          {!embedded ? (
-            <>
-              <p className="text-label">Performance</p>
-              <h1 className="headline-lg">Trading Calendar</h1>
-              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                Review your month day by day and drill into the exact trades that
-                created each result.
-              </p>
-            </>
-          ) : (
-            <>
-              <p
-                className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                Month View
-              </p>
-              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                Tap any active trading day to inspect executions, realized
-                P&amp;L, and win rate.
-              </p>
-            </>
-          )}
-        </div>
+      <section
+        className={cn(
+          "flex flex-col gap-4 lg:flex-row lg:items-end",
+          embedded ? "lg:justify-end" : "lg:justify-between",
+        )}
+      >
+        {!embedded ? (
+          <div className="space-y-1">
+            <p className="text-label">Performance</p>
+            <h1 className="headline-lg">Trading Calendar</h1>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              Review your month day by day and drill into the exact trades that
+              created each result.
+            </p>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:justify-end">
           <button
@@ -404,37 +394,39 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard
-          label="Monthly P&L"
-          value={formatSignedMoney(monthlyStats.totalPnl, 2)}
-          sub={`${monthlyStats.tradingDays} active days in ${monthLabel}`}
-          tone={monthlyStats.totalPnl >= 0 ? "profit" : "loss"}
-        />
-        <StatCard
-          label="Total Trades"
-          value={String(monthlyStats.totalTrades)}
-          sub="Closed and open entries logged this month"
-        />
-        <StatCard
-          label="Winning Days"
-          value={String(monthlyStats.winningDays)}
-          sub={`${monthlyStats.winRate}% of active days finished green`}
-          tone={monthlyStats.winningDays > 0 ? "profit" : "neutral"}
-        />
-        <StatCard
-          label="Losing Days"
-          value={String(monthlyStats.losingDays)}
-          sub={`${Math.max(monthlyStats.tradingDays - monthlyStats.winningDays, 0)} non-green active days`}
-          tone={monthlyStats.losingDays > 0 ? "loss" : "neutral"}
-        />
-        <StatCard
-          label="Win Rate"
-          value={`${monthlyStats.winRate}%`}
-          sub="Winning trading days divided by all active days"
-          tone={monthlyStats.winRate >= 50 ? "profit" : "neutral"}
-        />
-      </section>
+      {!embedded ? (
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <StatCard
+            label="Monthly P&L"
+            value={formatSignedMoney(monthlyStats.totalPnl, 2)}
+            sub={`${monthlyStats.tradingDays} active days in ${monthLabel}`}
+            tone={monthlyStats.totalPnl >= 0 ? "profit" : "loss"}
+          />
+          <StatCard
+            label="Total Trades"
+            value={String(monthlyStats.totalTrades)}
+            sub="Closed and open entries logged this month"
+          />
+          <StatCard
+            label="Winning Days"
+            value={String(monthlyStats.winningDays)}
+            sub={`${monthlyStats.winRate}% of active days finished green`}
+            tone={monthlyStats.winningDays > 0 ? "profit" : "neutral"}
+          />
+          <StatCard
+            label="Losing Days"
+            value={String(monthlyStats.losingDays)}
+            sub={`${Math.max(monthlyStats.tradingDays - monthlyStats.winningDays, 0)} non-green active days`}
+            tone={monthlyStats.losingDays > 0 ? "loss" : "neutral"}
+          />
+          <StatCard
+            label="Win Rate"
+            value={`${monthlyStats.winRate}%`}
+            sub="Winning trading days divided by all active days"
+            tone={monthlyStats.winRate >= 50 ? "profit" : "neutral"}
+          />
+        </section>
+      ) : null}
 
       {loading ? (
         <div
