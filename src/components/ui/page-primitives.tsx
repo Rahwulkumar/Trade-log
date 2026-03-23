@@ -98,7 +98,8 @@ export function AppPageHeader({
               fontWeight: 800,
               fontSize: "1.45rem",
               letterSpacing: "-0.03em",
-              lineHeight: 1.1,
+              lineHeight: 1.24,
+              paddingBottom: "0.1em",
             }}
           >
             {title}

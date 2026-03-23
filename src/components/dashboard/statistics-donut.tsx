@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useAuth } from "@/components/auth-provider";
 import { getAnalyticsPayloadClient } from "@/lib/api/client/analytics";
@@ -25,7 +25,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   "Break-Even": "Break-even",
 };
 
-function DonutTooltip({
+const DonutTooltip = memo(function DonutTooltip({
   active,
   payload,
 }: {
@@ -59,7 +59,7 @@ function DonutTooltip({
       </span>
     </div>
   );
-}
+});
 
 export function StatisticsDonut({
   propAccountId,
@@ -68,7 +68,8 @@ export function StatisticsDonut({
   summary,
 }: StatisticsProps) {
   const { user, isConfigured, loading: authLoading } = useAuth();
-  const [stats, setStats] = useState<{
+  const userId = user?.id ?? null;
+  const [remoteStats, setRemoteStats] = useState<{
     wins: number;
     losses: number;
     breakEven: number;
@@ -95,15 +96,21 @@ export function StatisticsDonut({
     };
   }
 
+  const summaryStats = useMemo(
+    () => (summary ? buildStats(summary) : null),
+    [summary],
+  );
+  const stats = summaryStats ?? remoteStats;
+
   useEffect(() => {
     async function load() {
       if (summary) {
-        setStats(buildStats(summary));
+        setRemoteStats(null);
         setLoading(false);
         return;
       }
       if (authLoading) return;
-      if (!isConfigured || !user) {
+      if (!isConfigured || !userId) {
         setLoading(false);
         return;
       }
@@ -127,11 +134,11 @@ export function StatisticsDonut({
           to: end,
         });
         if (!payload) {
-          setStats(null);
+          setRemoteStats(null);
           return;
         }
 
-        setStats(buildStats(payload.summary));
+        setRemoteStats(buildStats(payload.summary));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (!msg.includes("Failed to fetch"))
@@ -141,7 +148,7 @@ export function StatisticsDonut({
       }
     }
     load();
-  }, [authLoading, user, isConfigured, propAccountId, startDate, endDate, summary]);
+  }, [authLoading, endDate, isConfigured, propAccountId, startDate, summary, userId]);
 
   const pieData = stats
     ? [

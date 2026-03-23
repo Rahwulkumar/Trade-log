@@ -22,7 +22,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/prop-firm": "Prop Firm",
   "/settings": "Settings",
   "/profile": "Profile",
-  "/notebook": "Trade Journal",
 };
 
 function ThemeToggle() {

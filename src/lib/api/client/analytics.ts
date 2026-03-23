@@ -1,6 +1,16 @@
 import type { AnalyticsPayload } from '@/lib/analytics/types';
 import { readJsonIfAvailable } from '@/lib/api/client/http';
 
+const ANALYTICS_CACHE_TTL_MS = 15_000;
+const analyticsResponseCache = new Map<
+  string,
+  { expiresAt: number; data: AnalyticsPayload | null }
+>();
+const pendingAnalyticsRequests = new Map<
+  string,
+  Promise<AnalyticsPayload | null>
+>();
+
 export interface AnalyticsClientFilters {
   account?: string | null;
   from?: string | null;
@@ -18,15 +28,48 @@ function buildQueryString(filters: AnalyticsClientFilters): string {
   return query ? `?${query}` : '';
 }
 
+function getCacheKey(filters: AnalyticsClientFilters): string {
+  return `/api/analytics${buildQueryString(filters)}`;
+}
+
 export async function getAnalyticsPayloadClient(
   filters: AnalyticsClientFilters = {},
 ): Promise<AnalyticsPayload | null> {
+  const cacheKey = getCacheKey(filters);
+  const now = Date.now();
+  const cached = analyticsResponseCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.data;
+  }
+
+  const pending = pendingAnalyticsRequests.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  const request = (async () => {
+    try {
+      const res = await fetch(cacheKey, {
+        credentials: 'include',
+      });
+      if (!res.ok) return null;
+      const data = (await readJsonIfAvailable<AnalyticsPayload>(res)) ?? null;
+      analyticsResponseCache.set(cacheKey, {
+        expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS,
+        data,
+      });
+      return data;
+    } catch {
+      return null;
+    } finally {
+      pendingAnalyticsRequests.delete(cacheKey);
+    }
+  })();
+
+  pendingAnalyticsRequests.set(cacheKey, request);
+
   try {
-    const res = await fetch(`/api/analytics${buildQueryString(filters)}`, {
-      credentials: 'include',
-    });
-    if (!res.ok) return null;
-    return (await readJsonIfAvailable<AnalyticsPayload>(res)) ?? null;
+    return await request;
   } catch {
     return null;
   }

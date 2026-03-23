@@ -85,7 +85,17 @@ const nullableInteger = z.union([z.number().int(), z.string().trim().min(1), z.n
 );
 
 const stringArray = z.array(z.string().trim().min(1).max(120)).max(50);
-const qualityRating = z.union([z.enum(['Good', 'Neutral', 'Poor']), z.null()]);
+const qualityRating = z
+  .union([
+    z.enum(['Good', 'Neutral', 'Poor']),
+    z.enum(['1', '2', '3', '4', '5']),
+    z.number().int().min(1).max(5),
+    z.null(),
+  ])
+  .transform((value) => {
+    if (value === null) return null;
+    return typeof value === 'number' ? String(value) : value;
+  });
 const tradeStatus = z
   .enum(['OPEN', 'CLOSED', 'open', 'closed'])
   .transform((value) => value.toUpperCase() as 'OPEN' | 'CLOSED');
@@ -99,6 +109,40 @@ const tfObservations = z.union([
       notes: z.string().trim().max(4000).optional(),
     }),
   ),
+  z.null(),
+]);
+
+const journalReview = z.union([
+  z
+    .object({
+      strategyName: nullableString(200).optional(),
+      setupName: nullableString(200).optional(),
+      reasonForTrade: nullableString(10000).optional(),
+      invalidation: nullableString(4000).optional(),
+      targetPlan: nullableString(4000).optional(),
+      timeframeAlignment: z
+        .union([
+          z.enum(['aligned', 'mixed', 'countertrend', 'unclear']),
+          z.null(),
+        ])
+        .optional(),
+      retakeDecision: z
+        .union([z.enum(['yes', 'maybe', 'no']), z.null()])
+        .optional(),
+      higherTimeframeBias: nullableString(200).optional(),
+      higherTimeframeNotes: nullableString(4000).optional(),
+      executionTimeframe: nullableString(120).optional(),
+      triggerTimeframe: nullableString(120).optional(),
+      entryReason: nullableString(8000).optional(),
+      managementReview: nullableString(8000).optional(),
+      exitReason: nullableString(8000).optional(),
+      psychologyBefore: nullableString(4000).optional(),
+      psychologyDuring: nullableString(4000).optional(),
+      psychologyAfter: nullableString(4000).optional(),
+      marketContext: nullableString(4000).optional(),
+      followUpAction: nullableString(4000).optional(),
+    })
+    .strict(),
   z.null(),
 ]);
 
@@ -146,6 +190,7 @@ const tradeCreateSchema = z
     conviction: z.union([z.number().int().min(1).max(5), z.null()]).optional(),
     lessonLearned: nullableString(4000).optional(),
     wouldTakeAgain: nullableBoolean.optional(),
+    journalReview: journalReview.optional(),
     tfObservations: tfObservations.optional(),
     executionNotes: nullableString(10000).optional(),
     executionArrays: stringArray.nullable().optional(),
@@ -188,6 +233,7 @@ function normalizeTradePayload(raw: unknown): unknown {
     management_rating: 'managementRating',
     lesson_learned: 'lessonLearned',
     would_take_again: 'wouldTakeAgain',
+    journal_review: 'journalReview',
     tf_observations: 'tfObservations',
     execution_notes: 'executionNotes',
     execution_arrays: 'executionArrays',

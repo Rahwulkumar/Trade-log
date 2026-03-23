@@ -6,6 +6,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
 } from "react";
 import { useAuth } from "@/components/auth-provider";
@@ -29,12 +30,14 @@ const PropAccountContext = createContext<PropAccountContextType | undefined>(
 
 export function PropAccountProvider({ children }: { children: ReactNode }) {
   const { user, isConfigured, loading: authLoading } = useAuth();
+  const userId = user?.id ?? null;
   const [selectedAccountId, setSelectedAccountIdState] = useState<
     string | null
   >(null);
   const [propAccounts, setPropAccounts] = useState<PropAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
+  const fetchedForUserRef = useRef<string | null>(null);
 
   // Rehydrate from localStorage on mount
   useEffect(() => {
@@ -56,21 +59,24 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshPropAccounts = useCallback(async () => {
-    if (!isConfigured || !user) return;
+    if (!isConfigured || !userId) return;
     try {
       const accounts = await getActivePropAccounts();
       setPropAccounts(accounts);
+      fetchedForUserRef.current = userId;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.includes("Failed to fetch"))
         console.error("Failed to load prop accounts:", err);
     }
-  }, [isConfigured, user]);
+  }, [isConfigured, userId]);
 
   // Fetch active prop accounts — wait for auth to fully resolve first
   useEffect(() => {
     if (authLoading) return;
-    if (!isConfigured || !user) {
+    if (!isConfigured || !userId) {
+      fetchedForUserRef.current = null;
+      setPropAccounts([]);
       setLoading(false);
       return;
     }
@@ -80,6 +86,7 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         const accounts = await getActivePropAccounts();
         setPropAccounts(accounts);
+        fetchedForUserRef.current = userId;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (!msg.includes("Failed to fetch"))
@@ -90,9 +97,13 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
     }
 
     if (initialized) {
+      if (fetchedForUserRef.current === userId) {
+        setLoading(false);
+        return;
+      }
       loadAccounts();
     }
-  }, [authLoading, user, isConfigured, initialized]);
+  }, [authLoading, userId, isConfigured, initialized]);
 
   return (
     <PropAccountContext.Provider

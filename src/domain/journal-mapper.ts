@@ -1,238 +1,360 @@
-// ─── Journal Mapper ─────────────────────────────────────────────────────────
-// Single boundary between Supabase Trade rows and the Journal UI view-model.
-// All casts live HERE and nowhere else.
-// ────────────────────────────────────────────────────────────────────────────
-
-import type { Trade, TradeScreenshot as SupabaseScreenshot } from "@/lib/supabase/types";
-import type { Json } from "@/lib/supabase/types";
-import type {
-  JournalTradeViewModel,
-  JournalEntryDraft,
-  JournalScreenshot,
-  TfObservation,
-  QualityRating,
+import type { Trade } from "@/lib/db/schema";
+import type { TradeScreenshot as SupabaseScreenshot } from "@/lib/supabase/types";
+import {
+  EMPTY_JOURNAL_REVIEW,
+  type JournalEntryDraft,
+  type JournalReview,
+  type JournalScreenshot,
+  type JournalSession,
+  type JournalTradeViewModel,
+  type QualityRating,
+  type TfObservation,
 } from "./journal-types";
 
-// ─── Internal parse helpers ─────────────────────────────────────────────────
-
 function parseStringArray(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((v): v is string => typeof v === "string");
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.filter((value): value is string => typeof value === "string");
 }
 
-function parseScreenshots(raw: Json | null, tradeId: string): JournalScreenshot[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.flatMap((item, idx): JournalScreenshot[] => {
+function parseScreenshots(raw: unknown, tradeId: string): JournalScreenshot[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw.flatMap((item, index): JournalScreenshot[] => {
     if (typeof item === "string") {
-      return [{
-        id: `${tradeId}-ss-${idx}`,
-        tradeId,
-        url: item,
-        timeframe: "—",
-        createdAt: "",
-      }];
+      return [
+        {
+          id: `${tradeId}-ss-${index}`,
+          tradeId,
+          url: item,
+          timeframe: "--",
+          createdAt: "",
+        },
+      ];
     }
+
     if (typeof item === "object" && item !== null && "url" in item) {
-      const s = item as { url: string; timeframe?: string; created_at?: string };
-      return [{
-        id: `${tradeId}-ss-${idx}`,
-        tradeId,
-        url: s.url,
-        timeframe: s.timeframe ?? "—",
-        createdAt: s.created_at ?? "",
-      }];
+      const screenshot = item as {
+        url: string;
+        timeframe?: string;
+        created_at?: string;
+      };
+
+      return [
+        {
+          id: `${tradeId}-ss-${index}`,
+          tradeId,
+          url: screenshot.url,
+          timeframe: screenshot.timeframe ?? "--",
+          createdAt: screenshot.created_at ?? "",
+        },
+      ];
     }
+
     return [];
   });
 }
 
-function parseTfObservations(raw: Json | null): Record<string, TfObservation> {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const obj = raw as Record<string, unknown>;
+function parseTfObservations(raw: unknown): Record<string, TfObservation> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+
+  const record = raw as Record<string, unknown>;
   const result: Record<string, TfObservation> = {};
-  for (const [key, value] of Object.entries(obj)) {
+
+  for (const [key, value] of Object.entries(record)) {
     if (typeof value === "object" && value !== null) {
-      const v = value as Record<string, unknown>;
+      const observation = value as Record<string, unknown>;
       result[key] = {
-        bias: typeof v.bias === "string" ? v.bias : undefined,
-        notes: typeof v.notes === "string" ? v.notes : undefined,
+        bias: typeof observation.bias === "string" ? observation.bias : undefined,
+        notes:
+          typeof observation.notes === "string" ? observation.notes : undefined,
       };
     }
   }
+
   return result;
 }
 
 function parseQuality(raw: string | null | undefined): QualityRating | null {
-  if (raw === "Good" || raw === "Neutral" || raw === "Poor") return raw;
+  if (!raw) {
+    return null;
+  }
+
+  const normalized = raw.trim();
+  if (normalized === "Good") return 5;
+  if (normalized === "Neutral") return 3;
+  if (normalized === "Poor") return 1;
+
+  const parsed = Number.parseInt(normalized, 10);
+  if (parsed >= 1 && parsed <= 5) {
+    return parsed as QualityRating;
+  }
+
   return null;
 }
 
-// ─── Public mapper: Trade row → ViewModel ───────────────────────────────────
+function parseSession(raw: string | null | undefined): JournalSession | null {
+  if (!raw) {
+    return null;
+  }
 
-/**
- * Maps a raw Supabase Trade row to the canonical JournalTradeViewModel.
- *
- * This is the SINGLE place where raw row data is normalised for the Journal UI.
- * All journal-specific columns are accessed directly from the Trade type
- * (they exist on the Row type since the supabase types were generated from the
- *  schema which includes these columns).
- */
-export function mapTradeToViewModel(t: Trade): JournalTradeViewModel {
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "london") return "London";
+  if (normalized === "new york" || normalized === "newyork") return "New York";
+  if (normalized === "asia" || normalized === "asian") return "Asia";
+  if (normalized === "overnight") return "Overnight";
+  return null;
+}
+
+function asString(raw: unknown): string {
+  return typeof raw === "string" ? raw : "";
+}
+
+function parseJournalReview(raw: unknown): JournalReview {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ...EMPTY_JOURNAL_REVIEW };
+  }
+
+  const review = raw as Record<string, unknown>;
+
   return {
-    // Identity
-    id: t.id,
-    symbol: t.symbol,
-    direction: t.direction === "SHORT" ? "SHORT" : "LONG",
-    status: t.status === "open" ? "open" : "closed",
-
-    // Core numbers
-    pnl: t.pnl ?? null,
-    rMultiple: t.r_multiple ?? null,
-    entryPrice: t.entry_price ?? null,
-    exitPrice: t.exit_price ?? null,
-    entryDate: t.entry_date ?? null,
-    exitDate: t.exit_date ?? null,
-    positionSize: t.position_size ?? null,
-    stopLoss: t.stop_loss ?? null,
-    takeProfit: t.take_profit ?? null,
-
-    // Relations
-    propAccountId: t.prop_account_id ?? null,
-    playbookId: t.playbook_id ?? null,
-    createdAt: t.created_at ?? null,
-
-    // Journal fields — directly available on the Trade Row type
-    notes: t.notes ?? "",
-    feelings: t.feelings ?? "",
-    observations: t.observations ?? "",
-    executionNotes: t.execution_notes ?? "",
-    setupTags: t.setup_tags ?? [],
-    mistakeTags: t.mistake_tags ?? [],
-    executionArrays: parseStringArray(t.execution_arrays),
-    screenshots: parseScreenshots(t.screenshots, t.id),
-    conviction: t.conviction ?? null,
-    entryRating: parseQuality(t.entry_rating),
-    exitRating: parseQuality(t.exit_rating),
-    mae: t.mae ?? null,
-    mfe: t.mfe ?? null,
-    tfObservations: parseTfObservations(t.tf_observations),
+    strategyName: asString(review.strategyName),
+    setupName: asString(review.setupName),
+    reasonForTrade: asString(review.reasonForTrade),
+    invalidation: asString(review.invalidation),
+    targetPlan: asString(review.targetPlan),
+    timeframeAlignment:
+      review.timeframeAlignment === "aligned" ||
+      review.timeframeAlignment === "mixed" ||
+      review.timeframeAlignment === "countertrend" ||
+      review.timeframeAlignment === "unclear"
+        ? review.timeframeAlignment
+        : null,
+    retakeDecision:
+      review.retakeDecision === "yes" ||
+      review.retakeDecision === "maybe" ||
+      review.retakeDecision === "no"
+        ? review.retakeDecision
+        : null,
+    higherTimeframeBias: asString(review.higherTimeframeBias),
+    higherTimeframeNotes: asString(review.higherTimeframeNotes),
+    executionTimeframe: asString(review.executionTimeframe),
+    triggerTimeframe: asString(review.triggerTimeframe),
+    entryReason: asString(review.entryReason),
+    managementReview: asString(review.managementReview),
+    exitReason: asString(review.exitReason),
+    psychologyBefore: asString(review.psychologyBefore),
+    psychologyDuring: asString(review.psychologyDuring),
+    psychologyAfter: asString(review.psychologyAfter),
+    marketContext: asString(review.marketContext),
+    followUpAction: asString(review.followUpAction),
   };
 }
 
-// ─── ViewModel → Draft (initial editor state) ──────────────────────────────
-
-export function viewModelToDraft(vm: JournalTradeViewModel): JournalEntryDraft {
+export function mapTradeToViewModel(trade: Trade): JournalTradeViewModel {
   return {
-    notes: vm.notes,
-    feelings: vm.feelings,
-    observations: vm.observations,
-    setupTags: [...vm.setupTags],
-    mistakeTags: [...vm.mistakeTags],
-    conviction: vm.conviction,
-    entryRating: vm.entryRating,
-    exitRating: vm.exitRating,
-    mae: vm.mae,
-    mfe: vm.mfe,
-    tfObservations: { ...vm.tfObservations },
-    executionNotes: vm.executionNotes,
-    executionArrays: [...vm.executionArrays],
-    screenshots: [...vm.screenshots],
+    id: trade.id,
+    symbol: trade.symbol,
+    direction: trade.direction === "SHORT" ? "SHORT" : "LONG",
+    status: trade.status === "OPEN" ? "open" : "closed",
+    pnl: trade.pnl != null ? Number(trade.pnl) : null,
+    rMultiple: trade.rMultiple != null ? Number(trade.rMultiple) : null,
+    entryPrice: trade.entryPrice != null ? Number(trade.entryPrice) : null,
+    exitPrice: trade.exitPrice != null ? Number(trade.exitPrice) : null,
+    entryDate:
+      trade.entryDate instanceof Date
+        ? trade.entryDate.toISOString()
+        : ((trade.entryDate as unknown as string) ?? null),
+    exitDate:
+      trade.exitDate instanceof Date
+        ? trade.exitDate.toISOString()
+        : ((trade.exitDate as unknown as string) ?? null),
+    positionSize: trade.positionSize != null ? Number(trade.positionSize) : null,
+    stopLoss: trade.stopLoss != null ? Number(trade.stopLoss) : null,
+    takeProfit: trade.takeProfit != null ? Number(trade.takeProfit) : null,
+    propAccountId: trade.propAccountId ?? null,
+    playbookId: trade.playbookId ?? null,
+    createdAt:
+      trade.createdAt instanceof Date
+        ? trade.createdAt.toISOString()
+        : ((trade.createdAt as unknown as string) ?? null),
+    marketCondition: trade.marketCondition ?? null,
+    notes: trade.notes ?? "",
+    feelings: trade.feelings ?? "",
+    observations: trade.observations ?? "",
+    executionNotes: trade.executionNotes ?? "",
+    setupTags: trade.setupTags ?? [],
+    mistakeTags: trade.mistakeTags ?? [],
+    executionArrays: parseStringArray(trade.executionArrays),
+    screenshots: parseScreenshots(trade.screenshots, trade.id),
+    session: parseSession(trade.session),
+    conviction: trade.conviction ?? null,
+    entryRating: parseQuality(trade.entryRating),
+    exitRating: parseQuality(trade.exitRating),
+    managementRating: parseQuality(trade.managementRating),
+    mae: trade.mae ?? null,
+    mfe: trade.mfe ?? null,
+    lessonLearned: trade.lessonLearned ?? "",
+    wouldTakeAgain: trade.wouldTakeAgain ?? null,
+    tfObservations: parseTfObservations(trade.tfObservations),
+    journalReview: parseJournalReview(trade.journalReview),
   };
 }
 
-// ─── Draft → Supabase update payload ────────────────────────────────────────
+export function viewModelToDraft(
+  viewModel: JournalTradeViewModel,
+): JournalEntryDraft {
+  return {
+    notes: viewModel.notes,
+    feelings: viewModel.feelings,
+    observations: viewModel.observations,
+    setupTags: [...viewModel.setupTags],
+    mistakeTags: [...viewModel.mistakeTags],
+    session: viewModel.session,
+    conviction: viewModel.conviction,
+    entryRating: viewModel.entryRating,
+    exitRating: viewModel.exitRating,
+    managementRating: viewModel.managementRating,
+    mae: viewModel.mae,
+    mfe: viewModel.mfe,
+    lessonLearned: viewModel.lessonLearned,
+    wouldTakeAgain: viewModel.wouldTakeAgain,
+    tfObservations: { ...viewModel.tfObservations },
+    executionNotes: viewModel.executionNotes,
+    executionArrays: [...viewModel.executionArrays],
+    screenshots: [...viewModel.screenshots],
+    marketCondition: viewModel.marketCondition,
+    journalReview: { ...viewModel.journalReview },
+  };
+}
 
-/**
- * Converts a JournalEntryDraft into a flat object ready for
- * `supabase.from("trades").update(payload)`.
- *
- * Empty strings → null, empty arrays → null (matches original save logic).
- */
-export function mapDraftToTradeUpdate(draft: JournalEntryDraft): Record<string, unknown> {
+export function mapDraftToTradeUpdate(
+  draft: JournalEntryDraft,
+): Record<string, unknown> {
   return {
     notes: draft.notes || null,
     feelings: draft.feelings || null,
     observations: draft.observations || null,
     screenshots: draft.screenshots.length
-      ? draft.screenshots.map((s) => ({ url: s.url, timeframe: s.timeframe }))
+      ? draft.screenshots.map((item) => ({
+          url: item.url,
+          timeframe: item.timeframe,
+        }))
       : null,
+    journal_review: draft.journalReview,
     tf_observations: Object.keys(draft.tfObservations).length
       ? draft.tfObservations
       : null,
     setup_tags: draft.setupTags.length ? draft.setupTags : null,
     mistake_tags: draft.mistakeTags.length ? draft.mistakeTags : null,
+    session: draft.session,
+    market_condition: draft.marketCondition,
     conviction: draft.conviction,
-    entry_rating: draft.entryRating,
-    exit_rating: draft.exitRating,
+    entry_rating: draft.entryRating != null ? String(draft.entryRating) : null,
+    exit_rating: draft.exitRating != null ? String(draft.exitRating) : null,
+    management_rating:
+      draft.managementRating != null ? String(draft.managementRating) : null,
     mae: draft.mae,
     mfe: draft.mfe,
+    lesson_learned: draft.lessonLearned || null,
+    would_take_again: draft.wouldTakeAgain,
     execution_notes: draft.executionNotes || null,
     execution_arrays: draft.executionArrays.length ? draft.executionArrays : null,
   };
 }
 
-// ─── Journaled detection (moved from journal-library.tsx) ───────────────────
-
-/** Returns true if the trade has any meaningful journal data filled in. */
-export function isTradeJournaled(vm: JournalTradeViewModel): boolean {
-  return !!(
-    vm.notes ||
-    vm.feelings ||
-    vm.observations ||
-    vm.executionNotes ||
-    vm.conviction ||
-    vm.setupTags.length > 0 ||
-    vm.mistakeTags.length > 0 ||
-    vm.screenshots.length > 0 ||
-    vm.executionArrays.length > 0 ||
-    Object.keys(vm.tfObservations).length > 0
+export function isTradeJournaled(viewModel: JournalTradeViewModel): boolean {
+  const review = viewModel.journalReview;
+  return Boolean(
+    viewModel.notes ||
+      viewModel.feelings ||
+      viewModel.observations ||
+      viewModel.executionNotes ||
+      viewModel.conviction ||
+      viewModel.marketCondition ||
+      viewModel.setupTags.length > 0 ||
+      viewModel.mistakeTags.length > 0 ||
+      viewModel.session ||
+      viewModel.managementRating ||
+      viewModel.lessonLearned ||
+      viewModel.wouldTakeAgain !== null ||
+      viewModel.screenshots.length > 0 ||
+      viewModel.executionArrays.length > 0 ||
+      Object.keys(viewModel.tfObservations).length > 0 ||
+      review.strategyName ||
+      review.setupName ||
+      review.reasonForTrade ||
+      review.invalidation ||
+      review.targetPlan ||
+      review.timeframeAlignment ||
+      review.retakeDecision ||
+      review.higherTimeframeBias ||
+      review.higherTimeframeNotes ||
+      review.executionTimeframe ||
+      review.triggerTimeframe ||
+      review.entryReason ||
+      review.managementReview ||
+      review.exitReason ||
+      review.psychologyBefore ||
+      review.psychologyDuring ||
+      review.psychologyAfter ||
+      review.marketContext ||
+      review.followUpAction,
   );
 }
 
-/** Convenience — same check on a raw Trade row (uses ViewModel internally) */
-export function isRawTradeJournaled(t: Trade): boolean {
-  return isTradeJournaled(mapTradeToViewModel(t));
+export function isRawTradeJournaled(trade: Trade): boolean {
+  return isTradeJournaled(mapTradeToViewModel(trade));
 }
 
-// ─── Draft → API update payload (camelCase for Drizzle/REST) ────────────────
-
-/**
- * Converts a JournalEntryDraft into a flat object for PATCH /api/trades/:id.
- * Uses camelCase keys matching the Drizzle schema.
- */
-export function mapDraftToApiUpdate(draft: JournalEntryDraft): Record<string, unknown> {
+export function mapDraftToApiUpdate(
+  draft: JournalEntryDraft,
+): Record<string, unknown> {
   return {
     notes: draft.notes || null,
     feelings: draft.feelings || null,
     observations: draft.observations || null,
     screenshots: draft.screenshots.length
-      ? draft.screenshots.map((s) => ({ url: s.url, timeframe: s.timeframe }))
+      ? draft.screenshots.map((item) => ({
+          url: item.url,
+          timeframe: item.timeframe,
+        }))
       : null,
+    journalReview: draft.journalReview,
     tfObservations: Object.keys(draft.tfObservations).length
       ? draft.tfObservations
       : null,
     setupTags: draft.setupTags.length ? draft.setupTags : null,
     mistakeTags: draft.mistakeTags.length ? draft.mistakeTags : null,
+    session: draft.session,
+    marketCondition: draft.marketCondition,
     conviction: draft.conviction,
-    entryRating: draft.entryRating,
-    exitRating: draft.exitRating,
+    entryRating: draft.entryRating != null ? String(draft.entryRating) : null,
+    exitRating: draft.exitRating != null ? String(draft.exitRating) : null,
+    managementRating:
+      draft.managementRating != null ? String(draft.managementRating) : null,
     mae: draft.mae,
     mfe: draft.mfe,
+    lessonLearned: draft.lessonLearned || null,
+    wouldTakeAgain: draft.wouldTakeAgain,
     executionNotes: draft.executionNotes || null,
     executionArrays: draft.executionArrays.length ? draft.executionArrays : null,
   };
 }
 
-// ─── TradeScreenshot interop ────────────────────────────────────────────────
-
-/** Convert JournalScreenshot back to the SupabaseScreenshot shape for components
- *  that still expect the old interface during the migration period. */
-export function toSupabaseScreenshot(s: JournalScreenshot): SupabaseScreenshot {
+export function toSupabaseScreenshot(
+  screenshot: JournalScreenshot,
+): SupabaseScreenshot {
   return {
-    id: s.id,
-    trade_id: s.tradeId,
-    url: s.url,
-    timeframe: s.timeframe,
-    created_at: s.createdAt,
+    id: screenshot.id,
+    trade_id: screenshot.tradeId,
+    url: screenshot.url,
+    timeframe: screenshot.timeframe,
+    created_at: screenshot.createdAt,
   };
 }

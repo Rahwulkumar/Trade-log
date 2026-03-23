@@ -1,34 +1,48 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { memo, useMemo } from "react";
 import {
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
 } from "recharts";
-import { useAuth } from "@/components/auth-provider";
-import { getTrades } from "@/lib/api/client/trades";
+
+import type { Trade } from "@/lib/db/schema";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 
-// ─── Types ────────────────────────────────────────────────────────────────
 interface CashflowProps {
-  propAccountId?: string | null;
+  trades?: Trade[] | null;
+  loading?: boolean;
   period?: "1W" | "1M" | "3M" | "YTD";
 }
 
-interface MonthBucket {
+interface PeriodBucket {
   label: string;
   sortKey: number;
   grossProfit: number;
   grossLoss: number;
 }
 
-// Custom tooltip
-function CashflowTooltip({
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+const CashflowTooltip = memo(function CashflowTooltip({
   active,
   payload,
   label,
@@ -38,10 +52,11 @@ function CashflowTooltip({
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
+
   return (
     <div
       style={{
-        background: "var(--surface-elevated)", // Light grey in light mode
+        background: "var(--surface-elevated)",
         border: "1px solid var(--border-default)",
         borderRadius: "var(--radius-md)",
         padding: "0.65rem 0.9rem",
@@ -59,7 +74,7 @@ function CashflowTooltip({
       >
         {label}
       </p>
-        {payload.map((entry) => (
+      {payload.map((entry) => (
         <div
           key={entry.name}
           className="flex items-center justify-between gap-4"
@@ -90,123 +105,68 @@ function CashflowTooltip({
       ))}
     </div>
   );
-}
+});
 
-// ─── Main Component ───────────────────────────────────────────────────────
-export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
-  const { user, isConfigured, loading: authLoading } = useAuth();
-  const [data, setData] = useState<MonthBucket[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [totalPnl, setTotalPnl] = useState(0);
+export const CashflowChart = memo(function CashflowChart({
+  trades,
+  loading = false,
+  period = "1M",
+}: CashflowProps) {
+  const { data, totalPnl } = useMemo(() => {
+    const safeTrades = trades ?? [];
+    const buckets = new Map<string, PeriodBucket>();
 
-  useEffect(() => {
-    async function load() {
-      if (authLoading) return;
-      if (!isConfigured || !user) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const now = new Date();
-        let startDate: Date;
-        switch (period) {
-          case "1W":
-            startDate = new Date(now);
-            startDate.setDate(now.getDate() - 7);
-            break;
-          case "3M":
-            startDate = new Date(now);
-            startDate.setMonth(now.getMonth() - 3);
-            break;
-          case "YTD":
-            startDate = new Date(now.getFullYear(), 0, 1);
-            break;
-          default:
-            startDate = new Date(now);
-            startDate.setMonth(now.getMonth() - 1);
-        }
+    for (const trade of safeTrades) {
+      if (!trade.exitDate && !trade.entryDate) continue;
 
-        const trades = await getTrades({
-          propAccountId: propAccountId ?? undefined,
-          startDate: startDate.toISOString().split("T")[0],
-          endDate: now.toISOString().split("T")[0],
+      const date = new Date(trade.exitDate || trade.entryDate || "");
+      const key =
+        period === "1W"
+          ? date.toISOString().split("T")[0]
+          : `${date.getFullYear()}-${date.getMonth()}`;
+      const label =
+        period === "1W"
+          ? date.toLocaleDateString("en-US", { weekday: "short" })
+          : MONTH_LABELS[date.getMonth()];
+
+      if (!buckets.has(key)) {
+        buckets.set(key, {
+          label,
+          sortKey:
+            period === "1W"
+              ? new Date(
+                  date.getFullYear(),
+                  date.getMonth(),
+                  date.getDate(),
+                ).getTime()
+              : new Date(date.getFullYear(), date.getMonth(), 1).getTime(),
+          grossProfit: 0,
+          grossLoss: 0,
         });
+      }
 
-        const buckets = new Map<string, MonthBucket>();
-        const monthLabels = [
-          "Jan",
-          "Feb",
-          "Mar",
-          "Apr",
-          "May",
-          "Jun",
-          "Jul",
-          "Aug",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dec",
-        ];
-
-        for (const trade of trades) {
-          if (!trade.exitDate && !trade.entryDate) continue;
-          const d = new Date(trade.exitDate || trade.entryDate || "");
-          let key: string;
-          let label: string;
-
-          if (period === "1W") {
-            key = d.toISOString().split("T")[0];
-            label = d.toLocaleDateString("en-US", { weekday: "short" });
-          } else {
-            key = `${d.getFullYear()}-${d.getMonth()}`;
-            label = `${monthLabels[d.getMonth()]}`;
-          }
-
-          if (!buckets.has(key))
-            buckets.set(key, {
-              label,
-              sortKey:
-                period === "1W"
-                  ? new Date(
-                      d.getFullYear(),
-                      d.getMonth(),
-                      d.getDate(),
-                    ).getTime()
-                  : new Date(d.getFullYear(), d.getMonth(), 1).getTime(),
-              grossProfit: 0,
-              grossLoss: 0,
-            });
-          const bucket = buckets.get(key)!;
-          const pnl = getTradeNetPnl(trade);
-          if (pnl >= 0) bucket.grossProfit += pnl;
-          else bucket.grossLoss += Math.abs(pnl);
-        }
-
-        const sorted = Array.from(buckets.values()).sort(
-          (left, right) => left.sortKey - right.sortKey,
-        );
-
-        setData(sorted);
-
-        const net = trades.reduce((sum, trade) => sum + getTradeNetPnl(trade), 0);
-        setTotalPnl(net);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes("Failed to fetch"))
-          console.error("CashflowChart load error:", err);
-      } finally {
-        setLoading(false);
+      const bucket = buckets.get(key)!;
+      const pnl = getTradeNetPnl(trade);
+      if (pnl >= 0) {
+        bucket.grossProfit += pnl;
+      } else {
+        bucket.grossLoss += Math.abs(pnl);
       }
     }
-    load();
-  }, [authLoading, user, isConfigured, propAccountId, period]);
 
-  const fmt = (v: number) => `$${(v / 1000).toFixed(0)}k`;
+    return {
+      data: Array.from(buckets.values()).sort(
+        (left, right) => left.sortKey - right.sortKey,
+      ),
+      totalPnl: safeTrades.reduce((sum, trade) => sum + getTradeNetPnl(trade), 0),
+    };
+  }, [period, trades]);
+
+  const fmt = (value: number) => `$${(value / 1000).toFixed(0)}k`;
 
   return (
-    <div className="w-full h-full">
-      {/* Mini Performance line */}
-      <div className="flex items-center justify-between mb-3">
+    <div className="h-full w-full">
+      <div className="mb-3 flex items-center justify-between">
         <div>
           <p className="text-label" style={{ marginBottom: "0.1rem" }}>
             Net P&L
@@ -218,7 +178,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
               fontWeight: 600,
               color:
                 totalPnl >= 0 ? "var(--profit-primary)" : "var(--loss-primary)",
-              lineHeight: 1,
+              lineHeight: 1.14,
             }}
           >
             {totalPnl >= 0 ? "+" : "-"}$
@@ -227,7 +187,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
             })}
           </p>
         </div>
-        {/* Legend */}
+
         <div className="flex items-center gap-4">
           <span
             className="flex items-center gap-1.5"
@@ -262,7 +222,7 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
 
       {loading ? (
         <div
-          className="flex items-center justify-center h-[200px]"
+          className="flex h-[200px] items-center justify-center"
           style={{ color: "var(--text-tertiary)", fontSize: "0.8rem" }}
         >
           Loading chart...
@@ -301,7 +261,6 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
                 />
               </linearGradient>
               <linearGradient id="loserGrad" x1="0" y1="0" x2="0" y2="1">
-                {/* Dark Forest Green for Losers, to match visual reference (Total Expenses) */}
                 <stop
                   offset="0%"
                   stopColor="var(--loss-primary)"
@@ -364,4 +323,4 @@ export function CashflowChart({ propAccountId, period = "1M" }: CashflowProps) {
       )}
     </div>
   );
-}
+});

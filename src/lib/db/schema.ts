@@ -224,6 +224,7 @@ export const trades = pgTable('trades', {
   conviction: smallint('conviction'), // 1-5
   lessonLearned: text('lesson_learned'),
   wouldTakeAgain: boolean('would_take_again'),
+  journalReview: jsonb('journal_review').default({}),
 
   // Command center fields (20260209000000_journal_detail_command_center)
   tfObservations: jsonb('tf_observations').default({}),

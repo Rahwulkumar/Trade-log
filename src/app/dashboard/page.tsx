@@ -84,6 +84,37 @@ function chartPeriodLabel(period: ChartPeriod) {
   }
 }
 
+function getChartRange(period: ChartPeriod, referenceNow: Date) {
+  const endDate = toDateInput(referenceNow);
+  let startDate: string;
+
+  switch (period) {
+    case '1W': {
+      const start = new Date(referenceNow);
+      start.setDate(referenceNow.getDate() - 7);
+      startDate = toDateInput(start);
+      break;
+    }
+    case '3M': {
+      const start = new Date(referenceNow);
+      start.setMonth(referenceNow.getMonth() - 3);
+      startDate = toDateInput(start);
+      break;
+    }
+    case 'YTD':
+      startDate = toDateInput(new Date(referenceNow.getFullYear(), 0, 1));
+      break;
+    default: {
+      const start = new Date(referenceNow);
+      start.setMonth(referenceNow.getMonth() - 1);
+      startDate = toDateInput(start);
+      break;
+    }
+  }
+
+  return { startDate, endDate };
+}
+
 function monthDeltaLabel(current: number, previous: number | null) {
   if (previous == null) return undefined;
   return signedFmt(current - previous);
@@ -161,7 +192,7 @@ function StatCard({
         <p className="text-label">{label}</p>
 
         <p
-          className="stat-large leading-none"
+          className="stat-large"
           style={{
             color: isNeutral
               ? 'var(--text-primary)'
@@ -261,7 +292,7 @@ function AccountCard({
                 color: 'var(--text-primary)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.04em',
-                lineHeight: 1,
+                lineHeight: 1.18,
               }}
             >
               {username}
@@ -291,7 +322,7 @@ function AccountCard({
               fontSize: '1.7rem',
               fontWeight: 600,
               color: 'var(--text-primary)',
-              lineHeight: 1,
+              lineHeight: 1.14,
               letterSpacing: '-0.02em',
             }}
           >
@@ -372,6 +403,7 @@ function StatSkeleton() {
 
 export default function DashboardPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
+  const userId = user?.id ?? null;
   const { selectedAccountId, propAccounts } = usePropAccount();
 
   const [currentMonthAnalytics, setCurrentMonthAnalytics] =
@@ -385,20 +417,42 @@ export default function DashboardPage() {
   const [selectedChallenge, setSelectedChallenge] =
     useState<PropFirmChallengeDetails | null>(null);
   const [recentTrades, setRecentTrades] = useState<Trade[] | null>(null);
+  const [chartTrades, setChartTrades] = useState<Trade[] | null>(null);
+  const [chartLoading, setChartLoading] = useState(true);
   const [topPlaybooks, setTopPlaybooks] = useState<PlaybookStats[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1M');
+  const [referenceNow] = useState(() => new Date());
 
   const username = user?.email ? user.email.split('@')[0] : 'Trader';
-  const now = new Date();
-  const startOfMonth = toDateInput(new Date(now.getFullYear(), now.getMonth(), 1));
-  const endOfMonth = toDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-  const startOfPreviousMonth = toDateInput(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-  const endOfPreviousMonth = toDateInput(new Date(now.getFullYear(), now.getMonth(), 0));
-  const today = toDateInput(now);
+  const {
+    startOfMonth,
+    endOfMonth,
+    startOfPreviousMonth,
+    endOfPreviousMonth,
+    today,
+    chartRange,
+  } = useMemo(() => {
+    return {
+      startOfMonth: toDateInput(
+        new Date(referenceNow.getFullYear(), referenceNow.getMonth(), 1),
+      ),
+      endOfMonth: toDateInput(
+        new Date(referenceNow.getFullYear(), referenceNow.getMonth() + 1, 0),
+      ),
+      startOfPreviousMonth: toDateInput(
+        new Date(referenceNow.getFullYear(), referenceNow.getMonth() - 1, 1),
+      ),
+      endOfPreviousMonth: toDateInput(
+        new Date(referenceNow.getFullYear(), referenceNow.getMonth(), 0),
+      ),
+      today: toDateInput(referenceNow),
+      chartRange: getChartRange(chartPeriod, referenceNow),
+    };
+  }, [chartPeriod, referenceNow]);
 
   const greeting = (() => {
-    const hour = now.getHours();
+    const hour = referenceNow.getHours();
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
@@ -415,18 +469,20 @@ export default function DashboardPage() {
     }
     return propAccounts.find((account) => account.id === selectedAccountId) ?? null;
   }, [propAccounts, selectedAccountId]);
+  const selectedPropAccountId = selectedPropAccount?.id ?? null;
+  const selectedChallengeId = selectedPropAccount?.challengeId ?? null;
 
   useEffect(() => {
     async function load() {
-      if (!isConfigured || !user) {
+      if (!isConfigured || !userId) {
         setLoading(false);
         return;
       }
 
       try {
         const challengePromise =
-          selectedPropAccount?.challengeId
-            ? getPropFirmChallenge(selectedPropAccount.challengeId)
+          selectedChallengeId
+            ? getPropFirmChallenge(selectedChallengeId)
             : Promise.resolve(null);
 
         const [
@@ -453,8 +509,8 @@ export default function DashboardPage() {
             from: today,
             to: today,
           }),
-          selectedPropAccount
-            ? getAnalyticsPayloadClient({ account: selectedPropAccount.id })
+          selectedPropAccountId
+            ? getAnalyticsPayloadClient({ account: selectedPropAccountId })
             : Promise.resolve(null),
           getTrades({
             status: 'closed',
@@ -498,11 +554,50 @@ export default function DashboardPage() {
     isConfigured,
     scopeParam,
     selectedAccountId,
-    selectedPropAccount,
+    selectedChallengeId,
+    selectedPropAccountId,
     startOfMonth,
     startOfPreviousMonth,
     today,
-    user,
+    userId,
+  ]);
+
+  useEffect(() => {
+    async function loadChartTrades() {
+      if (authLoading) return;
+      if (!isConfigured || !userId) {
+        setChartTrades([]);
+        setChartLoading(false);
+        return;
+      }
+
+      try {
+        setChartLoading(true);
+        const trades = await getTrades({
+          propAccountId:
+            selectedAccountId === 'unassigned'
+              ? 'unassigned'
+              : selectedAccountId ?? undefined,
+          startDate: chartRange.startDate,
+          endDate: chartRange.endDate,
+        });
+        setChartTrades(trades);
+      } catch (error) {
+        console.error('Dashboard chart trades:', error);
+        setChartTrades([]);
+      } finally {
+        setChartLoading(false);
+      }
+    }
+
+    void loadChartTrades();
+  }, [
+    authLoading,
+    chartRange.endDate,
+    chartRange.startDate,
+    isConfigured,
+    selectedAccountId,
+    userId,
   ]);
 
   const summary = currentMonthAnalytics?.summary ?? null;
@@ -603,7 +698,7 @@ export default function DashboardPage() {
                 fontSize: '1.25rem',
                 letterSpacing: '-0.025em',
                 color: 'var(--text-primary)',
-                lineHeight: 1.1,
+                lineHeight: 1.22,
               }}
             >
               {greeting}, {username}
@@ -765,7 +860,8 @@ export default function DashboardPage() {
             }
           />
           <CashflowChart
-            propAccountId={selectedAccountId}
+            trades={chartTrades}
+            loading={chartLoading}
             period={chartPeriod}
           />
         </AppPanel>

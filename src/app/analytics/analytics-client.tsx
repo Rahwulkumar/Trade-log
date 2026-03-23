@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useCallback, useMemo } from 'react';
 import {
   Area,
   AreaChart,
@@ -337,25 +338,49 @@ export function AnalyticsClient({
   currentTo: string | null;
   shouldSyncSelection: boolean;
 }) {
-  const eqData = payload.equity.map((point) => ({
-    date: point.label,
-    balance: point.balance,
-  }));
-  const underwaterData = payload.underwater.map((point) => ({
-    date: point.label,
-    dd: point.drawdownPercent == null ? 0 : -point.drawdownPercent,
-  }));
-  const maxHoldCount = Math.max(
-    ...payload.distributions.holdTime.map((bucket) => bucket.count),
-    1,
+  const eqData = useMemo(
+    () =>
+      payload.equity.map((point) => ({
+        date: point.label,
+        balance: point.balance,
+      })),
+    [payload.equity],
   );
-  const maxHourlyAbsPnl = Math.max(
-    ...payload.time.hourly.map((hour) => Math.abs(hour.avgPnl)),
-    1,
+  const underwaterData = useMemo(
+    () =>
+      payload.underwater.map((point) => ({
+        date: point.label,
+        dd: point.drawdownPercent == null ? 0 : -point.drawdownPercent,
+      })),
+    [payload.underwater],
+  );
+  const maxHoldCount = useMemo(
+    () =>
+      Math.max(
+        ...payload.distributions.holdTime.map((bucket) => bucket.count),
+        1,
+      ),
+    [payload.distributions.holdTime],
+  );
+  const maxHourlyAbsPnl = useMemo(
+    () =>
+      Math.max(
+        ...payload.time.hourly.map((hour) => Math.abs(hour.avgPnl)),
+        1,
+      ),
+    [payload.time.hourly],
+  );
+  const maeWinPoints = useMemo(
+    () => payload.maeMfe?.filter((point) => point.result === 'win') ?? [],
+    [payload.maeMfe],
+  );
+  const maeLossPoints = useMemo(
+    () => payload.maeMfe?.filter((point) => point.result === 'loss') ?? [],
+    [payload.maeMfe],
   );
 
-  const handleExport = () => {
-    const summaryRows = [
+  const exportRows = useMemo(
+    () => [
       ['Metric', 'Value'],
       ['Account Scope', payload.meta.accountLabel],
       ['Time Zone', payload.meta.timeZone],
@@ -382,9 +407,12 @@ export function AnalyticsClient({
         strategy.pf == null ? '' : strategy.pf.toFixed(2),
         strategy.totalPnl.toFixed(2),
       ]),
-    ];
+    ],
+    [payload],
+  );
 
-    const csv = summaryRows
+  const handleExport = useCallback(() => {
+    const csv = exportRows
       .map((row) =>
         row
           .map((value) => {
@@ -402,7 +430,7 @@ export function AnalyticsClient({
     link.download = `analytics-${payload.meta.accountLabel.replaceAll(/\s+/g, '-').toLowerCase()}-${payload.meta.generatedAt.slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  };
+  }, [exportRows, payload.meta.accountLabel, payload.meta.generatedAt]);
 
   if (payload.meta.tradeCount === 0) {
     return (
@@ -969,8 +997,8 @@ export function AnalyticsClient({
                     <XAxis dataKey="mae" name="MAE ($)" type="number" tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }} tickLine={false} axisLine={false} />
                     <YAxis dataKey="mfe" name="MFE ($)" type="number" tick={{ fill: CHART_COLORS.textTertiary, fontSize: 10 }} tickLine={false} axisLine={false} />
                     <Tooltip {...TT} formatter={(value: number, name: string) => [`$${value}`, name]} />
-                    <Scatter data={payload.maeMfe.filter((point) => point.result === 'win')} fill="var(--profit-primary)" opacity={0.75} name="Win" />
-                    <Scatter data={payload.maeMfe.filter((point) => point.result === 'loss')} fill="var(--loss-primary)" opacity={0.75} name="Loss" />
+                    <Scatter data={maeWinPoints} fill="var(--profit-primary)" opacity={0.75} name="Win" />
+                    <Scatter data={maeLossPoints} fill="var(--loss-primary)" opacity={0.75} name="Loss" />
                   </ScatterChart>
                 </ResponsiveContainer>
               </div>

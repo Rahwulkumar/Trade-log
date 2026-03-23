@@ -33,57 +33,30 @@ interface UseJournalAutosaveReturn {
   save: () => Promise<void>;
 }
 
-/** Shallow check — good enough for the draft which is a flat-ish object */
+function stableDraftSnapshot(draft: JournalEntryDraft) {
+  return JSON.stringify({
+    ...draft,
+    setupTags: [...draft.setupTags],
+    mistakeTags: [...draft.mistakeTags],
+    executionArrays: [...draft.executionArrays],
+    screenshots: draft.screenshots.map((item) => ({
+      id: item.id,
+      url: item.url,
+      timeframe: item.timeframe,
+      createdAt: item.createdAt,
+    })),
+    tfObservations: Object.fromEntries(
+      Object.entries(draft.tfObservations).sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
+    ),
+    journalReview: { ...draft.journalReview },
+  });
+}
+
 function isDraftDirty(a: JournalEntryDraft, b: JournalEntryDraft): boolean {
-  // Fast path: reference equality
   if (a === b) return false;
-
-  // Check scalar fields
-  if (
-    a.notes !== b.notes ||
-    a.feelings !== b.feelings ||
-    a.observations !== b.observations ||
-    a.executionNotes !== b.executionNotes ||
-    a.conviction !== b.conviction ||
-    a.entryRating !== b.entryRating ||
-    a.exitRating !== b.exitRating ||
-    a.mae !== b.mae ||
-    a.mfe !== b.mfe
-  )
-    return true;
-
-  // Check arrays by length + content
-  if (a.setupTags.length !== b.setupTags.length) return true;
-  if (a.mistakeTags.length !== b.mistakeTags.length) return true;
-  if (a.executionArrays.length !== b.executionArrays.length) return true;
-  if (a.screenshots.length !== b.screenshots.length) return true;
-
-  // Check array elements (order matters)
-  for (let i = 0; i < a.setupTags.length; i++) {
-    if (a.setupTags[i] !== b.setupTags[i]) return true;
-  }
-  for (let i = 0; i < a.mistakeTags.length; i++) {
-    if (a.mistakeTags[i] !== b.mistakeTags[i]) return true;
-  }
-  for (let i = 0; i < a.executionArrays.length; i++) {
-    if (a.executionArrays[i] !== b.executionArrays[i]) return true;
-  }
-  for (let i = 0; i < a.screenshots.length; i++) {
-    if (a.screenshots[i].url !== b.screenshots[i].url) return true;
-  }
-
-  // Check tfObservations keys
-  const aKeys = Object.keys(a.tfObservations);
-  const bKeys = Object.keys(b.tfObservations);
-  if (aKeys.length !== bKeys.length) return true;
-  for (const k of aKeys) {
-    const aV = a.tfObservations[k];
-    const bV = b.tfObservations[k];
-    if (!bV) return true;
-    if (aV?.bias !== bV?.bias || aV?.notes !== bV?.notes) return true;
-  }
-
-  return false;
+  return stableDraftSnapshot(a) !== stableDraftSnapshot(b);
 }
 
 export function useJournalAutosave({

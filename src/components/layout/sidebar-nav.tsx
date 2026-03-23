@@ -15,7 +15,6 @@ import {
   IconPlaybooks,
   IconStrategies,
   IconJournal,
-  IconNotebook,
   IconReports,
   IconPropFirm,
   IconSettings,
@@ -36,7 +35,6 @@ const NAV_GROUPS = [
     label: "Trading",
     items: [
       { href: "/journal", label: "Journal", Icon: IconJournal },
-      { href: "/notebook", label: "Notebook", Icon: IconNotebook },
       { href: "/playbooks", label: "Playbooks", Icon: IconPlaybooks },
       { href: "/strategies", label: "Strategies", Icon: IconStrategies },
     ],

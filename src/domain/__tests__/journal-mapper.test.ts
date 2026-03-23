@@ -8,47 +8,59 @@ import {
   isRawTradeJournaled,
   toSupabaseScreenshot,
 } from "@/domain/journal-mapper";
-import type { Trade } from "@/lib/supabase/types";
+import type { Trade } from "@/lib/db/schema";
+import { EMPTY_JOURNAL_REVIEW } from "@/domain/journal-types";
 
 // --- Minimal Trade fixture ---
 function makeTrade(overrides: Partial<Trade> = {}): Trade {
   return {
     id: "t1",
-    user_id: "u1",
+    userId: "u1",
     symbol: "EURUSD",
     direction: "LONG",
-    status: "closed",
-    pnl: 482.5,
-    r_multiple: 2.4,
-    entry_price: 1.092,
-    exit_price: 1.0968,
-    entry_date: "2026-02-24T09:15:00Z",
-    exit_date: "2026-02-24T14:30:00Z",
-    position_size: 1.0,
-    stop_loss: 1.09,
-    take_profit: 1.098,
-    created_at: "2026-02-24T09:00:00Z",
-    // Journal fields
+    status: "CLOSED",
+    pnl: "482.5",
+    rMultiple: "2.4",
+    entryPrice: "1.092",
+    exitPrice: "1.0968",
+    entryDate: new Date("2026-02-24T09:15:00Z"),
+    exitDate: new Date("2026-02-24T14:30:00Z"),
+    positionSize: "1.0",
+    stopLoss: "1.09",
+    takeProfit: "1.098",
+    createdAt: new Date("2026-02-24T09:00:00Z"),
     notes: "Good trade",
     feelings: "Confident",
     observations: null,
-    execution_notes: null,
-    setup_tags: ["FVG Entry"],
-    mistake_tags: [],
-    execution_arrays: ["FVG", "OB"],
+    executionNotes: null,
+    setupTags: ["FVG Entry"],
+    mistakeTags: [],
+    executionArrays: ["FVG", "OB"],
     screenshots: null,
     conviction: 5,
-    entry_rating: "Good",
-    exit_rating: "Good",
+    entryRating: "Good",
+    exitRating: "Good",
+    managementRating: null,
     mae: 0.3,
     mfe: 2.8,
-    tf_observations: null,
-    // Other DB fields
+    tfObservations: null,
+    journalReview: { ...EMPTY_JOURNAL_REVIEW },
+    marketCondition: null,
     commission: null,
     swap: null,
-    prop_account_id: null,
-    playbook_id: null,
-    chart_data: null,
+    propAccountId: null,
+    playbookId: null,
+    chartData: null,
+    lessonLearned: null,
+    wouldTakeAgain: null,
+    contractSize: null,
+    assetType: null,
+    externalTicket: null,
+    externalId: null,
+    externalDealId: null,
+    mt5AccountId: null,
+    magicNumber: null,
+    pnlIncludesCosts: true,
     ...overrides,
   } as Trade;
 }
@@ -65,8 +77,8 @@ describe("mapTradeToViewModel", () => {
   });
 
   it("converts entry_rating string to QualityRating", () => {
-    const vm = mapTradeToViewModel(makeTrade({ entry_rating: "Good" }));
-    expect(vm.entryRating).toBe("Good");
+    const vm = mapTradeToViewModel(makeTrade({ entryRating: "Good" }));
+    expect(vm.entryRating).toBe(5);
   });
 
   it("handles null pnl gracefully", () => {
@@ -81,7 +93,7 @@ describe("viewModelToDraft", () => {
     const draft = viewModelToDraft(vm);
     expect(draft.notes).toBe("Good trade");
     expect(draft.feelings).toBe("Confident");
-    expect(draft.entryRating).toBe("Good");
+    expect(draft.entryRating).toBe(5);
     expect(draft.conviction).toBe(5);
     expect(draft.setupTags).toEqual(["FVG Entry"]);
   });
@@ -96,7 +108,7 @@ describe("mapDraftToTradeUpdate", () => {
     const update = mapDraftToTradeUpdate(draft);
     expect(update.notes).toBe("Updated note");
     expect(update.conviction).toBe(4);
-    // Should use snake_case DB column names
+    expect(update).toHaveProperty("journal_review");
     expect(update).toHaveProperty("setup_tags");
     expect(update).toHaveProperty("mistake_tags");
   });
@@ -114,13 +126,13 @@ describe("isRawTradeJournaled", () => {
           notes: null,
           feelings: null,
           observations: null,
-          execution_notes: null,
+          executionNotes: null,
           conviction: null,
-          setup_tags: [],
-          mistake_tags: [],
-          execution_arrays: [],
+          setupTags: [],
+          mistakeTags: [],
+          executionArrays: [],
           screenshots: null,
-          tf_observations: null,
+          tfObservations: null,
         })
       )
     ).toBe(false);
@@ -133,13 +145,13 @@ describe("isRawTradeJournaled", () => {
           notes: null,
           feelings: null,
           observations: null,
-          execution_notes: null,
+          executionNotes: null,
           conviction: null,
-          setup_tags: ["FVG"],
-          mistake_tags: [],
-          execution_arrays: [],
+          setupTags: ["FVG"],
+          mistakeTags: [],
+          executionArrays: [],
           screenshots: null,
-          tf_observations: null,
+          tfObservations: null,
         })
       )
     ).toBe(true);

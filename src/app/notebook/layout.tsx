@@ -1,7 +1,9 @@
+import type { ReactNode } from "react";
+
 export default function NotebookLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  return <div className="fade-in">{children}</div>;
+  return children;
 }

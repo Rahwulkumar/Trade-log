@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { getCurrentUserProfile } from "@/lib/api/client/profile";
 import {
@@ -74,7 +82,7 @@ function ClerkAuthConsumer({ children }: { children: ReactNode }) {
   const userLastName = user?.lastName ?? null;
   const userImageUrl = user?.imageUrl ?? null;
 
-  async function refreshProfile() {
+  const refreshProfile = useCallback(async () => {
     if (!userId) {
       setRemoteProfile(null);
       return;
@@ -82,10 +90,14 @@ function ClerkAuthConsumer({ children }: { children: ReactNode }) {
 
     const syncedProfile = await getCurrentUserProfile();
     setRemoteProfile(syncedProfile?.id === userId ? syncedProfile : null);
-  }
+  }, [userId]);
 
   useEffect(() => {
-    if (!isLoaded || !userId) return;
+    if (!isLoaded) return;
+    if (!userId) {
+      setRemoteProfile(null);
+      return;
+    }
 
     let cancelled = false;
     void (async () => {
@@ -98,13 +110,7 @@ function ClerkAuthConsumer({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [
-    isLoaded,
-    userId,
-    userEmail,
-    userFullName,
-    userImageUrl,
-  ]);
+  }, [isLoaded, userId]);
 
   const profile = useMemo(() => {
     const fallback = buildFallbackProfile(
@@ -133,34 +139,41 @@ function ClerkAuthConsumer({ children }: { children: ReactNode }) {
     };
   }, [remoteProfile, userEmail, userFirstName, userFullName, userId, userImageUrl, userLastName]);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        userId: user?.id ?? null,
-        isLoaded,
-        isSignedIn: isSignedIn ?? false,
-        signOut: async () => {
-          await clerkSignOut();
-        },
+  const authUser = useMemo(
+    () =>
+      userId
+        ? {
+            id: userId,
+            email: userEmail,
+            fullName: userFullName,
+            imageUrl: userImageUrl ?? "",
+          }
+        : null,
+    [userEmail, userFullName, userId, userImageUrl],
+  );
 
-        // Backward-compat aliases
-        user: user
-          ? {
-              id: user.id,
-              email: user.primaryEmailAddress?.emailAddress,
-              fullName: user.fullName,
-              imageUrl: user.imageUrl,
-            }
-          : null,
-        loading: !isLoaded,
-        isConfigured: true,
-        profile,
-        refreshProfile,
-        session: null,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const contextValue = useMemo(
+    () => ({
+      userId,
+      isLoaded,
+      isSignedIn: isSignedIn ?? false,
+      signOut: async () => {
+        await clerkSignOut();
+      },
+
+      // Backward-compat aliases
+      user: authUser,
+      loading: !isLoaded,
+      isConfigured: true,
+      profile,
+      refreshProfile,
+      session: null,
+    }),
+    [authUser, clerkSignOut, isLoaded, isSignedIn, profile, refreshProfile, userId],
+  );
+
+  return (
+    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 }
 
