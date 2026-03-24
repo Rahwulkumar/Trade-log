@@ -17,6 +17,12 @@ import {
   type TradeReviewStatus,
 } from "@/components/journal/trade-review-rail";
 import { TradeReviewDocument } from "@/components/journal/trade-review-document";
+import {
+  AppPageHeader,
+  AppPanel,
+  AppPanelEmptyState,
+} from "@/components/ui/page-primitives";
+import { WidgetEmptyState } from "@/components/ui/surface-primitives";
 import { mapTradeToViewModel } from "@/domain/journal-mapper";
 import type { JournalTradeViewModel } from "@/domain/journal-types";
 import { getTrades } from "@/lib/api/client/trades";
@@ -136,24 +142,27 @@ export default function JournalPage() {
   const deferredSearch = useDeferredValue(search);
   const tradeParam = searchParams.get("trade");
 
-  const refreshTrades = useCallback(async () => {
+  const loadTrades = useCallback(async () => {
     if (!user?.id) {
-      setTrades([]);
-      setLoading(false);
-      return;
+      return [] as Trade[];
     }
 
-    setLoading(true);
-    const rows = await getTrades({
+    return getTrades({
       status: "closed",
       propAccountId: selectedAccountId ?? undefined,
       sortBy: "exitDate",
       sortOrder: "desc",
       limit: 400,
     });
-    setTrades(rows);
-    setLoading(false);
   }, [selectedAccountId, user?.id]);
+
+  const handleTradeSaved = useCallback((savedTrade: Trade) => {
+    setTrades((currentTrades) =>
+      currentTrades.map((trade) =>
+        trade.id === savedTrade.id ? savedTrade : trade,
+      ),
+    );
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,13 +180,7 @@ export default function JournalPage() {
         setLoading(true);
       }
 
-      const rows = await getTrades({
-        status: "closed",
-        propAccountId: selectedAccountId ?? undefined,
-        sortBy: "exitDate",
-        sortOrder: "desc",
-        limit: 400,
-      });
+      const rows = await loadTrades();
 
       if (!cancelled) {
         setTrades(rows);
@@ -188,7 +191,7 @@ export default function JournalPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccountId, user?.id]);
+  }, [loadTrades, user?.id]);
 
   const records = useMemo<JournalTradeRecord[]>(() => {
     return trades
@@ -336,7 +339,7 @@ export default function JournalPage() {
   if (loading) {
     return (
       <div className="page-root page-sections h-[calc(100dvh-64px)]">
-        <section className="surface flex min-h-[220px] items-center px-6">
+        <AppPanel className="flex min-h-[220px] items-center px-6">
           <p
             style={{
               color: "var(--text-tertiary)",
@@ -346,7 +349,7 @@ export default function JournalPage() {
           >
             Loading trade journal...
           </p>
-        </section>
+        </AppPanel>
       </div>
     );
   }
@@ -354,74 +357,36 @@ export default function JournalPage() {
   if (records.length === 0) {
     return (
       <div className="page-root page-sections h-[calc(100dvh-64px)]">
-        <section className="surface flex min-h-[260px] items-center justify-center px-6 text-center">
-          <div className="space-y-2">
-            <p
-              style={{
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-inter)",
-                fontSize: "1.2rem",
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                lineHeight: 1.24,
-              }}
-            >
-              No closed trades yet
-            </p>
-            <p
-              className="text-label"
-              style={{
-                textTransform: "none",
-                letterSpacing: 0,
-                color: "var(--text-tertiary)",
-              }}
-            >
-              Close a trade first, then come back here to write the review.
-            </p>
-          </div>
-        </section>
+        <AppPanelEmptyState
+          minHeight={260}
+          title="No closed trades yet"
+          description="Close a trade first, then come back here to write the review."
+        />
       </div>
     );
   }
 
   return (
     <div className="page-root page-sections h-[calc(100dvh-64px)] overflow-hidden">
-      <header className="stagger-1 flex items-center justify-between gap-4 py-1">
-        <div>
-          <h1
-            style={{
-              fontWeight: 700,
-              fontSize: "1.25rem",
-              letterSpacing: "-0.025em",
-              color: "var(--text-primary)",
-              lineHeight: 1.22,
-            }}
-          >
-            Journal
-          </h1>
-          <p
-            className="text-label mt-0.5"
-            style={{
-              textTransform: "none",
-              letterSpacing: 0,
-              color: "var(--text-secondary)",
-            }}
-          >
-            Post-trade review for {accountLabel}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="badge-accent rounded-full px-2.5 py-1">
-            {pendingCount} pending
-          </span>
-          <span style={{ color: "var(--text-tertiary)" }}>
-            {records.length} closed trades loaded
-          </span>
-        </div>
-      </header>
+      <AppPageHeader
+        className="stagger-1"
+        eyebrow="Trade Review"
+        title="Journal"
+        description={`Post-trade review for ${accountLabel}. ${pendingCount} still need review.`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="badge-accent rounded-full px-2.5 py-1">
+              {pendingCount} pending
+            </span>
+            <span style={{ color: "var(--text-tertiary)" }}>
+              {records.length} closed trades loaded
+            </span>
+          </div>
+        }
+      />
 
       <section className="stagger-2 grid min-h-0 flex-1 grid-rows-[300px_minmax(0,1fr)] gap-5 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)] lg:grid-rows-1">
-        <div className="surface min-h-0 overflow-hidden">
+        <AppPanel className="min-h-0 overflow-hidden p-0">
           <TradeReviewRail
             items={filteredRecords.map((record) => record.item)}
             activeTradeId={activeTradeId}
@@ -431,34 +396,16 @@ export default function JournalPage() {
             onStatusFilterChange={setStatusFilter}
             onSelectTrade={goToTrade}
           />
-        </div>
+        </AppPanel>
 
-        <section className="surface min-h-0 overflow-hidden">
+        <AppPanel className="min-h-0 overflow-hidden p-0">
           {!activeRecord ? (
-            <div className="flex h-full items-center justify-center px-6 text-center">
-              <div className="space-y-2">
-                <p
-                  style={{
-                    color: "var(--text-primary)",
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "1.05rem",
-                    fontWeight: 700,
-                    letterSpacing: "-0.02em",
-                  }}
-                >
-                  No trade in this view
-                </p>
-                <p
-                  className="text-label"
-                  style={{
-                    textTransform: "none",
-                    letterSpacing: 0,
-                    color: "var(--text-tertiary)",
-                  }}
-                >
-                  Clear the current filter to continue journaling.
-                </p>
-              </div>
+            <div className="flex h-full items-center justify-center px-6">
+              <WidgetEmptyState
+                className="w-full max-w-md"
+                title="No trade in this view"
+                description="Clear the current filter to continue journaling."
+              />
             </div>
           ) : (
             <div className="min-h-0 h-full overflow-y-auto">
@@ -490,12 +437,12 @@ export default function JournalPage() {
                       ? goToNextPending
                       : undefined
                   }
-                  onSaved={refreshTrades}
+                  onSaved={handleTradeSaved}
                 />
               </AnimatePresence>
             </div>
           )}
-        </section>
+        </AppPanel>
       </section>
     </div>
   );

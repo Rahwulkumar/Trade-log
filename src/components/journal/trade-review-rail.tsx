@@ -3,6 +3,16 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Search, Check } from "lucide-react";
+import {
+  ChoiceChip,
+  ControlSurface,
+  FieldGroup,
+} from "@/components/ui/control-primitives";
+import { Input } from "@/components/ui/input";
+import {
+  InsetPanel,
+  WidgetEmptyState,
+} from "@/components/ui/surface-primitives";
 
 export type TradeReviewStatus = "empty" | "draft" | "complete";
 
@@ -127,67 +137,48 @@ export function TradeReviewRail({
         </div>
 
         <div className="px-3 pb-3">
-          <div
-            className="flex items-center gap-2 rounded-[var(--radius-default)] px-3"
-            style={{
-              background: "var(--surface-elevated)",
-              border: "1px solid var(--border-subtle)",
-            }}
-          >
-            <Search
-              size={13}
-              style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
-            />
-            <input
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search symbol, date..."
-              className="h-9 w-full outline-none"
-              style={{
-                background: "transparent",
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-inter)",
-                fontSize: "12px",
-              }}
-            />
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {([
-              ["all", "All"],
-              ["pending", "Needs Review"],
-              ["draft", "Draft"],
-              ["complete", "Complete"],
-            ] as const).map(([value, label]) => {
-              const active = statusFilter === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => onStatusFilterChange(value)}
-                  className="rounded-[var(--radius-default)] px-3 py-1.5 text-left transition-colors"
+          <ControlSurface className="space-y-3">
+            <FieldGroup label="Search trades" className="space-y-2">
+              <div className="relative">
+                <Search
+                  size={13}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+                  style={{ color: "var(--text-tertiary)" }}
+                />
+                <Input
+                  value={search}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                  placeholder="Search symbol, date..."
+                  className="h-9 pl-9 text-[0.75rem]"
                   style={{
-                    background: active
-                      ? "var(--surface-elevated)"
-                      : "transparent",
-                    border: `1px solid ${
-                      active
-                        ? "var(--accent-primary)"
-                        : "var(--border-subtle)"
-                    }`,
-                    color: active
-                      ? "var(--accent-primary)"
-                      : "var(--text-secondary)",
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "11px",
-                    fontWeight: active ? 600 : 500,
+                    background: "var(--surface)",
+                    borderColor: "var(--border-subtle)",
+                    color: "var(--text-primary)",
                   }}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+                />
+              </div>
+            </FieldGroup>
+
+            <FieldGroup label="Review status" className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ["all", "All"],
+                  ["pending", "Needs Review"],
+                  ["draft", "Draft"],
+                  ["complete", "Complete"],
+                ] as const).map(([value, label]) => (
+                  <ChoiceChip
+                    key={value}
+                    active={statusFilter === value}
+                    onClick={() => onStatusFilterChange(value)}
+                    className="justify-start"
+                  >
+                    {label}
+                  </ChoiceChip>
+                ))}
+              </div>
+            </FieldGroup>
+          </ControlSurface>
         </div>
       </div>
 
@@ -199,16 +190,10 @@ export function TradeReviewRail({
       >
         {grouped.length === 0 ? (
           <div className="px-4 pt-8">
-            <p
-              style={{
-                color: "var(--text-tertiary)",
-                fontFamily: "var(--font-inter)",
-                fontSize: "12px",
-                lineHeight: 1.6,
-              }}
-            >
-              No trades match this view.
-            </p>
+            <WidgetEmptyState
+              title="No trades match this view"
+              description="Change the search or review-status filters to keep journaling."
+            />
           </div>
         ) : (
           grouped.map(([label, groupItems]) => (
@@ -255,102 +240,107 @@ export function TradeReviewRail({
                     variants={ROW}
                     type="button"
                     onClick={() => onSelectTrade(item.id)}
-                    className="mx-[6px] my-[1px] block w-[calc(100%-12px)] px-3 py-2.5 text-left transition-colors duration-100"
-                    style={{
-                      background: isActive
-                        ? "var(--surface-elevated)"
-                        : "transparent",
-                      borderLeft: isActive
-                        ? "2px solid var(--accent-primary)"
-                        : "2px solid transparent",
-                      borderRadius: "var(--radius-default)",
-                      width: "calc(100% - 12px)",
-                      boxShadow: isActive ? "var(--shadow-sm)" : "none",
-                    }}
+                    className="mx-[6px] my-[1px] block w-[calc(100%-12px)] text-left"
+                    style={{ width: "calc(100% - 12px)" }}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2">
+                    <InsetPanel
+                      className="transition-colors duration-100"
+                      paddingClassName="px-3 py-2.5"
+                      style={{
+                        background: isActive
+                          ? "var(--accent-soft)"
+                          : "var(--surface-elevated)",
+                        borderColor: isActive
+                          ? "var(--accent-primary)"
+                          : "var(--border-subtle)",
+                        borderLeftWidth: 2,
+                        boxShadow: isActive ? "var(--shadow-sm)" : "none",
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            style={{
+                              color: isActive
+                                ? "var(--accent-primary)"
+                                : "var(--text-primary)",
+                              fontFamily: "var(--font-jb-mono)",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {item.symbol}
+                          </span>
+                          <span
+                            style={{
+                              background: directionBg,
+                              borderRadius: "var(--radius-sm)",
+                              color: directionColor,
+                              fontFamily: "var(--font-jb-mono)",
+                              fontSize: "10px",
+                              padding: "2px 5px",
+                            }}
+                          >
+                            {item.direction === "LONG" ? "L" : "S"}
+                          </span>
+                        </div>
+
                         <span
                           style={{
-                            color: isActive
-                              ? "var(--accent-primary)"
-                              : "var(--text-primary)",
-                            fontFamily: "var(--font-jb-mono)",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {item.symbol}
-                        </span>
-                        <span
-                          style={{
-                            background: directionBg,
-                            borderRadius: "var(--radius-sm)",
-                            color: directionColor,
+                            color: "var(--text-tertiary)",
                             fontFamily: "var(--font-jb-mono)",
                             fontSize: "10px",
-                            padding: "2px 5px",
                           }}
                         >
-                          {item.direction === "LONG" ? "L" : "S"}
+                          {formatDate(item.closedAt)}
                         </span>
                       </div>
 
-                      <span
-                        style={{
-                          color: "var(--text-tertiary)",
-                          fontFamily: "var(--font-jb-mono)",
-                          fontSize: "10px",
-                        }}
-                      >
-                        {formatDate(item.closedAt)}
-                      </span>
-                    </div>
+                      <div className="mt-1 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            style={{
+                              color: pnlColor,
+                              fontFamily: "var(--font-jb-mono)",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {formatPnl(item.netPnl)}
+                          </span>
+                          <span
+                            style={{
+                              background: statusBg,
+                              border: "1px solid var(--border-subtle)",
+                              borderRadius: "var(--radius-sm)",
+                              color: statusColor,
+                              fontFamily: "var(--font-inter)",
+                              fontSize: "9px",
+                              fontWeight: 600,
+                              padding: "2px 6px",
+                            }}
+                          >
+                            {statusLabel(item.reviewStatus)}
+                          </span>
+                        </div>
 
-                    <div className="mt-1 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span
-                          style={{
-                            color: pnlColor,
-                            fontFamily: "var(--font-jb-mono)",
-                            fontSize: "12px",
-                          }}
-                        >
-                          {formatPnl(item.netPnl)}
-                        </span>
-                        <span
-                          style={{
-                            background: statusBg,
-                            border: "1px solid var(--border-subtle)",
-                            borderRadius: "var(--radius-sm)",
-                            color: statusColor,
-                            fontFamily: "var(--font-inter)",
-                            fontSize: "9px",
-                            fontWeight: 600,
-                            padding: "2px 6px",
-                          }}
-                        >
-                          {statusLabel(item.reviewStatus)}
-                        </span>
+                        {item.reviewStatus === "complete" ? (
+                          <Check
+                            size={12}
+                            style={{ color: "var(--accent-primary)" }}
+                          />
+                        ) : (
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{
+                              background:
+                                item.reviewStatus === "draft"
+                                  ? "var(--warning-primary)"
+                                  : "var(--border-default)",
+                            }}
+                          />
+                        )}
                       </div>
-
-                      {item.reviewStatus === "complete" ? (
-                        <Check
-                          size={12}
-                          style={{ color: "var(--accent-primary)" }}
-                        />
-                      ) : (
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{
-                            background:
-                              item.reviewStatus === "draft"
-                                ? "var(--warning-primary)"
-                                : "var(--border-default)",
-                          }}
-                        />
-                      )}
-                    </div>
+                    </InsetPanel>
                   </motion.button>
                 );
               })}

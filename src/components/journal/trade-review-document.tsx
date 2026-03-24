@@ -1,15 +1,14 @@
 "use client";
 
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Circle, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Trade } from "@/lib/api/trades";
 import {
   type JournalAlignment,
   type JournalEntryDraft,
   type JournalRetakeDecision,
   type JournalSession,
-  type QualityRating,
 } from "@/domain/journal-types";
 import {
   mapTradeToViewModel,
@@ -17,6 +16,19 @@ import {
 } from "@/domain/journal-mapper";
 import { useJournalAutosave } from "@/hooks/use-journal-autosave";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
+import { AppTextArea } from "@/components/ui/control-primitives";
+import { Button } from "@/components/ui/button";
+import { InsetPanel } from "@/components/ui/surface-primitives";
+import {
+  JournalChoiceChip,
+  JournalConvictionInput,
+  JournalMetaDatum,
+  JournalPromptField,
+  JournalRatingInput,
+  JournalSection,
+  JournalShortField,
+  JournalTagField,
+} from "@/components/journal/journal-primitives";
 
 const SESSION_OPTIONS: readonly JournalSession[] = [
   "London",
@@ -47,8 +59,6 @@ const RETAKE_OPTIONS: Array<{
   { value: "maybe", label: "Maybe" },
   { value: "no", label: "No" },
 ];
-
-const QUALITY_VALUES: readonly QualityRating[] = [1, 2, 3, 4, 5];
 
 function formatDateTime(value: string | null): string {
   if (!value) {
@@ -123,390 +133,6 @@ function outcomeTone(outcome: "WIN" | "LOSS" | "BE") {
   };
 }
 
-function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="text-label" style={{ fontSize: "10px", letterSpacing: "0.12em" }}>
-      {children}
-    </p>
-  );
-}
-
-function SectionHeader({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <h2 className="headline-md">{title}</h2>
-      {subtitle ? (
-        <p
-          className="text-label"
-          style={{
-            color: "var(--text-secondary)",
-            fontSize: "12px",
-            fontWeight: 500,
-            lineHeight: 1.6,
-            letterSpacing: 0,
-            textTransform: "none",
-            maxWidth: "58rem",
-          }}
-        >
-          {subtitle}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function ReviewSection({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section
-      className="space-y-5 rounded-[var(--radius-xl)] border px-5 py-5 sm:px-6"
-      style={{
-        background: "var(--surface-elevated)",
-        borderColor: "var(--border-subtle)",
-      }}
-    >
-      <SectionHeader title={title} subtitle={subtitle} />
-      {children}
-    </section>
-  );
-}
-
-function ChoiceButton({
-  active,
-  children,
-  onClick,
-  tone = "neutral",
-}: {
-  active: boolean;
-  children: ReactNode;
-  onClick: () => void;
-  tone?: "neutral" | "profit" | "loss" | "warning" | "accent";
-}) {
-  let activeColor = "var(--text-primary)";
-  let activeBorder = "var(--border-active)";
-  let activeBg = "var(--surface-elevated)";
-
-  if (tone === "accent") {
-    activeColor = "var(--accent-primary)";
-    activeBorder = "var(--accent-primary)";
-    activeBg = "var(--accent-soft)";
-  } else if (tone === "profit") {
-    activeColor = "var(--profit-primary)";
-    activeBorder = "var(--profit-primary)";
-    activeBg = "var(--profit-bg)";
-  } else if (tone === "loss") {
-    activeColor = "var(--loss-primary)";
-    activeBorder = "var(--loss-primary)";
-    activeBg = "var(--loss-bg)";
-  } else if (tone === "warning") {
-    activeColor = "var(--warning-primary)";
-    activeBorder = "var(--warning-primary)";
-    activeBg = "var(--warning-bg)";
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-full px-3 py-1.5 transition-colors"
-      style={{
-        background: active ? activeBg : "transparent",
-        border: `1px solid ${
-          active ? activeBorder : "var(--border-subtle)"
-        }`,
-        color: active ? activeColor : "var(--text-secondary)",
-        fontFamily: "var(--font-inter)",
-        fontSize: "12px",
-        fontWeight: active ? 600 : 500,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function PromptField({
-  prompt,
-  value,
-  onChange,
-  rows = 4,
-  placeholder,
-}: {
-  prompt: string;
-  value: string;
-  onChange: (value: string) => void;
-  rows?: number;
-  placeholder: string;
-}) {
-  return (
-    <label className="block space-y-2">
-      <p
-        style={{
-          color: "var(--text-secondary)",
-          fontFamily: "var(--font-inter)",
-          fontSize: "13px",
-          lineHeight: 1.5,
-        }}
-      >
-        {prompt}
-      </p>
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        rows={rows}
-        placeholder={placeholder}
-        className="w-full resize-none rounded-[var(--radius-md)] px-4 py-3 outline-none transition-colors"
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border-subtle)",
-          color: "var(--text-primary)",
-          fontFamily: "var(--font-inter)",
-          fontSize: "14px",
-          lineHeight: 1.7,
-        }}
-      />
-    </label>
-  );
-}
-
-function ShortField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  mono?: boolean;
-}) {
-  return (
-    <label className="block space-y-2">
-      <SectionLabel>{label}</SectionLabel>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-[var(--radius-md)] px-3 py-2.5 outline-none transition-colors"
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border-subtle)",
-          color: "var(--text-primary)",
-          fontFamily: mono ? "var(--font-jb-mono)" : "var(--font-inter)",
-          fontSize: "13px",
-        }}
-      />
-    </label>
-  );
-}
-
-function MetaDatum({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div
-      className="space-y-1 rounded-[var(--radius-lg)] px-4 py-3"
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border-subtle)",
-      }}
-    >
-      <SectionLabel>{label}</SectionLabel>
-      <p
-        style={{
-          color: "var(--text-primary)",
-          fontFamily: "var(--font-jb-mono)",
-          fontSize: "13px",
-          lineHeight: 1.4,
-        }}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function RatingInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: QualityRating | null;
-  onChange: (value: QualityRating | null) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <SectionLabel>{label}</SectionLabel>
-      <div className="flex items-center gap-1.5">
-        {QUALITY_VALUES.map((step) => {
-          const active = (value ?? 0) >= step;
-          return (
-            <button
-              key={step}
-              type="button"
-              onClick={() => onChange(value === step ? null : step)}
-              className="transition-colors"
-              aria-label={`${label} rating ${step}`}
-              style={{
-                color: active
-                  ? "var(--accent-primary)"
-                  : "var(--border-default)",
-              }}
-            >
-              <Star
-                size={16}
-                fill={active ? "currentColor" : "none"}
-                strokeWidth={1.7}
-              />
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ConvictionInput({
-  value,
-  onChange,
-}: {
-  value: number | null;
-  onChange: (value: number | null) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <SectionLabel>Conviction</SectionLabel>
-      <div className="flex items-center gap-2">
-        {QUALITY_VALUES.map((step) => {
-          const active = (value ?? 0) >= step;
-          return (
-            <button
-              key={step}
-              type="button"
-              onClick={() => onChange(value === step ? null : step)}
-              className="transition-colors"
-              aria-label={`Conviction ${step}`}
-              style={{
-                color: active
-                  ? "var(--accent-primary)"
-                  : "var(--border-default)",
-              }}
-            >
-              <Circle
-                size={16}
-                fill={active ? "currentColor" : "none"}
-                strokeWidth={1.8}
-              />
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TagField({
-  label,
-  tags,
-  onChange,
-  tone,
-  placeholder,
-}: {
-  label: string;
-  tags: string[];
-  onChange: (next: string[]) => void;
-  tone: "neutral" | "loss";
-  placeholder: string;
-}) {
-  const [draft, setDraft] = useState("");
-
-  const commit = useCallback(() => {
-    const next = draft.trim();
-    if (!next) {
-      return;
-    }
-    if (tags.some((tag) => tag.toLowerCase() === next.toLowerCase())) {
-      setDraft("");
-      return;
-    }
-    onChange([...tags, next]);
-    setDraft("");
-  }, [draft, onChange, tags]);
-
-  return (
-    <div className="space-y-2">
-      <SectionLabel>{label}</SectionLabel>
-      <div className="flex flex-wrap gap-2">
-        {tags.map((tag) => (
-          <button
-            key={tag}
-            type="button"
-            onClick={() => onChange(tags.filter((item) => item !== tag))}
-            className="rounded-full px-3 py-1.5 transition-colors"
-            style={{
-              background:
-                tone === "loss" ? "var(--loss-bg)" : "transparent",
-              border: `1px solid ${
-                tone === "loss"
-                  ? "var(--loss-primary)"
-                  : "var(--border-default)"
-              }`,
-              color:
-                tone === "loss"
-                  ? "var(--loss-primary)"
-                  : "var(--text-secondary)",
-              fontFamily: "var(--font-inter)",
-              fontSize: "12px",
-            }}
-          >
-            {tag}
-          </button>
-        ))}
-        <input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === ",") {
-              event.preventDefault();
-              commit();
-            }
-          }}
-          placeholder={placeholder}
-          className="min-w-[11rem] rounded-full px-3 py-1.5 outline-none"
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border-subtle)",
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-inter)",
-            fontSize: "12px",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
 interface TradeReviewDocumentProps {
   trade: Trade;
   index: number;
@@ -516,7 +142,7 @@ interface TradeReviewDocumentProps {
   onPrevious: () => void;
   onNext: () => void;
   onNextPending?: () => void;
-  onSaved: () => void;
+  onSaved: (trade: Trade) => void;
 }
 
 export function TradeReviewDocument({
@@ -695,14 +321,15 @@ export function TradeReviewDocument({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <button
+              <Button
                 type="button"
                 onClick={onPrevious}
                 disabled={!hasPrevious}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-default)] px-3 py-2 disabled:cursor-not-allowed"
+                size="sm"
+                variant="outline"
                 style={{
                   background: "var(--surface-elevated)",
-                  border: "1px solid var(--border-subtle)",
+                  borderColor: "var(--border-subtle)",
                   color: hasPrevious
                     ? "var(--text-primary)"
                     : "var(--text-tertiary)",
@@ -710,81 +337,64 @@ export function TradeReviewDocument({
                 }}
               >
                 <ChevronLeft size={14} />
-                <span
-                  style={{
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Previous
-                </span>
-              </button>
+                Previous
+              </Button>
 
               {onNextPending ? (
-                <button
+                <Button
                   type="button"
                   onClick={onNextPending}
-                  className="rounded-[var(--radius-default)] px-3 py-2"
+                  size="sm"
+                  variant="outline"
                   style={{
                     background: "var(--surface-elevated)",
-                    border: "1px solid var(--accent-primary)",
+                    borderColor: "var(--accent-primary)",
                     color: "var(--accent-primary)",
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "12px",
-                    fontWeight: 600,
                   }}
                 >
                   Next unreviewed
-                </button>
+                </Button>
               ) : null}
 
-              <button
+              <Button
                 type="button"
                 onClick={onNext}
                 disabled={!hasNext}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-default)] px-3 py-2 disabled:cursor-not-allowed"
+                size="sm"
+                variant="outline"
                 style={{
                   background: "var(--surface-elevated)",
-                  border: "1px solid var(--border-subtle)",
+                  borderColor: "var(--border-subtle)",
                   color: hasNext
                     ? "var(--text-primary)"
                     : "var(--text-tertiary)",
                   opacity: hasNext ? 1 : 0.45,
                 }}
               >
-                <span
-                  style={{
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Next
-                </span>
+                Next
                 <ChevronRight size={14} />
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
       <div className="space-y-5 px-5 pb-10 pt-6 sm:px-6 lg:px-8">
-        <ReviewSection
+        <JournalSection
           title="Trade record"
           subtitle="The factual frame stays read-only. Use it to anchor the review before you start writing."
         >
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
-            <MetaDatum label="Opened" value={formatDateTime(viewModel.entryDate)} />
-            <MetaDatum label="Closed" value={formatDateTime(viewModel.exitDate)} />
-            <MetaDatum label="Duration" value={duration} />
-            <MetaDatum
+            <JournalMetaDatum label="Opened" value={formatDateTime(viewModel.entryDate)} />
+            <JournalMetaDatum label="Closed" value={formatDateTime(viewModel.exitDate)} />
+            <JournalMetaDatum label="Duration" value={duration} />
+            <JournalMetaDatum
               label="Entry / Exit"
               value={`${formatNumber(viewModel.entryPrice)} / ${formatNumber(
                 viewModel.exitPrice,
               )}`}
             />
-            <MetaDatum
+            <JournalMetaDatum
               label="Size / R"
               value={`${formatNumber(viewModel.positionSize)} / ${
                 viewModel.rMultiple != null
@@ -793,48 +403,46 @@ export function TradeReviewDocument({
                 }`}
             />
           </div>
-        </ReviewSection>
+        </JournalSection>
 
-        <ReviewSection
+        <JournalSection
           title="Narrative"
           subtitle="Write the trade in sequence: what you saw, what made the idea credible, where management changed, and what the chart looked like after you were gone."
         >
-          <textarea
+          <AppTextArea
             value={draft.notes}
             onChange={(event) => setDraftField({ notes: event.target.value })}
             rows={12}
             placeholder="Tell the trade from first observation to final exit."
-            className="w-full resize-none rounded-[var(--radius-lg)] px-5 py-4 outline-none transition-colors"
+            className="w-full rounded-[var(--radius-lg)] px-5 py-4 text-[0.9375rem]"
             style={{
               background: "var(--surface)",
-              border: "1px solid var(--border-subtle)",
+              borderColor: "var(--border-subtle)",
               color: "var(--text-primary)",
-              fontFamily: "var(--font-inter)",
-              fontSize: "15px",
               lineHeight: 1.85,
             }}
           />
-        </ReviewSection>
+        </JournalSection>
 
-        <ReviewSection
+        <JournalSection
           title="Thesis"
           subtitle="Capture the setup, why the trade was worth taking, what would have invalidated it, and where the upside was supposed to come from."
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <ShortField
+            <JournalShortField
               label="Strategy"
               value={draft.journalReview.strategyName}
               onChange={(value) => setReviewField("strategyName", value)}
               placeholder="e.g. London sweep reversal"
             />
-            <ShortField
+            <JournalShortField
               label="Setup"
               value={draft.journalReview.setupName}
               onChange={(value) => setReviewField("setupName", value)}
               placeholder="Name the precise setup"
             />
           </div>
-          <PromptField
+          <JournalPromptField
             prompt="Why did this trade exist at all?"
             value={draft.journalReview.reasonForTrade}
             onChange={(value) => setReviewField("reasonForTrade", value)}
@@ -842,14 +450,14 @@ export function TradeReviewDocument({
             placeholder="State the edge, structure, or order-flow reason without fluff."
           />
           <div className="grid gap-4 lg:grid-cols-2">
-            <PromptField
+            <JournalPromptField
               prompt="What would have invalidated the idea?"
               value={draft.journalReview.invalidation}
               onChange={(value) => setReviewField("invalidation", value)}
               rows={4}
               placeholder="What needed to stop being true for this trade to be wrong?"
             />
-            <PromptField
+            <JournalPromptField
               prompt="What was the intended target logic?"
               value={draft.journalReview.targetPlan}
               onChange={(value) => setReviewField("targetPlan", value)}
@@ -857,15 +465,15 @@ export function TradeReviewDocument({
               placeholder="Liquidity pool, higher-timeframe level, or asymmetric objective."
             />
           </div>
-        </ReviewSection>
+        </JournalSection>
 
-        <ReviewSection
+        <JournalSection
           title="Timeframe alignment"
           subtitle="Record the higher-timeframe read, the execution frame, the trigger frame, and whether the trade was aligned or forced."
         >
           <div className="flex flex-wrap gap-2">
             {ALIGNMENT_OPTIONS.map((option) => (
-              <ChoiceButton
+              <JournalChoiceChip
                 key={option.value}
                 active={draft.journalReview.timeframeAlignment === option.value}
                 onClick={() =>
@@ -879,24 +487,24 @@ export function TradeReviewDocument({
                 tone="accent"
               >
                 {option.label}
-              </ChoiceButton>
+              </JournalChoiceChip>
             ))}
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <ShortField
+            <JournalShortField
               label="Higher timeframe bias"
               value={draft.journalReview.higherTimeframeBias}
               onChange={(value) => setReviewField("higherTimeframeBias", value)}
               placeholder="Bullish, bearish, neutral"
             />
-            <ShortField
+            <JournalShortField
               label="Execution timeframe"
               value={draft.journalReview.executionTimeframe}
               onChange={(value) => setReviewField("executionTimeframe", value)}
               placeholder="e.g. 15m"
               mono
             />
-            <ShortField
+            <JournalShortField
               label="Trigger timeframe"
               value={draft.journalReview.triggerTimeframe}
               onChange={(value) => setReviewField("triggerTimeframe", value)}
@@ -904,23 +512,23 @@ export function TradeReviewDocument({
               mono
             />
           </div>
-          <PromptField
+          <JournalPromptField
             prompt="How did the timeframes agree or fight each other?"
             value={draft.journalReview.higherTimeframeNotes}
             onChange={(value) => setReviewField("higherTimeframeNotes", value)}
             rows={4}
             placeholder="Be explicit about alignment, conflict, or the one frame you ignored."
           />
-        </ReviewSection>
+        </JournalSection>
 
-        <ReviewSection
+        <JournalSection
           title="Market context"
           subtitle="Add the session, the market condition, and the contextual detail that made the trade easier or more dangerous."
         >
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
               {SESSION_OPTIONS.map((option) => (
-                <ChoiceButton
+                <JournalChoiceChip
                   key={option}
                   active={draft.session === option}
                   onClick={() =>
@@ -930,12 +538,12 @@ export function TradeReviewDocument({
                   }
                 >
                   {option}
-                </ChoiceButton>
+                </JournalChoiceChip>
               ))}
             </div>
             <div className="flex flex-wrap gap-2">
               {MARKET_CONDITIONS.map((option) => (
-                <ChoiceButton
+                <JournalChoiceChip
                   key={option}
                   active={draft.marketCondition === option}
                   onClick={() =>
@@ -946,19 +554,19 @@ export function TradeReviewDocument({
                   }
                 >
                   {option}
-                </ChoiceButton>
+                </JournalChoiceChip>
               ))}
             </div>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <PromptField
+            <JournalPromptField
               prompt="What did price make obvious before the entry?"
               value={draft.observations}
               onChange={(value) => setDraftField({ observations: value })}
               rows={5}
               placeholder="Structure, liquidity, volatility, correlations, or timing tells."
             />
-            <PromptField
+            <JournalPromptField
               prompt="What context around the trade mattered most?"
               value={draft.journalReview.marketContext}
               onChange={(value) => setReviewField("marketContext", value)}
@@ -966,21 +574,21 @@ export function TradeReviewDocument({
               placeholder="Macro driver, session behavior, news, or environmental context."
             />
           </div>
-        </ReviewSection>
+        </JournalSection>
 
-        <ReviewSection
+        <JournalSection
           title="Execution review"
           subtitle="Break the trade into the trigger, the handling, and the exit. This section should explain the decisions, not just the outcome."
         >
           <div className="grid gap-4 lg:grid-cols-2">
-            <PromptField
+            <JournalPromptField
               prompt="Why did you enter at that exact moment?"
               value={draft.journalReview.entryReason}
               onChange={(value) => setReviewField("entryReason", value)}
               rows={5}
               placeholder="What confirmed the trigger? What made it timely?"
             />
-            <PromptField
+            <JournalPromptField
               prompt="What happened during management?"
               value={draft.journalReview.managementReview}
               onChange={(value) => setReviewField("managementReview", value)}
@@ -989,14 +597,14 @@ export function TradeReviewDocument({
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <PromptField
+            <JournalPromptField
               prompt="What is the plain execution story?"
               value={draft.executionNotes}
               onChange={(value) => setDraftField({ executionNotes: value })}
               rows={5}
               placeholder="Describe the trade management as if another trader had to learn from it."
             />
-            <PromptField
+            <JournalPromptField
               prompt="Why did the exit happen where it did?"
               value={draft.journalReview.exitReason}
               onChange={(value) => setReviewField("exitReason", value)}
@@ -1004,28 +612,28 @@ export function TradeReviewDocument({
               placeholder="Intentional target, fear, structure break, or loss of edge."
             />
           </div>
-        </ReviewSection>
+        </JournalSection>
 
-        <ReviewSection
+        <JournalSection
           title="Psychology"
           subtitle="Write the internal state before, during, and after the trade. This is where hesitation, urgency, FOMO, stubbornness, and clarity belong."
         >
           <div className="grid gap-4 lg:grid-cols-3">
-            <PromptField
+            <JournalPromptField
               prompt="Before the trade"
               value={draft.journalReview.psychologyBefore}
               onChange={(value) => setReviewField("psychologyBefore", value)}
               rows={5}
               placeholder="Confidence, caution, impatience, bias, or clarity before entry."
             />
-            <PromptField
+            <JournalPromptField
               prompt="During the trade"
               value={draft.journalReview.psychologyDuring}
               onChange={(value) => setReviewField("psychologyDuring", value)}
               rows={5}
               placeholder="How did your emotional state evolve while the trade was open?"
             />
-            <PromptField
+            <JournalPromptField
               prompt="After the trade"
               value={draft.journalReview.psychologyAfter}
               onChange={(value) => setReviewField("psychologyAfter", value)}
@@ -1033,33 +641,33 @@ export function TradeReviewDocument({
               placeholder="What did the result make you want to do next?"
             />
           </div>
-          <PromptField
+          <JournalPromptField
             prompt="How would you summarize the emotional weather of this trade?"
             value={draft.feelings}
             onChange={(value) => setDraftField({ feelings: value })}
             rows={4}
             placeholder="Name the dominant feeling plainly: calm, rushed, defensive, stubborn, detached, clear."
           />
-        </ReviewSection>
+        </JournalSection>
 
-        <ReviewSection
+        <JournalSection
           title="Review controls"
           subtitle="Keep the annotations tight: rate the craft, mark the tags, set conviction, and record whether this is a trade worth repeating."
         >
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)]">
             <div className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-3">
-                <RatingInput
+                <JournalRatingInput
                   label="Entry"
                   value={draft.entryRating}
                   onChange={(value) => setDraftField({ entryRating: value })}
                 />
-                <RatingInput
+                <JournalRatingInput
                   label="Exit"
                   value={draft.exitRating}
                   onChange={(value) => setDraftField({ exitRating: value })}
                 />
-                <RatingInput
+                <JournalRatingInput
                   label="Management"
                   value={draft.managementRating}
                   onChange={(value) =>
@@ -1067,15 +675,15 @@ export function TradeReviewDocument({
                   }
                 />
               </div>
-              <ConvictionInput
+              <JournalConvictionInput
                 value={draft.conviction}
                 onChange={(value) => setDraftField({ conviction: value })}
               />
               <div className="space-y-2">
-                <SectionLabel>Would you take this trade again?</SectionLabel>
+                <p className="text-label">Would you take this trade again?</p>
                 <div className="flex flex-wrap items-center gap-2">
                   {RETAKE_OPTIONS.map((option) => (
-                    <ChoiceButton
+                    <JournalChoiceChip
                       key={option.value}
                       active={verdict === option.value}
                       onClick={() =>
@@ -1093,21 +701,21 @@ export function TradeReviewDocument({
                       }
                     >
                       {option.label}
-                    </ChoiceButton>
+                    </JournalChoiceChip>
                   ))}
                 </div>
               </div>
             </div>
 
             <div className="space-y-5">
-              <TagField
+              <JournalTagField
                 label="Setup tags"
                 tags={draft.setupTags}
                 onChange={(next) => setDraftField({ setupTags: next })}
                 tone="neutral"
                 placeholder="Add setup tag"
               />
-              <TagField
+              <JournalTagField
                 label="Mistake tags"
                 tags={draft.mistakeTags}
                 onChange={(next) => setDraftField({ mistakeTags: next })}
@@ -1116,19 +724,13 @@ export function TradeReviewDocument({
               />
             </div>
           </div>
-        </ReviewSection>
+        </JournalSection>
 
-        <ReviewSection
+        <JournalSection
           title="Excursion"
           subtitle="Record how far price went against you and for you. The pair matters because it tells you whether the problem was structure, timing, or management."
         >
-          <div
-            className="rounded-[var(--radius-lg)] px-5 py-4"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border-subtle)",
-            }}
-          >
+          <InsetPanel paddingClassName="px-5 py-4">
             <div
               className="relative h-px w-full"
               style={{ background: "var(--border-subtle)" }}
@@ -1157,7 +759,7 @@ export function TradeReviewDocument({
               />
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <ShortField
+              <JournalShortField
                 label="MAE"
                 value={draft.mae == null ? "" : String(draft.mae)}
                 onChange={(value) => {
@@ -1173,7 +775,7 @@ export function TradeReviewDocument({
                 placeholder="Max adverse excursion"
                 mono
               />
-              <ShortField
+              <JournalShortField
                 label="MFE"
                 value={draft.mfe == null ? "" : String(draft.mfe)}
                 onChange={(value) => {
@@ -1190,22 +792,22 @@ export function TradeReviewDocument({
                 mono
               />
             </div>
-          </div>
-        </ReviewSection>
+          </InsetPanel>
+        </JournalSection>
 
-        <ReviewSection
+        <JournalSection
           title="Distillation"
           subtitle="Finish with the one sentence worth remembering and the next action that should change future behavior."
         >
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
-            <PromptField
+            <JournalPromptField
               prompt="What is the lesson?"
               value={draft.lessonLearned}
               onChange={(value) => setDraftField({ lessonLearned: value })}
               rows={4}
               placeholder="Reduce the entire trade to one repeatable sentence."
             />
-            <PromptField
+            <JournalPromptField
               prompt="What changes next time?"
               value={draft.journalReview.followUpAction}
               onChange={(value) => setReviewField("followUpAction", value)}
@@ -1275,23 +877,21 @@ export function TradeReviewDocument({
                     ? "Unsaved edits"
                     : "No pending edits"}
             </p>
-            <button
+            <Button
               type="button"
               onClick={() => void save()}
-              className="rounded-[var(--radius-default)] px-4 py-2"
+              size="sm"
+              variant="outline"
               style={{
                 background: "var(--surface)",
-                border: "1px solid var(--border-subtle)",
+                borderColor: "var(--border-subtle)",
                 color: "var(--text-primary)",
-                fontFamily: "var(--font-inter)",
-                fontSize: "12px",
-                fontWeight: 600,
               }}
             >
               Save review
-            </button>
+            </Button>
           </div>
-        </ReviewSection>
+        </JournalSection>
       </div>
     </motion.article>
   );

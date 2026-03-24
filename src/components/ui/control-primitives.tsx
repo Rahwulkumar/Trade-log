@@ -87,9 +87,12 @@ export function ChoiceChip({
   inactiveColor = "var(--text-secondary)",
   ...props
 }: ChoiceChipProps) {
+  const ariaPressed = props["aria-pressed"] ?? active;
+
   return (
     <button
       type="button"
+      aria-pressed={ariaPressed}
       className={cn(
         "inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-md)] border font-medium transition-colors",
         compact ? "min-w-8 px-2.5 py-1.5 text-[0.7rem]" : "px-3 py-2 text-[0.75rem]",
@@ -116,6 +119,7 @@ export function ChecklistRow({
   return (
     <button
       type="button"
+      aria-pressed={checked}
       onClick={onToggle}
       className="flex w-full items-start gap-2.5 rounded-[var(--radius-default)] px-1 py-1.5 text-left transition-opacity"
       style={{ opacity: checked ? 0.58 : 1 }}

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { JournalEntryDraft } from "@/domain/journal-types";
 import { mapDraftToApiUpdate } from "@/domain/journal-mapper";
+import type { Trade } from "@/lib/api/trades";
+import { readJsonIfAvailable } from "@/lib/api/client/http";
 
 // ─── useJournalAutosave ─────────────────────────────────────────────────────
 // Replaces the ad-hoc useEffect + handleSave pattern in TradeJournal.
@@ -19,8 +21,8 @@ interface UseJournalAutosaveOptions {
   initialDraft: JournalEntryDraft;
   /** Trade row ID */
   tradeId: string;
-  /** Callback after a successful save (e.g. refresh trade list) */
-  onSaved: () => void;
+  /** Callback after a successful save with the updated trade payload */
+  onSaved: (trade: Trade) => void;
   /** Debounce delay in ms (default: 2500) */
   debounceMs?: number;
 }
@@ -118,8 +120,14 @@ export function useJournalAutosave({
         return;
       }
 
+      const savedTrade = await readJsonIfAvailable<Trade>(res);
+      if (!savedTrade) {
+        console.error("[Journal save error] missing updated trade payload");
+        return;
+      }
+
       setSavedAt(new Date());
-      onSavedRef.current();
+      onSavedRef.current(savedTrade);
     } catch (e) {
       console.error("[Journal save]", e);
     } finally {
