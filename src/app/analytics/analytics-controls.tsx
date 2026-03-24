@@ -179,7 +179,7 @@ function AnalyticsControlsForm({
           Timezone: {timeZone}
         </span>
         <span>Entry-day and hourly charts use this timezone.</span>
-        <span>Session buckets stay aligned to UTC market sessions.</span>
+        <span>Session buckets use DST-aware UTC market windows.</span>
         <Link href="/settings" className="underline underline-offset-4">
           Update timezone in settings
         </Link>

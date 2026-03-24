@@ -2,15 +2,14 @@
 
 import { useEffect } from "react";
 import { useClerk } from "@clerk/nextjs";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-/**
- * /auth/clear-session
- *
- * Navigating here signs the user out and clears all stale Clerk session
- * state (useful when JWT clock-skew causes an infinite redirect loop).
- * After sign-out the user is sent to /auth/login.
- */
+import { PageShell } from "@/components/layout/page-shell";
+import { Button } from "@/components/ui/button";
+import { PulseLoader } from "@/components/ui/loading";
+import { AppPanelEmptyState } from "@/components/ui/page-primitives";
+
 export default function ClearSessionPage() {
   const { signOut } = useClerk();
   const router = useRouter();
@@ -22,18 +21,24 @@ export default function ClearSessionPage() {
   }, [signOut, router]);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "var(--font-inter, system-ui, sans-serif)",
-        color: "var(--text-secondary, #888)",
-        fontSize: "0.875rem",
-      }}
-    >
-      Clearing session…
+    <div className="min-h-screen" style={{ background: "var(--app-bg)" }}>
+      <PageShell className="flex min-h-screen items-center justify-center py-10">
+        <div className="w-full max-w-xl">
+          <AppPanelEmptyState
+            title="Clearing session"
+            description="Signing you out and resetting stale authentication state now."
+            minHeight={260}
+            action={
+              <div className="flex flex-col items-center gap-4">
+                <PulseLoader />
+                <Button asChild variant="outline">
+                  <Link href="/auth/login">Back to sign in</Link>
+                </Button>
+              </div>
+            }
+          />
+        </div>
+      </PageShell>
     </div>
   );
 }

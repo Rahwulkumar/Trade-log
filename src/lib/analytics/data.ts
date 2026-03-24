@@ -24,13 +24,21 @@ export interface AnalyticsFilters {
   timeZone?: string | null;
 }
 
+const TIME_ZONE_ALIASES: Record<string, string> = {
+  utc: 'UTC',
+  est: 'America/New_York',
+  pst: 'America/Los_Angeles',
+  ist: 'Asia/Kolkata',
+};
+
 function normalizeTimeZone(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
+  const normalized = TIME_ZONE_ALIASES[trimmed.toLowerCase()] ?? trimmed;
   try {
-    new Intl.DateTimeFormat('en-US', { timeZone: trimmed }).format(new Date());
-    return trimmed;
+    new Intl.DateTimeFormat('en-US', { timeZone: normalized }).format(new Date());
+    return normalized;
   } catch {
     return null;
   }

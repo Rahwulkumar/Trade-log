@@ -445,7 +445,7 @@ export function TimingSection({
       <SectionHeader
         eyebrow="Timing Intelligence"
         title="Session & Time Analysis"
-        subtitle={`Session cards use UTC market windows. Day/hour charts use ${payload.meta.timeZone} entry time.`}
+        subtitle={`Session cards use DST-aware UTC market windows. Day/hour charts use ${payload.meta.timeZone} entry time.`}
       />
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {payload.time.session.length > 0 ? (
