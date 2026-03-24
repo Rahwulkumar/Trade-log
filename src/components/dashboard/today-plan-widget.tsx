@@ -143,12 +143,22 @@ export function TodayPlanWidget() {
   useEffect(() => {
     async function load() {
       try {
-        const [dailyPlan, activePlaybooks] = await Promise.all([
+        const [dailyPlanResult, activePlaybooksResult] = await Promise.allSettled([
           getDailyPlan(TODAY),
           getActivePlaybooks(),
         ]);
-        setPlan(dailyPlan);
-        setPlaybooks(activePlaybooks);
+        if (dailyPlanResult.status === "fulfilled") {
+          setPlan(dailyPlanResult.value);
+        }
+
+        if (activePlaybooksResult.status === "fulfilled") {
+          setPlaybooks(activePlaybooksResult.value);
+        } else {
+          console.error("Failed to load active playbooks:", activePlaybooksResult.reason);
+          setPlaybooks([]);
+        }
+      } catch (error) {
+        console.error("Failed to load today's plan:", error);
       } finally {
         setLoading(false);
       }

@@ -14,14 +14,19 @@ export async function GET(
   const { userId, error } = await requireAuth();
   if (error) return error;
 
-  const { id } = await params;
-  const playbook = await getPlaybook(id, userId);
+  try {
+    const { id } = await params;
+    const playbook = await getPlaybook(id, userId);
 
-  if (!playbook) {
-    return NextResponse.json({ error: 'Playbook not found' }, { status: 404 });
+    if (!playbook) {
+      return NextResponse.json({ error: 'Playbook not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(playbook);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to load playbook';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  return NextResponse.json(playbook);
 }
 
 export async function PATCH(

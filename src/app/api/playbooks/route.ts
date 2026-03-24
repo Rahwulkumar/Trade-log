@@ -7,14 +7,19 @@ export async function GET(request: NextRequest) {
   const { userId, error } = await requireAuth();
   if (error) return error;
 
-  const { searchParams } = new URL(request.url);
-  const activeOnly = searchParams.get('active') === 'true';
+  try {
+    const { searchParams } = new URL(request.url);
+    const activeOnly = searchParams.get('active') === 'true';
 
-  const playbooks = activeOnly
-    ? await getActivePlaybooks(userId)
-    : await getPlaybooks(userId);
+    const playbooks = activeOnly
+      ? await getActivePlaybooks(userId)
+      : await getPlaybooks(userId);
 
-  return NextResponse.json(playbooks);
+    return NextResponse.json(playbooks);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to load playbooks';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {

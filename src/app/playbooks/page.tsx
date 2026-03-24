@@ -50,60 +50,16 @@ import {
 import { cn } from "@/lib/utils";
 import {
   PlaybookCard,
-  type PlaybookCardData,
 } from "@/components/playbooks/playbook-card";
 import { PlaybookManageDialog } from "@/components/playbooks/playbook-manage-dialog";
+import {
+  EMPTY_PLAYBOOK_STATS,
+  normalizePlaybook,
+  normalizePlaybookScope,
+  type PlaybookCardData,
+} from "@/lib/playbooks/view-model";
 
 type StatusFilter = "all" | "active" | "paused";
-
-interface PlaybookStatsValue {
-  totalTrades: number;
-  winRate: number;
-  avgRMultiple: number;
-  totalPnl: number;
-}
-
-interface PlaybookPayloadShape {
-  id: string;
-  name: string;
-  description: string | null;
-  rules: unknown;
-  isActive?: boolean | null;
-  is_active?: boolean | null;
-  stats?: Partial<PlaybookStatsValue>;
-}
-
-const EMPTY_STATS: PlaybookStatsValue = {
-  totalTrades: 0,
-  winRate: 0,
-  avgRMultiple: 0,
-  totalPnl: 0,
-};
-
-function normalizeRules(value: unknown) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter((rule): rule is string => typeof rule === "string");
-}
-
-function normalizePlaybook(playbook: PlaybookPayloadShape): PlaybookCardData {
-  return {
-    id: playbook.id,
-    name: playbook.name,
-    description: playbook.description ?? null,
-    rules: normalizeRules(playbook.rules),
-    isActive: playbook.isActive ?? playbook.is_active ?? true,
-    stats: {
-      totalTrades: playbook.stats?.totalTrades ?? EMPTY_STATS.totalTrades,
-      winRate: playbook.stats?.winRate ?? EMPTY_STATS.winRate,
-      avgRMultiple:
-        playbook.stats?.avgRMultiple ?? EMPTY_STATS.avgRMultiple,
-      totalPnl: playbook.stats?.totalPnl ?? EMPTY_STATS.totalPnl,
-    },
-  };
-}
 
 export default function PlaybooksPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
@@ -135,11 +91,8 @@ export default function PlaybooksPage() {
       setLoading(true);
       setError(null);
 
-      const propAccountIdFilter =
-        selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
-
       const stats = await getAllPlaybooksWithStats(
-        propAccountIdFilter ?? undefined,
+        normalizePlaybookScope(selectedAccountId),
       );
 
       setPlaybooks(
@@ -192,7 +145,7 @@ export default function PlaybooksPage() {
       });
 
       setPlaybooks((prev) => [
-        normalizePlaybook({ ...created, stats: EMPTY_STATS }),
+        normalizePlaybook({ ...created, stats: EMPTY_PLAYBOOK_STATS }),
         ...prev,
       ]);
       setFormData({ name: "", description: "", rules: "" });
@@ -230,7 +183,7 @@ export default function PlaybooksPage() {
     try {
       const duplicated = await duplicatePlaybook(playbookId);
       setPlaybooks((prev) => [
-        normalizePlaybook({ ...duplicated, stats: EMPTY_STATS }),
+        normalizePlaybook({ ...duplicated, stats: EMPTY_PLAYBOOK_STATS }),
         ...prev,
       ]);
     } catch (err) {

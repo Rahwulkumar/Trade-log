@@ -67,9 +67,14 @@ export async function updatePlaybook(
 }
 
 export async function deletePlaybook(id: string, userId: string): Promise<void> {
-  await db
+  const deleted = await db
     .delete(playbooks)
-    .where(and(eq(playbooks.id, id), eq(playbooks.userId, userId)));
+    .where(and(eq(playbooks.id, id), eq(playbooks.userId, userId)))
+    .returning({ id: playbooks.id });
+
+  if (deleted.length === 0) {
+    throw new Error('Playbook not found');
+  }
 }
 
 export async function duplicatePlaybook(id: string, userId: string): Promise<Playbook> {

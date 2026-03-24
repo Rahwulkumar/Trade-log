@@ -19,20 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AppPanel, AppStatList } from "@/components/ui/page-primitives";
 import { InsetPanel } from "@/components/ui/surface-primitives";
-
-export interface PlaybookCardData {
-  id: string;
-  name: string;
-  description: string | null;
-  rules: string[];
-  isActive: boolean;
-  stats: {
-    totalTrades: number;
-    winRate: number;
-    avgRMultiple: number;
-    totalPnl: number;
-  };
-}
+import type { PlaybookCardData } from "@/lib/playbooks/view-model";
 
 interface PlaybookCardProps {
   playbook: PlaybookCardData;

@@ -258,7 +258,14 @@ export default function DashboardPage() {
             selectedAccountId === 'unassigned'
               ? 'unassigned'
               : selectedAccountId,
-          ).then((data) => data.sort((left, right) => right.totalPnl - left.totalPnl).slice(0, 4)),
+          )
+            .then((data) =>
+              data.sort((left, right) => right.totalPnl - left.totalPnl).slice(0, 4),
+            )
+            .catch((error) => {
+              console.error('Dashboard playbooks:', error);
+              return [];
+            }),
           challengePromise,
         ]);
 

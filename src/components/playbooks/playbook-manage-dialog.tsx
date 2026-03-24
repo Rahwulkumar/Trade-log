@@ -75,10 +75,6 @@ export function PlaybookManageDialog({
         setError(null);
 
         const playbook = await getPlaybook(playbookId);
-        if (!playbook) {
-          throw new Error("Playbook not found.");
-        }
-
         if (!active) return;
 
         setForm({

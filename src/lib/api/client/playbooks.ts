@@ -7,6 +7,35 @@ import type { Playbook, PlaybookInsert } from '@/lib/db/schema';
 import { readJsonIfAvailable } from '@/lib/api/client/http';
 export type { Playbook, PlaybookInsert };
 
+interface ApiErrorPayload {
+  error?: string;
+  message?: string;
+}
+
+function isApiErrorPayload(payload: unknown): payload is ApiErrorPayload {
+  return (
+    !!payload &&
+    typeof payload === 'object' &&
+    !Array.isArray(payload) &&
+    ('error' in payload || 'message' in payload)
+  );
+}
+
+function getApiErrorMessage(
+  payload: unknown,
+  fallback: string,
+) {
+  if (isApiErrorPayload(payload) && typeof payload.error === 'string') {
+    return payload.error;
+  }
+
+  if (isApiErrorPayload(payload) && typeof payload.message === 'string') {
+    return payload.message;
+  }
+
+  return fallback;
+}
+
 export interface PlaybookStats {
   playbook: Playbook;
   totalTrades: number;
@@ -18,33 +47,48 @@ export interface PlaybookStats {
 }
 
 export async function getPlaybooks(): Promise<Playbook[]> {
-  try {
-    const res = await fetch('/api/playbooks');
-    if (!res.ok) return [];
-    return (await readJsonIfAvailable<Playbook[]>(res)) ?? [];
-  } catch {
-    return [];
+  const res = await fetch('/api/playbooks');
+  const payload = await readJsonIfAvailable<Playbook[] | ApiErrorPayload>(res);
+
+  if (!res.ok) {
+    throw new Error(getApiErrorMessage(payload, 'Failed to load playbooks'));
   }
+
+  if (!payload || !Array.isArray(payload)) {
+    throw new Error('Failed to load playbooks');
+  }
+
+  return payload;
 }
 
 export async function getActivePlaybooks(): Promise<Playbook[]> {
-  try {
-    const res = await fetch('/api/playbooks?active=true');
-    if (!res.ok) return [];
-    return (await readJsonIfAvailable<Playbook[]>(res)) ?? [];
-  } catch {
-    return [];
+  const res = await fetch('/api/playbooks?active=true');
+  const payload = await readJsonIfAvailable<Playbook[] | ApiErrorPayload>(res);
+
+  if (!res.ok) {
+    throw new Error(getApiErrorMessage(payload, 'Failed to load playbooks'));
   }
+
+  if (!payload || !Array.isArray(payload)) {
+    throw new Error('Failed to load playbooks');
+  }
+
+  return payload;
 }
 
-export async function getPlaybook(id: string): Promise<Playbook | null> {
-  try {
-    const res = await fetch(`/api/playbooks/${id}`);
-    if (!res.ok) return null;
-    return (await readJsonIfAvailable<Playbook>(res)) ?? null;
-  } catch {
-    return null;
+export async function getPlaybook(id: string): Promise<Playbook> {
+  const res = await fetch(`/api/playbooks/${id}`);
+  const payload = await readJsonIfAvailable<Playbook | ApiErrorPayload>(res);
+
+  if (!res.ok) {
+    throw new Error(getApiErrorMessage(payload, 'Failed to load playbook'));
   }
+
+  if (!payload || Array.isArray(payload) || isApiErrorPayload(payload)) {
+    throw new Error('Failed to load playbook');
+  }
+
+  return payload;
 }
 
 export async function createPlaybook(
@@ -55,10 +99,17 @@ export async function createPlaybook(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to create playbook');
-  const playbook = await readJsonIfAvailable<Playbook>(res);
-  if (!playbook) throw new Error('Failed to create playbook');
-  return playbook;
+  const payload = await readJsonIfAvailable<Playbook | ApiErrorPayload>(res);
+
+  if (!res.ok) {
+    throw new Error(getApiErrorMessage(payload, 'Failed to create playbook'));
+  }
+
+  if (!payload || Array.isArray(payload) || isApiErrorPayload(payload)) {
+    throw new Error('Failed to create playbook');
+  }
+
+  return payload;
 }
 
 export async function updatePlaybook(
@@ -70,42 +121,89 @@ export async function updatePlaybook(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
   });
-  if (!res.ok) throw new Error('Failed to update playbook');
-  const playbook = await readJsonIfAvailable<Playbook>(res);
-  if (!playbook) throw new Error('Failed to update playbook');
-  return playbook;
+  const payload = await readJsonIfAvailable<Playbook | ApiErrorPayload>(res);
+
+  if (!res.ok) {
+    throw new Error(getApiErrorMessage(payload, 'Failed to update playbook'));
+  }
+
+  if (!payload || Array.isArray(payload) || isApiErrorPayload(payload)) {
+    throw new Error('Failed to update playbook');
+  }
+
+  return payload;
 }
 
 export async function deletePlaybook(id: string): Promise<void> {
   const res = await fetch(`/api/playbooks/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Failed to delete playbook');
+  const payload = await readJsonIfAvailable<ApiErrorPayload>(res);
+
+  if (!res.ok) {
+    throw new Error(getApiErrorMessage(payload, 'Failed to delete playbook'));
+  }
 }
 
 export async function togglePlaybookActive(id: string): Promise<Playbook> {
   const res = await fetch(`/api/playbooks/${id}/toggle-active`, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to toggle playbook');
-  const playbook = await readJsonIfAvailable<Playbook>(res);
-  if (!playbook) throw new Error('Failed to toggle playbook');
-  return playbook;
+  const payload = await readJsonIfAvailable<Playbook | ApiErrorPayload>(res);
+
+  if (!res.ok) {
+    throw new Error(getApiErrorMessage(payload, 'Failed to toggle playbook'));
+  }
+
+  if (!payload || Array.isArray(payload) || isApiErrorPayload(payload)) {
+    throw new Error('Failed to toggle playbook');
+  }
+
+  return payload;
 }
 
 export async function duplicatePlaybook(id: string): Promise<Playbook> {
   const res = await fetch(`/api/playbooks/${id}/duplicate`, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to duplicate playbook');
-  const playbook = await readJsonIfAvailable<Playbook>(res);
-  if (!playbook) throw new Error('Failed to duplicate playbook');
-  return playbook;
+  const payload = await readJsonIfAvailable<Playbook | ApiErrorPayload>(res);
+
+  if (!res.ok) {
+    throw new Error(getApiErrorMessage(payload, 'Failed to duplicate playbook'));
+  }
+
+  if (!payload || Array.isArray(payload) || isApiErrorPayload(payload)) {
+    throw new Error('Failed to duplicate playbook');
+  }
+
+  return payload;
 }
 
 export async function getAllPlaybooksWithStats(
   propAccountId?: string | null
 ): Promise<PlaybookStats[]> {
-  const qs = propAccountId ? `?propAccountId=${propAccountId}` : '';
-  try {
-    const res = await fetch(`/api/playbooks/stats${qs}`);
-    if (!res.ok) return [];
-    return (await readJsonIfAvailable<PlaybookStats[]>(res)) ?? [];
-  } catch {
-    return [];
+  const searchParams = new URLSearchParams();
+  if (propAccountId) {
+    searchParams.set('propAccountId', propAccountId);
   }
+
+  const qs = searchParams.toString();
+  const res = await fetch(`/api/playbooks/stats${qs ? `?${qs}` : ''}`);
+  const payload = await readJsonIfAvailable<PlaybookStats[] | ApiErrorPayload>(res);
+
+  if (!res.ok) {
+    const message =
+      payload &&
+      typeof payload === 'object' &&
+      !Array.isArray(payload) &&
+      typeof payload.error === 'string'
+        ? payload.error
+        : payload &&
+            typeof payload === 'object' &&
+            !Array.isArray(payload) &&
+            typeof payload.message === 'string'
+          ? payload.message
+          : 'Failed to load playbooks';
+    throw new Error(message);
+  }
+
+  if (!payload || !Array.isArray(payload)) {
+    throw new Error('Failed to load playbooks');
+  }
+
+  return payload;
 }
