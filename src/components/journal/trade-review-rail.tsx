@@ -102,13 +102,7 @@ export function TradeReviewRail({
   const pendingCount = items.filter((item) => item.reviewStatus !== "complete").length;
 
   return (
-    <aside
-      className="flex h-full w-[260px] shrink-0 flex-col overflow-hidden"
-      style={{
-        background: "var(--surface)",
-        borderRight: "1px solid var(--border-subtle)",
-      }}
-    >
+    <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden">
       <div
         className="sticky top-0 z-10"
         style={{
@@ -117,30 +111,18 @@ export function TradeReviewRail({
         }}
       >
         <div className="px-4 pb-3 pt-4">
-          <div className="flex items-end justify-between gap-3">
-            <div className="space-y-1">
-              <p
-                style={{
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-syne)",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  lineHeight: 1.1,
-                }}
-              >
-                Journal
-              </p>
-              <p
-                style={{
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "12px",
-                  lineHeight: 1.5,
-                }}
-              >
-                {pendingCount} still need review
-              </p>
-            </div>
+          <div className="space-y-1">
+            <p className="headline-md">Trade queue</p>
+            <p
+              className="text-label"
+              style={{
+                textTransform: "none",
+                letterSpacing: 0,
+                color: "var(--text-tertiary)",
+              }}
+            >
+              {pendingCount} still need review
+            </p>
           </div>
         </div>
 
@@ -170,7 +152,7 @@ export function TradeReviewRail({
             />
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             {([
               ["all", "All"],
               ["pending", "Needs Review"],
@@ -183,9 +165,11 @@ export function TradeReviewRail({
                   key={value}
                   type="button"
                   onClick={() => onStatusFilterChange(value)}
-                  className="rounded-full px-3 py-1.5"
+                  className="rounded-[var(--radius-default)] px-3 py-1.5 text-left transition-colors"
                   style={{
-                    background: active ? "var(--accent-soft)" : "transparent",
+                    background: active
+                      ? "var(--surface-elevated)"
+                      : "transparent",
                     border: `1px solid ${
                       active
                         ? "var(--accent-primary)"
@@ -230,13 +214,11 @@ export function TradeReviewRail({
           grouped.map(([label, groupItems]) => (
             <div key={label}>
               <p
-                className="mx-3 mb-1 mt-4"
+                className="mx-3 mb-1 mt-4 text-label"
                 style={{
                   color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-syne)",
                   fontSize: "10px",
-                  letterSpacing: "0.16em",
-                  textTransform: "uppercase",
+                  letterSpacing: "0.12em",
                 }}
               >
                 {label}
@@ -273,16 +255,17 @@ export function TradeReviewRail({
                     variants={ROW}
                     type="button"
                     onClick={() => onSelectTrade(item.id)}
-                    className="mx-[6px] my-[1px] block w-[calc(100%-12px)] px-3 py-2 text-left transition-colors duration-100"
+                    className="mx-[6px] my-[1px] block w-[calc(100%-12px)] px-3 py-2.5 text-left transition-colors duration-100"
                     style={{
                       background: isActive
-                        ? "var(--accent-soft)"
+                        ? "var(--surface-elevated)"
                         : "transparent",
                       borderLeft: isActive
                         ? "2px solid var(--accent-primary)"
                         : "2px solid transparent",
                       borderRadius: "var(--radius-default)",
                       width: "calc(100% - 12px)",
+                      boxShadow: isActive ? "var(--shadow-sm)" : "none",
                     }}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -343,6 +326,7 @@ export function TradeReviewRail({
                             color: statusColor,
                             fontFamily: "var(--font-inter)",
                             fontSize: "9px",
+                            fontWeight: 600,
                             padding: "2px 6px",
                           }}
                         >

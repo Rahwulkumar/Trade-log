@@ -7,13 +7,13 @@ import { ChevronDown, Minus, TrendingDown, TrendingUp } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import {
-  DashboardChecklistRow,
-  DashboardChoiceChip,
-  DashboardControlSurface,
-  DashboardFieldGroup,
-  DashboardProgressBar,
-  DashboardTextArea,
-} from "@/components/dashboard/control-primitives";
+  AppTextArea,
+  ChecklistRow,
+  ChoiceChip,
+  ControlSurface,
+  FieldGroup,
+  ValueBar,
+} from "@/components/ui/control-primitives";
 import { AppPanel, SectionHeader } from "@/components/ui/page-primitives";
 import { getDailyPlan, upsertDailyPlan, type DailyPlanResponse } from "@/lib/api/client/daily-plans";
 import { getActivePlaybooks, type Playbook } from "@/lib/api/client/playbooks";
@@ -262,7 +262,7 @@ export function TodayPlanWidget() {
                   const tone = getGradeTone(grade);
 
                   return (
-                    <DashboardChoiceChip
+                    <ChoiceChip
                       key={grade}
                       active={active}
                       compact
@@ -276,7 +276,7 @@ export function TodayPlanWidget() {
                       }}
                     >
                       {grade}
-                    </DashboardChoiceChip>
+                    </ChoiceChip>
                   );
                 })}
               </div>
@@ -287,14 +287,14 @@ export function TodayPlanWidget() {
 
       <div className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
         <div className="space-y-4">
-          <DashboardControlSurface>
-            <DashboardFieldGroup label="Market Bias">
+          <ControlSurface>
+            <FieldGroup label="Market Bias">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {BIAS_OPTIONS.map(({ value, icon: Icon, color, background }) => {
                   const active = resolvedBias === value;
 
                   return (
-                    <DashboardChoiceChip
+                    <ChoiceChip
                       key={value}
                       active={active}
                       icon={<Icon className="h-3.5 w-3.5" />}
@@ -304,15 +304,15 @@ export function TodayPlanWidget() {
                       onClick={() => toggleBias(value)}
                     >
                       {value}
-                    </DashboardChoiceChip>
+                    </ChoiceChip>
                   );
                 })}
               </div>
-            </DashboardFieldGroup>
-          </DashboardControlSurface>
+            </FieldGroup>
+          </ControlSurface>
 
-          <DashboardControlSurface className="overflow-visible">
-            <DashboardFieldGroup label="Today's Strategy">
+          <ControlSurface className="overflow-visible">
+            <FieldGroup label="Today's Strategy">
               <div className="relative" ref={playbookRef}>
                 <button
                   type="button"
@@ -382,14 +382,14 @@ export function TodayPlanWidget() {
                   </div>
                 ) : null}
               </div>
-            </DashboardFieldGroup>
-          </DashboardControlSurface>
+            </FieldGroup>
+          </ControlSurface>
         </div>
 
         <div className="space-y-4">
           {universalRules.length > 0 ? (
-            <DashboardControlSurface>
-              <DashboardFieldGroup
+            <ControlSurface>
+              <FieldGroup
                 label="Universal Rules"
                 meta={
                   <span
@@ -400,10 +400,10 @@ export function TodayPlanWidget() {
                   </span>
                 }
               >
-                <DashboardProgressBar value={universalProgress} />
+                <ValueBar value={universalProgress} />
                 <div className="space-y-0.5">
                   {universalRules.map((rule) => (
-                    <DashboardChecklistRow
+                    <ChecklistRow
                       key={rule}
                       text={rule}
                       checked={resolvedUniversalChecked.includes(rule)}
@@ -411,13 +411,13 @@ export function TodayPlanWidget() {
                     />
                   ))}
                 </div>
-              </DashboardFieldGroup>
-            </DashboardControlSurface>
+              </FieldGroup>
+            </ControlSurface>
           ) : null}
 
           {strategyRules.length > 0 ? (
-            <DashboardControlSurface>
-              <DashboardFieldGroup
+            <ControlSurface>
+              <FieldGroup
                 label="Strategy Rules"
                 meta={
                   <span
@@ -428,13 +428,13 @@ export function TodayPlanWidget() {
                   </span>
                 }
               >
-                <DashboardProgressBar
+                <ValueBar
                   value={strategyProgress}
                   color="var(--profit-primary)"
                 />
                 <div className="space-y-0.5">
                   {strategyRules.map((rule) => (
-                    <DashboardChecklistRow
+                    <ChecklistRow
                       key={rule}
                       text={rule}
                       checked={resolvedStrategyChecked.includes(rule)}
@@ -442,13 +442,13 @@ export function TodayPlanWidget() {
                     />
                   ))}
                 </div>
-              </DashboardFieldGroup>
-            </DashboardControlSurface>
+              </FieldGroup>
+            </ControlSurface>
           ) : null}
 
           {universalRules.length === 0 && strategyRules.length === 0 ? (
-            <DashboardControlSurface>
-              <DashboardFieldGroup label="Rules">
+            <ControlSurface>
+              <FieldGroup label="Rules">
                 <p
                   className="text-[0.75rem] leading-relaxed"
                   style={{ color: "var(--text-tertiary)" }}
@@ -456,8 +456,8 @@ export function TodayPlanWidget() {
                   Add universal rules in Settings under Trading, or select a
                   strategy above.
                 </p>
-              </DashboardFieldGroup>
-            </DashboardControlSurface>
+              </FieldGroup>
+            </ControlSurface>
           ) : null}
         </div>
       </div>
@@ -466,9 +466,9 @@ export function TodayPlanWidget() {
         className="px-5 pb-5 pt-1"
         style={{ borderTop: "1px solid var(--border-subtle)" }}
       >
-        <DashboardControlSurface>
-          <DashboardFieldGroup label="Pre-market Note">
-            <DashboardTextArea
+        <ControlSurface>
+          <FieldGroup label="Pre-market Note">
+            <AppTextArea
               value={resolvedPreNote}
               onChange={(event) => {
                 setPreNote(event.target.value);
@@ -478,8 +478,8 @@ export function TodayPlanWidget() {
               rows={3}
               maxLength={5000}
             />
-          </DashboardFieldGroup>
-        </DashboardControlSurface>
+          </FieldGroup>
+        </ControlSurface>
       </div>
     </AppPanel>
   );

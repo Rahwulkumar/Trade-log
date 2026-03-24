@@ -13,9 +13,9 @@ import { StatisticsDonut } from '@/components/dashboard/statistics-donut';
 import { TodayPlanWidget } from '@/components/dashboard/today-plan-widget';
 import { TopPlaybooks } from '@/components/dashboard/playbooks-widget';
 import {
-  DashboardInsetPanel,
-  DashboardWidgetEmptyState,
-} from '@/components/dashboard/widget-primitives';
+  InsetPanel,
+  WidgetEmptyState,
+} from '@/components/ui/surface-primitives';
 import { Button } from '@/components/ui/button';
 import { ArcProgress } from '@/components/ui/arc-progress';
 import { DrawdownGauge } from '@/components/ui/drawdown-gauge';
@@ -725,9 +725,9 @@ export default function DashboardPage() {
           {selectedPropAccount ? (
             <div className="space-y-5">
               <div className="grid gap-4 xl:grid-cols-[120px_minmax(0,1fr)]">
-                <DashboardInsetPanel className="flex items-center justify-center">
+                <InsetPanel className="flex items-center justify-center">
                   <ArcProgress percent={profitProgressPercent} />
-                </DashboardInsetPanel>
+                </InsetPanel>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <AppMetricCard
                     label="Current Balance"
@@ -779,36 +779,36 @@ export default function DashboardPage() {
 
               {hasChallengeRules ? (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <DashboardInsetPanel>
+                  <InsetPanel>
                     <DrawdownGauge
                       label="Daily Loss Used"
                       used={todayLossUsedPercent}
                       max={dailyLimitPercent ?? 0}
                     />
-                  </DashboardInsetPanel>
-                  <DashboardInsetPanel>
+                  </InsetPanel>
+                  <InsetPanel>
                     <DrawdownGauge
                       label="Total Loss Used"
                       used={totalLossUsedPercent}
                       max={totalLimitPercent ?? 0}
                     />
-                  </DashboardInsetPanel>
+                  </InsetPanel>
                 </div>
               ) : (
-                <DashboardInsetPanel className="py-3 text-sm">
+                <InsetPanel className="py-3 text-sm">
                   Challenge drawdown rules are not configured for this account yet.
-                </DashboardInsetPanel>
+                </InsetPanel>
               )}
 
               {approachingLossLimit ? (
-                <DashboardInsetPanel
+                <InsetPanel
                   tone="warning"
                   className="py-3 text-sm"
                 >
                   <span style={{ color: 'var(--warning-primary)' }}>
                     Loss-limit buffer is getting tight. Review daily and total drawdown before placing another trade.
                   </span>
-                </DashboardInsetPanel>
+                </InsetPanel>
               ) : null}
               <AppMetricCard
                 label="Last Synced"
@@ -822,7 +822,7 @@ export default function DashboardPage() {
               />
             </div>
           ) : (
-            <DashboardWidgetEmptyState
+            <WidgetEmptyState
               className="py-10"
               icon={<IconAnalytics size={20} />}
               title={

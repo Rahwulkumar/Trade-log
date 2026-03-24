@@ -291,6 +291,9 @@ export default function JournalPage() {
     (record) => record.trade.id === activeTradeId,
   );
   const activeRecord = activeIndex >= 0 ? filteredRecords[activeIndex] : null;
+  const pendingCount = records.filter(
+    (record) => record.reviewStatus !== "complete",
+  ).length;
   const accountLabel =
     selectedAccountId === "unassigned"
       ? "Unassigned trades"
@@ -332,40 +335,8 @@ export default function JournalPage() {
 
   if (loading) {
     return (
-      <div
-        className="flex h-[calc(100dvh-64px)] items-center px-6"
-        style={{ background: "var(--app-bg)" }}
-      >
-        <p
-          style={{
-            color: "var(--text-tertiary)",
-            fontFamily: "var(--font-inter)",
-            fontSize: "13px",
-          }}
-        >
-          Loading trade journal...
-        </p>
-      </div>
-    );
-  }
-
-  if (records.length === 0) {
-    return (
-      <div
-        className="flex h-[calc(100dvh-64px)] items-center justify-center px-6 text-center"
-        style={{ background: "var(--app-bg)" }}
-      >
-        <div className="space-y-2">
-          <p
-            style={{
-              color: "var(--text-secondary)",
-              fontFamily: "var(--font-syne)",
-              fontSize: "20px",
-              fontWeight: 700,
-            }}
-          >
-            No closed trades yet
-          </p>
+      <div className="page-root page-sections h-[calc(100dvh-64px)]">
+        <section className="surface flex min-h-[220px] items-center px-6">
           <p
             style={{
               color: "var(--text-tertiary)",
@@ -373,99 +344,124 @@ export default function JournalPage() {
               fontSize: "13px",
             }}
           >
-            Close a trade first, then come back here to write the review.
+            Loading trade journal...
           </p>
-        </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (records.length === 0) {
+    return (
+      <div className="page-root page-sections h-[calc(100dvh-64px)]">
+        <section className="surface flex min-h-[260px] items-center justify-center px-6 text-center">
+          <div className="space-y-2">
+            <p
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: "var(--font-inter)",
+                fontSize: "1.2rem",
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.24,
+              }}
+            >
+              No closed trades yet
+            </p>
+            <p
+              className="text-label"
+              style={{
+                textTransform: "none",
+                letterSpacing: 0,
+                color: "var(--text-tertiary)",
+              }}
+            >
+              Close a trade first, then come back here to write the review.
+            </p>
+          </div>
+        </section>
       </div>
     );
   }
 
   return (
-    <div
-      className="grid h-[calc(100dvh-64px)] min-h-0 grid-rows-[280px_minmax(0,1fr)] overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-1"
-      style={{ background: "var(--app-bg)" }}
-    >
-      <TradeReviewRail
-        items={filteredRecords.map((record) => record.item)}
-        activeTradeId={activeTradeId}
-        search={search}
-        onSearchChange={setSearch}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        onSelectTrade={goToTrade}
-      />
+    <div className="page-root page-sections h-[calc(100dvh-64px)] overflow-hidden">
+      <header className="stagger-1 flex items-center justify-between gap-4 py-1">
+        <div>
+          <h1
+            style={{
+              fontWeight: 700,
+              fontSize: "1.25rem",
+              letterSpacing: "-0.025em",
+              color: "var(--text-primary)",
+              lineHeight: 1.22,
+            }}
+          >
+            Journal
+          </h1>
+          <p
+            className="text-label mt-0.5"
+            style={{
+              textTransform: "none",
+              letterSpacing: 0,
+              color: "var(--text-secondary)",
+            }}
+          >
+            Post-trade review for {accountLabel}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="badge-accent rounded-full px-2.5 py-1">
+            {pendingCount} pending
+          </span>
+          <span style={{ color: "var(--text-tertiary)" }}>
+            {records.length} closed trades loaded
+          </span>
+        </div>
+      </header>
 
-      <section className="min-h-0 overflow-hidden">
-        {!activeRecord ? (
-          <div className="flex h-full items-center justify-center px-6 text-center">
-            <div className="space-y-2">
-              <p
-                style={{
-                  color: "var(--text-secondary)",
-                  fontFamily: "var(--font-syne)",
-                  fontSize: "18px",
-                  fontWeight: 700,
-                }}
-              >
-                No trade in this view
-              </p>
-              <p
-                style={{
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "13px",
-                }}
-              >
-                Clear the current filter to continue journaling.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex h-full min-h-0 flex-col">
-            <div
-              className="border-b px-6 py-3"
-              style={{
-                background: "var(--surface)",
-                borderColor: "var(--border-subtle)",
-              }}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <span
-                    style={{
-                      color: "var(--text-primary)",
-                      fontFamily: "var(--font-syne)",
-                      fontSize: "15px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    Journal
-                  </span>
-                  <span
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "12px",
-                    }}
-                  >
-                    {accountLabel}
-                  </span>
-                </div>
+      <section className="stagger-2 grid min-h-0 flex-1 grid-rows-[300px_minmax(0,1fr)] gap-5 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)] lg:grid-rows-1">
+        <div className="surface min-h-0 overflow-hidden">
+          <TradeReviewRail
+            items={filteredRecords.map((record) => record.item)}
+            activeTradeId={activeTradeId}
+            search={search}
+            onSearchChange={setSearch}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            onSelectTrade={goToTrade}
+          />
+        </div>
+
+        <section className="surface min-h-0 overflow-hidden">
+          {!activeRecord ? (
+            <div className="flex h-full items-center justify-center px-6 text-center">
+              <div className="space-y-2">
                 <p
                   style={{
-                    color: "var(--text-tertiary)",
+                    color: "var(--text-primary)",
                     fontFamily: "var(--font-inter)",
-                    fontSize: "12px",
+                    fontSize: "1.05rem",
+                    fontWeight: 700,
+                    letterSpacing: "-0.02em",
                   }}
                 >
-                  {records.filter((record) => record.reviewStatus !== "complete")
-                    .length}{" "}
-                  still need review
+                  No trade in this view
+                </p>
+                <p
+                  className="text-label"
+                  style={{
+                    textTransform: "none",
+                    letterSpacing: 0,
+                    color: "var(--text-tertiary)",
+                  }}
+                >
+                  Clear the current filter to continue journaling.
                 </p>
               </div>
             </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto">
+          ) : (
+            <div className="min-h-0 h-full overflow-y-auto">
               <AnimatePresence mode="wait">
                 <TradeReviewDocument
                   key={activeRecord.trade.id}
@@ -498,8 +494,8 @@ export default function JournalPage() {
                 />
               </AnimatePresence>
             </div>
-          </div>
-        )}
+          )}
+        </section>
       </section>
     </div>
   );

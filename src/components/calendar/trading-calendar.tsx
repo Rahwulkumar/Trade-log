@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { AppMetricCard } from "@/components/ui/page-primitives";
 import {
-  DashboardListItem,
-  DashboardWidgetEmptyState,
-} from "@/components/dashboard/widget-primitives";
+  ListItemRow,
+  WidgetEmptyState,
+} from "@/components/ui/surface-primitives";
 import {
   addMonths,
   eachDayOfInterval,
@@ -250,7 +250,7 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
         )}
       >
         <div className="w-full max-w-md">
-          <DashboardWidgetEmptyState
+          <WidgetEmptyState
             title="Supabase Not Configured"
             description="Please add your Supabase credentials."
           />
@@ -268,7 +268,7 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
         )}
       >
         <div className="w-full max-w-md">
-          <DashboardWidgetEmptyState
+          <WidgetEmptyState
             title="Login Required"
             description="Please sign in to view your calendar."
             action={
@@ -628,7 +628,7 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
           </section>
 
           {trades.length === 0 ? (
-            <DashboardWidgetEmptyState
+            <WidgetEmptyState
               title="No trades this month"
               description="Start logging trades to see them on your calendar."
               action={
@@ -711,7 +711,7 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
 
                   <div className="max-h-[360px] space-y-2 overflow-auto pr-1">
                     {selectedDay.trades.map((trade) => (
-                      <DashboardListItem
+                      <ListItemRow
                         key={trade.id}
                         leading={
                           <div className="flex items-start gap-3">

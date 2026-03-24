@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
-import { DashboardListItem } from "@/components/dashboard/widget-primitives";
+import { ListItemRow } from "@/components/ui/surface-primitives";
 import { NoDataEmpty } from "@/components/ui/empty-state";
 import {
   getAllPlaybooksWithStats,
@@ -84,7 +84,7 @@ export function TopPlaybooks({
         const pnlColor = getPnLColor(pb.totalPnl);
 
         return (
-          <DashboardListItem
+          <ListItemRow
             key={pb.playbook.id}
             leading={
               <div className="flex min-w-0 items-center gap-3">

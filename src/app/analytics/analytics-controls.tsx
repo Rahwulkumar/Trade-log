@@ -5,7 +5,19 @@ import { useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { usePropAccount } from '@/components/prop-account-provider';
+import {
+  ControlSurface,
+  FieldGroup,
+} from '@/components/ui/control-primitives';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface AnalyticsControlsProps {
   currentAccount: string;
@@ -64,71 +76,62 @@ function AnalyticsControlsForm({
   };
 
   return (
-    <div
-      className="rounded-2xl p-4"
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border-default)',
-      }}
-    >
+    <ControlSurface className="space-y-4">
       <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_auto]">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>
-            Account Scope
-          </span>
-          <select
+        <FieldGroup label="Account Scope" className="space-y-1.5">
+          <Select
             value={account}
-            onChange={(event) => setAccount(event.target.value)}
-            className="h-10 rounded-xl px-3 text-sm outline-none"
-            style={{
-              background: 'var(--surface-elevated)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-primary)',
-            }}
+            onValueChange={setAccount}
           >
-            <option value="all">All Accounts</option>
-            <option value="unassigned">Unassigned Trades</option>
-            {propAccounts.map((propAccount) => (
-              <option key={propAccount.id} value={propAccount.id}>
-                {propAccount.accountName}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger
+              className="h-10 w-full rounded-xl text-sm"
+              style={{
+                background: 'var(--surface)',
+                borderColor: 'var(--border-subtle)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <SelectValue placeholder="Select account scope" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Accounts</SelectItem>
+              <SelectItem value="unassigned">Unassigned Trades</SelectItem>
+              {propAccounts.map((propAccount) => (
+                <SelectItem key={propAccount.id} value={propAccount.id}>
+                  {propAccount.accountName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FieldGroup>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>
-            From
-          </span>
-          <input
+        <FieldGroup label="From" className="space-y-1.5">
+          <Input
             type="date"
             value={from}
             onChange={(event) => setFrom(event.target.value)}
-            className="h-10 rounded-xl px-3 text-sm outline-none"
+            className="h-10 rounded-xl text-sm"
             style={{
-              background: 'var(--surface-elevated)',
-              border: '1px solid var(--border-subtle)',
+              background: 'var(--surface)',
+              borderColor: 'var(--border-subtle)',
               color: 'var(--text-primary)',
             }}
           />
-        </label>
+        </FieldGroup>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>
-            To
-          </span>
-          <input
+        <FieldGroup label="To" className="space-y-1.5">
+          <Input
             type="date"
             value={to}
             onChange={(event) => setTo(event.target.value)}
-            className="h-10 rounded-xl px-3 text-sm outline-none"
+            className="h-10 rounded-xl text-sm"
             style={{
-              background: 'var(--surface-elevated)',
-              border: '1px solid var(--border-subtle)',
+              background: 'var(--surface)',
+              borderColor: 'var(--border-subtle)',
               color: 'var(--text-primary)',
             }}
           />
-        </label>
+        </FieldGroup>
 
         <div className="flex flex-col justify-end gap-2 sm:flex-row lg:flex-col">
           <Button
@@ -154,11 +157,11 @@ function AnalyticsControlsForm({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+      <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
         <span
           className="rounded-full px-2.5 py-1"
           style={{
-            background: 'var(--surface-elevated)',
+            background: 'var(--surface)',
             border: '1px solid var(--border-subtle)',
           }}
         >
@@ -170,6 +173,6 @@ function AnalyticsControlsForm({
           Update timezone in settings
         </Link>
       </div>
-    </div>
+    </ControlSurface>
   );
 }

@@ -125,16 +125,7 @@ function outcomeTone(outcome: "WIN" | "LOSS" | "BE") {
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p
-      style={{
-        color: "var(--text-tertiary)",
-        fontFamily: "var(--font-inter)",
-        fontSize: "11px",
-        fontWeight: 600,
-        letterSpacing: "0.14em",
-        textTransform: "uppercase",
-      }}
-    >
+    <p className="text-label" style={{ fontSize: "10px", letterSpacing: "0.12em" }}>
       {children}
     </p>
   );
@@ -148,22 +139,48 @@ function SectionHeader({
   subtitle?: string;
 }) {
   return (
-    <div className="space-y-1">
-      <SectionLabel>{title}</SectionLabel>
+    <div className="space-y-1.5">
+      <h2 className="headline-md">{title}</h2>
       {subtitle ? (
         <p
+          className="text-label"
           style={{
             color: "var(--text-secondary)",
-            fontFamily: "var(--font-inter)",
-            fontSize: "13px",
+            fontSize: "12px",
+            fontWeight: 500,
             lineHeight: 1.6,
-            maxWidth: "52rem",
+            letterSpacing: 0,
+            textTransform: "none",
+            maxWidth: "58rem",
           }}
         >
           {subtitle}
         </p>
       ) : null}
     </div>
+  );
+}
+
+function ReviewSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className="space-y-5 rounded-[var(--radius-xl)] border px-5 py-5 sm:px-6"
+      style={{
+        background: "var(--surface-elevated)",
+        borderColor: "var(--border-subtle)",
+      }}
+    >
+      <SectionHeader title={title} subtitle={subtitle} />
+      {children}
+    </section>
   );
 }
 
@@ -306,7 +323,13 @@ function MetaDatum({
   value: string;
 }) {
   return (
-    <div className="space-y-1">
+    <div
+      className="space-y-1 rounded-[var(--radius-lg)] px-4 py-3"
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border-subtle)",
+      }}
+    >
       <SectionLabel>{label}</SectionLabel>
       <p
         style={{
@@ -552,15 +575,15 @@ export function TradeReviewDocument({
       exit={{ opacity: 0, x: 10 }}
       transition={{ duration: 0.15 }}
       className="min-h-full"
-      style={{ background: "var(--app-bg)" }}
+      style={{ background: "var(--surface)" }}
     >
       <div
         className="sticky top-0 z-10"
         style={{
-          background: "var(--app-bg)",
+          background: "var(--surface)",
           backdropFilter: "blur(10px)",
           borderBottom: "1px solid var(--border-subtle)",
-          padding: "18px 28px 16px",
+          padding: "18px 24px 16px",
         }}
       >
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -569,11 +592,11 @@ export function TradeReviewDocument({
               <h1
                 style={{
                   color: "var(--text-primary)",
-                  fontFamily: "var(--font-syne)",
-                  fontSize: "24px",
+                  fontFamily: "var(--font-jb-mono)",
+                  fontSize: "22px",
                   fontWeight: 700,
-                  lineHeight: 1.1,
-                  letterSpacing: "-0.04em",
+                  lineHeight: 1.12,
+                  letterSpacing: "-0.03em",
                 }}
               >
                 {viewModel.symbol}
@@ -676,9 +699,9 @@ export function TradeReviewDocument({
                 type="button"
                 onClick={onPrevious}
                 disabled={!hasPrevious}
-                className="inline-flex items-center gap-2 rounded-full px-3 py-2 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-default)] px-3 py-2 disabled:cursor-not-allowed"
                 style={{
-                  background: "var(--surface)",
+                  background: "var(--surface-elevated)",
                   border: "1px solid var(--border-subtle)",
                   color: hasPrevious
                     ? "var(--text-primary)"
@@ -702,9 +725,9 @@ export function TradeReviewDocument({
                 <button
                   type="button"
                   onClick={onNextPending}
-                  className="rounded-full px-3 py-2"
+                  className="rounded-[var(--radius-default)] px-3 py-2"
                   style={{
-                    background: "var(--accent-soft)",
+                    background: "var(--surface-elevated)",
                     border: "1px solid var(--accent-primary)",
                     color: "var(--accent-primary)",
                     fontFamily: "var(--font-inter)",
@@ -720,9 +743,9 @@ export function TradeReviewDocument({
                 type="button"
                 onClick={onNext}
                 disabled={!hasNext}
-                className="inline-flex items-center gap-2 rounded-full px-3 py-2 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-default)] px-3 py-2 disabled:cursor-not-allowed"
                 style={{
-                  background: "var(--surface)",
+                  background: "var(--surface-elevated)",
                   border: "1px solid var(--border-subtle)",
                   color: hasNext
                     ? "var(--text-primary)"
@@ -746,15 +769,11 @@ export function TradeReviewDocument({
         </div>
       </div>
 
-      <div className="mx-auto max-w-[980px] px-5 pb-20 pt-8 sm:px-7 lg:px-10">
-        <section
-          className="space-y-5 border-b pb-8"
-          style={{ borderColor: "var(--border-subtle)" }}
+      <div className="space-y-5 px-5 pb-10 pt-6 sm:px-6 lg:px-8">
+        <ReviewSection
+          title="Trade record"
+          subtitle="The factual frame stays read-only. Use it to anchor the review before you start writing."
         >
-          <SectionHeader
-            title="Trade record"
-            subtitle="The factual frame stays read-only. Use it to anchor the review before you start writing."
-          />
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
             <MetaDatum label="Opened" value={formatDateTime(viewModel.entryDate)} />
             <MetaDatum label="Closed" value={formatDateTime(viewModel.exitDate)} />
@@ -771,19 +790,15 @@ export function TradeReviewDocument({
                 viewModel.rMultiple != null
                   ? `${viewModel.rMultiple.toFixed(2)}R`
                   : "--"
-              }`}
+                }`}
             />
           </div>
-        </section>
+        </ReviewSection>
 
-        <section
-          className="space-y-5 border-b py-8"
-          style={{ borderColor: "var(--border-subtle)" }}
+        <ReviewSection
+          title="Narrative"
+          subtitle="Write the trade in sequence: what you saw, what made the idea credible, where management changed, and what the chart looked like after you were gone."
         >
-          <SectionHeader
-            title="Narrative"
-            subtitle="Write the trade in sequence: what you saw, what made the idea credible, where management changed, and what the chart looked like after you were gone."
-          />
           <textarea
             value={draft.notes}
             onChange={(event) => setDraftField({ notes: event.target.value })}
@@ -799,16 +814,12 @@ export function TradeReviewDocument({
               lineHeight: 1.85,
             }}
           />
-        </section>
+        </ReviewSection>
 
-        <section
-          className="space-y-6 border-b py-8"
-          style={{ borderColor: "var(--border-subtle)" }}
+        <ReviewSection
+          title="Thesis"
+          subtitle="Capture the setup, why the trade was worth taking, what would have invalidated it, and where the upside was supposed to come from."
         >
-          <SectionHeader
-            title="Thesis"
-            subtitle="Capture the setup, why the trade was worth taking, what would have invalidated it, and where the upside was supposed to come from."
-          />
           <div className="grid gap-4 sm:grid-cols-2">
             <ShortField
               label="Strategy"
@@ -846,16 +857,12 @@ export function TradeReviewDocument({
               placeholder="Liquidity pool, higher-timeframe level, or asymmetric objective."
             />
           </div>
-        </section>
+        </ReviewSection>
 
-        <section
-          className="space-y-6 border-b py-8"
-          style={{ borderColor: "var(--border-subtle)" }}
+        <ReviewSection
+          title="Timeframe alignment"
+          subtitle="Record the higher-timeframe read, the execution frame, the trigger frame, and whether the trade was aligned or forced."
         >
-          <SectionHeader
-            title="Timeframe alignment"
-            subtitle="Record the higher-timeframe read, the execution frame, the trigger frame, and whether the trade was aligned or forced."
-          />
           <div className="flex flex-wrap gap-2">
             {ALIGNMENT_OPTIONS.map((option) => (
               <ChoiceButton
@@ -904,16 +911,12 @@ export function TradeReviewDocument({
             rows={4}
             placeholder="Be explicit about alignment, conflict, or the one frame you ignored."
           />
-        </section>
+        </ReviewSection>
 
-        <section
-          className="space-y-6 border-b py-8"
-          style={{ borderColor: "var(--border-subtle)" }}
+        <ReviewSection
+          title="Market context"
+          subtitle="Add the session, the market condition, and the contextual detail that made the trade easier or more dangerous."
         >
-          <SectionHeader
-            title="Market context"
-            subtitle="Add the session, the market condition, and the contextual detail that made the trade easier or more dangerous."
-          />
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
               {SESSION_OPTIONS.map((option) => (
@@ -963,16 +966,12 @@ export function TradeReviewDocument({
               placeholder="Macro driver, session behavior, news, or environmental context."
             />
           </div>
-        </section>
+        </ReviewSection>
 
-        <section
-          className="space-y-6 border-b py-8"
-          style={{ borderColor: "var(--border-subtle)" }}
+        <ReviewSection
+          title="Execution review"
+          subtitle="Break the trade into the trigger, the handling, and the exit. This section should explain the decisions, not just the outcome."
         >
-          <SectionHeader
-            title="Execution review"
-            subtitle="Break the trade into the trigger, the handling, and the exit. This section should explain the decisions, not just the outcome."
-          />
           <div className="grid gap-4 lg:grid-cols-2">
             <PromptField
               prompt="Why did you enter at that exact moment?"
@@ -1005,16 +1004,12 @@ export function TradeReviewDocument({
               placeholder="Intentional target, fear, structure break, or loss of edge."
             />
           </div>
-        </section>
+        </ReviewSection>
 
-        <section
-          className="space-y-6 border-b py-8"
-          style={{ borderColor: "var(--border-subtle)" }}
+        <ReviewSection
+          title="Psychology"
+          subtitle="Write the internal state before, during, and after the trade. This is where hesitation, urgency, FOMO, stubbornness, and clarity belong."
         >
-          <SectionHeader
-            title="Psychology"
-            subtitle="Write the internal state before, during, and after the trade. This is where hesitation, urgency, FOMO, stubbornness, and clarity belong."
-          />
           <div className="grid gap-4 lg:grid-cols-3">
             <PromptField
               prompt="Before the trade"
@@ -1045,16 +1040,12 @@ export function TradeReviewDocument({
             rows={4}
             placeholder="Name the dominant feeling plainly: calm, rushed, defensive, stubborn, detached, clear."
           />
-        </section>
+        </ReviewSection>
 
-        <section
-          className="space-y-6 border-b py-8"
-          style={{ borderColor: "var(--border-subtle)" }}
+        <ReviewSection
+          title="Review controls"
+          subtitle="Keep the annotations tight: rate the craft, mark the tags, set conviction, and record whether this is a trade worth repeating."
         >
-          <SectionHeader
-            title="Review controls"
-            subtitle="Keep the annotations tight: rate the craft, mark the tags, set conviction, and record whether this is a trade worth repeating."
-          />
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)]">
             <div className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-3">
@@ -1125,16 +1116,12 @@ export function TradeReviewDocument({
               />
             </div>
           </div>
-        </section>
+        </ReviewSection>
 
-        <section
-          className="space-y-6 border-b py-8"
-          style={{ borderColor: "var(--border-subtle)" }}
+        <ReviewSection
+          title="Excursion"
+          subtitle="Record how far price went against you and for you. The pair matters because it tells you whether the problem was structure, timing, or management."
         >
-          <SectionHeader
-            title="Excursion"
-            subtitle="Record how far price went against you and for you. The pair matters because it tells you whether the problem was structure, timing, or management."
-          />
           <div
             className="rounded-[var(--radius-lg)] px-5 py-4"
             style={{
@@ -1204,13 +1191,12 @@ export function TradeReviewDocument({
               />
             </div>
           </div>
-        </section>
+        </ReviewSection>
 
-        <section className="space-y-6 py-8">
-          <SectionHeader
-            title="Distillation"
-            subtitle="Finish with the one sentence worth remembering and the next action that should change future behavior."
-          />
+        <ReviewSection
+          title="Distillation"
+          subtitle="Finish with the one sentence worth remembering and the next action that should change future behavior."
+        >
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
             <PromptField
               prompt="What is the lesson?"
@@ -1243,16 +1229,16 @@ export function TradeReviewDocument({
                 }}
               >
                 <span
-                  style={{
-                    color: "var(--accent-primary)",
-                    display: "block",
-                    fontFamily: "var(--font-syne)",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    letterSpacing: "0.16em",
-                    textTransform: "uppercase",
-                    marginBottom: "6px",
-                  }}
+                style={{
+                  color: "var(--accent-primary)",
+                  display: "block",
+                  fontFamily: "var(--font-inter)",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  marginBottom: "6px",
+                }}
                 >
                   Lesson
                 </span>
@@ -1292,7 +1278,7 @@ export function TradeReviewDocument({
             <button
               type="button"
               onClick={() => void save()}
-              className="rounded-full px-4 py-2"
+              className="rounded-[var(--radius-default)] px-4 py-2"
               style={{
                 background: "var(--surface)",
                 border: "1px solid var(--border-subtle)",
@@ -1305,7 +1291,7 @@ export function TradeReviewDocument({
               Save review
             </button>
           </div>
-        </section>
+        </ReviewSection>
       </div>
     </motion.article>
   );

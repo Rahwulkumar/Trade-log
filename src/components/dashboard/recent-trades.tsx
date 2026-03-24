@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 
 import { useAuth } from "@/components/auth-provider";
-import { DashboardListItem } from "@/components/dashboard/widget-primitives";
+import { ListItemRow } from "@/components/ui/surface-primitives";
 import { NoTradesEmpty } from "@/components/ui/empty-state";
 import { getTrades } from "@/lib/api/client/trades";
 import type { Trade } from "@/lib/db/schema";
@@ -82,7 +82,7 @@ function TradeRow({ trade }: { trade: Trade }) {
   const pnlColor = getPnLColor(pnl);
 
   return (
-    <DashboardListItem
+    <ListItemRow
       leading={
         <div className="flex min-w-0 items-start gap-3">
           <span
