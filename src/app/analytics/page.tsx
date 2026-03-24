@@ -55,7 +55,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       accountScope={String(accountScope)}
       currentFrom={readParam(params.from)}
       currentTo={readParam(params.to)}
-      shouldSyncSelection={!rawAccount}
+      shouldSyncSelection
     />
   );
 }

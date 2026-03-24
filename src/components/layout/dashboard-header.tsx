@@ -3,11 +3,17 @@
 import { useState, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Sun, Moon } from "lucide-react";
+import { Building2, Menu, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
+import { usePropAccount } from "@/components/prop-account-provider";
 import { useTheme } from "@/components/theme-provider";
-import { IconBell } from "@/components/ui/icons";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 // Map routes to page titles
@@ -73,6 +79,8 @@ interface DashboardHeaderProps {
 export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const { selectedAccountId, setSelectedAccountId, propAccounts, loading } =
+    usePropAccount();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -89,6 +97,13 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
   const userInitials = user?.email
     ? user.email.substring(0, 2).toUpperCase()
     : "TL";
+
+  const selectedAccountLabel = (() => {
+    if (!selectedAccountId) return "All Accounts";
+    if (selectedAccountId === "unassigned") return "Unassigned";
+    const account = propAccounts.find((item) => item.id === selectedAccountId);
+    return account?.accountName ?? "All Accounts";
+  })();
 
   return (
     <header
@@ -129,21 +144,63 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
       </h1>
 
       {/* Right actions */}
-      <ThemeToggle />
+      {!loading ? (
+        propAccounts.length > 0 ? (
+          <Select
+            value={selectedAccountId || "all"}
+            onValueChange={(value) =>
+              setSelectedAccountId(value === "all" ? null : value)
+            }
+          >
+            <SelectTrigger
+              className="hidden h-9 min-w-[168px] gap-2 rounded-[var(--radius-default)] border px-2 text-xs shadow-none sm:flex"
+              aria-label="Select account"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--border-default)",
+                color: "var(--text-primary)",
+              }}
+            >
+              <Building2
+                className="h-3.5 w-3.5 shrink-0"
+                style={{ color: "var(--text-tertiary)" }}
+              />
+              <span className="max-w-[120px] truncate">
+                {selectedAccountLabel}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Accounts</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {propAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.accountName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Button
+            asChild
+            variant="outline"
+            className="hidden h-9 gap-1.5 rounded-[var(--radius-default)] border px-3 text-xs shadow-none sm:inline-flex"
+            style={{
+              background: "var(--surface)",
+              borderColor: "var(--border-default)",
+            }}
+          >
+            <Link href="/prop-firm">
+              <Building2
+                className="h-3.5 w-3.5"
+                style={{ color: "var(--text-tertiary)" }}
+              />
+              Add Account
+            </Link>
+          </Button>
+        )
+      ) : null}
 
-      {/* Notification bell */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="relative h-9 w-9 shrink-0 rounded-[var(--radius-default)] p-0 text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]"
-        title="Notifications"
-      >
-        <IconBell size={17} strokeWidth={1.7} />
-        <span
-          className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full"
-          style={{ background: "var(--accent-primary)" }}
-        />
-      </Button>
+      <ThemeToggle />
 
       {/* User avatar pill */}
       <Link

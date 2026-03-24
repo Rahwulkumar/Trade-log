@@ -51,7 +51,7 @@ function AnalyticsControlsForm({
   currentTo,
   timeZone,
 }: AnalyticsControlsProps) {
-  const { propAccounts } = usePropAccount();
+  const { propAccounts, setSelectedAccountId } = usePropAccount();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -75,13 +75,20 @@ function AnalyticsControlsForm({
     });
   };
 
+  const syncProviderSelection = (value: string) => {
+    setSelectedAccountId(value === 'all' ? null : value);
+  };
+
   return (
     <ControlSurface className="space-y-4">
       <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_auto]">
         <FieldGroup label="Account Scope" className="space-y-1.5">
           <Select
             value={account}
-            onValueChange={setAccount}
+            onValueChange={(value) => {
+              setAccount(value);
+              syncProviderSelection(value);
+            }}
           >
             <SelectTrigger
               className="h-10 w-full rounded-xl text-sm"
@@ -136,7 +143,10 @@ function AnalyticsControlsForm({
         <div className="flex flex-col justify-end gap-2 sm:flex-row lg:flex-col">
           <Button
             type="button"
-            onClick={() => navigateWith(account, from, to)}
+            onClick={() => {
+              syncProviderSelection(account);
+              navigateWith(account, from, to);
+            }}
             disabled={isPending || Boolean(from && to && from > to)}
           >
             {isPending ? 'Applying...' : 'Apply'}
@@ -148,6 +158,7 @@ function AnalyticsControlsForm({
               setAccount('all');
               setFrom('');
               setTo('');
+              syncProviderSelection('all');
               navigateWith('all', '', '');
             }}
             disabled={isPending}

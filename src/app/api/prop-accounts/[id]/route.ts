@@ -15,12 +15,17 @@ export async function GET(
   const { userId, error } = await requireAuth();
   if (error) return error;
 
-  const { id } = await params;
-  const account = await getPropAccount(id, userId);
-  if (!account) {
-    return NextResponse.json({ error: 'Prop account not found' }, { status: 404 });
+  try {
+    const { id } = await params;
+    const account = await getPropAccount(id, userId);
+    if (!account) {
+      return NextResponse.json({ error: 'Prop account not found' }, { status: 404 });
+    }
+    return NextResponse.json(account);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to load prop account';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  return NextResponse.json(account);
 }
 
 export async function PATCH(

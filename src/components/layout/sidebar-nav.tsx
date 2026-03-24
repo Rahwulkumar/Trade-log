@@ -6,7 +6,6 @@ import { useState, useEffect } from "react";
 import { X, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { usePropAccount } from "@/components/prop-account-provider";
 import { useAuth } from "@/components/auth-provider";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -18,11 +17,10 @@ import {
   IconReports,
   IconPropFirm,
   IconSettings,
-  IconChevronRight,
   IconNews,
 } from "@/components/ui/icons";
 
-// ─── Nav structure ────────────────────────────────────────────────────────────
+// --- Nav structure ------------------------------------------------------------
 const NAV_GROUPS = [
   {
     label: "Overview",
@@ -65,7 +63,7 @@ const T = {
   borderHover: "rgba(218,241,222,0.16)",
 };
 
-// ─── Logo Mark ────────────────────────────────────────────────────────────────
+// --- Logo Mark ----------------------------------------------------------------
 function LogoMark({ size = 32 }: { size?: number }) {
   return (
     <div
@@ -124,7 +122,7 @@ function LogoMark({ size = 32 }: { size?: number }) {
   );
 }
 
-// ─── Live clock ───────────────────────────────────────────────────────────────
+// --- Live clock ---------------------------------------------------------------
 function LiveClock() {
   const [time, setTime] = useState("");
   useEffect(() => {
@@ -152,179 +150,7 @@ function LiveClock() {
   );
 }
 
-// ─── Account Picker ───────────────────────────────────────────────────────────
-function AccountPicker({ collapsed }: { collapsed: boolean }) {
-  const { propAccounts, selectedAccountId, setSelectedAccountId } =
-    usePropAccount();
-  const [open, setOpen] = useState(false);
-  const selected = propAccounts.find((a) => a.id === selectedAccountId);
-
-  const Dropdown = (
-    <>
-      <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-      <motion.div
-        initial={{ opacity: 0, y: 4, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 4, scale: 0.97 }}
-        transition={{ duration: 0.13 }}
-        className="absolute z-50 min-w-[200px] overflow-hidden rounded-[8px]"
-        style={{
-          background: "#0B2B26",
-          border: `1px solid ${T.border}`,
-          boxShadow:
-            "0 20px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(44,194,153,0.08)",
-        }}
-      >
-        {/* All Accounts option */}
-        <Button
-          type="button"
-          onClick={() => {
-            setSelectedAccountId(null);
-            setOpen(false);
-          }}
-          variant="ghost"
-          className="h-auto w-full justify-start gap-2.5 rounded-none px-3 py-2.5 text-left hover:bg-[#163832] hover:text-inherit"
-          style={{
-            background: selectedAccountId === null ? T.active : "transparent",
-          }}
-        >
-          <div
-            className="h-1.5 w-1.5 rounded-full shrink-0"
-            style={{
-              background: selectedAccountId === null ? T.accent : T.textTert,
-            }}
-          />
-          <span
-            style={{
-              fontSize: "0.75rem",
-              fontWeight: 500,
-              color: selectedAccountId === null ? T.accent : T.textPrimary,
-            }}
-          >
-            All Accounts
-          </span>
-        </Button>
-        {/* Individual accounts */}
-        {propAccounts.map((acct) => {
-          const isSel = selectedAccountId === acct.id;
-          return (
-            <Button
-              key={acct.id}
-              type="button"
-              onClick={() => {
-                setSelectedAccountId(acct.id);
-                setOpen(false);
-              }}
-              variant="ghost"
-              className="h-auto w-full justify-start gap-2.5 rounded-none px-3 py-2.5 text-left hover:bg-[#163832] hover:text-inherit"
-              style={{ background: isSel ? T.active : "transparent" }}
-            >
-              <div
-                className="h-1.5 w-1.5 rounded-full shrink-0"
-                style={{ background: isSel ? T.accent : T.textTert }}
-              />
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 500,
-                  color: isSel ? T.accent : T.textPrimary,
-                }}
-              >
-                {acct.accountName}
-              </span>
-            </Button>
-          );
-        })}
-        {/* Add account CTA when empty or always for quick access */}
-        <div className="border-t border-border/60 mt-1 pt-1">
-          <Link
-            href="/prop-firm"
-            onClick={() => setOpen(false)}
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "h-auto w-full justify-start gap-2.5 rounded-none px-3 py-2.5 text-left hover:bg-[#163832]",
-            )}
-            style={{ color: T.accent }}
-          >
-            <span style={{ fontSize: "0.75rem", fontWeight: 500 }}>+ Add account</span>
-          </Link>
-        </div>
-      </motion.div>
-    </>
-  );
-
-  if (collapsed) {
-    return (
-      <div className="relative flex justify-center">
-        <Button
-          type="button"
-          title={selected?.accountName ?? "All Accounts"}
-          onClick={() => setOpen((o) => !o)}
-          variant="ghost"
-          size="icon-sm"
-          className="h-8 w-8 rounded-[7px] p-0 text-[#8EB69B] hover:bg-[#163832] hover:text-[#DAF1DE]"
-        >
-          <IconPropFirm size={14} strokeWidth={1.7} />
-        </Button>
-        <AnimatePresence>
-          {open && (
-            <div className="absolute left-full bottom-0 ml-2">{Dropdown}</div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative">
-      <Button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        variant="ghost"
-        className="h-auto w-full justify-start gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[#DAF1DE] hover:bg-[#0B2B26] hover:text-[#DAF1DE]"
-        style={{ background: open ? T.elevated : "transparent" }}
-      >
-        <span
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px]"
-          style={{ background: T.accentDim, color: T.accent }}
-        >
-          <IconPropFirm size={12} strokeWidth={1.7} />
-        </span>
-        <div className="flex-1 min-w-0 text-left">
-          <p
-            className="truncate font-medium leading-none"
-            style={{ fontSize: "0.73rem", color: T.textPrimary }}
-          >
-            {selected?.accountName ?? "All Accounts"}
-          </p>
-          <p
-            className="mt-0.5 leading-none truncate"
-            style={{ fontSize: "0.58rem", color: T.textSec }}
-          >
-            {selected?.status ?? "No filter active"}
-          </p>
-        </div>
-        <motion.span
-          animate={{ rotate: open ? 90 : 0 }}
-          transition={{ duration: 0.15 }}
-          style={{ display: "flex", color: T.textTert }}
-        >
-          <IconChevronRight size={10} strokeWidth={2.5} />
-        </motion.span>
-      </Button>
-
-      <AnimatePresence>
-        {open && (
-          <div className="absolute left-0 right-0 bottom-full mb-1.5">
-            {Dropdown}
-          </div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// ─── Sidebar content ──────────────────────────────────────────────────────────
+// --- Sidebar content ----------------------------------------------------------
 interface SidebarContentProps {
   onNavClick?: () => void;
   collapsed?: boolean;
@@ -349,7 +175,7 @@ function SidebarContent({
 
   return (
     <div className="flex h-full flex-col" style={{ background: T.bg }}>
-      {/* ── Logo bar ── */}
+      {/* -- Logo bar -- */}
       <div
         className={cn(
           "flex shrink-0 items-center transition-all duration-300",
@@ -397,7 +223,7 @@ function SidebarContent({
         </AnimatePresence>
       </div>
 
-      {/* ── Market status strip ── */}
+      {/* -- Market status strip -- */}
       <AnimatePresence initial={false}>
         {!collapsed && (
           <motion.div
@@ -431,7 +257,7 @@ function SidebarContent({
         )}
       </AnimatePresence>
 
-      {/* ── Navigation ── */}
+      {/* -- Navigation -- */}
       <nav
         className="flex-1 overflow-y-auto overflow-x-hidden py-3"
         style={{ scrollbarWidth: "none" }}
@@ -555,7 +381,7 @@ function SidebarContent({
         </AnimatePresence>
       </nav>
 
-      {/* ── Bottom zone ── */}
+      {/* -- Bottom zone -- */}
       <div
         className="shrink-0"
         style={{
@@ -564,10 +390,6 @@ function SidebarContent({
           background: T.bg,
         }}
       >
-        <AccountPicker collapsed={collapsed} />
-
-        <div style={{ height: "1px", background: T.border, margin: "8px 0" }} />
-
         {/* User row */}
         {!collapsed ? (
           <div className="flex items-center gap-2.5">
@@ -649,7 +471,7 @@ function SidebarContent({
   );
 }
 
-// ─── Main SidebarNav export ───────────────────────────────────────────────────
+// --- Main SidebarNav export ---------------------------------------------------
 interface SidebarNavProps {
   mobileOpen?: boolean;
   onMobileClose?: () => void;

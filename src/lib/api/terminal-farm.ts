@@ -9,6 +9,14 @@ import type {
 } from '@/lib/terminal-farm/types';
 import { readJsonIfAvailable } from '@/lib/api/client/http';
 
+async function getApiErrorMessage(
+    response: Response,
+    fallback: string
+): Promise<string> {
+    const data = await readJsonIfAvailable<{ error?: string }>(response);
+    return data?.error || fallback;
+}
+
 export interface TerminalStatus {
     terminalId: string;
     status: 'PENDING' | 'STARTING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'ERROR';
@@ -83,16 +91,13 @@ export async function getTerminalStatus(accountId: string): Promise<{ connected:
     const response = await fetch(`/api/mt5-accounts/${accountId}/terminal-status`, { credentials: 'include' });
     const data = await readJsonIfAvailable<{ connected?: boolean; terminal?: TerminalStatus | null }>(response);
 
-    if (!response.ok || !data) {
-        return {
-            connected: false,
-            terminal: null,
-        };
+    if (!response.ok) {
+        throw new Error(await getApiErrorMessage(response, 'Failed to load terminal status'));
     }
 
     return {
-        connected: data.connected || false,
-        terminal: data.terminal || null,
+        connected: data?.connected || false,
+        terminal: data?.terminal || null,
     };
 }
 
@@ -121,22 +126,17 @@ export async function getTerminalStatusByPropAccount(propAccountId: string): Pro
     const response = await fetch(`/api/mt5-accounts/by-prop-account/${propAccountId}/terminal-status`, { credentials: 'include' });
     const data = await readJsonIfAvailable<Partial<TerminalStatusByPropAccountResult>>(response);
 
-    if (!response.ok || !data) {
-        return {
-            connected: false,
-            terminal: null,
-            diagnostics: null,
-            livePositions: [],
-        };
+    if (!response.ok) {
+        throw new Error(await getApiErrorMessage(response, 'Failed to load prop account terminal status'));
     }
 
     return {
-        connected: data.connected || false,
-        terminal: data.terminal || null,
-        mt5AccountId: data.mt5AccountId || undefined,
-        mt5Account: data.mt5Account || undefined,
-        diagnostics: data.diagnostics || null,
-        livePositions: Array.isArray(data.livePositions) ? data.livePositions : [],
+        connected: data?.connected || false,
+        terminal: data?.terminal || null,
+        mt5AccountId: data?.mt5AccountId || undefined,
+        mt5Account: data?.mt5Account || undefined,
+        diagnostics: data?.diagnostics || null,
+        livePositions: Array.isArray(data?.livePositions) ? data.livePositions : [],
     };
 }
 
@@ -196,7 +196,9 @@ export interface MT5AccountSummary {
  */
 export async function getMT5Accounts(): Promise<MT5AccountSummary[]> {
     const response = await fetch('/api/mt5-accounts', { credentials: 'include' });
-    if (!response.ok) return [];
+    if (!response.ok) {
+        throw new Error(await getApiErrorMessage(response, 'Failed to load MT5 accounts'));
+    }
     return (await readJsonIfAvailable<MT5AccountSummary[]>(response)) ?? [];
 }
 

@@ -10,14 +10,19 @@ export async function GET(request: NextRequest) {
   const { userId, error } = await requireAuth();
   if (error) return error;
 
-  const { searchParams } = new URL(request.url);
-  const activeOnly = searchParams.get('active') === 'true';
+  try {
+    const { searchParams } = new URL(request.url);
+    const activeOnly = searchParams.get('active') === 'true';
 
-  const accounts = activeOnly
-    ? await getActivePropAccounts(userId)
-    : await getPropAccounts(userId);
+    const accounts = activeOnly
+      ? await getActivePropAccounts(userId)
+      : await getPropAccounts(userId);
 
-  return NextResponse.json(accounts);
+    return NextResponse.json(accounts);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to load prop accounts';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {

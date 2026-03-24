@@ -1,48 +1,37 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import { Cloud, Loader2, RefreshCw, Shield, Trash2 } from "lucide-react";
+
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import {
-  getPropAccounts,
-  deletePropAccount,
-  recalculateAllBalances,
-  DEFAULT_COMPLIANCE,
-  type ComplianceStatus,
-} from "@/lib/api/client/prop-accounts";
-
+  AddPropAccountDialog,
+  DeletePropAccountDialog,
+  Mt5SyncDialog,
+  PropAccountCard,
+  SyncUnavailableCallout,
+  TerminalStatusPanel,
+  ThresholdMeter,
+} from "@/components/prop-firm/prop-firm-ui";
+import { Button } from "@/components/ui/button";
+import { InsetPanel } from "@/components/ui/surface-primitives";
 import {
-  Plus,
-  Trash2,
-  Loader2,
-  Zap,
-  Calendar,
-  BarChart3,
-  Shield,
-  CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
-  Download,
-  Cloud,
-} from "lucide-react";
-import {
-  enableAutoSync,
-  getTerminalStatusByPropAccount,
-  disableAutoSync,
-  createMT5Account,
-  getMT5Accounts,
-  resetMt5SyncByPropAccount,
-  type TerminalStatusByPropAccountResult,
-} from "@/lib/api/terminal-farm";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  AppMetricCard,
+  AppPageHeader,
+  AppPanel,
+  AppPanelEmptyState,
+  SectionHeader,
+} from "@/components/ui/page-primitives";
 import {
   Select,
   SelectContent,
@@ -50,20 +39,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import type { PropAccount as DrizzlePropAccount } from "@/lib/db/schema";
-import { cn } from "@/lib/utils";
+import {
+  createPropAccount,
+  deletePropAccount,
+  getPropAccounts,
+  recalculateAllBalances,
+} from "@/lib/api/client/prop-accounts";
+import {
+  createMT5Account,
+  disableAutoSync,
+  enableAutoSync,
+  getMT5Accounts,
+  getTerminalStatusByPropAccount,
+  resetMt5SyncByPropAccount,
+  type TerminalStatusByPropAccountResult,
+} from "@/lib/api/terminal-farm";
 
-// Bridge type: adds Supabase-compatible snake_case aliases for the Drizzle PropAccount
-// so the existing UI code doesn't need a mass rename.
 type PropAccount = DrizzlePropAccount & {
-  name?: string; // alias for accountName
-  firm?: string; // alias for firmName
-  phase?: string; // no direct equivalent — from challenge
-  initial_balance: number; // populated by normalizeAccount from accountSize
-  current_balance: number; // populated by normalizeAccount from currentBalance
+  name?: string;
+  firm?: string;
+  phase?: string;
+  initial_balance: number;
+  current_balance: number;
   daily_dd_max?: number | null;
   daily_dd_current?: number | null;
   total_dd_max?: number | null;
@@ -72,24 +70,18 @@ type PropAccount = DrizzlePropAccount & {
   start_date?: string | null;
 };
 
-/** Populate snake_case aliases from Drizzle camelCase fields so the rest of the UI works unchanged */
-function normalizeAccount(a: DrizzlePropAccount): PropAccount {
+function normalizeAccount(account: DrizzlePropAccount): PropAccount {
   return {
-    ...a,
-    name: a.accountName,
-    firm: a.firmName ?? undefined,
-    phase: a.currentPhaseStatus ?? undefined,
-    initial_balance: Number(a.accountSize ?? 0),
-    current_balance: Number(a.currentBalance ?? 0),
-    start_date: a.startDate ?? null,
+    ...account,
+    name: account.accountName,
+    firm: account.firmName ?? undefined,
+    phase: account.currentPhaseStatus ?? undefined,
+    initial_balance: Number(account.accountSize ?? 0),
+    current_balance: Number(account.currentBalance ?? 0),
+    start_date: account.startDate ?? null,
   };
 }
 
-type PropAccountWithCompliance = PropAccount & { compliance: ComplianceStatus };
-
-// Helper: Convert dollar amount to percentage of initial balance
-// The database stores daily_dd_max, total_dd_max, profit_target as dollar amounts
-// but we need to display them as percentages
 function toPercent(
   dollarAmount: number | null | undefined,
   initialBalance: number,
@@ -98,47 +90,104 @@ function toPercent(
   return (dollarAmount / initialBalance) * 100;
 }
 
+function getTerminalSyncKey(result: TerminalStatusByPropAccountResult) {
+  return [
+    result.terminal?.terminalId ?? "",
+    result.terminal?.status ?? "",
+    result.terminal?.lastHeartbeat ?? "",
+    result.terminal?.lastSyncAt ?? "",
+    result.mt5Account?.balance ?? "",
+    result.mt5Account?.equity ?? "",
+    result.diagnostics?.code ?? "",
+    result.diagnostics?.lastTradeImportCount ?? "",
+    result.diagnostics?.lastTradeSkipCount ?? "",
+    result.livePositions.length,
+  ].join("|");
+}
+
+function formatMoney(value: number) {
+  return `$${value.toLocaleString()}`;
+}
+
+function formatSignedMoney(value: number) {
+  return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toLocaleString()}`;
+}
+
 export default function PropFirmPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
-  const { selectedAccountId, setSelectedAccountId, refreshPropAccounts } = usePropAccount();
-  const [accounts, setAccounts] = useState<PropAccountWithCompliance[]>([]);
-  const [selectedAccount, setSelectedAccount] =
-    useState<PropAccountWithCompliance | null>(null);
+  const { selectedAccountId, setSelectedAccountId, refreshPropAccounts } =
+    usePropAccount();
+
+  const [accounts, setAccounts] = useState<PropAccount[]>([]);
+  const [linkedMt5Count, setLinkedMt5Count] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [isNewAccountOpen, setIsNewAccountOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
 
-  // Terminal Farm State (includes stored MT5 account so we can show "using your details")
-  const [terminalStatus, setTerminalStatus] = useState<{
-    connected: boolean;
-    terminal: TerminalStatusByPropAccountResult["terminal"];
-    mt5AccountId?: string;
-    mt5Account?: TerminalStatusByPropAccountResult["mt5Account"];
-    diagnostics: TerminalStatusByPropAccountResult["diagnostics"];
-    livePositions: TerminalStatusByPropAccountResult["livePositions"];
-  } | null>(null);
+  const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
+  const [terminalStatus, setTerminalStatus] =
+    useState<TerminalStatusByPropAccountResult | null>(null);
+  const [terminalLoading, setTerminalLoading] = useState(false);
+  const [mt5Error, setMt5Error] = useState<string | null>(null);
+
   const lastTerminalSyncKeyRef = useRef<string | null>(null);
   const isSubmittingRef = useRef(false);
-  const [terminalLoading, setTerminalLoading] = useState(false);
+
+  const [addForm, setAddForm] = useState({
+    firmName: "",
+    phaseType: "2-phase" as "2-phase" | "1-phase" | "zero-phase",
+    startingBalance: "",
+  });
   const [mt5FormData, setMt5FormData] = useState({
     server: "",
     login: "",
     password: "",
     currentBalance: "",
   });
-  const [mt5Error, setMt5Error] = useState<string | null>(null);
 
-  // Single Add Account form: firm name, phase type, starting balance
-  const [addForm, setAddForm] = useState({
-    firmName: "",
-    phaseType: "2-phase" as "2-phase" | "1-phase" | "zero-phase",
-    startingBalance: "",
-  });
+  const selectedAccount = useMemo(
+    () =>
+      selectedAccountId
+        ? accounts.find((account) => account.id === selectedAccountId) ?? null
+        : null,
+    [accounts, selectedAccountId],
+  );
+
+  const selectedAccountKey = selectedAccount?.id ?? null;
+  const deleteTargetName =
+    accounts.find((account) => account.id === deleteConfirmId)?.accountName ?? "";
+
+  const accountSummary = useMemo(() => {
+    const totalBalance = accounts.reduce(
+      (sum, account) => sum + account.current_balance,
+      0,
+    );
+    const totalPnl = accounts.reduce(
+      (sum, account) => sum + (account.current_balance - account.initial_balance),
+      0,
+    );
+
+    return {
+      totalBalance,
+      totalPnl,
+      activeCount: accounts.filter((account) => account.status === "active").length,
+    };
+  }, [accounts]);
+
+  const selectedProfitPercent = selectedAccount
+    ? Math.max(
+        ((selectedAccount.current_balance - selectedAccount.initial_balance) /
+          Math.max(selectedAccount.initial_balance, 1)) *
+          100,
+        0,
+      )
+    : 0;
 
   const loadAccounts = useCallback(async () => {
     if (!isConfigured || !user) {
@@ -150,75 +199,51 @@ export default function PropFirmPage() {
       setLoading(true);
       setError(null);
 
-      // Fetch accounts + MT5 linkage in parallel
-      const [accountsData, mt5AccountList] = await Promise.all([
+      const [accountsData, mt5Accounts] = await Promise.all([
         getPropAccounts(),
         getMT5Accounts(),
       ]);
 
       const mt5LinkedIds = new Set(
-        mt5AccountList.map((a) => a.propAccountId).filter((id): id is string => Boolean(id)),
+        mt5Accounts
+          .map((account) => account.propAccountId)
+          .filter((id): id is string => Boolean(id)),
       );
-      const hasNonMt5 = accountsData.some((a) => !mt5LinkedIds.has(a.id));
+      setLinkedMt5Count(mt5LinkedIds.size);
 
-      // Fire-and-forget batch recalculate for non-MT5 accounts, then refetch once
-      let updatedAccountsData = accountsData;
-      if (hasNonMt5) {
-        await recalculateAllBalances();
-        updatedAccountsData = await getPropAccounts();
+      let latestAccounts = accountsData;
+      const hasNonMt5Accounts = accountsData.some(
+        (account) => !mt5LinkedIds.has(account.id),
+      );
+
+      if (hasNonMt5Accounts) {
+        try {
+          await recalculateAllBalances();
+          latestAccounts = await getPropAccounts();
+        } catch (recalcError) {
+          console.error("Failed to recalculate prop account balances:", recalcError);
+        }
       }
 
-      // Inline compliance — not yet wired to real rules, avoids N API calls
-      const accountsWithCompliance: PropAccountWithCompliance[] = updatedAccountsData.map(
-        (account) => ({ ...normalizeAccount(account), compliance: DEFAULT_COMPLIANCE }),
-      );
+      const normalizedAccounts = latestAccounts.map(normalizeAccount);
+      setAccounts(normalizedAccounts);
 
-      setAccounts(accountsWithCompliance);
-
-      // Determine which account to show
-      if (selectedAccountId && selectedAccountId !== "unassigned") {
-        const found = accountsWithCompliance.find((a) => a.id === selectedAccountId);
-        if (found) setSelectedAccount(found);
-        else if (accountsWithCompliance.length > 0) setSelectedAccount(accountsWithCompliance[0]);
-      } else if (accountsWithCompliance.length > 0 && !selectedAccountId) {
-        setSelectedAccount(accountsWithCompliance[0]);
+      if (
+        selectedAccountId &&
+        !normalizedAccounts.some((account) => account.id === selectedAccountId)
+      ) {
+        setSelectedAccountId(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load accounts");
+      setError(
+        err instanceof Error ? err.message : "Failed to load prop accounts",
+      );
+      setAccounts([]);
+      setLinkedMt5Count(0);
     } finally {
       setLoading(false);
     }
-  }, [isConfigured, user, selectedAccountId]);
-  const selectedAccountKey = selectedAccount?.id ?? null;
-
-  const mapTerminalStatus = useCallback(
-    (result: TerminalStatusByPropAccountResult) => ({
-      connected: result.connected,
-      terminal: result.terminal,
-      mt5AccountId: result.mt5AccountId,
-      mt5Account: result.mt5Account,
-      diagnostics: result.diagnostics,
-      livePositions: result.livePositions,
-    }),
-    [],
-  );
-
-  const getTerminalSyncKey = useCallback(
-    (result: TerminalStatusByPropAccountResult) =>
-      [
-        result.terminal?.terminalId ?? "",
-        result.terminal?.status ?? "",
-        result.terminal?.lastHeartbeat ?? "",
-        result.terminal?.lastSyncAt ?? "",
-        result.mt5Account?.balance ?? "",
-        result.mt5Account?.equity ?? "",
-        result.diagnostics?.code ?? "",
-        result.diagnostics?.lastTradeImportCount ?? "",
-        result.diagnostics?.lastTradeSkipCount ?? "",
-        result.livePositions.length,
-      ].join("|"),
-    [],
-  );
+  }, [isConfigured, selectedAccountId, setSelectedAccountId, user]);
 
   const refreshTerminalStatus = useCallback(
     async (
@@ -226,7 +251,7 @@ export default function PropFirmPage() {
       options?: { reloadAccountsOnChange?: boolean },
     ) => {
       const result = await getTerminalStatusByPropAccount(propAccountId);
-      setTerminalStatus(mapTerminalStatus(result));
+      setTerminalStatus(result);
 
       if (options?.reloadAccountsOnChange) {
         const syncKey = getTerminalSyncKey(result);
@@ -238,51 +263,31 @@ export default function PropFirmPage() {
 
       return result;
     },
-    [getTerminalSyncKey, loadAccounts, mapTerminalStatus],
+    [loadAccounts],
   );
-
-  // Update selected account when global ID changes
-  useEffect(() => {
-    if (accounts.length > 0) {
-      if (selectedAccountId && selectedAccountId !== "unassigned") {
-        const found = accounts.find((a) => a.id === selectedAccountId);
-        if (found) {
-          setSelectedAccount(found);
-        }
-      } else {
-        setSelectedAccount(null);
-      }
-    }
-  }, [selectedAccountId, accounts]);
 
   useEffect(() => {
     if (!authLoading) {
-      loadAccounts();
+      void loadAccounts();
     }
-  }, [user, isConfigured, authLoading, loadAccounts]);
+  }, [authLoading, loadAccounts]);
 
-  // Fetch terminal/sync status when selected account changes so UI shows Synced / Not synced
   useEffect(() => {
     if (!selectedAccountKey) {
       setTerminalStatus(null);
       return;
     }
-    refreshTerminalStatus(selectedAccountKey)
-      .catch(() =>
-        setTerminalStatus({
-          connected: false,
-          terminal: null,
-          diagnostics: null,
-          livePositions: [],
-        }),
-      );
+
+    refreshTerminalStatus(selectedAccountKey).catch((err) => {
+      console.error("Failed to load terminal status:", err);
+      setTerminalStatus(null);
+    });
   }, [refreshTerminalStatus, selectedAccountKey]);
 
   useEffect(() => {
     lastTerminalSyncKeyRef.current = null;
   }, [selectedAccountKey]);
 
-  // Poll terminal status while sync dialog is open so MT5 balance appears without manual refresh.
   useEffect(() => {
     if (!isSyncDialogOpen || !selectedAccountKey) return;
 
@@ -292,7 +297,7 @@ export default function PropFirmPage() {
           reloadAccountsOnChange: true,
         });
       } catch {
-        // Keep previous status shown in UI.
+        // Preserve the last visible sync state.
       }
     };
 
@@ -304,26 +309,15 @@ export default function PropFirmPage() {
     return () => window.clearInterval(timer);
   }, [isSyncDialogOpen, refreshTerminalStatus, selectedAccountKey]);
 
-  // Handle local selection change - updates global state
   const handleAccountChange = (value: string) => {
-    if (value === "all") {
-      setSelectedAccount(null);
-      setSelectedAccountId(null);
-    } else {
-      const account = accounts.find((a) => a.id === value);
-      if (account) {
-        setSelectedAccount(account);
-        setSelectedAccountId(value);
-      }
-    }
+    setSelectedAccountId(value === "all" ? null : value);
   };
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) return;
-    if (isSubmittingRef.current) return;
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user || isSubmittingRef.current) return;
 
-    const firm = addForm.firmName?.trim();
+    const firm = addForm.firmName.trim();
     if (!firm) {
       setFormError("Please enter your prop firm name.");
       return;
@@ -331,15 +325,20 @@ export default function PropFirmPage() {
 
     const balanceNum = addForm.startingBalance.trim()
       ? Number(addForm.startingBalance.replace(/[^0-9.-]/g, ""))
-      : NaN;
+      : Number.NaN;
+
     if (Number.isNaN(balanceNum) || balanceNum <= 0) {
       setFormError("Please enter a valid starting balance greater than 0.");
       return;
     }
 
     const accountName = `${firm} - ${addForm.phaseType}`;
-    // Case-insensitive duplicate check client-side (server also enforces this)
-    if (accounts.some((a) => a.accountName.toLowerCase() === accountName.toLowerCase())) {
+    if (
+      accounts.some(
+        (account) =>
+          account.accountName.toLowerCase() === accountName.toLowerCase(),
+      )
+    ) {
       setFormError(`An account named "${accountName}" already exists.`);
       return;
     }
@@ -347,91 +346,86 @@ export default function PropFirmPage() {
     isSubmittingRef.current = true;
     setIsSubmitting(true);
     setFormError(null);
+
     try {
-      const res = await fetch("/api/prop-accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          accountName,
-          firmName: firm,
-          accountSize: String(balanceNum),
-          currentBalance: String(balanceNum),
-          startDate: new Date().toISOString().split("T")[0],
-          status: "active",
-          currentPhaseStatus: addForm.phaseType,
-        }),
+      const newAccount = await createPropAccount({
+        accountName,
+        firmName: firm,
+        accountSize: String(balanceNum),
+        currentBalance: String(balanceNum),
+        startDate: new Date().toISOString().split("T")[0],
+        status: "active",
+        currentPhaseStatus: addForm.phaseType,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error ?? "Failed to create account");
-      }
-      const newAccount = await res.json();
+
       setAddForm({ firmName: "", phaseType: "2-phase", startingBalance: "" });
       setIsNewAccountOpen(false);
       await loadAccounts();
       await refreshPropAccounts?.();
-      if (newAccount?.id) setSelectedAccountId(newAccount.id);
+      setSelectedAccountId(newAccount.id);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to create account");
+      setFormError(
+        err instanceof Error ? err.message : "Failed to create account",
+      );
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   }
 
-  async function handleDelete(id: string) {
+  function handleDelete(id: string) {
     setDeleteConfirmId(id);
   }
 
   async function confirmDelete() {
     const id = deleteConfirmId;
     if (!id) return;
+
     setDeleteConfirmId(null);
     setIsDeleting(id);
     setError(null);
 
     try {
       await deletePropAccount(id);
-      setSelectedAccount(null);
-      if (selectedAccountId === id) setSelectedAccountId(null);
+      if (selectedAccountId === id) {
+        setSelectedAccountId(null);
+      }
       await loadAccounts();
       await refreshPropAccounts?.();
     } catch (err) {
-      console.error("[Delete] Error deleting prop account:", err);
-      const errorMessage =
+      const message =
         err instanceof Error ? err.message : "Failed to delete account";
-      setError(`Failed to delete account: ${errorMessage}.`);
+      setError(message);
     } finally {
       setIsDeleting(null);
     }
   }
 
-  async function handleResetMt5Sync(reason: "manual_reset" | "reconnect" = "manual_reset") {
+  async function handleResetMt5Sync(
+    reason: "manual_reset" | "reconnect" = "manual_reset",
+  ) {
     if (!selectedAccount) return false;
 
     setTerminalLoading(true);
     setMt5Error(null);
 
     try {
-      const resetResult = await resetMt5SyncByPropAccount(selectedAccount.id, reason);
+      const resetResult = await resetMt5SyncByPropAccount(
+        selectedAccount.id,
+        reason,
+      );
       if (!resetResult.success) {
         setMt5Error(resetResult.error || "Failed to reset MT5 sync");
         return false;
       }
 
-      setTerminalStatus({
-        connected: false,
-        terminal: null,
-        diagnostics: null,
-        livePositions: [],
-      });
+      setTerminalStatus(null);
       lastTerminalSyncKeyRef.current = null;
       await loadAccounts();
       await refreshPropAccounts?.();
       return true;
-    } catch (error) {
-      console.error("[ResetMt5Sync] Error:", error);
+    } catch (err) {
+      console.error("[ResetMt5Sync] Error:", err);
       setMt5Error("Failed to reset MT5 sync");
       return false;
     } finally {
@@ -449,7 +443,7 @@ export default function PropFirmPage() {
       const propSize = Number(
         selectedAccount.initial_balance ?? selectedAccount.accountSize ?? 0,
       );
-      const balanceStr = mt5FormData.currentBalance?.trim();
+      const balanceStr = mt5FormData.currentBalance.trim();
       const balanceNum = balanceStr ? Number(balanceStr) : undefined;
 
       if (balanceNum != null && !Number.isNaN(balanceNum) && propSize > 0) {
@@ -457,7 +451,7 @@ export default function PropFirmPage() {
         const tolerance = Math.max(propSize * 0.15, 500);
         if (diff > tolerance) {
           setMt5Error(
-            `Balance $${balanceNum.toLocaleString()} doesn't match this prop account ($${propSize.toLocaleString()}). Use the correct prop account or update the balance.`,
+            `Balance $${balanceNum.toLocaleString()} doesn't match this prop account (${formatMoney(propSize)}). Use the correct prop account or update the balance.`,
           );
           return;
         }
@@ -477,7 +471,7 @@ export default function PropFirmPage() {
         currentBalance: balanceNum,
       });
 
-      if (!createResult.success) {
+      if (!createResult.success || !createResult.accountId) {
         setMt5Error(
           createResult.error ||
             (createResult.code === "MT5_ACCOUNT_EXISTS"
@@ -487,1215 +481,495 @@ export default function PropFirmPage() {
         return;
       }
 
-      const syncResult = await enableAutoSync(createResult.accountId!);
+      const syncResult = await enableAutoSync(createResult.accountId);
       if (!syncResult.success) {
         setMt5Error(syncResult.error || "Failed to enable auto-sync");
         return;
       }
 
-      const normalizedBalance =
-        balanceNum != null && !Number.isNaN(balanceNum) ? balanceNum : null;
-
-      setTerminalStatus((previous) => ({
-        connected: false,
-        terminal: syncResult.terminal ?? previous?.terminal ?? null,
-        mt5AccountId: createResult.accountId,
-        mt5Account: {
-          mt5AccountId: createResult.accountId!,
-          server: mt5FormData.server,
-          login: mt5FormData.login,
-          accountName: `${mt5FormData.server} - ${mt5FormData.login}`,
-          balance: normalizedBalance,
-          equity: normalizedBalance,
-        },
-        diagnostics: previous?.diagnostics ?? null,
-        livePositions: previous?.livePositions ?? [],
-      }));
-
       await refreshTerminalStatus(selectedAccount.id, {
         reloadAccountsOnChange: true,
       });
       setMt5FormData({ server: "", login: "", password: "", currentBalance: "" });
-    } catch (error) {
-      console.error("[ConnectMt5] Error:", error);
-      setMt5Error("Network error");
+    } catch (err) {
+      console.error("[ConnectMt5] Error:", err);
+      setMt5Error(err instanceof Error ? err.message : "Network error");
     } finally {
       setTerminalLoading(false);
     }
   }
 
-  const getStatusColor = (percent: number, max: number): React.CSSProperties => {
-    const ratio = percent / max;
-    if (ratio < 0.5) return { background: "var(--profit-primary)" };
-    if (ratio < 0.75) return { background: "var(--accent-primary)" };
-    return { background: "var(--loss-primary)" };
-  };
+  async function handleDisableAutoSync() {
+    if (!selectedAccount) return;
 
-  // Auth checks
+    setTerminalLoading(true);
+    setMt5Error(null);
+
+    try {
+      const status = await refreshTerminalStatus(selectedAccount.id);
+      if (!status.mt5AccountId) {
+        setMt5Error("MT5 account not found");
+        return;
+      }
+
+      const result = await disableAutoSync(status.mt5AccountId);
+      if (!result.success) {
+        setMt5Error(result.error || "Failed to disable auto-sync");
+        return;
+      }
+
+      setTerminalStatus({
+        connected: false,
+        terminal: null,
+        mt5AccountId: status.mt5AccountId,
+        mt5Account: status.mt5Account,
+        diagnostics: status.diagnostics,
+        livePositions: [],
+      });
+    } catch (err) {
+      console.error("[DisableAutoSync] Error:", err);
+      setMt5Error(err instanceof Error ? err.message : "Failed to disable auto-sync");
+    } finally {
+      setTerminalLoading(false);
+    }
+  }
+
+  const pageActions = (
+    <div className="flex flex-wrap items-center gap-3">
+      <Select value={selectedAccount?.id ?? "all"} onValueChange={handleAccountChange}>
+        <SelectTrigger className="w-full sm:w-[280px]" aria-label="Select account">
+          <SelectValue
+            placeholder={accounts.length === 0 ? "No accounts yet" : "Select account"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Accounts</SelectItem>
+          {accounts.map((account) => (
+            <SelectItem key={account.id} value={account.id}>
+              {[account.name ?? account.accountName, account.phase]
+                .filter(Boolean)
+                .join(" - ")}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => {
+          void loadAccounts();
+        }}
+        title="Refresh"
+      >
+        <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+      </Button>
+
+      <AddPropAccountDialog
+        open={isNewAccountOpen}
+        onOpenChange={(open) => {
+          setIsNewAccountOpen(open);
+          if (!open) {
+            setAddForm({
+              firmName: "",
+              phaseType: "2-phase",
+              startingBalance: "",
+            });
+            setFormError(null);
+          }
+        }}
+        onSubmit={handleSubmit}
+        addForm={addForm}
+        setAddForm={setAddForm}
+        formError={formError}
+        isSubmitting={isSubmitting}
+      />
+    </div>
+  );
+
   if (!authLoading && !isConfigured) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="surface p-8 text-center max-w-md">
-          <h2 className="text-xl font-semibold mb-2">
-            Sign-in not configured
-          </h2>
-          <p className="text-muted-foreground">
-            Please configure Clerk to manage prop accounts.
-          </p>
-        </div>
-      </div>
+      <AppPanelEmptyState
+        title="Sign-in not configured"
+        description="Configure Clerk before managing prop accounts and MT5 sync."
+      />
     );
   }
 
   if (!authLoading && !user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="surface p-8 text-center max-w-md">
-          <h2 className="text-xl font-semibold mb-2">Login Required</h2>
-          <p className="mb-4" style={{ color: "var(--text-tertiary)" }}>
-            Please sign in to manage your prop accounts.
-          </p>
-          <a
-            href="/auth/login"
-            className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-sm font-medium hover:bg-[var(--accent-secondary)] transition-colors"
-            style={{ color: "var(--text-primary)" }}
-          >
-            Sign In
-          </a>
-        </div>
-      </div>
+      <AppPanelEmptyState
+        title="Login required"
+        description="Sign in to manage your prop accounts, challenge tracking, and MT5 sync."
+        action={
+          <Button asChild>
+            <Link href="/auth/login">Sign In</Link>
+          </Button>
+        }
+      />
     );
   }
 
-  const deleteTargetName = accounts.find((a) => a.id === deleteConfirmId)?.accountName ?? "";
-
   return (
-    <div className="p-4 sm:p-5 lg:p-6 space-y-6 lg:space-y-8 max-w-[1280px]">
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
-        <DialogContent className="sm:max-w-[420px]" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}>
-          <DialogHeader>
-            <DialogTitle>Delete account?</DialogTitle>
-            <DialogDescription style={{ color: "var(--text-tertiary)" }}>
-              <strong style={{ color: "var(--text-primary)" }}>{deleteTargetName}</strong> will be permanently deleted along with any linked MT5 connection. This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <button
-              type="button"
-              className="inline-flex items-center justify-center h-9 px-4 rounded-lg text-sm"
-              style={{ border: "1px solid var(--border-default)", color: "var(--text-tertiary)", transition: "background-color 0.15s ease, color 0.15s ease" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--text-primary)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-tertiary)"; }}
-              onClick={() => setDeleteConfirmId(null)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center h-9 px-4 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-              style={{ background: "var(--loss-primary)", color: "#fff" }}
-              disabled={!!isDeleting}
-              onClick={confirmDelete}
-            >
-              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+    <>
+      <DeletePropAccountDialog
+        open={Boolean(deleteConfirmId)}
+        accountName={deleteTargetName}
+        deleting={Boolean(isDeleting)}
+        onConfirm={confirmDelete}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirmId(null);
+        }}
+      />
 
-      {/* Header */}
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-label mb-1">Prop Firm</p>
-          <h1 className="headline-lg">Account Tracker</h1>
-        </div>
-
-        <div className="flex items-center gap-3 flex-wrap">
-          <Select
-            value={selectedAccount?.id || "all"}
-            onValueChange={handleAccountChange}
-          >
-            <SelectTrigger className="w-full sm:w-[280px]" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }} aria-label="Select account">
-              <SelectValue placeholder={accounts.length === 0 ? "No accounts yet" : "Select account"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Accounts</SelectItem>
-              {accounts.map((account) => (
-                <SelectItem key={account.id} value={account.id}>
-                  {account.name ?? account.accountName}
-                  {account.phase ? ` — ${account.phase}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={loadAccounts}
-            title="Refresh"
-          >
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          </Button>
-          <Dialog
-            open={isNewAccountOpen}
-            onOpenChange={(open) => {
-              setIsNewAccountOpen(open);
-              if (!open) {
-                setAddForm({ firmName: "", phaseType: "2-phase", startingBalance: "" });
-                setFormError(null);
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4" />
-                Add Account
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}>
-              <form onSubmit={handleSubmit}>
-                <DialogHeader>
-                  <DialogTitle>Add Prop Account</DialogTitle>
-                  <DialogDescription style={{ color: "var(--text-tertiary)" }}>
-                    Track your prop firm challenge or funded account.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="add-firm">Prop firm name</Label>
-                    <Input
-                      id="add-firm"
-                      placeholder="e.g. FTMO, Funding Pips, The5ers"
-                      value={addForm.firmName}
-                      onChange={(e) => setAddForm({ ...addForm, firmName: e.target.value })}
-                      style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}
-                      autoComplete="organization"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="add-phase">Phase type</Label>
-                    <Select
-                      value={addForm.phaseType}
-                      onValueChange={(v: "2-phase" | "1-phase" | "zero-phase") =>
-                        setAddForm({ ...addForm, phaseType: v })
-                      }
-                    >
-                      <SelectTrigger id="add-phase" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="2-phase">2-phase</SelectItem>
-                        <SelectItem value="1-phase">1-phase</SelectItem>
-                        <SelectItem value="zero-phase">Zero-phase</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="add-balance">
-                      Starting balance ($) <span style={{ color: "var(--loss-primary)" }}>*</span>
-                    </Label>
-                    <Input
-                      id="add-balance"
-                      type="number"
-                      min="1"
-                      step="1"
-                      required
-                      placeholder="e.g. 10000"
-                      value={addForm.startingBalance}
-                      onChange={(e) => setAddForm({ ...addForm, startingBalance: e.target.value })}
-                      style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}
-                    />
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      Enter your account size so the tracker shows the correct balance and drawdown.
-                    </p>
-                  </div>
-                </div>
-                {formError && (
-                  <p className="text-sm px-1 pb-2" style={{ color: "var(--loss-primary)" }}>
-                    {formError}
-                  </p>
-                )}
-                <DialogFooter>
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center h-9 px-4 rounded-lg text-sm"
-                    style={{ border: "1px solid var(--border-default)", color: "var(--text-tertiary)", transition: "background-color 0.15s ease, color 0.15s ease" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--text-primary)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-tertiary)"; }}
-                    onClick={() => setIsNewAccountOpen(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-semibold hover:bg-[var(--accent-secondary)] transition-colors disabled:opacity-50"
-                    disabled={isSubmitting || !addForm.firmName.trim() || !addForm.startingBalance.trim()}
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Add Account"
-                    )}
-                  </button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </section>
-
-      {/* Error Message */}
-      {error && (
-        <div className="p-4 rounded-lg" style={{ background: "var(--loss-bg)", border: "1px solid var(--border-active)", color: "var(--loss-primary)" }}>
-          {error}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setError(null)}
-            className="ml-2 underline h-auto p-0"
-          >
-            Dismiss
-          </Button>
-        </div>
-      )}
-
-      {/* Loading State */}
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--text-tertiary)" }} />
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!loading && accounts.length === 0 && (
-        <div className="surface p-12">
-          <Zap className="h-12 w-12 mb-4" style={{ color: "var(--text-tertiary)" }} />
-          <p className="mb-4" style={{ color: "var(--text-tertiary)" }}>
-            No prop accounts yet. Add one to start tracking!
-          </p>
-          <button
-            className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-[var(--accent-primary)] text-white text-sm font-semibold hover:bg-[var(--accent-secondary)] transition-colors"
-            onClick={() => setIsNewAccountOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            Add Your First Account
-          </button>
-        </div>
-      )}
-
-      {/* All Accounts Summary Grid */}
-      {!loading && !selectedAccount && accounts.length > 0 && (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {accounts.map((account) => (
-            <div
-              key={account.id}
-              className="card-glow p-6 cursor-pointer transition-all group"
-              onClick={() => handleAccountChange(account.id)}
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex-1 min-w-0 pr-2">
-                  <h3 className="text-lg font-semibold transition-colors truncate">
-                    {account.name}
-                  </h3>
-                  <p className="text-sm truncate" style={{ color: "var(--text-tertiary)" }}>
-                    {account.firm} • {account.phase}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded px-2 py-0.5 text-xs font-medium capitalize",
-                      account.status === "active"
-                        ? "bg-[var(--profit-bg)] text-[var(--profit-primary)]"
-                        : "",
-                    )}
-                  >
-                    {account.status}
-                  </span>
-                  <button
-                    type="button"
-                    className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30"
-                    style={{ color: "var(--loss-primary)" }}
-                    title="Delete account"
-                    disabled={isDeleting === account.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(account.id);
-                    }}
-                  >
-                    {isDeleting === account.id
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Trash2 className="h-3.5 w-3.5" />
-                    }
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span style={{ color: "var(--text-tertiary)" }}>Balance</span>
-                  <span className="font-mono text-lg">
-                    ${account.current_balance.toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="flex justify-between text-sm items-center">
-                  <span style={{ color: "var(--text-tertiary)" }}>Profit/Loss</span>
-                  <span
-                    className="font-mono font-medium"
-                    style={{
-                      color: account.current_balance >= account.initial_balance
-                        ? "var(--profit-primary)"
-                        : "var(--loss-primary)",
-                    }}
-                  >
-                    {account.current_balance >= account.initial_balance ? "+" : ""}
-                    ${(account.current_balance - account.initial_balance).toLocaleString()}
-                  </span>
-                </div>
-
-                {/* Drawdown Progress Mini */}
-                {account.daily_dd_max && (
-                  <div className="space-y-1 pt-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-                    <div className="flex justify-between text-xs">
-                      <span style={{ color: "var(--text-tertiary)" }}>Daily DD</span>
-                      <span
-                        style={{
-                          color: (account.daily_dd_current || 0) > toPercent(account.daily_dd_max || 0, account.initial_balance) * 0.8
-                            ? "var(--loss-primary)"
-                            : "var(--text-secondary)",
-                        }}
-                      >
-                        {(account.daily_dd_current || 0).toFixed(1)}% /{" "}
-                        {toPercent(
-                          account.daily_dd_max || 0,
-                          account.initial_balance,
-                        ).toFixed(1)}
-                        %
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${((account.daily_dd_current || 0) / toPercent(account.daily_dd_max || 0, account.initial_balance)) * 100}%`,
-                          ...getStatusColor(account.daily_dd_current || 0, toPercent(account.daily_dd_max || 0, account.initial_balance)),
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Single Account Overview */}
-      {!loading && selectedAccount && (
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Main Status Card */}
-          <div className="card-glow p-6 md:col-span-2">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ background: "var(--accent-soft)" }}>
-                  <Zap className="h-5 w-5" style={{ color: "var(--accent-primary)" }} />
-                </div>
-                <div>
-                  <h2 className="headline-md">{selectedAccount.name}</h2>
-                  <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
-                    {selectedAccount.firm} • {selectedAccount.phase}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-2 text-xs rounded-lg px-3"
-                  onClick={() => {
-                    setIsSyncDialogOpen(true);
-                    if (!selectedAccount) return;
-                    setTerminalLoading(true);
-                    setMt5Error(null);
-                    refreshTerminalStatus(selectedAccount.id)
-                      .catch((error) => {
-                        console.error("Error fetching terminal status:", error);
-                        setMt5Error("Failed to check connection status");
-                      })
-                      .finally(() => setTerminalLoading(false));
-                  }}
-                >
-                  <Download className="h-3 w-3" />
-                  Sync MT5
-                </Button>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium",
-                    selectedAccount.compliance?.isCompliant
-                      ? "bg-[var(--profit-bg)] text-[var(--profit-primary)]"
-                      : "bg-[var(--loss-bg)] text-[var(--loss-primary)]",
-                  )}
-                >
-                  {selectedAccount.compliance?.isCompliant ? (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 mr-1 inline" /> Compliant
-                    </>
-                  ) : (
-                    <>
-                      <AlertTriangle className="h-4 w-4 mr-1 inline" /> At Risk
-                    </>
-                  )}
-                </span>
-                <button
-                  className="p-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  style={{ color: "var(--loss-primary)" }}
-                  onClick={() => handleDelete(selectedAccount.id)}
-                  disabled={isDeleting === selectedAccount.id}
-                >
-                  {isDeleting === selectedAccount.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Account Balance */}
-            <div className="flex justify-between items-center p-4 rounded-lg mb-6" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
-              <div>
-                <p className="text-label">Current Balance</p>
-                <p className="stat-huge mt-1">
-                  ${selectedAccount.current_balance.toLocaleString()}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-label">Profit/Loss</p>
-                <p
-                  className={cn(
-                    "stat-large mt-1",
-                    selectedAccount.current_balance >=
-                      selectedAccount.initial_balance
-                      ? "profit"
-                      : "loss",
-                  )}
-                >
-                  {selectedAccount.current_balance >=
-                  selectedAccount.initial_balance
-                    ? "+"
-                    : ""}
-                  $
-                  {(
-                    selectedAccount.current_balance -
-                    selectedAccount.initial_balance
-                  ).toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            {(terminalStatus?.mt5Account ||
-              terminalStatus?.terminal ||
-              terminalStatus?.diagnostics) && (
-              <div className="mb-6 rounded-lg p-4" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface-elevated)" }}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      MT5 Sync Status
-                    </p>
-                    <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      {terminalStatus.connected
-                        ? "Terminal connected and reporting."
-                        : "Terminal not currently connected."}
-                    </p>
-                  </div>
-                  <span
-                    className={cn(
-                      "inline-flex rounded px-2 py-1 text-[11px] font-medium",
-                      terminalStatus.connected
-                        ? "bg-[var(--profit-bg)] text-[var(--profit-primary)]"
-                        : "bg-[var(--warning-bg)] text-[var(--warning-primary)]",
-                    )}
-                  >
-                    {terminalStatus.terminal?.status ?? "NOT_LINKED"}
-                  </span>
-                </div>
-
-                <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>MT5 account</p>
-                    <p className="mt-1 font-mono" style={{ color: "var(--text-primary)" }}>
-                      {terminalStatus.mt5Account
-                        ? `${terminalStatus.mt5Account.server} / ${terminalStatus.mt5Account.login}`
-                        : "Not linked"}
-                    </p>
-                  </div>
-                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Terminal ID</p>
-                    <p className="mt-1 font-mono break-all" style={{ color: "var(--text-primary)" }}>
-                      {terminalStatus.terminal?.terminalId ?? "Awaiting assignment"}
-                    </p>
-                  </div>
-                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Diagnostic</p>
-                    <p className="mt-1 font-mono" style={{ color: "var(--text-primary)" }}>
-                      {terminalStatus.diagnostics?.code ?? "NO_HEARTBEAT"}
-                    </p>
-                  </div>
-                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Last heartbeat</p>
-                    <p className="mt-1" style={{ color: "var(--text-primary)" }}>
-                      {terminalStatus.terminal?.lastHeartbeat
-                        ? new Date(
-                            terminalStatus.terminal.lastHeartbeat,
-                          ).toLocaleString()
-                        : "Never"}
-                    </p>
-                  </div>
-                  <div className="rounded-md p-3" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}>
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Live positions</p>
-                    <p className="mt-1" style={{ color: "var(--text-primary)" }}>
-                      {terminalStatus.livePositions.length}
-                    </p>
-                  </div>
-                </div>
-
-                {terminalStatus.diagnostics?.message && (
-                  <div className="mt-3 rounded-md p-3 text-xs" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)", color: "var(--text-tertiary)" }}>
-                    {terminalStatus.diagnostics.message}
-                  </div>
-                )}
-
-                {terminalStatus.livePositions.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                        Live MT5 Positions
-                      </p>
-                      <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                        Not yet imported into journal analytics
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      {terminalStatus.livePositions.map((position) => (
-                        <div
-                          key={`${position.ticket}-${position.positionId ?? "live"}`}
-                          className="flex items-center justify-between rounded-md px-3 py-2 text-xs"
-                        style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}
-                        >
-                          <div>
-                            <p className="font-medium" style={{ color: "var(--text-primary)" }}>
-                              {position.symbol} {position.type}
-                            </p>
-                            <p style={{ color: "var(--text-tertiary)" }}>
-                              {position.volume} lots at {position.openPrice}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p
-                              className={cn(
-                                "font-mono",
-                                position.profit >= 0 ? "profit" : "loss",
-                              )}
-                            >
-                              ${position.profit.toLocaleString()}
-                            </p>
-                            <p style={{ color: "var(--text-tertiary)" }}>
-                              Current: {position.currentPrice}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Drawdown Meters */}
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Daily Drawdown */}
-              {selectedAccount.daily_dd_max && (
-                <div className="space-y-3 p-4 rounded-lg" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Daily Drawdown</span>
-                    <span className="text-sm">
-                      {(selectedAccount.daily_dd_current || 0).toFixed(1)}% /{" "}
-                      {toPercent(
-                        selectedAccount.daily_dd_max || 0,
-                        selectedAccount.initial_balance,
-                      ).toFixed(1)}
-                      %
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${((selectedAccount.daily_dd_current || 0) / toPercent(selectedAccount.daily_dd_max || 0, selectedAccount.initial_balance)) * 100}%`,
-                        ...getStatusColor(selectedAccount.daily_dd_current || 0, toPercent(selectedAccount.daily_dd_max || 0, selectedAccount.initial_balance)),
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    {(
-                      toPercent(
-                        selectedAccount.daily_dd_max || 0,
-                        selectedAccount.initial_balance,
-                      ) - (selectedAccount.daily_dd_current || 0)
-                    ).toFixed(1)}
-                    % remaining
-                  </p>
-                </div>
-              )}
-
-              {/* Total Drawdown */}
-              {selectedAccount.total_dd_max && (
-                <div className="space-y-3 p-4 rounded-lg" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Total Drawdown</span>
-                    <span className="text-sm">
-                      {(selectedAccount.total_dd_current || 0).toFixed(1)}% /{" "}
-                      {toPercent(
-                        selectedAccount.total_dd_max || 0,
-                        selectedAccount.initial_balance,
-                      ).toFixed(1)}
-                      %
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${((selectedAccount.total_dd_current || 0) / toPercent(selectedAccount.total_dd_max || 0, selectedAccount.initial_balance)) * 100}%`,
-                        ...getStatusColor(selectedAccount.total_dd_current || 0, toPercent(selectedAccount.total_dd_max || 0, selectedAccount.initial_balance)),
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    {(
-                      toPercent(
-                        selectedAccount.total_dd_max || 0,
-                        selectedAccount.initial_balance,
-                      ) - (selectedAccount.total_dd_current || 0)
-                    ).toFixed(1)}
-                    % remaining
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Profit Target */}
-            {selectedAccount.profit_target &&
-              selectedAccount.compliance?.profitProgress !== null && (
-                <div className="space-y-3 p-4 rounded-lg mt-4" style={{ background: "var(--surface-elevated)", border: "1px solid var(--border-subtle)" }}>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Profit Target</span>
-                    <span className="text-sm">
-                      {(
-                        selectedAccount.compliance?.profitProgress || 0
-                      ).toFixed(1)}
-                      % /{" "}
-                      {toPercent(
-                        selectedAccount.profit_target,
-                        selectedAccount.initial_balance,
-                      ).toFixed(1)}
-                      %
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-elevated)" }}>
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        background: "var(--accent-primary)",
-                        width: `${Math.min(((selectedAccount.compliance?.profitProgress || 0) / toPercent(selectedAccount.profit_target, selectedAccount.initial_balance)) * 100, 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    {(
-                      toPercent(
-                        selectedAccount.profit_target,
-                        selectedAccount.initial_balance,
-                      ) - (selectedAccount.compliance?.profitProgress || 0)
-                    ).toFixed(1)}
-                    % more to reach target
-                  </p>
-                </div>
-              )}
-          </div>
-
-          {/* Quick Stats */}
-          <div className="space-y-4">
-            <div className="surface p-6">
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5" style={{ color: "var(--text-tertiary)" }} />
-                <div>
-                  <p className="text-sm font-medium">Started</p>
-                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    {selectedAccount.start_date
-                      ? new Date(
-                          selectedAccount.start_date,
-                        ).toLocaleDateString()
-                      : "N/A"}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="surface p-6">
-              <div className="flex items-center gap-3">
-                <BarChart3 className="h-5 w-5" style={{ color: "var(--text-tertiary)" }} />
-                <div>
-                  <p className="text-sm font-medium">Initial Balance</p>
-                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    ${selectedAccount.initial_balance.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="surface p-6">
-              <div className="flex items-center gap-3">
-                <Shield className="h-5 w-5" style={{ color: "var(--text-tertiary)" }} />
-                <div>
-                  <p className="text-sm font-medium">Status</p>
-                  <p
-                    className="text-xs"
-                    style={{
-                      color: selectedAccount.status === "active"
-                        ? "var(--profit-primary)"
-                        : "var(--text-secondary)",
-                    }}
-                  >
-                    {(selectedAccount.status || "").charAt(0).toUpperCase() +
-                      (selectedAccount.status || "").slice(1)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MT5 Cloud Sync Dialog */}
-      <Dialog
+      <Mt5SyncDialog
         open={isSyncDialogOpen}
         onOpenChange={(open) => {
           setIsSyncDialogOpen(open);
           if (open && selectedAccount) {
             setTerminalLoading(true);
+            setMt5Error(null);
             refreshTerminalStatus(selectedAccount.id)
-              .catch((error) => {
-                console.error("Error fetching terminal status:", error);
+              .catch((err) => {
+                console.error("Failed to fetch terminal status:", err);
+                setMt5Error(
+                  err instanceof Error
+                    ? err.message
+                    : "Failed to check connection status",
+                );
               })
               .finally(() => setTerminalLoading(false));
           }
         }}
-      >
-        <DialogContent className="sm:max-w-[560px]" style={{ background: "var(--surface)", border: "1px solid var(--border-default)" }}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Cloud className="h-5 w-5" style={{ color: "var(--accent-primary)" }} />
-              Connect MetaTrader 5
-            </DialogTitle>
-            <DialogDescription>
-              Sync your MT5 account through Terminal Farm and inspect the exact
-              sync state from here.
-            </DialogDescription>
-          </DialogHeader>
+        terminalLoading={terminalLoading}
+        terminalStatus={terminalStatus}
+        mt5Error={mt5Error}
+        selectedAccountName={selectedAccount?.name ?? selectedAccount?.accountName ?? null}
+        selectedAccountSize={selectedAccount?.initial_balance ?? 0}
+        mt5FormData={mt5FormData}
+        setMt5FormData={setMt5FormData}
+        onConnect={() => {
+          void handleConnectMt5();
+        }}
+        onReset={() => {
+          void handleResetMt5Sync("manual_reset");
+        }}
+        onDisable={() => {
+          void handleDisableAutoSync();
+        }}
+      />
 
-          {terminalLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--text-tertiary)" }} />
-            </div>
-          ) : terminalStatus?.connected ? (
-            <div className="space-y-4 py-4">
-              <div className="rounded-lg p-4" style={{ border: "1px solid var(--profit-primary)", background: "var(--profit-bg)" }}>
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5" style={{ color: "var(--profit-primary)" }} />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Terminal connected
-                    </p>
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      Terminal ID:{" "}
-                      <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                        {terminalStatus.terminal?.terminalId ?? "Unknown"}
-                      </span>
-                    </p>
-                    {terminalStatus.mt5Account && (
-                      <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                        Linked MT5 session:{" "}
-                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                          {terminalStatus.mt5Account.server}
-                        </span>{" "}
-                        /{" "}
-                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                          {terminalStatus.mt5Account.login}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
+      <AppPageHeader
+        eyebrow="Prop Firm"
+        title="Account Tracker"
+        description="Track challenge balances, drawdown thresholds, and MT5 sync from the same account system used across the rest of the app."
+        icon={<Shield size={18} strokeWidth={1.8} style={{ color: "var(--text-inverse)" }} />}
+        actions={pageActions}
+      />
 
-              <div className="space-y-3 rounded-lg p-4 text-sm" style={{ border: "1px solid var(--border-default)", background: "var(--surface-elevated)" }}>
-                <div className="flex justify-between gap-4">
-                  <span style={{ color: "var(--text-tertiary)" }}>Last heartbeat</span>
-                  <span className="text-right" style={{ color: "var(--text-primary)" }}>
-                    {terminalStatus.terminal?.lastHeartbeat
-                      ? new Date(
-                          terminalStatus.terminal.lastHeartbeat,
-                        ).toLocaleString()
-                      : "Never"}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span style={{ color: "var(--text-tertiary)" }}>Terminal status</span>
-                  <span className="text-right" style={{ color: "var(--text-primary)" }}>
-                    {terminalStatus.terminal?.status ?? "UNKNOWN"}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span style={{ color: "var(--text-tertiary)" }}>Last trade sync</span>
-                  <span className="text-right" style={{ color: "var(--text-primary)" }}>
-                    {terminalStatus.terminal?.lastSyncAt
-                      ? new Date(
-                          terminalStatus.terminal.lastSyncAt,
-                        ).toLocaleString()
-                      : "Never"}
-                  </span>
-                </div>
-                {terminalStatus.diagnostics && (
-                  <>
-                    <div className="flex justify-between gap-4">
-                      <span style={{ color: "var(--text-tertiary)" }}>
-                        Diagnostic code
-                      </span>
-                      <span className="text-right font-mono" style={{ color: "var(--text-primary)" }}>
-                        {terminalStatus.diagnostics.code}
-                      </span>
-                    </div>
-                    <div className="rounded-md p-3 text-xs" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)", color: "var(--text-tertiary)" }}>
-                      {terminalStatus.diagnostics.message}
-                    </div>
-                    <div className="grid gap-2 text-xs sm:grid-cols-2" style={{ color: "var(--text-tertiary)" }}>
-                      <div>
-                        Last imported:{" "}
-                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                          {terminalStatus.diagnostics.lastTradeImportCount ?? 0}
-                        </span>
-                      </div>
-                      <div>
-                        Last skipped:{" "}
-                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                          {terminalStatus.diagnostics.lastTradeSkipCount ?? 0}
-                        </span>
-                      </div>
-                      <div>
-                        Last seen deals:{" "}
-                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                          {terminalStatus.diagnostics.lastSeenDealCount ?? 0}
-                        </span>
-                      </div>
-                      <div>
-                        Live positions:{" "}
-                        <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                          {terminalStatus.livePositions.length}
-                        </span>
-                      </div>
-                    </div>
-                  </>
+      {error ? (
+        <InsetPanel tone="loss" className="flex items-center justify-between gap-3">
+          <p className="text-sm" style={{ color: "var(--loss-primary)" }}>
+            {error}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setError(null)}>
+              Dismiss
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void loadAccounts()}>
+              Retry
+            </Button>
+          </div>
+        </InsetPanel>
+      ) : null}
+
+      {loading ? (
+        <AppPanel className="flex min-h-[280px] items-center justify-center">
+          <div className="text-center">
+            <Loader2
+              className="mx-auto h-8 w-8 animate-spin"
+              style={{ color: "var(--text-tertiary)" }}
+            />
+            <p className="mt-3 text-sm" style={{ color: "var(--text-tertiary)" }}>
+              Loading prop accounts...
+            </p>
+          </div>
+        </AppPanel>
+      ) : null}
+
+      {!loading && accounts.length === 0 ? (
+        <AppPanelEmptyState
+          title="No prop accounts yet"
+          description="Add your first challenge or funded account to start tracking balances, drawdown, and MT5 sync."
+          action={<Button onClick={() => setIsNewAccountOpen(true)}>Add Account</Button>}
+        />
+      ) : null}
+
+      {!loading && accounts.length > 0 && !selectedAccount ? (
+        <>
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <AppMetricCard
+              label="Tracked Accounts"
+              value={String(accounts.length)}
+              helper="All challenge and funded accounts"
+              tone="default"
+            />
+            <AppMetricCard
+              label="Active Accounts"
+              value={String(accountSummary.activeCount)}
+              helper="Currently live tracking"
+              tone="accent"
+            />
+            <AppMetricCard
+              label="Tracked Balance"
+              value={formatMoney(accountSummary.totalBalance)}
+              helper="Combined current balance"
+              tone="default"
+            />
+            <AppMetricCard
+              label="Linked MT5"
+              value={String(linkedMt5Count)}
+              helper="Accounts with terminal sync"
+              tone={linkedMt5Count > 0 ? "accent" : "warning"}
+            />
+          </section>
+
+          <SectionHeader
+            eyebrow="Overview"
+            title="All Accounts"
+            subtitle="Select an account to inspect drawdown, sync status, and challenge details."
+          />
+
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {accounts.map((account) => (
+              <PropAccountCard
+                key={account.id}
+                name={account.name ?? account.accountName}
+                firm={account.firm}
+                phase={account.phase}
+                status={account.status ?? "inactive"}
+                currentBalance={account.current_balance}
+                initialBalance={account.initial_balance}
+                dailyDrawdownCurrent={account.daily_dd_current}
+                dailyDrawdownLimitPercent={toPercent(
+                  account.daily_dd_max ?? 0,
+                  account.initial_balance,
                 )}
-                {terminalStatus.terminal?.errorMessage && (
-                  <div className="rounded-md p-3 text-xs" style={{ border: "1px solid var(--loss-primary)", background: "var(--loss-bg)", color: "var(--loss-primary)" }}>
-                    {terminalStatus.terminal.errorMessage}
+                deleting={isDeleting === account.id}
+                onSelect={() => handleAccountChange(account.id)}
+                onDelete={() => handleDelete(account.id)}
+              />
+            ))}
+          </section>
+        </>
+      ) : null}
+
+      {!loading && selectedAccount ? (
+        <>
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <AppMetricCard
+              label="Current Balance"
+              value={formatMoney(selectedAccount.current_balance)}
+              helper="Latest tracked balance"
+              tone="default"
+            />
+            <AppMetricCard
+              label="Profit / Loss"
+              value={formatSignedMoney(
+                selectedAccount.current_balance - selectedAccount.initial_balance,
+              )}
+              helper="Versus initial balance"
+              tone={
+                selectedAccount.current_balance >= selectedAccount.initial_balance
+                  ? "profit"
+                  : "loss"
+              }
+            />
+            <AppMetricCard
+              label="Account Size"
+              value={formatMoney(selectedAccount.initial_balance)}
+              helper="Challenge baseline"
+              tone="default"
+            />
+            <AppMetricCard
+              label="MT5 Sync"
+              value={
+                terminalStatus?.connected
+                  ? "Connected"
+                  : terminalStatus?.mt5AccountId
+                    ? "Configured"
+                    : "Not Linked"
+              }
+              helper="Terminal Farm connection state"
+              tone={
+                terminalStatus?.connected
+                  ? "profit"
+                  : terminalStatus?.mt5AccountId
+                    ? "warning"
+                    : "default"
+              }
+              monoValue={false}
+              icon={<Cloud className="h-4 w-4" />}
+            />
+          </section>
+
+          <AppPanel className="space-y-6">
+              <SectionHeader
+                eyebrow="Account Overview"
+                title={selectedAccount.name ?? selectedAccount.accountName}
+                subtitle={[selectedAccount.firm, selectedAccount.phase]
+                  .filter(Boolean)
+                  .join(" / ")}
+                action={
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedAccountId(null);
+                      }}
+                    >
+                      All Accounts
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setIsSyncDialogOpen(true);
+                      }}
+                    >
+                      <Cloud className="h-4 w-4" />
+                      Sync MT5
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={isDeleting === selectedAccount.id}
+                      onClick={() => handleDelete(selectedAccount.id)}
+                      aria-label={`Delete ${selectedAccount.accountName}`}
+                    >
+                      {isDeleting === selectedAccount.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
-                )}
-              </div>
+                }
+              />
 
-              {terminalStatus.livePositions.length > 0 && (
-                <div className="space-y-2 rounded-lg p-4" style={{ border: "1px solid var(--border-default)", background: "var(--surface-elevated)" }}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Live MT5 Positions
-                    </p>
-                    <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      {terminalStatus.livePositions.length} open
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {terminalStatus.livePositions.map((position) => (
-                      <div
-                        key={`${position.ticket}-${position.positionId ?? "live"}`}
-                        className="flex items-center justify-between rounded-md px-3 py-2 text-xs"
-                        style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)" }}
-                      >
-                        <div className="space-y-1">
-                          <p className="font-medium" style={{ color: "var(--text-primary)" }}>
-                            {position.symbol} {position.type}
-                          </p>
-                          <p style={{ color: "var(--text-tertiary)" }}>
-                            {position.volume} lots at {position.openPrice}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p
-                            className={cn(
-                              "font-mono",
-                              position.profit >= 0 ? "profit" : "loss",
-                            )}
-                          >
-                            ${position.profit.toLocaleString()}
-                          </p>
-                          <p style={{ color: "var(--text-tertiary)" }}>
-                            Current: {position.currentPrice}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {mt5Error && (
-                <p className="text-center text-sm" style={{ color: "var(--loss-primary)" }}>{mt5Error}</p>
-              )}
-
-              <DialogFooter className="gap-2 sm:justify-between">
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    if (!selectedAccount) return;
-                    const confirmed = confirm(
-                      "Disable auto-sync for this linked MT5 account?",
-                    );
-                    if (!confirmed) return;
-
-                    const status = await refreshTerminalStatus(selectedAccount.id);
-                    if (!status.mt5AccountId) {
-                      setMt5Error("MT5 account not found");
-                      return;
-                    }
-
-                    await disableAutoSync(status.mt5AccountId);
-                    setTerminalStatus({
-                      connected: false,
-                      terminal: null,
-                      mt5AccountId: status.mt5AccountId,
-                      mt5Account: status.mt5Account,
-                      diagnostics: status.diagnostics,
-                      livePositions: [],
-                    });
-                  }}
-                >
-                  Disable Auto-Sync
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    void handleResetMt5Sync("manual_reset");
-                  }}
-                >
-                  Reset MT5 Sync
-                </Button>
-              </DialogFooter>
-            </div>
-          ) : (
-            <div className="space-y-4 py-4">
-              {terminalStatus?.mt5Account && (
-                <div className="rounded-lg p-4 text-sm" style={{ border: "1px solid var(--border-default)", background: "var(--surface-elevated)" }}>
-                  <p className="font-medium" style={{ color: "var(--text-primary)" }}>
-                    Saved MT5 account
-                  </p>
-                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    Server:{" "}
-                    <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                      {terminalStatus.mt5Account.server}
-                    </span>{" "}
-                    · Login:{" "}
-                    <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                      {terminalStatus.mt5Account.login}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    Terminal ID:{" "}
-                    <span className="font-mono break-all" style={{ color: "var(--text-primary)" }}>
-                      {terminalStatus.terminal?.terminalId ?? "Awaiting assignment"}
-                    </span>
-                  </p>
-                  {terminalStatus.mt5Account.balance != null && (
-                    <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      Last broker balance:{" "}
-                      <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                        $
-                        {Number(
-                          terminalStatus.mt5Account.balance,
-                        ).toLocaleString()}
-                      </span>
-                    </p>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <AppMetricCard
+                  label="Current Balance"
+                  value={formatMoney(selectedAccount.current_balance)}
+                  helper="Latest account balance"
+                  tone="default"
+                  shell="elevated"
+                />
+                <AppMetricCard
+                  label="Profit / Loss"
+                  value={formatSignedMoney(
+                    selectedAccount.current_balance - selectedAccount.initial_balance,
                   )}
-                  {terminalStatus.terminal?.status && (
-                    <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      Terminal status:{" "}
-                      <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                        {terminalStatus.terminal.status}
-                      </span>
-                    </p>
-                  )}
-                  {terminalStatus.diagnostics && (
-                    <p className="mt-2 rounded-md p-3 text-xs" style={{ border: "1px solid var(--border-default)", background: "var(--surface-raised)", color: "var(--text-tertiary)" }}>
-                      <span className="font-mono" style={{ color: "var(--text-primary)" }}>
-                        {terminalStatus.diagnostics.code}
-                      </span>{" "}
-                      · {terminalStatus.diagnostics.message}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {selectedAccount && (
-                <div className="rounded-lg p-3 text-sm" style={{ border: "1px solid var(--accent-primary)", background: "var(--accent-soft)" }}>
-                  <span style={{ color: "var(--text-tertiary)" }}>
-                    This prop account size:{" "}
-                  </span>
-                  <span className="font-mono font-semibold">
-                    $
-                    {Number(
-                      selectedAccount.initial_balance ??
-                        selectedAccount.accountSize ??
-                        0,
-                    ).toLocaleString()}
-                  </span>
-                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    Re-enter your MT5 credentials to create a fresh terminal
-                    link. Existing imported trades will stay attached to this
-                    prop account.
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="mt5-server">Server</Label>
-                  <Input
-                    id="mt5-server"
-                    placeholder="e.g., ICMarketsSC-Demo"
-                    value={mt5FormData.server}
-                    onChange={(e) =>
-                      setMt5FormData({ ...mt5FormData, server: e.target.value })
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="mt5-login">Login</Label>
-                  <Input
-                    id="mt5-login"
-                    placeholder="Your MT5 account number"
-                    value={mt5FormData.login}
-                    onChange={(e) =>
-                      setMt5FormData({ ...mt5FormData, login: e.target.value })
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="mt5-password">Password</Label>
-                  <Input
-                    id="mt5-password"
-                    type="password"
-                    placeholder="Your MT5 investor password"
-                    value={mt5FormData.password}
-                    onChange={(e) =>
-                      setMt5FormData({
-                        ...mt5FormData,
-                        password: e.target.value,
-                      })
-                    }
-                    className="mt-1"
-                  />
-                  <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    Use the investor password if your broker supports it.
-                  </p>
-                </div>
-                <div>
-                  <Label htmlFor="mt5-balance">
-                    Current account balance (optional)
-                  </Label>
-                  <Input
-                    id="mt5-balance"
-                    type="number"
-                    min="0"
-                    step="1"
-                    placeholder="e.g. 10000"
-                    value={mt5FormData.currentBalance}
-                    onChange={(e) =>
-                      setMt5FormData({
-                        ...mt5FormData,
-                        currentBalance: e.target.value,
-                      })
-                    }
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-
-              {mt5Error && <p className="text-sm" style={{ color: "var(--loss-primary)" }}>{mt5Error}</p>}
-
-              <DialogFooter className="gap-2 sm:justify-between">
-                {terminalStatus?.mt5AccountId ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      void handleResetMt5Sync("manual_reset");
-                    }}
-                  >
-                    Reset MT5 Sync
-                  </Button>
-                ) : (
-                  <div />
-                )}
-                <Button
-                  className="w-full sm:w-auto"
-                  onClick={() => {
-                    void handleConnectMt5();
-                  }}
-                  disabled={
-                    terminalLoading ||
-                    !mt5FormData.server ||
-                    !mt5FormData.login ||
-                    !mt5FormData.password
+                  helper="Since account start"
+                  tone={
+                    selectedAccount.current_balance >= selectedAccount.initial_balance
+                      ? "profit"
+                      : "loss"
                   }
-                >
-                  {terminalLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {terminalStatus?.mt5AccountId ? "Reconnecting..." : "Connecting..."}
-                    </>
-                  ) : terminalStatus?.mt5AccountId ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Reconnect MT5
-                    </>
-                  ) : (
-                    <>
-                      <Cloud className="mr-2 h-4 w-4" />
-                      Enable Auto-Sync
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
+                  shell="elevated"
+                />
+                <AppMetricCard
+                  label="Account Size"
+                  value={formatMoney(selectedAccount.initial_balance)}
+                  helper="Initial challenge size"
+                  tone="default"
+                  shell="elevated"
+                />
+                <AppMetricCard
+                  label="Started"
+                  value={
+                    selectedAccount.start_date
+                      ? new Date(selectedAccount.start_date).toLocaleDateString()
+                      : "N/A"
+                  }
+                  helper="Account start date"
+                  tone="default"
+                  shell="elevated"
+                  monoValue={false}
+                />
+                <AppMetricCard
+                  label="Status"
+                  value={
+                    (selectedAccount.status ?? "inactive").charAt(0).toUpperCase() +
+                    (selectedAccount.status ?? "inactive").slice(1)
+                  }
+                  helper="Current tracking state"
+                  tone={
+                    (selectedAccount.status ?? "inactive") === "active"
+                      ? "profit"
+                      : "default"
+                  }
+                  shell="elevated"
+                  monoValue={false}
+                />
+              </div>
 
-              <p className="text-center text-xs" style={{ color: "var(--text-tertiary)" }}>
-                Terminal Farm runs MT5 in Docker and now exposes terminal state,
-                diagnostics, and live positions directly in the app.
-              </p>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+              {terminalStatus ? (
+                <TerminalStatusPanel
+                  terminalStatus={terminalStatus}
+                  action={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsSyncDialogOpen(true)}
+                    >
+                      Manage Sync
+                    </Button>
+                  }
+                />
+              ) : (
+                <SyncUnavailableCallout message="No MT5 connection is linked to this prop account yet. Open Sync MT5 to connect a terminal or inspect the last saved session." />
+              )}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {selectedAccount.daily_dd_max ? (
+                  <ThresholdMeter
+                    label="Daily Drawdown"
+                    currentValue={selectedAccount.daily_dd_current ?? 0}
+                    limitValue={toPercent(
+                      selectedAccount.daily_dd_max,
+                      selectedAccount.initial_balance,
+                    )}
+                    helper="Worst daily loss against the allowed drawdown."
+                  />
+                ) : null}
+
+                {selectedAccount.total_dd_max ? (
+                  <ThresholdMeter
+                    label="Total Drawdown"
+                    currentValue={selectedAccount.total_dd_current ?? 0}
+                    limitValue={toPercent(
+                      selectedAccount.total_dd_max,
+                      selectedAccount.initial_balance,
+                    )}
+                    helper="Overall drawdown pressure against the challenge cap."
+                  />
+                ) : null}
+              </div>
+
+              {selectedAccount.profit_target ? (
+                <ThresholdMeter
+                  label="Profit Target"
+                  currentValue={selectedProfitPercent}
+                  limitValue={toPercent(
+                    selectedAccount.profit_target,
+                    selectedAccount.initial_balance,
+                  )}
+                  helper="Progress toward the configured challenge target."
+                />
+              ) : null}
+          </AppPanel>
+        </>
+      ) : null}
+    </>
   );
 }
-
