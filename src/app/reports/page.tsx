@@ -1,6 +1,5 @@
-"use client";
-
 import {
+  type LucideIcon,
   Download,
   FileText,
   BarChart3,
@@ -8,22 +7,44 @@ import {
   TrendingUp,
 } from "lucide-react";
 import {
+  AppMetricCard,
   AppPageHeader,
-  AppPanel,
-  PanelTitle,
   SectionHeader,
 } from "@/components/ui/page-primitives";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { REPORT_TYPE_COLORS } from "@/lib/data/dummy";
+import { InsetPanel } from "@/components/ui/surface-primitives";
+import { ReportCatalogCard } from "@/components/ui/report-primitives";
 
-const reports = [
+type ReportTone = "performance" | "strategy" | "risk";
+
+interface ReportDefinition {
+  id: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  category: string;
+  tone: ReportTone;
+  details: Array<{
+    label: string;
+    value: string;
+    tone?: "default" | "profit" | "loss" | "warning" | "accent";
+    sub?: string;
+  }>;
+}
+
+const reports: ReportDefinition[] = [
   {
     id: "1",
     title: "Monthly Performance Report",
     description: "Comprehensive breakdown of your monthly trading performance",
     icon: BarChart3,
-    type: "Performance",
+    category: "Performance",
+    tone: "performance",
+    details: [
+      { label: "Format", value: "PDF / CSV" },
+      { label: "Scope", value: "Account + Date" },
+      { label: "Status", value: "Planned", tone: "warning" },
+    ],
   },
   {
     id: "2",
@@ -31,7 +52,13 @@ const reports = [
     description:
       "Detailed analysis of each trading strategy by win rate and R-multiple",
     icon: PieChart,
-    type: "Strategy",
+    category: "Strategy",
+    tone: "strategy",
+    details: [
+      { label: "Format", value: "PDF / CSV" },
+      { label: "Scope", value: "Playbook Library" },
+      { label: "Status", value: "Planned", tone: "warning" },
+    ],
   },
   {
     id: "3",
@@ -39,77 +66,113 @@ const reports = [
     description:
       "Review your risk metrics, drawdown history, and consistency score",
     icon: TrendingUp,
-    type: "Risk",
-  },
-  {
-    id: "4",
-    title: "Tax Report",
-    description: "Trade summary for tax filing purposes",
-    icon: FileText,
-    type: "Tax",
+    category: "Risk",
+    tone: "risk",
+    details: [
+      { label: "Format", value: "PDF" },
+      { label: "Scope", value: "Risk + Compliance" },
+      { label: "Status", value: "Planned", tone: "warning" },
+    ],
   },
 ];
 
 export default function ReportsPage() {
+  const summaryCards = [
+    {
+      label: "Report Templates",
+      value: String(reports.length),
+      tone: "default" as const,
+    },
+    {
+      label: "Export Formats",
+      value: "2",
+      helper: "PDF / CSV",
+      tone: "accent" as const,
+    },
+    {
+      label: "Live Downloads",
+      value: "0",
+      tone: "warning" as const,
+    },
+    {
+      label: "Status",
+      value: "Planned",
+      helper: "Wiring live exports",
+      tone: "warning" as const,
+      monoValue: false,
+    },
+  ];
+
   return (
-    <div className="page-root page-sections">
+    <>
       <AppPageHeader
         eyebrow="Analytics"
         title="Reports"
         description="Generate and download detailed reports of your trading activity."
-        icon={<FileText size={18} strokeWidth={1.8} color="#fff" />}
+        icon={
+          <FileText
+            size={18}
+            strokeWidth={1.8}
+            style={{ color: "var(--text-inverse)" }}
+          />
+        }
       />
 
-      <SectionHeader eyebrow="Available Reports" title="Export & Download" />
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {summaryCards.map((card) => (
+          <AppMetricCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            helper={card.helper}
+            tone={card.tone}
+            monoValue={card.monoValue}
+          />
+        ))}
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <InsetPanel tone="warning" paddingClassName="px-4 py-3">
+        <p className="text-label" style={{ color: "var(--warning-primary)" }}>
+          Export Pipeline
+        </p>
+        <p
+          className="mt-1 text-sm leading-relaxed"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          The report catalog now uses the shared app shell and card system. File
+          generation and download endpoints are still being wired before these
+          exports go live.
+        </p>
+      </InsetPanel>
+
+      <SectionHeader
+        eyebrow="Available Reports"
+        title="Export & Download"
+        subtitle="Report templates now use the same panel, metric, and action language as the rest of the product."
+      />
+
+      <section className="grid gap-4 md:grid-cols-2">
         {reports.map((report) => {
           const Icon = report.icon;
-          const accentColor =
-            REPORT_TYPE_COLORS[report.type] ?? "var(--accent-primary)";
           return (
-            <AppPanel key={report.id}>
-              <div className="flex items-start gap-4 mb-5">
-                <div
-                  className="flex items-center justify-center w-10 h-10 rounded-[var(--radius-md)] shrink-0"
-                  style={{
-                    background: `${accentColor}18`,
-                    border: `1px solid ${accentColor}30`,
-                  }}
-                >
-                  <Icon size={18} style={{ color: accentColor }} />
-                </div>
-                <div>
-                  <PanelTitle
-                    title={report.title}
-                    subtitle={report.description}
-                    className="mb-0"
-                  />
-                  <Badge
-                    className="mt-2"
-                    style={{
-                      background: `${accentColor}15`,
-                      color: accentColor,
-                      border: "none",
-                      fontSize: "0.6rem",
-                      fontWeight: 700,
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {report.type}
-                  </Badge>
-                </div>
-              </div>
-
-              <Button variant="outline" disabled className="w-full opacity-50">
-                <Download size={13} />
-                Coming Soon
-              </Button>
-            </AppPanel>
+            <ReportCatalogCard
+              key={report.id}
+              icon={<Icon size={18} />}
+              title={report.title}
+              description={report.description}
+              category={report.category}
+              tone={report.tone}
+              details={report.details}
+              action={
+                <Button variant="outline" disabled className="w-full">
+                  <Download size={13} />
+                  Coming Soon
+                </Button>
+              }
+            />
           );
         })}
-      </div>
-    </div>
+      </section>
+    </>
   );
 }
