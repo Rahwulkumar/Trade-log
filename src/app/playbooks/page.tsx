@@ -3,15 +3,30 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ArrowUpRight,
-  BookOpen,
-  Copy,
+  AlertCircle,
   Loader2,
-  MoreHorizontal,
   Plus,
   RefreshCw,
-  Trash2,
+  Search,
 } from "lucide-react";
+import { motion } from "framer-motion";
+
+import { useAuth } from "@/components/auth-provider";
+import { usePropAccount } from "@/components/prop-account-provider";
+import { Button } from "@/components/ui/button";
+import {
+  AppMetricCard,
+  AppPageHeader,
+  AppPanel,
+  AppPanelEmptyState,
+  SectionHeader,
+} from "@/components/ui/page-primitives";
+import {
+  ChoiceChip,
+  ControlSurface,
+  FieldGroup,
+} from "@/components/ui/control-primitives";
+import { InsetPanel } from "@/components/ui/surface-primitives";
 import {
   Dialog,
   DialogContent,
@@ -21,60 +36,89 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/components/auth-provider";
-import { usePropAccount } from "@/components/prop-account-provider";
 import {
   createPlaybook,
   deletePlaybook,
   duplicatePlaybook,
   getAllPlaybooksWithStats,
   togglePlaybookActive,
+  type Playbook,
 } from "@/lib/api/client/playbooks";
 import { cn } from "@/lib/utils";
 import {
-  AppMetricCard,
-  AppPageHeader,
-  AppPanel,
-} from "@/components/ui/page-primitives";
-import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
-import { NoDataEmpty } from "@/components/ui/empty-state";
-import { IconSearch } from "@/components/ui/icons";
+  PlaybookCard,
+  type PlaybookCardData,
+} from "@/components/playbooks/playbook-card";
+import { PlaybookManageDialog } from "@/components/playbooks/playbook-manage-dialog";
 
-interface PlaybookWithStats {
+type StatusFilter = "all" | "active" | "paused";
+
+interface PlaybookStatsValue {
+  totalTrades: number;
+  winRate: number;
+  avgRMultiple: number;
+  totalPnl: number;
+}
+
+interface PlaybookPayloadShape {
   id: string;
   name: string;
   description: string | null;
   rules: unknown;
-  isActive: boolean | null;
+  isActive?: boolean | null;
   is_active?: boolean | null;
-  stats?: {
-    totalTrades: number;
-    winRate: number;
-    avgRMultiple: number;
-    totalPnl: number;
+  stats?: Partial<PlaybookStatsValue>;
+}
+
+const EMPTY_STATS: PlaybookStatsValue = {
+  totalTrades: 0,
+  winRate: 0,
+  avgRMultiple: 0,
+  totalPnl: 0,
+};
+
+function normalizeRules(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((rule): rule is string => typeof rule === "string");
+}
+
+function normalizePlaybook(playbook: PlaybookPayloadShape): PlaybookCardData {
+  return {
+    id: playbook.id,
+    name: playbook.name,
+    description: playbook.description ?? null,
+    rules: normalizeRules(playbook.rules),
+    isActive: playbook.isActive ?? playbook.is_active ?? true,
+    stats: {
+      totalTrades: playbook.stats?.totalTrades ?? EMPTY_STATS.totalTrades,
+      winRate: playbook.stats?.winRate ?? EMPTY_STATS.winRate,
+      avgRMultiple:
+        playbook.stats?.avgRMultiple ?? EMPTY_STATS.avgRMultiple,
+      totalPnl: playbook.stats?.totalPnl ?? EMPTY_STATS.totalPnl,
+    },
   };
 }
 
 export default function PlaybooksPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
   const { selectedAccountId } = usePropAccount();
-  const [playbooks, setPlaybooks] = useState<PlaybookWithStats[]>([]);
+
+  const [playbooks, setPlaybooks] = useState<PlaybookCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isNewPlaybookOpen, setIsNewPlaybookOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [managedPlaybookId, setManagedPlaybookId] = useState<string | null>(
+    null,
+  );
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -90,22 +134,27 @@ export default function PlaybooksPage() {
     try {
       setLoading(true);
       setError(null);
+
       const propAccountIdFilter =
         selectedAccountId === "unassigned" ? "unassigned" : selectedAccountId;
 
       const stats = await getAllPlaybooksWithStats(
         propAccountIdFilter ?? undefined,
       );
-      const playbooksWithStats: PlaybookWithStats[] = stats.map((item) => ({
-        ...item.playbook,
-        stats: {
-          totalTrades: item.totalTrades,
-          winRate: item.winRate,
-          avgRMultiple: item.avgRMultiple,
-          totalPnl: item.totalPnl,
-        },
-      }));
-      setPlaybooks(playbooksWithStats);
+
+      setPlaybooks(
+        stats.map((item) =>
+          normalizePlaybook({
+            ...item.playbook,
+            stats: {
+              totalTrades: item.totalTrades,
+              winRate: item.winRate,
+              avgRMultiple: item.avgRMultiple,
+              totalPnl: item.totalPnl,
+            },
+          }),
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load playbooks");
     } finally {
@@ -115,11 +164,11 @@ export default function PlaybooksPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      loadPlaybooks();
+      void loadPlaybooks();
     }
   }, [authLoading, loadPlaybooks]);
 
-  async function handleCreate(event: React.FormEvent) {
+  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!formData.name.trim()) {
       setError("Please enter a playbook name.");
@@ -128,8 +177,9 @@ export default function PlaybooksPage() {
 
     setIsSubmitting(true);
     setError(null);
+
     try {
-      await createPlaybook({
+      const created = await createPlaybook({
         name: formData.name.trim(),
         description: formData.description.trim() || null,
         rules: formData.rules
@@ -140,9 +190,13 @@ export default function PlaybooksPage() {
           : null,
         isActive: true,
       });
+
+      setPlaybooks((prev) => [
+        normalizePlaybook({ ...created, stats: EMPTY_STATS }),
+        ...prev,
+      ]);
       setFormData({ name: "", description: "", rules: "" });
       setIsNewPlaybookOpen(false);
-      await loadPlaybooks();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to create playbook",
@@ -156,9 +210,15 @@ export default function PlaybooksPage() {
     if (!confirm("Delete this playbook? This action cannot be undone.")) {
       return;
     }
+
     try {
       await deletePlaybook(playbookId);
-      await loadPlaybooks();
+      setPlaybooks((prev) =>
+        prev.filter((playbook) => playbook.id !== playbookId),
+      );
+      if (managedPlaybookId === playbookId) {
+        setManagedPlaybookId(null);
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to delete playbook",
@@ -168,8 +228,11 @@ export default function PlaybooksPage() {
 
   async function handleDuplicate(playbookId: string) {
     try {
-      await duplicatePlaybook(playbookId);
-      await loadPlaybooks();
+      const duplicated = await duplicatePlaybook(playbookId);
+      setPlaybooks((prev) => [
+        normalizePlaybook({ ...duplicated, stats: EMPTY_STATS }),
+        ...prev,
+      ]);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to duplicate playbook",
@@ -179,8 +242,17 @@ export default function PlaybooksPage() {
 
   async function handleToggleActive(playbookId: string) {
     try {
-      await togglePlaybookActive(playbookId);
-      await loadPlaybooks();
+      const updated = await togglePlaybookActive(playbookId);
+      setPlaybooks((prev) =>
+        prev.map((playbook) =>
+          playbook.id === playbookId
+            ? normalizePlaybook({
+                ...updated,
+                stats: playbook.stats,
+              })
+            : playbook,
+        ),
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to update playbook status",
@@ -188,15 +260,28 @@ export default function PlaybooksPage() {
     }
   }
 
+  function handleManageSaved(updated: Playbook) {
+    setPlaybooks((prev) =>
+      prev.map((playbook) =>
+        playbook.id === updated.id
+          ? normalizePlaybook({
+              ...updated,
+              stats: playbook.stats,
+            })
+          : playbook,
+      ),
+    );
+  }
+
   const summaryCards = useMemo(() => {
-    const activeCount = playbooks.filter((item) => item.is_active).length;
+    const activeCount = playbooks.filter((item) => item.isActive).length;
     const totalPnl = playbooks.reduce(
-      (sum, item) => sum + (item.stats?.totalPnl ?? 0),
+      (sum, item) => sum + item.stats.totalPnl,
       0,
     );
     const avgWinRate =
       playbooks.length > 0
-        ? playbooks.reduce((sum, item) => sum + (item.stats?.winRate ?? 0), 0) /
+        ? playbooks.reduce((sum, item) => sum + item.stats.winRate, 0) /
           playbooks.length
         : 0;
 
@@ -226,36 +311,52 @@ export default function PlaybooksPage() {
 
   const filtered = useMemo(
     () =>
-      playbooks.filter(
-        (pb) =>
-          pb.name.toLowerCase().includes(search.toLowerCase()) ||
-          (pb.description ?? "").toLowerCase().includes(search.toLowerCase()),
-      ),
-    [playbooks, search],
+      playbooks.filter((playbook) => {
+        const matchesStatus =
+          statusFilter === "all" ||
+          (statusFilter === "active" ? playbook.isActive : !playbook.isActive);
+
+        const haystack = [
+          playbook.name,
+          playbook.description ?? "",
+          playbook.rules.join(" "),
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return matchesStatus && haystack.includes(search.toLowerCase());
+      }),
+    [playbooks, search, statusFilter],
   );
 
   if (!authLoading && !isConfigured) {
     return (
-      <AppPanel className="mt-8 max-w-xl">
-        <h2 className="headline-md">Supabase Not Configured</h2>
-        <p className="mt-2 text-sm" style={{ color: "var(--text-tertiary)" }}>
-          Add your Supabase credentials to enable playbooks.
-        </p>
-      </AppPanel>
+      <div className="page-root page-sections">
+        <AppPanelEmptyState
+          className="max-w-xl"
+          title="Supabase Not Configured"
+          description="Add your Supabase credentials to enable playbooks."
+          minHeight={180}
+        />
+      </div>
     );
   }
 
   if (!authLoading && !user) {
     return (
-      <AppPanel className="mt-8 max-w-xl">
-        <h2 className="headline-md">Login Required</h2>
-        <p className="mt-2 text-sm" style={{ color: "var(--text-tertiary)" }}>
-          Sign in to view and manage your strategy playbooks.
-        </p>
-        <Button asChild className="mt-4">
-          <Link href="/auth/login">Sign In</Link>
-        </Button>
-      </AppPanel>
+      <div className="page-root page-sections">
+        <AppPanelEmptyState
+          className="max-w-xl"
+          title="Login Required"
+          description="Sign in to view and manage your strategy playbooks."
+          action={
+            <Button asChild>
+              <Link href="/auth/login">Sign In</Link>
+            </Button>
+          }
+          minHeight={200}
+        />
+      </div>
     );
   }
 
@@ -270,7 +371,7 @@ export default function PlaybooksPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={loadPlaybooks}
+              onClick={() => void loadPlaybooks()}
               title="Refresh playbooks"
               className="border-[var(--border-default)] bg-[var(--surface)] hover:bg-[var(--surface-hover)]"
               aria-label="Refresh playbooks"
@@ -337,7 +438,7 @@ export default function PlaybooksPage() {
                       </Label>
                       <Textarea
                         id="playbook-rules"
-                        placeholder="Liquidity sweep confirmed&#10;Break of structure&#10;Risk <= 1%"
+                        placeholder={"Liquidity sweep confirmed\nBreak of structure\nRisk <= 1%"}
                         rows={5}
                         value={formData.rules}
                         onChange={(event) =>
@@ -373,20 +474,32 @@ export default function PlaybooksPage() {
         }
       />
 
-      {error && (
-        <div className="rounded-md p-3 text-sm" style={{ border: "1px solid var(--loss-primary)", background: "var(--loss-bg)", color: "var(--loss-primary)" }}>
-          {error}
-          <button
+      {error ? (
+        <InsetPanel
+          tone="loss"
+          className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle
+              className="mt-0.5 h-4 w-4 shrink-0"
+              style={{ color: "var(--loss-primary)" }}
+            />
+            <p className="text-sm" style={{ color: "var(--loss-primary)" }}>
+              {error}
+            </p>
+          </div>
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => setError(null)}
-            className="ml-2 underline"
           >
             Dismiss
-          </button>
-        </div>
-      )}
+          </Button>
+        </InsetPanel>
+      ) : null}
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map((card) => (
           <AppMetricCard
             key={card.label}
@@ -397,294 +510,164 @@ export default function PlaybooksPage() {
         ))}
       </section>
 
-      {/* ─── Search bar ─── */}
-      {!loading && playbooks.length > 0 && (
-        <div className="relative w-64">
-          <span
-            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ color: "var(--text-tertiary)" }}
-          >
-            <IconSearch size={14} strokeWidth={1.8} />
-          </span>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search playbooks…"
-            className="w-full rounded-[var(--radius-default)] py-2 pl-9 pr-4 text-sm"
-            style={{
-              background: "var(--surface-elevated)",
-              border: "1px solid var(--border-default)",
-              color: "var(--text-primary)",
-              outline: "none",
-            }}
+      {!loading && playbooks.length > 0 ? (
+        <ControlSurface className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <FieldGroup
+              label="Search library"
+              meta={
+                <span
+                  className="text-[0.72rem]"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  {filtered.length} result{filtered.length === 1 ? "" : "s"}
+                </span>
+              }
+            >
+              <div className="relative max-w-xl">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                  style={{ color: "var(--text-tertiary)" }}
+                />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search playbooks..."
+                  className="pl-9"
+                />
+              </div>
+            </FieldGroup>
+
+            <FieldGroup label="Status">
+              <div className="flex flex-wrap gap-2">
+                <ChoiceChip
+                  active={statusFilter === "all"}
+                  onClick={() => setStatusFilter("all")}
+                >
+                  All
+                </ChoiceChip>
+                <ChoiceChip
+                  active={statusFilter === "active"}
+                  onClick={() => setStatusFilter("active")}
+                  activeColor="var(--profit-primary)"
+                  activeBackground="var(--profit-bg)"
+                  activeBorderColor="var(--profit-primary)"
+                >
+                  Active
+                </ChoiceChip>
+                <ChoiceChip
+                  active={statusFilter === "paused"}
+                  onClick={() => setStatusFilter("paused")}
+                  activeColor="var(--warning-primary)"
+                  activeBackground="var(--warning-bg)"
+                  activeBorderColor="var(--warning-primary)"
+                >
+                  Paused
+                </ChoiceChip>
+              </div>
+            </FieldGroup>
+          </div>
+        </ControlSurface>
+      ) : null}
+
+      {loading ? (
+        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <AppPanel key={index} className="flex h-full flex-col gap-4 p-5">
+              <div className="skeleton h-10 rounded-[var(--radius-md)]" />
+              <div className="skeleton h-20 rounded-[var(--radius-md)]" />
+              <div className="skeleton h-28 rounded-[var(--radius-md)]" />
+              <div className="mt-auto flex justify-end">
+                <div className="skeleton h-8 w-28 rounded-[var(--radius-md)]" />
+              </div>
+            </AppPanel>
+          ))}
+        </section>
+      ) : null}
+
+      {!loading && playbooks.length === 0 ? (
+        <AppPanelEmptyState
+          title="No playbooks yet"
+          description="Start by creating your first strategy template, then track how it performs across accounts."
+          action={
+            <Button onClick={() => setIsNewPlaybookOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Create First Playbook
+            </Button>
+          }
+        />
+      ) : null}
+
+      {!loading && playbooks.length > 0 && filtered.length === 0 ? (
+        <AppPanelEmptyState
+          title="No playbooks match these filters"
+          description="Try a broader search or clear the status filter to bring the full library back into view."
+          action={
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+              }}
+            >
+              Clear Filters
+            </Button>
+          }
+        />
+      ) : null}
+
+      {!loading && filtered.length > 0 ? (
+        <>
+          <SectionHeader
+            title="Playbook Library"
+            subtitle="Review the strategy catalog, monitor performance, and keep each template current."
           />
-        </div>
-      )}
 
-      {loading && (
-        <AppPanel className="flex min-h-[180px] items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--text-tertiary)" }} />
-        </AppPanel>
-      )}
-
-      {!loading && playbooks.length === 0 && (
-        <AppPanel className="py-14">
-          <BookOpen className="mb-4 h-10 w-10" style={{ color: "var(--text-tertiary)" }} />
-          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
-            No playbooks yet. Start by creating your first strategy template.
-          </p>
-          <Button onClick={() => setIsNewPlaybookOpen(true)} className="mt-5">
-            <Plus className="h-4 w-4" />
-            Create First Playbook
-          </Button>
-        </AppPanel>
-      )}
-
-      {!loading && playbooks.length > 0 && search && filtered.length === 0 && (
-        <NoDataEmpty />
-      )}
-
-      {!loading && filtered.length > 0 && (
-        <motion.section
-          className="grid gap-5 md:grid-cols-2 xl:grid-cols-3"
-          initial="hidden"
-          animate="show"
-          variants={{
-            hidden: {},
-            show: { transition: { staggerChildren: 0.06 } },
-          }}
-        >
-          {filtered.map((playbook) => {
-            const pnl = playbook.stats?.totalPnl ?? 0;
-            const winRate = playbook.stats?.winRate ?? 0;
-            const totalTrades = playbook.stats?.totalTrades ?? 0;
-            const avgR = playbook.stats?.avgRMultiple ?? 0;
-            const ruleCount =
-              Array.isArray(playbook.rules) && playbook.rules.length > 0
-                ? playbook.rules.length
-                : 0;
-
-            return (
+          <motion.section
+            className="grid gap-5 md:grid-cols-2 xl:grid-cols-3"
+            initial="hidden"
+            animate="show"
+            variants={{
+              hidden: {},
+              show: { transition: { staggerChildren: 0.06 } },
+            }}
+          >
+            {filtered.map((playbook) => (
               <motion.div
                 key={playbook.id}
                 variants={{
                   hidden: { opacity: 0, y: 14 },
-                  show: { opacity: 1, y: 0, transition: { duration: 0.25 } },
+                  show: {
+                    opacity: 1,
+                    y: 0,
+                    transition: { duration: 0.25 },
+                  },
                 }}
-                whileHover={{ y: -3, transition: { duration: 0.15 } }}
                 className="h-full"
               >
-                <article className="surface card-glow p-5 h-full flex flex-col">
-                  {/* Gradient top stripe */}
-                  <div
-                    className="h-[3px] rounded-t-[var(--radius-xl)] -mx-5 -mt-5 mb-5 shrink-0"
-                    style={{
-                      background:
-                        pnl >= 0
-                          ? "linear-gradient(90deg, var(--profit-primary), rgba(78,203,6,0.2))"
-                          : "linear-gradient(90deg, var(--loss-primary), rgba(224,82,90,0.2))",
-                    }}
-                  />
-
-                  {/* Header */}
-                  <header className="mb-3 flex items-start justify-between gap-3 shrink-0">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className="rounded-md p-2 shrink-0"
-                        style={
-                          pnl >= 0
-                            ? {
-                                background: "var(--profit-bg)",
-                                color: "var(--profit-primary)",
-                              }
-                            : {
-                                background: "var(--loss-bg)",
-                                color: "var(--loss-primary)",
-                              }
-                        }
-                      >
-                        <BookOpen className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="font-semibold truncate">
-                          {playbook.name}
-                        </h3>
-                        <span
-                          className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                          style={
-                            playbook.is_active
-                              ? {
-                                  background: "rgba(78,203,6,0.15)",
-                                  color: "var(--profit-primary)",
-                                }
-                              : {
-                                  background: "var(--surface-elevated)",
-                                  color: "var(--text-tertiary)",
-                                }
-                          }
-                        >
-                          {playbook.is_active ? "● Active" : "○ Paused"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className="rounded-md p-2 transition-colors hover:bg-[var(--surface-elevated)] shrink-0"
-                          style={{ color: "var(--text-tertiary)" }}
-                          aria-label={`Open actions for ${playbook.name}`}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleDuplicate(playbook.id)}
-                        >
-                          <Copy className="mr-2 h-4 w-4" />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleToggleActive(playbook.id)}
-                        >
-                          {playbook.is_active ? "Deactivate" : "Activate"}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={() => handleDelete(playbook.id)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </header>
-
-                  <p
-                    className="mb-4 line-clamp-2 text-sm shrink-0"
-                    style={{ color: "var(--text-tertiary)" }}
-                  >
-                    {playbook.description || "No description provided."}
-                  </p>
-
-                  {/* Win rate bar */}
-                  <div className="mb-4 space-y-1.5 shrink-0">
-                    <div className="flex justify-between text-xs">
-                      <span style={{ color: "var(--text-tertiary)" }}>
-                        Win Rate
-                      </span>
-                      <span className="font-semibold mono">
-                        {winRate.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div
-                      className="h-1.5 rounded-full overflow-hidden"
-                      style={{ background: "var(--surface-elevated)" }}
-                    >
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${Math.min(winRate, 100)}%`,
-                          background:
-                            winRate >= 50
-                              ? "var(--profit-primary)"
-                              : "var(--loss-primary)",
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Stat grid */}
-                  <div
-                    className="mb-4 grid grid-cols-3 gap-2 rounded-[var(--radius-md)] p-3 text-center shrink-0"
-                    style={{
-                      background: "var(--surface-elevated)",
-                      border: "1px solid var(--border-subtle)",
-                    }}
-                  >
-                    <div>
-                      <p className="text-xl font-bold mono">{totalTrades}</p>
-                      <p
-                        className="text-[10px]"
-                        style={{ color: "var(--text-tertiary)" }}
-                      >
-                        Trades
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold mono">
-                        {avgR.toFixed(1)}R
-                      </p>
-                      <p
-                        className="text-[10px]"
-                        style={{ color: "var(--text-tertiary)" }}
-                      >
-                        Avg R
-                      </p>
-                    </div>
-                    <div>
-                      <p
-                        className={cn(
-                          "text-xl font-bold mono",
-                          pnl >= 0 ? "profit" : "loss",
-                        )}
-                      >
-                        {pnl >= 0 ? "+" : "-"}${Math.abs(pnl).toLocaleString()}
-                      </p>
-                      <p
-                        className="text-[10px]"
-                        style={{ color: "var(--text-tertiary)" }}
-                      >
-                        P&L
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Rule count badge */}
-                  <div className="mb-4 shrink-0">
-                    {ruleCount > 0 ? (
-                      <span
-                        className="text-[10px] px-2 py-0.5 rounded-full"
-                        style={{
-                          background: "var(--surface-elevated)",
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        {ruleCount} rules
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          color: "var(--text-tertiary)",
-                          fontSize: "0.7rem",
-                        }}
-                      >
-                        No rules added
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="mt-auto flex w-full items-center justify-center gap-2 pt-3 text-sm transition-colors hover:text-[var(--accent-primary)]"
-                    style={{
-                      borderTop: "1px solid var(--border-subtle)",
-                      color: "var(--text-tertiary)",
-                    }}
-                  >
-                    View details
-                    <ArrowUpRight className="h-4 w-4" />
-                  </button>
-                </article>
+                <PlaybookCard
+                  playbook={playbook}
+                  onManage={setManagedPlaybookId}
+                  onDuplicate={handleDuplicate}
+                  onToggleActive={handleToggleActive}
+                  onDelete={handleDelete}
+                />
               </motion.div>
-            );
-          })}
-        </motion.section>
-      )}
+            ))}
+          </motion.section>
+        </>
+      ) : null}
+
+      <PlaybookManageDialog
+        playbookId={managedPlaybookId}
+        open={managedPlaybookId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setManagedPlaybookId(null);
+          }
+        }}
+        onSaved={handleManageSaved}
+      />
     </div>
   );
 }
