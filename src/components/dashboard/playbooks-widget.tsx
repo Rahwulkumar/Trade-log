@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
+import { DashboardListItem } from "@/components/dashboard/widget-primitives";
 import { NoDataEmpty } from "@/components/ui/empty-state";
 import {
   getAllPlaybooksWithStats,
@@ -83,54 +84,50 @@ export function TopPlaybooks({
         const pnlColor = getPnLColor(pb.totalPnl);
 
         return (
-          <div
+          <DashboardListItem
             key={pb.playbook.id}
-            className="flex flex-col gap-3 rounded-[var(--radius-md)] border p-4 sm:flex-row sm:items-center sm:justify-between"
-            style={{
-              background: "var(--surface-raised)",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: "var(--radius-md)",
-            }}
-          >
-            <div className="flex min-w-0 items-center gap-3">
-              {pb.totalPnl >= 0 ? (
-                <TrendingUp
-                  className="h-4 w-4 shrink-0"
-                  style={{ color: "var(--profit-primary)" }}
-                />
-              ) : (
-                <TrendingDown
-                  className="h-4 w-4 shrink-0"
-                  style={{ color: "var(--loss-primary)" }}
-                />
-              )}
-              <div className="min-w-0">
-                <p
-                  className="truncate text-[0.8125rem] font-medium"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {pb.playbook.name}
-                </p>
-                <p
-                  className="text-[0.7rem]"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  {pb.totalTrades} trades - {pb.winRate.toFixed(1)}% win rate
-                </p>
+            leading={
+              <div className="flex min-w-0 items-center gap-3">
+                {pb.totalPnl >= 0 ? (
+                  <TrendingUp
+                    className="h-4 w-4 shrink-0"
+                    style={{ color: "var(--profit-primary)" }}
+                  />
+                ) : (
+                  <TrendingDown
+                    className="h-4 w-4 shrink-0"
+                    style={{ color: "var(--loss-primary)" }}
+                  />
+                )}
+                <div className="min-w-0">
+                  <p
+                    className="truncate text-[0.8125rem] font-medium"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {pb.playbook.name}
+                  </p>
+                  <p
+                    className="text-[0.7rem]"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    {pb.totalTrades} trades - {pb.winRate.toFixed(1)}% win rate
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <span
-              className="shrink-0 text-[0.875rem] font-semibold"
-              style={{ fontFamily: "var(--font-jb-mono)", color: pnlColor }}
-            >
-              {pb.totalPnl >= 0 ? "+" : "-"}$
-              {Math.abs(pb.totalPnl).toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </span>
-          </div>
+            }
+            trailing={
+              <span
+                className="shrink-0 text-[0.875rem] font-semibold"
+                style={{ fontFamily: "var(--font-jb-mono)", color: pnlColor }}
+              >
+                {pb.totalPnl >= 0 ? "+" : "-"}$
+                {Math.abs(pb.totalPnl).toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            }
+          />
         );
       })}
     </div>

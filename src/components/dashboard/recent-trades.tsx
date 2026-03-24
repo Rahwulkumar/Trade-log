@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 
 import { useAuth } from "@/components/auth-provider";
+import { DashboardListItem } from "@/components/dashboard/widget-primitives";
 import { NoTradesEmpty } from "@/components/ui/empty-state";
 import { getTrades } from "@/lib/api/client/trades";
 import type { Trade } from "@/lib/db/schema";
@@ -81,106 +82,113 @@ function TradeRow({ trade }: { trade: Trade }) {
   const pnlColor = getPnLColor(pnl);
 
   return (
-    <div
-      className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
-      style={{ borderBottom: "1px solid var(--border-subtle)" }}
-    >
-      <div className="flex min-w-0 items-start gap-3">
-        <span
-          className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-          style={{ background: dirColor }}
-        />
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="mono text-[0.83rem] font-semibold leading-none"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {trade.symbol}
-            </span>
-            <span
-              className="rounded px-1.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide"
-              style={{
-                color: dirColor,
-                background:
-                  trade.direction === "LONG"
-                    ? "var(--profit-bg)"
-                    : "var(--loss-bg)",
-              }}
-            >
-              {trade.direction}
-            </span>
-            {trade.session ? (
+    <DashboardListItem
+      leading={
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+            style={{ background: dirColor }}
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <span
-                className="rounded px-1.5 py-0.5 text-[0.65rem] font-medium"
+                className="mono text-[0.83rem] font-semibold leading-none"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {trade.symbol}
+              </span>
+              <span
+                className="rounded px-1.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide"
                 style={{
-                  color: "var(--text-tertiary)",
-                  background: "var(--surface-elevated)",
+                  color: dirColor,
+                  background:
+                    trade.direction === "LONG"
+                      ? "var(--profit-bg)"
+                      : "var(--loss-bg)",
                 }}
               >
-                {trade.session}
+                {trade.direction}
               </span>
-            ) : null}
-          </div>
-
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <span
-              className="text-[0.7rem]"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              {format(entryDate, "MMM d - HH:mm")}
-            </span>
-            {duration ? (
-              <>
-                <span style={{ color: "var(--border-default)" }}>-</span>
+              {trade.session ? (
                 <span
-                  className="text-[0.7rem]"
+                  className="rounded px-1.5 py-0.5 text-[0.65rem] font-medium"
                   style={{ color: "var(--text-tertiary)" }}
                 >
-                  {duration}
+                  {trade.session}
                 </span>
-              </>
-            ) : null}
-            {rMultiple !== null ? (
-              <>
-                <span style={{ color: "var(--border-default)" }}>-</span>
-                <span
-                  className="text-[0.7rem]"
-                  style={{
-                    fontFamily: "var(--font-jb-mono)",
-                    color:
-                      rMultiple >= 0
-                        ? "var(--profit-primary)"
-                        : "var(--loss-primary)",
-                  }}
-                >
-                  {rMultiple >= 0 ? "+" : ""}
-                  {rMultiple.toFixed(1)}R
-                </span>
-              </>
-            ) : null}
+              ) : null}
+            </div>
+
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <span
+                className="text-[0.7rem]"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                {format(entryDate, "MMM d - HH:mm")}
+              </span>
+              {duration ? (
+                <>
+                  <span style={{ color: "var(--border-default)" }}>-</span>
+                  <span
+                    className="text-[0.7rem]"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    {duration}
+                  </span>
+                </>
+              ) : null}
+              {rMultiple !== null ? (
+                <>
+                  <span style={{ color: "var(--border-default)" }}>-</span>
+                  <span
+                    className="text-[0.7rem]"
+                    style={{
+                      fontFamily: "var(--font-jb-mono)",
+                      color:
+                        rMultiple >= 0
+                          ? "var(--profit-primary)"
+                          : "var(--loss-primary)",
+                    }}
+                  >
+                    {rMultiple >= 0 ? "+" : ""}
+                    {rMultiple.toFixed(1)}R
+                  </span>
+                </>
+              ) : null}
+            </div>
           </div>
         </div>
-      </div>
+      }
+      trailing={
+        <div className="flex items-center justify-between gap-3 sm:block sm:text-right">
+          <div
+            className="mb-1 inline-block rounded px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide"
+            style={outcomeStyle(outcome)}
+          >
+            {outcome}
+          </div>
+          <div
+            className="text-[0.875rem] font-semibold"
+            style={{ fontFamily: "var(--font-jb-mono)", color: pnlColor }}
+          >
+            {pnl >= 0 ? "+" : "-"}$
+            {Math.abs(pnl).toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </div>
+        </div>
+      }
+    />
+  );
+}
 
-      <div className="flex shrink-0 items-center justify-between gap-3 sm:block sm:text-right">
-        <div
-          className="mb-1 inline-block rounded px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide"
-          style={outcomeStyle(outcome)}
-        >
-          {outcome}
-        </div>
-        <div
-          className="text-[0.875rem] font-semibold"
-          style={{ fontFamily: "var(--font-jb-mono)", color: pnlColor }}
-        >
-          {pnl >= 0 ? "+" : "-"}$
-          {Math.abs(pnl).toLocaleString("en-US", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </div>
-      </div>
+function TradeRowList({ trades }: { trades: Trade[] }) {
+  return (
+    <div className="space-y-2">
+      {trades.map((trade) => (
+        <TradeRow key={trade.id} trade={trade} />
+      ))}
     </div>
   );
 }
@@ -244,10 +252,6 @@ export function RecentTrades({
   }
 
   return (
-    <div>
-      {trades.map((trade) => (
-        <TradeRow key={trade.id} trade={trade} />
-      ))}
-    </div>
+    <TradeRowList trades={trades} />
   );
 }

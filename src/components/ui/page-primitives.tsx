@@ -42,11 +42,17 @@ interface PanelTitleProps {
 interface AppMetricCardProps {
   label: string;
   value: string;
-  hint?: string;
+  helper?: string;
   change?: string;
+  changeLabel?: string;
   tone?: Tone;
   icon?: React.ReactNode;
   className?: string;
+  align?: "left" | "center";
+  size?: "hero" | "compact";
+  shell?: "surface" | "elevated";
+  monoValue?: boolean;
+  minHeight?: number;
 }
 
 export function AppPageHeader({
@@ -205,11 +211,17 @@ export function PanelTitle({ title, subtitle, className }: PanelTitleProps) {
 export function AppMetricCard({
   label,
   value,
-  hint,
+  helper,
   change,
+  changeLabel,
   tone = "default",
   icon,
   className,
+  align = "left",
+  size = "compact",
+  shell = "elevated",
+  monoValue = size === "compact",
+  minHeight,
 }: AppMetricCardProps) {
   const toneColor =
     tone === "profit"
@@ -221,45 +233,80 @@ export function AppMetricCard({
   const isPositive = change?.startsWith("+");
   const isNegative = change?.startsWith("-");
 
+  const isHero = size === "hero";
+
   return (
-    <article className={cn("stat-card-premium p-4 card-enter", className)}>
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <span
-          className="text-[0.6rem] uppercase tracking-widest font-bold"
-          style={{ color: "var(--text-tertiary)" }}
+    <article
+      className={cn(
+        "flex h-full flex-col justify-between",
+        align === "center" ? "text-center" : "text-left",
+        shell === "surface"
+          ? "surface p-5"
+          : "rounded-[var(--radius-lg)] border px-4 py-4",
+        className,
+      )}
+      style={{
+        background:
+          shell === "surface" ? "var(--surface)" : "var(--surface-elevated)",
+        borderColor:
+          shell === "surface" ? undefined : "var(--border-subtle)",
+        minHeight: minHeight ?? (isHero ? 188 : undefined),
+      }}
+    >
+      <div className={cn(isHero ? "space-y-3" : "space-y-2.5")}>
+        <div
+          className={cn(
+            "flex gap-2",
+            align === "center"
+              ? "justify-center"
+              : "items-start justify-between",
+          )}
         >
-          {label}
-        </span>
-        {icon && (
-          <div
-            className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-sm)]"
-            style={{ background: "var(--accent-soft)" }}
-          >
-            {icon}
-          </div>
-        )}
-      </div>
-      <p className="stat-large mb-1 counter-pop" style={{ color: toneColor }}>
-        {value}
-      </p>
-      <div className="flex items-center justify-between gap-2">
-        {hint && (
+          <span className="text-label">{label}</span>
+          {icon ? <span className="shrink-0">{icon}</span> : null}
+        </div>
+
+        <p
+          className={cn(
+            monoValue && "mono",
+            isHero ? "stat-large" : "text-[1rem] font-semibold",
+          )}
+          style={{
+            color: toneColor,
+            lineHeight: isHero ? undefined : 1.2,
+          }}
+        >
+          {value}
+        </p>
+
+        {helper ? (
           <p
-            className="text-[0.67rem] font-medium"
-            style={{ color: "var(--text-tertiary)" }}
+            style={{
+              fontSize: isHero ? "0.74rem" : "0.7rem",
+              color: "var(--text-tertiary)",
+              lineHeight: 1.55,
+            }}
           >
-            {hint}
+            {helper}
           </p>
-        )}
-        {change && (
+        ) : null}
+      </div>
+
+      {change ? (
+        <div
+          className={cn(
+            "mt-4 flex flex-wrap items-center gap-2",
+            align === "center" && "justify-center",
+          )}
+        >
           <span
-            className="text-[0.64rem] font-bold px-1.5 py-0.5 rounded"
+            className="rounded-full px-2 py-0.5 text-[0.64rem] font-bold"
             style={{
               background: isPositive
                 ? "var(--profit-bg)"
                 : isNegative
                   ? "var(--loss-bg)"
-                  : "var(--surface-elevated)",
+                  : "var(--surface)",
               color: isPositive
                 ? "var(--profit-primary)"
                 : isNegative
@@ -269,8 +316,15 @@ export function AppMetricCard({
           >
             {change}
           </span>
-        )}
-      </div>
+          {changeLabel ? (
+            <span
+              style={{ fontSize: "0.68rem", color: "var(--text-tertiary)" }}
+            >
+              {changeLabel}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }

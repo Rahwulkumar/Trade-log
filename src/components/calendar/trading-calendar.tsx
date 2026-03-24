@@ -19,6 +19,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AppMetricCard } from "@/components/ui/page-primitives";
+import {
+  DashboardListItem,
+  DashboardWidgetEmptyState,
+} from "@/components/dashboard/widget-primitives";
 import {
   addMonths,
   eachDayOfInterval,
@@ -93,57 +98,6 @@ function getToneClasses(pnl: number) {
     container: "border-border bg-[var(--surface-elevated)]",
     text: "text-[var(--text-secondary)]",
   };
-}
-
-function StatCard({
-  label,
-  value,
-  sub,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  tone?: "profit" | "loss" | "neutral";
-}) {
-  const toneStyles =
-    tone === "profit"
-      ? {
-          border:
-            "1px solid color-mix(in srgb, var(--profit-primary) 18%, transparent)",
-          background: "var(--profit-bg)",
-          color: "var(--profit-primary)",
-        }
-      : tone === "loss"
-        ? {
-            border:
-              "1px solid color-mix(in srgb, var(--loss-primary) 18%, transparent)",
-            background: "var(--loss-bg)",
-            color: "var(--loss-primary)",
-          }
-        : {
-            border: "1px solid var(--border-subtle)",
-            background: "var(--surface)",
-            color: "var(--text-primary)",
-          };
-
-  return (
-    <div
-      className="rounded-2xl px-4 py-4 shadow-sm"
-      style={{
-        border: toneStyles.border,
-        background: toneStyles.background,
-      }}
-    >
-      <p className="text-label mb-1.5">{label}</p>
-      <p className="mono text-[1.85rem] font-bold leading-none" style={{ color: toneStyles.color }}>
-        {value}
-      </p>
-      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-        {sub}
-      </p>
-    </div>
-  );
 }
 
 export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
@@ -295,13 +249,11 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
           !embedded && "min-h-[60vh]",
         )}
       >
-        <div className="surface max-w-md rounded-2xl border border-border p-8 text-center">
-          <h2 className="mb-2 text-xl font-semibold text-foreground">
-            Supabase Not Configured
-          </h2>
-          <p className="text-muted-foreground">
-            Please add your Supabase credentials.
-          </p>
+        <div className="w-full max-w-md">
+          <DashboardWidgetEmptyState
+            title="Supabase Not Configured"
+            description="Please add your Supabase credentials."
+          />
         </div>
       </div>
     );
@@ -315,19 +267,23 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
           !embedded && "min-h-[60vh]",
         )}
       >
-        <div className="surface max-w-md rounded-2xl border border-border p-8 text-center">
-          <h2 className="mb-2 text-xl font-semibold text-foreground">
-            Login Required
-          </h2>
-          <p className="mb-4 text-muted-foreground">
-            Please sign in to view your calendar.
-          </p>
-          <Link
-            href="/auth/login"
-            className="inline-flex h-9 items-center justify-center rounded-md bg-[var(--accent-primary)] px-4 py-2 text-sm font-medium text-white shadow transition-colors hover:bg-[var(--accent-primary)]/90"
-          >
-            Sign In
-          </Link>
+        <div className="w-full max-w-md">
+          <DashboardWidgetEmptyState
+            title="Login Required"
+            description="Please sign in to view your calendar."
+            action={
+              <Link
+                href="/auth/login"
+                className="inline-flex h-9 items-center justify-center rounded-md px-4 py-2 text-sm font-medium shadow transition-colors"
+                style={{
+                  background: "var(--accent-primary)",
+                  color: "var(--text-inverse)",
+                }}
+              >
+                Sign In
+              </Link>
+            }
+          />
         </div>
       </div>
     );
@@ -363,18 +319,42 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
           </button>
           <div
             className="rounded-xl border border-border bg-[var(--surface)] px-4 py-2 text-center shadow-sm"
-            style={{ minWidth: "160px" }}
+            style={{ minWidth: embedded ? "142px" : "160px" }}
           >
-            <p
-              className="text-[11px] uppercase tracking-[0.16em]"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Active Days
-            </p>
-            <p className="text-base font-semibold text-foreground">{monthLabel}</p>
-            <p className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
-              {monthlyStats.tradingDays} trading days
-            </p>
+            {embedded ? (
+              <>
+                <p
+                  className="mono text-sm font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {monthLabel}
+                </p>
+                <p
+                  className="text-[11px]"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  {monthlyStats.tradingDays} trading days
+                </p>
+              </>
+            ) : (
+              <>
+                <p
+                  className="text-[11px] uppercase tracking-[0.16em]"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  Active Days
+                </p>
+                <p className="text-base font-semibold text-foreground">
+                  {monthLabel}
+                </p>
+                <p
+                  className="text-[12px]"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {monthlyStats.tradingDays} trading days
+                </p>
+              </>
+            )}
           </div>
           <button
             type="button"
@@ -396,34 +376,49 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
 
       {!embedded ? (
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <StatCard
+          <AppMetricCard
             label="Monthly P&L"
             value={formatSignedMoney(monthlyStats.totalPnl, 2)}
-            sub={`${monthlyStats.tradingDays} active days in ${monthLabel}`}
+            helper={`${monthlyStats.tradingDays} active days in ${monthLabel}`}
             tone={monthlyStats.totalPnl >= 0 ? "profit" : "loss"}
+            size="compact"
+            shell="surface"
+            monoValue
           />
-          <StatCard
+          <AppMetricCard
             label="Total Trades"
             value={String(monthlyStats.totalTrades)}
-            sub="Closed and open entries logged this month"
+            helper="Closed and open entries logged this month"
+            size="compact"
+            shell="surface"
+            monoValue
           />
-          <StatCard
+          <AppMetricCard
             label="Winning Days"
             value={String(monthlyStats.winningDays)}
-            sub={`${monthlyStats.winRate}% of active days finished green`}
-            tone={monthlyStats.winningDays > 0 ? "profit" : "neutral"}
+            helper={`${monthlyStats.winRate}% of active days finished green`}
+            tone={monthlyStats.winningDays > 0 ? "profit" : "default"}
+            size="compact"
+            shell="surface"
+            monoValue
           />
-          <StatCard
+          <AppMetricCard
             label="Losing Days"
             value={String(monthlyStats.losingDays)}
-            sub={`${Math.max(monthlyStats.tradingDays - monthlyStats.winningDays, 0)} non-green active days`}
-            tone={monthlyStats.losingDays > 0 ? "loss" : "neutral"}
+            helper={`${Math.max(monthlyStats.tradingDays - monthlyStats.winningDays, 0)} non-green active days`}
+            tone={monthlyStats.losingDays > 0 ? "loss" : "default"}
+            size="compact"
+            shell="surface"
+            monoValue
           />
-          <StatCard
+          <AppMetricCard
             label="Win Rate"
             value={`${monthlyStats.winRate}%`}
-            sub="Winning trading days divided by all active days"
-            tone={monthlyStats.winRate >= 50 ? "profit" : "neutral"}
+            helper="Winning trading days divided by all active days"
+            tone={monthlyStats.winRate >= 50 ? "profit" : "default"}
+            size="compact"
+            shell="surface"
+            monoValue
           />
         </section>
       ) : null}
@@ -431,9 +426,15 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
       {loading ? (
         <div
           className="flex items-center justify-center rounded-2xl border border-border py-16"
-          style={{ background: "var(--surface)" }}
+          style={{
+            background: "var(--surface)",
+            borderColor: "var(--border-subtle)",
+          }}
         >
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2
+            className="h-8 w-8 animate-spin"
+            style={{ color: "var(--text-tertiary)" }}
+          />
         </div>
       ) : (
         <>
@@ -627,36 +628,39 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
           </section>
 
           {trades.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border px-5 py-8 text-center">
-              <p style={{ color: "var(--text-secondary)" }}>
-                No trades this month. Start logging trades to see them on your
-                calendar.
-              </p>
-              <Link
-                href="/journal"
-                className="mt-3 inline-block text-sm font-semibold text-[var(--accent-primary)] hover:underline"
-              >
-                Open journal -&gt;
-              </Link>
-            </div>
+            <DashboardWidgetEmptyState
+              title="No trades this month"
+              description="Start logging trades to see them on your calendar."
+              action={
+                <Link
+                  href="/journal"
+                  className="text-sm font-semibold hover:underline"
+                  style={{ color: "var(--accent-primary)" }}
+                >
+                  Open journal -&gt;
+                </Link>
+              }
+            />
           ) : null}
         </>
       )}
 
-      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded border border-[var(--profit-primary)]/50 bg-[var(--profit-bg)]" />
-          <span>Winning Day</span>
+      {!embedded ? (
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded border border-[var(--profit-primary)]/50 bg-[var(--profit-bg)]" />
+            <span>Winning Day</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded border border-[var(--loss-primary)]/50 bg-[var(--loss-bg)]" />
+            <span>Losing Day</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded border border-border bg-[var(--surface-elevated)]" />
+            <span>No Trades</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded border border-[var(--loss-primary)]/50 bg-[var(--loss-bg)]" />
-          <span>Losing Day</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded border border-border bg-[var(--surface-elevated)]" />
-          <span>No Trades</span>
-        </div>
-      </div>
+      ) : null}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl overflow-hidden border-border bg-background p-0 sm:rounded-2xl">
@@ -673,55 +677,28 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
 
               <div className="space-y-5 px-5 py-5 sm:px-6">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div
-                    className="rounded-2xl border p-4"
-                    style={{
-                      background:
-                        selectedDay.totalPnl >= 0
-                          ? "var(--profit-bg)"
-                          : "var(--loss-bg)",
-                      borderColor:
-                        selectedDay.totalPnl >= 0
-                          ? "color-mix(in srgb, var(--profit-primary) 22%, transparent)"
-                          : "color-mix(in srgb, var(--loss-primary) 22%, transparent)",
-                    }}
-                  >
-                    <div className="text-label">Total P&amp;L</div>
-                    <div
-                      className={cn(
-                        "mt-2 text-2xl font-bold",
-                        selectedDay.totalPnl >= 0
-                          ? "text-[var(--profit-primary)]"
-                          : "text-[var(--loss-primary)]",
-                      )}
-                    >
-                      {formatSignedMoney(selectedDay.totalPnl, 2)}
-                    </div>
-                  </div>
-                  <div
-                    className="rounded-2xl border p-4"
-                    style={{
-                      background: "var(--surface-elevated)",
-                      borderColor: "var(--border-subtle)",
-                    }}
-                  >
-                    <div className="text-label">Trades</div>
-                    <div className="mt-2 text-2xl font-bold text-foreground">
-                      {selectedDay.tradesCount}
-                    </div>
-                  </div>
-                  <div
-                    className="rounded-2xl border p-4"
-                    style={{
-                      background: "var(--surface-elevated)",
-                      borderColor: "var(--border-subtle)",
-                    }}
-                  >
-                    <div className="text-label">Win Rate</div>
-                    <div className="mt-2 text-2xl font-bold text-foreground">
-                      {selectedDay.winRate}%
-                    </div>
-                  </div>
+                  <AppMetricCard
+                    label="Total P&L"
+                    value={formatSignedMoney(selectedDay.totalPnl, 2)}
+                    tone={selectedDay.totalPnl >= 0 ? "profit" : "loss"}
+                    size="compact"
+                    shell="elevated"
+                    monoValue
+                  />
+                  <AppMetricCard
+                    label="Trades"
+                    value={String(selectedDay.tradesCount)}
+                    size="compact"
+                    shell="elevated"
+                    monoValue
+                  />
+                  <AppMetricCard
+                    label="Win Rate"
+                    value={`${selectedDay.winRate}%`}
+                    size="compact"
+                    shell="elevated"
+                    monoValue
+                  />
                 </div>
 
                 <div className="space-y-3">
@@ -734,76 +711,90 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
 
                   <div className="max-h-[360px] space-y-2 overflow-auto pr-1">
                     {selectedDay.trades.map((trade) => (
-                      <div
+                      <DashboardListItem
                         key={trade.id}
-                        className="flex flex-col gap-3 rounded-2xl border border-border bg-[var(--surface)] p-4 transition-colors hover:bg-[var(--surface-hover)] sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={cn(
-                              "flex h-11 w-11 items-center justify-center rounded-xl border",
-                              trade.pnl >= 0
-                                ? "border-[color-mix(in_srgb,var(--profit-primary)_24%,transparent)] bg-[var(--profit-bg)] text-[var(--profit-primary)]"
-                                : "border-[color-mix(in_srgb,var(--loss-primary)_24%,transparent)] bg-[var(--loss-bg)] text-[var(--loss-primary)]",
-                            )}
-                          >
-                            {trade.pnl >= 0 ? (
-                              <TrendingUp className="h-5 w-5" />
-                            ) : (
-                              <TrendingDown className="h-5 w-5" />
-                            )}
-                          </div>
+                        leading={
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={cn(
+                                "flex h-11 w-11 items-center justify-center rounded-xl border",
+                                trade.pnl >= 0
+                                  ? "border-[color-mix(in_srgb,var(--profit-primary)_24%,transparent)] bg-[var(--profit-bg)] text-[var(--profit-primary)]"
+                                  : "border-[color-mix(in_srgb,var(--loss-primary)_24%,transparent)] bg-[var(--loss-bg)] text-[var(--loss-primary)]",
+                              )}
+                            >
+                              {trade.pnl >= 0 ? (
+                                <TrendingUp className="h-5 w-5" />
+                              ) : (
+                                <TrendingDown className="h-5 w-5" />
+                              )}
+                            </div>
 
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-semibold text-foreground">
-                                {trade.symbol}
-                              </span>
-                              <span
-                                className={cn(
-                                  "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em]",
-                                  trade.direction === "LONG"
-                                    ? "border-[color-mix(in_srgb,var(--profit-primary)_24%,transparent)] bg-[var(--profit-bg)] text-[var(--profit-primary)]"
-                                    : "border-[color-mix(in_srgb,var(--loss-primary)_24%,transparent)] bg-[var(--loss-bg)] text-[var(--loss-primary)]",
-                                )}
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span
+                                  className="mono text-sm font-semibold"
+                                  style={{ color: "var(--text-primary)" }}
+                                >
+                                  {trade.symbol}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em]",
+                                    trade.direction === "LONG"
+                                      ? "border-[color-mix(in_srgb,var(--profit-primary)_24%,transparent)] bg-[var(--profit-bg)] text-[var(--profit-primary)]"
+                                      : "border-[color-mix(in_srgb,var(--loss-primary)_24%,transparent)] bg-[var(--loss-bg)] text-[var(--loss-primary)]",
+                                  )}
+                                >
+                                  {trade.direction}
+                                </span>
+                              </div>
+
+                              <div
+                                className="mt-1 flex flex-wrap items-center gap-2 text-xs"
+                                style={{ color: "var(--text-tertiary)" }}
                               >
-                                {trade.direction}
-                              </span>
-                            </div>
-
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                              <span className="inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {trade.entryTime}
-                              </span>
-                              <span aria-hidden="true">-</span>
-                              <span>{trade.exitTime ?? "Open"}</span>
-                              {trade.rMultiple !== null ? (
-                                <>
-                                  <span aria-hidden="true">-</span>
-                                  <span>
-                                    {trade.rMultiple >= 0 ? "+" : ""}
-                                    {trade.rMultiple.toFixed(1)}R
-                                  </span>
-                                </>
-                              ) : null}
+                                <span className="inline-flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {trade.entryTime}
+                                </span>
+                                <span aria-hidden="true">-</span>
+                                <span>{trade.exitTime ?? "Open"}</span>
+                                {trade.rMultiple !== null ? (
+                                  <>
+                                    <span aria-hidden="true">-</span>
+                                    <span
+                                      className="mono"
+                                      style={{
+                                        color:
+                                          trade.rMultiple >= 0
+                                            ? "var(--profit-primary)"
+                                            : "var(--loss-primary)",
+                                      }}
+                                    >
+                                      {trade.rMultiple >= 0 ? "+" : ""}
+                                      {trade.rMultiple.toFixed(1)}R
+                                    </span>
+                                  </>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
-                        </div>
-
-                        <div className="text-left sm:text-right">
+                        }
+                        trailing={
                           <div
-                            className={cn(
-                              "mono text-base font-bold",
-                              trade.pnl >= 0
-                                ? "text-[var(--profit-primary)]"
-                                : "text-[var(--loss-primary)]",
-                            )}
+                            className="mono text-base font-bold"
+                            style={{
+                              color:
+                                trade.pnl >= 0
+                                  ? "var(--profit-primary)"
+                                  : "var(--loss-primary)",
+                            }}
                           >
                             {formatSignedMoney(trade.pnl, 2)}
                           </div>
-                        </div>
-                      </div>
+                        }
+                      />
                     ))}
                   </div>
                 </div>

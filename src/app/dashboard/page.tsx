@@ -8,18 +8,19 @@ import { useAuth } from '@/components/auth-provider';
 import { usePropAccount } from '@/components/prop-account-provider';
 import { CashflowChart } from '@/components/dashboard/cashflow-chart';
 import { RecentTrades } from '@/components/dashboard/recent-trades';
-import {
-  DashboardAccountCard,
-  DashboardMetricCard,
-  DashboardMiniMetric,
-} from '@/components/dashboard/summary-primitives';
+import { DashboardAccountCard } from '@/components/dashboard/summary-primitives';
 import { StatisticsDonut } from '@/components/dashboard/statistics-donut';
 import { TodayPlanWidget } from '@/components/dashboard/today-plan-widget';
 import { TopPlaybooks } from '@/components/dashboard/playbooks-widget';
+import {
+  DashboardInsetPanel,
+  DashboardWidgetEmptyState,
+} from '@/components/dashboard/widget-primitives';
 import { Button } from '@/components/ui/button';
 import { ArcProgress } from '@/components/ui/arc-progress';
 import { DrawdownGauge } from '@/components/ui/drawdown-gauge';
 import {
+  AppMetricCard,
   AppPanel,
   SectionHeader,
 } from '@/components/ui/page-primitives';
@@ -337,8 +338,6 @@ export default function DashboardPage() {
   const totalExpense = summary ? summary.avgLoss * summary.losingTrades : 0;
   const winRate = summary?.winRate ?? 0;
   const previousMonthNetPnl = previousMonthAnalytics?.summary.totalNetPnl ?? null;
-  const monthDeltaValue =
-    previousMonthNetPnl == null ? null : totalPnl - previousMonthNetPnl;
   const monthDelta = monthDeltaLabel(
     totalPnl,
     previousMonthNetPnl,
@@ -499,38 +498,41 @@ export default function DashboardPage() {
                 }
               />
 
-              <DashboardMetricCard
+              <AppMetricCard
                 label="Gross Profit"
                 value={fmtAbs(totalIncome)}
-                subtitle={
+                helper={
                   summary
                     ? `${summary.winningTrades} winning trades - ${winRate.toFixed(0)}% win rate`
                     : undefined
                 }
                 tone="profit"
+                size="hero"
+                shell="surface"
               />
 
-              <DashboardMetricCard
+              <AppMetricCard
                 label="Gross Loss"
                 value={fmtAbs(totalExpense)}
-                subtitle={
+                helper={
                   summary
                     ? `${summary.losingTrades} losing trades - ${(100 - winRate).toFixed(0)}% loss rate`
                     : undefined
                 }
                 tone="loss"
+                size="hero"
+                shell="surface"
               />
 
-              <DashboardMetricCard
+              <AppMetricCard
                 label="Net P&L"
                 value={signedFmt(totalPnl)}
-                subtitle={`PF ${profitFactor}`}
-                trend={monthDelta}
-                trendLabel="vs last month"
+                helper={`PF ${profitFactor}`}
+                change={monthDelta}
+                changeLabel="vs last month"
                 tone={totalPnl >= 0 ? 'profit' : 'loss'}
-                trendPositive={
-                  monthDeltaValue == null ? undefined : monthDeltaValue >= 0
-                }
+                size="hero"
+                shell="surface"
               />
             </>
           )}
@@ -538,18 +540,15 @@ export default function DashboardPage() {
       </section>
 
       {!loading && (
-        <section className="stagger-3 surface p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--text-tertiary)' }}>
-              Today only
-            </span>
-            <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
-              Monthly cards above use {monthScopeLabel}
-            </span>
-          </div>
+        <AppPanel className="stagger-3 p-5">
+          <SectionHeader
+            className="mb-3"
+            title="Today Only"
+            subtitle={`Monthly cards above use ${monthScopeLabel}`}
+          />
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <DashboardMiniMetric
+            <AppMetricCard
               label="Today's P&L"
               value={signedFmt(todayAnalytics?.summary.totalNetPnl ?? 0)}
               tone={
@@ -558,33 +557,41 @@ export default function DashboardPage() {
                   : 'loss'
               }
               align="center"
+              size="compact"
+              shell="elevated"
             />
-            <DashboardMiniMetric
+            <AppMetricCard
               label="Win Rate"
               value={`${winRate.toFixed(1)}%`}
               tone={
                 winRate >= 55
                   ? 'profit'
                   : winRate >= 45
-                    ? 'neutral'
+                    ? 'default'
                     : 'loss'
               }
               align="center"
+              size="compact"
+              shell="elevated"
             />
-            <DashboardMiniMetric
+            <AppMetricCard
               label="Avg Realized R"
               value={`${(summary?.avgRMultiple ?? 0).toFixed(2)}R`}
               tone={(summary?.avgRMultiple ?? 0) >= 0 ? 'profit' : 'loss'}
               align="center"
+              size="compact"
+              shell="elevated"
             />
-            <DashboardMiniMetric
+            <AppMetricCard
               label="Best Trade"
               value={fmt(summary?.largestWin ?? 0)}
               tone="profit"
               align="center"
+              size="compact"
+              shell="elevated"
             />
           </div>
-        </section>
+        </AppPanel>
       )}
 
       <section className="stagger-4 grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -626,25 +633,33 @@ export default function DashboardPage() {
             summary={summary}
           />
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <DashboardMiniMetric
+            <AppMetricCard
               label="Profit Factor"
               value={profitFactor}
-              tone={(summary?.profitFactor ?? 0) > 1 ? 'profit' : 'neutral'}
+              tone={(summary?.profitFactor ?? 0) > 1 ? 'profit' : 'default'}
+              size="compact"
+              shell="elevated"
             />
-            <DashboardMiniMetric
+            <AppMetricCard
               label="Avg Win"
               value={fmt(summary?.avgWin)}
               tone="profit"
+              size="compact"
+              shell="elevated"
             />
-            <DashboardMiniMetric
+            <AppMetricCard
               label="Avg Loss"
               value={fmtAbs(summary?.avgLoss ?? 0)}
               tone="loss"
+              size="compact"
+              shell="elevated"
             />
-            <DashboardMiniMetric
+            <AppMetricCard
               label="Largest Win"
               value={fmt(summary?.largestWin)}
               tone="profit"
+              size="compact"
+              shell="elevated"
             />
           </div>
         </AppPanel>
@@ -710,22 +725,18 @@ export default function DashboardPage() {
           {selectedPropAccount ? (
             <div className="space-y-5">
               <div className="grid gap-4 xl:grid-cols-[120px_minmax(0,1fr)]">
-                <div
-                  className="flex items-center justify-center rounded-[var(--radius-lg)] border px-4 py-4"
-                  style={{
-                    background: 'var(--surface-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                >
+                <DashboardInsetPanel className="flex items-center justify-center">
                   <ArcProgress percent={profitProgressPercent} />
-                </div>
+                </DashboardInsetPanel>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <DashboardMiniMetric
+                  <AppMetricCard
                     label="Current Balance"
                     value={fmt(currentBalance)}
                     helper={`Challenge start ${fmt(challengeInitialBalance)}`}
+                    size="compact"
+                    shell="elevated"
                   />
-                  <DashboardMiniMetric
+                  <AppMetricCard
                     label="Profit Progress"
                     value={
                       profitTargetAmount != null
@@ -738,8 +749,10 @@ export default function DashboardPage() {
                         : 'No profit target configured'
                     }
                     tone="profit"
+                    size="compact"
+                    shell="elevated"
                   />
-                  <DashboardMiniMetric
+                  <AppMetricCard
                     label="Peak-to-Trough Drawdown"
                     value={
                       selectedAccountAnalytics?.drawdown.maxDrawdownPercent == null
@@ -747,8 +760,10 @@ export default function DashboardPage() {
                         : `${selectedAccountAnalytics.drawdown.maxDrawdownPercent.toFixed(2)}%`
                     }
                     tone="loss"
+                    size="compact"
+                    shell="elevated"
                   />
-                  <DashboardMiniMetric
+                  <AppMetricCard
                     label="Current from Peak"
                     value={
                       selectedAccountAnalytics?.drawdown.currentFromPeakPercent == null
@@ -756,110 +771,79 @@ export default function DashboardPage() {
                         : `${selectedAccountAnalytics.drawdown.currentFromPeakPercent.toFixed(2)}%`
                     }
                     tone="loss"
+                    size="compact"
+                    shell="elevated"
                   />
                 </div>
               </div>
 
               {hasChallengeRules ? (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div
-                    className="rounded-[var(--radius-lg)] border px-4 py-4"
-                    style={{
-                      background: 'var(--surface-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  >
+                  <DashboardInsetPanel>
                     <DrawdownGauge
                       label="Daily Loss Used"
                       used={todayLossUsedPercent}
                       max={dailyLimitPercent ?? 0}
                     />
-                  </div>
-                  <div
-                    className="rounded-[var(--radius-lg)] border px-4 py-4"
-                    style={{
-                      background: 'var(--surface-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  >
+                  </DashboardInsetPanel>
+                  <DashboardInsetPanel>
                     <DrawdownGauge
                       label="Total Loss Used"
                       used={totalLossUsedPercent}
                       max={totalLimitPercent ?? 0}
                     />
-                  </div>
+                  </DashboardInsetPanel>
                 </div>
               ) : (
-                <div
-                  className="rounded-xl px-4 py-3 text-sm"
-                  style={{
-                    background: 'var(--surface-elevated)',
-                    border: '1px solid var(--border-subtle)',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
+                <DashboardInsetPanel className="py-3 text-sm">
                   Challenge drawdown rules are not configured for this account yet.
-                </div>
+                </DashboardInsetPanel>
               )}
 
               {approachingLossLimit ? (
-                <div
-                  className="rounded-xl px-4 py-3 text-sm"
-                  style={{
-                    background: 'var(--warning-bg)',
-                    border:
-                      '1px solid color-mix(in srgb, var(--warning-primary) 28%, transparent)',
-                    color: 'var(--warning-primary)',
-                  }}
+                <DashboardInsetPanel
+                  tone="warning"
+                  className="py-3 text-sm"
                 >
-                  Loss-limit buffer is getting tight. Review daily and total drawdown before placing another trade.
-                </div>
+                  <span style={{ color: 'var(--warning-primary)' }}>
+                    Loss-limit buffer is getting tight. Review daily and total drawdown before placing another trade.
+                  </span>
+                </DashboardInsetPanel>
               ) : null}
-              <DashboardMiniMetric
+              <AppMetricCard
                 label="Last Synced"
                 value={
                   selectedPropAccount.lastSyncedAt
                     ? new Date(selectedPropAccount.lastSyncedAt).toLocaleString()
                     : 'No sync yet'
                 }
+                size="compact"
+                shell="elevated"
               />
             </div>
           ) : (
-            <div className="py-8">
-              <div
-                className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{ background: 'var(--accent-soft)' }}
-              >
-                <IconAnalytics
-                  size={20}
-                  className="text-[var(--accent-primary)]"
-                />
-              </div>
-              <p
-                style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}
-              >
-                {propAccounts.length > 0
+            <DashboardWidgetEmptyState
+              className="py-10"
+              icon={<IconAnalytics size={20} />}
+              title={
+                propAccounts.length > 0
                   ? 'Choose a prop account to unlock live compliance'
-                  : 'No prop account linked'}
-              </p>
-              <p
-                style={{
-                  color: 'var(--text-tertiary)',
-                  fontSize: '0.72rem',
-                  marginTop: '0.25rem',
-                }}
-              >
-                {propAccounts.length > 0
+                  : 'No prop account linked'
+              }
+              description={
+                propAccounts.length > 0
                   ? 'The dashboard no longer guesses which funded account to display.'
-                  : 'Add your funded account to track challenge balance, drawdown, and target progress.'}
-              </p>
-              <Button asChild className="mt-4">
-                <Link href="/prop-firm">
-                  <IconPlus size={13} strokeWidth={2} />
-                  {propAccounts.length > 0 ? 'Manage Accounts' : 'Add Account'}
-                </Link>
-              </Button>
-            </div>
+                  : 'Add your funded account to track challenge balance, drawdown, and target progress.'
+              }
+              action={
+                <Button asChild>
+                  <Link href="/prop-firm">
+                    <IconPlus size={13} strokeWidth={2} />
+                    {propAccounts.length > 0 ? 'Manage Accounts' : 'Add Account'}
+                  </Link>
+                </Button>
+              }
+            />
           )}
         </AppPanel>
       </section>
