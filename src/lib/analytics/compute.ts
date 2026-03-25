@@ -796,7 +796,7 @@ export function computeAnalytics(
     const rMultiple = trade.rMultiple != null ? toNumber(trade.rMultiple) : null;
     const totalCost = trade.pnlIncludesCosts ? 0 : commission + swap;
     const holdSeconds = Math.max(0, (exitDate.getTime() - entryDate.getTime()) / 1000);
-    const sessionKey = deriveSession(entryDate);
+    const sessionKey = normalizeStoredSession(trade.session) ?? deriveSession(entryDate);
     const sessionRange = buildSessionRangeMap(entryDate).get(
       sessionKey as SessionKey,
     );

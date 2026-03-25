@@ -367,6 +367,37 @@ export const journalEntries = pgTable('journal_entries', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// SAVED REPORTS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export const savedReports = pgTable('saved_reports', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: text('user_id').notNull(),
+  title: text('title').notNull(),
+  reportType: text('report_type').notNull(),
+  accountScope: text('account_scope').notNull().default('all'),
+  propAccountId: uuid('prop_account_id').references(() => propAccounts.id, {
+    onDelete: 'set null',
+  }),
+  fromDate: date('from_date'),
+  toDate: date('to_date'),
+  includeAi: boolean('include_ai').notNull().default(false),
+  tradeCount: integer('trade_count').notNull().default(0),
+  selectedTradeIds: jsonb('selected_trade_ids')
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  snapshot: jsonb('snapshot')
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('saved_reports_user_created_idx').on(table.userId, table.createdAt),
+]);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPE EXPORTS  (inferred TypeScript types from schema)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -410,6 +441,9 @@ export type TagInsert = typeof tags.$inferInsert;
 
 export type JournalEntry = typeof journalEntries.$inferSelect;
 export type JournalEntryInsert = typeof journalEntries.$inferInsert;
+
+export type SavedReport = typeof savedReports.$inferSelect;
+export type SavedReportInsert = typeof savedReports.$inferInsert;
 
 export type DailyPlan = typeof dailyPlans.$inferSelect;
 export type DailyPlanInsert = typeof dailyPlans.$inferInsert;

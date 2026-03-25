@@ -17,7 +17,7 @@ const optional = [
     'ADMIN_API_SECRET',
     'MT5_WORKER_SECRET',
     'MT5_SYNC_PROVIDER',
-    'NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_KEY',
+    'GEMINI_API_KEY',
     'FINNHUB_API_KEY',
 ] as const;
 
@@ -47,6 +47,7 @@ function validateEnv() {
     }
 
     validateMt5SyncEnv();
+    validateGeminiEnv();
 }
 
 function isPlaceholder(value: string | undefined, placeholder: string): boolean {
@@ -84,6 +85,17 @@ function validateMt5SyncEnv() {
                 '[env] MT5_WORKER_SECRET still uses the example placeholder. Replace it in .env.local before running the Windows MT5 worker.'
             );
         }
+    }
+}
+
+function validateGeminiEnv() {
+    const geminiKey = process.env.GEMINI_API_KEY?.trim();
+    const legacyPublicKey = process.env.NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_KEY?.trim();
+
+    if (!geminiKey && legacyPublicKey) {
+        console.warn(
+            '[env] NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_KEY is set, but Gemini now uses GEMINI_API_KEY. Move the key to GEMINI_API_KEY in .env.local.'
+        );
     }
 }
 
