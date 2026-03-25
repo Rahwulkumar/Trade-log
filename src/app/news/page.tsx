@@ -4,14 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import { format, addDays, startOfWeek } from "date-fns";
 import {
   RefreshCw,
-  AlertTriangle,
   Clock,
   TrendingUp,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import type { EconomicEvent } from "@/app/api/news/economic-calendar/route";
-import { NewsAIAgent } from "@/components/news/news-ai-agent";
 import { Button } from "@/components/ui/button";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -298,9 +295,7 @@ export default function NewsPage() {
   const [dateRange, setDateRange] = useState<DateRange>("today");
   const [events, setEvents] = useState<EconomicEvent[]>([]);
   const [loading, setLoading] = useState(false);
-  const [usingMock, setUsingMock] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [showAI, setShowAI] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
@@ -315,7 +310,6 @@ export default function NewsPage() {
       const res = await fetch(`/api/news/economic-calendar?${params}`);
       const data = await res.json();
       setEvents(data.events ?? []);
-      setUsingMock(data.usingMock ?? false);
       setLastUpdated(new Date());
     } catch {
       setEvents([]);
@@ -397,22 +391,9 @@ export default function NewsPage() {
                 style={{ color: "var(--text-tertiary)" }}
               >
                 {lastUpdated
-                  ? `Updated at ${format(lastUpdated, "HH:mm")}`
+                  ? `${events.length} events available · Updated at ${format(lastUpdated, "HH:mm")}`
                   : "Fetching events..."}
               </p>
-              {usingMock && (
-                <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6rem] font-semibold"
-                  style={{
-                    background: "var(--warning-bg)",
-                    color: "var(--warning-primary)",
-                    border: "1px solid color-mix(in srgb, var(--warning-primary) 30%, transparent)",
-                  }}
-                >
-                  <AlertTriangle size={9} />
-                  Demo data · add FINNHUB_API_KEY
-                </span>
-              )}
             </div>
           </div>
 
@@ -471,23 +452,6 @@ export default function NewsPage() {
             >
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
               Refresh
-            </Button>
-
-            <Button
-              type="button"
-              onClick={() => setShowAI((v) => !v)}
-              className="h-auto gap-1.5 rounded-[var(--radius-default)] border px-3.5 py-2 text-[0.73rem] font-semibold"
-              style={{
-                background: showAI
-                  ? "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))"
-                  : "var(--surface-elevated)",
-                borderColor: showAI ? "transparent" : "var(--border-default)",
-                color: showAI ? "#fff" : "var(--text-secondary)",
-                boxShadow: showAI ? "0 4px 16px var(--accent-glow)" : "none",
-              }}
-            >
-              <Sparkles size={13} />
-              AI Agent
             </Button>
           </div>
         </div>
@@ -700,10 +664,7 @@ export default function NewsPage() {
             ))}
         </div>
 
-        {/* AI Agent Panel */}
-        {showAI && (
-          <NewsAIAgent events={events} onClose={() => setShowAI(false)} />
-        )}
+
       </div>
     </div>
   );

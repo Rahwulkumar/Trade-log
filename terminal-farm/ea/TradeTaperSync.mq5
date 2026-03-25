@@ -586,6 +586,7 @@ void SyncDealHistory(string reason)
         tradeJson += "\"commission\":" + DoubleToString(commission, 2) + ",";
         tradeJson += "\"swap\":" + DoubleToString(swap, 2) + ",";
         tradeJson += "\"profit\":" + DoubleToString(profit, 2) + ",";
+        tradeJson += "\"openTimeUnix\":" + IntegerToString((long)time) + ",";
         tradeJson += "\"openTime\":\"" + TimeToString(time, TIME_DATE|TIME_SECONDS) + "\",";
         tradeJson += "\"comment\":\"" + EscapeJSON(comment) + "\",";
         tradeJson += "\"positionId\":" + IntegerToString(positionId) + ",";
@@ -697,6 +698,7 @@ void SyncPositions()
         positionsJson += "\"openPrice\":" + DoubleToString(openPrice, 5) + ",";
         positionsJson += "\"currentPrice\":" + DoubleToString(currentPrice, 5) + ",";
         positionsJson += "\"profit\":" + DoubleToString(profit, 2) + ",";
+        positionsJson += "\"openTimeUnix\":" + IntegerToString((long)openTime) + ",";
         positionsJson += "\"openTime\":\"" + TimeToString(openTime, TIME_DATE|TIME_SECONDS) + "\",";
         positionsJson += "\"stopLoss\":" + DoubleToString(stopLoss, 5) + ",";
         positionsJson += "\"takeProfit\":" + DoubleToString(takeProfit, 5) + ",";

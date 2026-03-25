@@ -1,8 +1,27 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Trade, Json } from '@/lib/supabase/types';
 
-// Initialize Gemini (server-side only!)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+function getGeminiApiKey(): string {
+    const serverKey = process.env.GEMINI_API_KEY?.trim();
+    const legacyPublicKey = process.env.NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_KEY?.trim();
+    const apiKey = serverKey || legacyPublicKey;
+
+    if (!apiKey) {
+        throw new Error(
+            'Gemini API key is not configured. Add GEMINI_API_KEY to .env.local.'
+        );
+    }
+
+    return apiKey;
+}
+
+function getGeminiClient(): GoogleGenerativeAI {
+    return new GoogleGenerativeAI(getGeminiApiKey());
+}
+
+function getGeminiModel(model = 'gemini-2.0-flash-lite') {
+    return getGeminiClient().getGenerativeModel({ model });
+}
 
 export interface ChatMessage {
     id: string;
@@ -57,7 +76,7 @@ export async function generateStrategy(
     prompt: string,
     context?: { existingStrategies?: string[]; tradingHistory?: Trade[] }
 ): Promise<GeneratedStrategy> {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+    const model = getGeminiModel();
 
     const userPrompt = `
 Create a trading strategy based on this description: "${prompt}"
@@ -101,7 +120,7 @@ export async function chatWithAI(
     messages: ChatMessage[],
     newMessage: string
 ): Promise<string> {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+    const model = getGeminiModel();
 
     const chatHistory = messages.map(m =>
         `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
@@ -128,7 +147,7 @@ export async function analyzeTrades(
     trades: Trade[],
     focusAreas: string[] = ['patterns', 'timing', 'risk']
 ): Promise<{ title: string; content: string; confidence: number }[]> {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+    const model = getGeminiModel();
 
     const tradesSummary = {
         totalTrades: trades.length,
@@ -240,7 +259,7 @@ export async function analyzeNews(
     pair: string,
     question: string
 ): Promise<NewsAnalysisResult> {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = getGeminiModel('gemini-2.0-flash');
 
     const eventsContext = events.map(e =>
         `- ${e.currency} | ${e.impact} Impact | ${e.event} | Actual: ${e.actual ?? 'TBD'} | Forecast: ${e.forecast ?? 'N/A'} | Previous: ${e.previous ?? 'N/A'} (${e.country})`
@@ -288,4 +307,3 @@ Rules:
 
     return JSON.parse(jsonMatch[0]) as NewsAnalysisResult;
 }
-

@@ -202,12 +202,27 @@ function parseNumericValue(value: string | null | undefined): number {
     return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function tryParseTradeDate(value?: string | null): Date | null {
+function tryParseTradeDate(
+    value?: string | number | null,
+    unixSeconds?: number | null
+): Date | null {
+    if (typeof unixSeconds === 'number' && Number.isFinite(unixSeconds)) {
+        const ms = unixSeconds >= 1_000_000_000_000 ? unixSeconds : unixSeconds * 1000;
+        const parsedUnix = new Date(ms);
+        return Number.isNaN(parsedUnix.getTime()) ? null : parsedUnix;
+    }
+
     if (!value) {
         return null;
     }
 
-    const normalized = value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        const ms = value >= 1_000_000_000_000 ? value : value * 1000;
+        const parsedNumeric = new Date(ms);
+        return Number.isNaN(parsedNumeric.getTime()) ? null : parsedNumeric;
+    }
+
+    const normalized = typeof value === 'string' ? value.trim() : '';
     if (!normalized) {
         return null;
     }
@@ -250,8 +265,12 @@ function tryParseTradeDate(value?: string | null): Date | null {
     return Number.isNaN(parsedMt5Date.getTime()) ? null : parsedMt5Date;
 }
 
-function requireTradeDate(value: string | null | undefined, fieldName: string): Date {
-    const parsed = tryParseTradeDate(value);
+function requireTradeDate(
+    value: string | number | null | undefined,
+    fieldName: string,
+    unixSeconds?: number | null
+): Date {
+    const parsed = tryParseTradeDate(value, unixSeconds);
     if (parsed) {
         return parsed;
     }
@@ -323,7 +342,8 @@ async function findFuzzyOpenTradeForExit(
         return null;
     }
 
-    const eventTimeMs = tryParseTradeDate(trade.openTime)?.getTime() ?? NaN;
+    const eventTimeMs =
+        tryParseTradeDate(trade.openTime, trade.openTimeUnix)?.getTime() ?? NaN;
 
     return unresolvedCandidates.sort((left, right) => {
         const leftSizeDiff = trade.volume != null
@@ -362,7 +382,11 @@ function buildClosedTradeUpdate(
         status: 'CLOSED',
         pnlIncludesCosts: false,
         ...(linkedPropAccountId ? { propAccountId: linkedPropAccountId } : {}),
-        exitDate: requireTradeDate(trade.openTime, `trade ${trade.ticket} openTime`),
+        exitDate: requireTradeDate(
+            trade.openTime,
+            `trade ${trade.ticket} openTime`,
+            trade.openTimeUnix
+        ),
         exitPrice: trade.openPrice != null ? String(trade.openPrice) : null,
         pnl: trade.profit != null ? String(trade.profit) : null,
         commission: String(parseNumericValue(existing.commission) + (trade.commission ?? 0)),
@@ -1035,7 +1059,11 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
         direction: inferOpenDirectionFromDeal(trade.type),
         status: 'OPEN',
         pnlIncludesCosts: false,
-        entryDate: requireTradeDate(trade.openTime, `trade ${trade.ticket} openTime`),
+        entryDate: requireTradeDate(
+            trade.openTime,
+            `trade ${trade.ticket} openTime`,
+            trade.openTimeUnix
+        ),
         entryPrice: String(trade.openPrice ?? 0),
         positionSize: String(trade.volume ?? 0),
         commission: String(trade.commission ?? 0),
@@ -1095,9 +1123,17 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
         direction: inferClosedPositionDirectionFromExit(trade.type),
         status: 'CLOSED',
         pnlIncludesCosts: false,
-        entryDate: requireTradeDate(trade.openTime, `trade ${trade.ticket} openTime`),
+        entryDate: requireTradeDate(
+            trade.openTime,
+            `trade ${trade.ticket} openTime`,
+            trade.openTimeUnix
+        ),
         entryPrice: '0',
-        exitDate: requireTradeDate(trade.openTime, `trade ${trade.ticket} openTime`),
+        exitDate: requireTradeDate(
+            trade.openTime,
+            `trade ${trade.ticket} openTime`,
+            trade.openTimeUnix
+        ),
         exitPrice: trade.openPrice != null ? String(trade.openPrice) : null,
         positionSize: String(trade.volume ?? 0),
         pnl: trade.profit != null ? String(trade.profit) : null,
@@ -1197,7 +1233,11 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
                             direction: existing.direction === 'SHORT' ? 'SHORT' : 'LONG',
                             entryDate:
                                 existing.entryDate ??
-                                requireTradeDate(trade.openTime, `trade ${trade.ticket} openTime`),
+                                requireTradeDate(
+                                    trade.openTime,
+                                    `trade ${trade.ticket} openTime`,
+                                    trade.openTimeUnix
+                                ),
                             entryPrice: existing.entryPrice ?? String(trade.openPrice ?? 0),
                             positionSize: String(remainingSameDirection),
                             commission: '0',
@@ -1222,7 +1262,8 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
                             direction: inferOpenDirectionFromDeal(trade.type),
                             entryDate: requireTradeDate(
                                 trade.openTime,
-                                `trade ${trade.ticket} openTime`
+                                `trade ${trade.ticket} openTime`,
+                                trade.openTimeUnix
                             ),
                             entryPrice: String(trade.openPrice ?? 0),
                             positionSize: String(reversalVolume),
@@ -1262,7 +1303,11 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
             queueTradeInsert(createOpenTradeInsert(trade, {
                 status: trade.closeTime ? 'CLOSED' : 'OPEN',
                 exitDate: trade.closeTime
-                    ? requireTradeDate(trade.closeTime, `trade ${trade.ticket} closeTime`)
+                    ? requireTradeDate(
+                        trade.closeTime,
+                        `trade ${trade.ticket} closeTime`,
+                        trade.closeTimeUnix
+                    )
                     : null,
                 exitPrice: trade.closePrice != null ? String(trade.closePrice) : null,
                 pnl: trade.profit != null ? String(trade.profit) : null,

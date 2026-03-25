@@ -87,6 +87,8 @@ export interface TerminalTradePayload {
     closePrice?: number;
     openTime?: string;
     closeTime?: string;
+    openTimeUnix?: number;
+    closeTimeUnix?: number;
     commission?: number;
     swap?: number;
     profit?: number;
@@ -116,6 +118,7 @@ export interface TerminalPositionPayload {
     currentPrice: number;
     profit: number;
     openTime: string;
+    openTimeUnix?: number;
     stopLoss?: number;
     takeProfit?: number;
     commission?: number;
