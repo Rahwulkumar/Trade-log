@@ -7,6 +7,7 @@ import {
   Download,
   ExternalLink,
   GripVertical,
+  LogOut,
   Monitor,
   Moon,
   Plus,
@@ -91,6 +92,7 @@ export function SettingsProfilePanels({
   onTimezoneChange,
   onSave,
   onManageSecurity,
+  onSignOut,
 }: {
   avatarUrl: string | null;
   avatarInitials: string;
@@ -107,6 +109,7 @@ export function SettingsProfilePanels({
   onTimezoneChange: (value: string) => void;
   onSave: () => void;
   onManageSecurity: () => void;
+  onSignOut: () => void;
 }) {
   return (
     <>
@@ -206,9 +209,15 @@ export function SettingsProfilePanels({
             </div>
           }
           trailing={
-            <Button variant="outline" onClick={onManageSecurity}>
-              Manage Security
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" onClick={onManageSecurity}>
+                Manage Security
+              </Button>
+              <Button variant="outline" onClick={onSignOut}>
+                <LogOut className="h-4 w-4" />
+                Log out
+              </Button>
+            </div>
           }
         />
       </AppPanel>

@@ -2,12 +2,20 @@
 
 import { useState, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Building2, Menu, Sun, Moon } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Building2, LogOut, Menu, Moon, Settings, Sun } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import { useTheme } from "@/components/theme-provider";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -77,7 +85,8 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, signOut } = useAuth();
   const { selectedAccountId, setSelectedAccountId, propAccounts, loading } =
     usePropAccount();
   const [scrolled, setScrolled] = useState(false);
@@ -103,6 +112,16 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
     const account = propAccounts.find((item) => item.id === selectedAccountId);
     return account?.accountName ?? "All Accounts";
   })();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.replace("/auth/login");
+      router.refresh();
+    } catch {
+      router.replace("/auth/clear-session");
+    }
+  };
 
   return (
     <header
@@ -201,28 +220,55 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
 
       <ThemeToggle />
 
-      {/* User avatar pill */}
-      <Link
-        href="/settings"
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "h-auto shrink-0 gap-2 rounded-[var(--radius-default)] px-2 py-1.5 hover:bg-[var(--surface-elevated)] sm:gap-2.5 sm:px-3",
-        )}
-        style={{ border: "1px solid var(--border-default)" }}
-      >
-        <div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-semibold"
-          style={{ background: "var(--accent-primary)", color: "#04100a" }}
-        >
-          {userInitials}
-        </div>
-        <span
-          className="hidden md:block text-[0.8rem] font-medium"
-          style={{ color: "var(--text-primary)" }}
-        >
-          {user?.email ? user.email.split("@")[0] : "Trader"}
-        </span>
-      </Link>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "h-auto shrink-0 gap-2 rounded-[var(--radius-default)] px-2 py-1.5 hover:bg-[var(--surface-elevated)] sm:gap-2.5 sm:px-3",
+            )}
+            style={{ border: "1px solid var(--border-default)" }}
+            aria-label="Open profile menu"
+          >
+            <div
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-semibold"
+              style={{ background: "var(--accent-primary)", color: "#04100a" }}
+            >
+              {userInitials}
+            </div>
+            <span
+              className="hidden md:block text-[0.8rem] font-medium"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {user?.email ? user.email.split("@")[0] : "Trader"}
+            </span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel className="space-y-1">
+            <p className="text-sm font-medium">
+              {user?.email ? user.email.split("@")[0] : "Trader"}
+            </p>
+            <p className="text-xs font-normal text-muted-foreground">
+              {user?.email ?? "No account email"}
+            </p>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => router.push("/settings")}>
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              void handleSignOut();
+            }}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Log out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   );
 }

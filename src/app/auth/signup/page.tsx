@@ -9,9 +9,6 @@ export default function SignUpPage() {
     <AuthShell
       title="Create account"
       subtitle="Set up your workspace and start logging your trading execution."
-      alternateHref="/auth/login"
-      alternateLabel="Already have an account?"
-      alternateCta="Sign in"
     >
       <SignUp
         routing="hash"

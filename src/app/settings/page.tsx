@@ -73,7 +73,7 @@ function SettingsPageContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { theme, setTheme } = useTheme();
-  const { user, profile, refreshProfile, loading, isConfigured, isLoaded, isSignedIn } =
+  const { user, profile, refreshProfile, loading, isConfigured, isLoaded, isSignedIn, signOut } =
     useAuth();
   const { openUserProfile } = useClerk();
 
@@ -311,6 +311,16 @@ function SettingsPageContent() {
     openUserProfile();
   }, [openUserProfile]);
 
+  const handleSignOut = useCallback(async () => {
+    try {
+      await signOut();
+      router.replace("/auth/login");
+      router.refresh();
+    } catch {
+      router.replace("/auth/clear-session");
+    }
+  }, [router, signOut]);
+
   const handleDownloadSettings = useCallback(() => {
     if (!profile) return;
 
@@ -442,6 +452,7 @@ function SettingsPageContent() {
             onTimezoneChange={setTimezone}
             onSave={handleSaveProfile}
             onManageSecurity={handleManageSecurity}
+            onSignOut={handleSignOut}
           />
         </TabsContent>
 
