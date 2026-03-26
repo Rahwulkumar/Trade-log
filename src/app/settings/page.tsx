@@ -17,8 +17,6 @@ import {
   SaveStatus,
   SettingsAppearancePanels,
   SettingsDataPanels,
-  SettingsNotificationsPanels,
-  SettingsNotificationsPreviewCard,
   SettingsProfilePanels,
   SettingsTradingPanels,
   type SettingsTheme,
@@ -35,7 +33,6 @@ import { updateCurrentUserProfile } from "@/lib/api/client/profile";
 const SETTINGS_TABS = [
   { id: "profile", label: "Profile" },
   { id: "appearance", label: "Appearance" },
-  { id: "notifications", label: "Notifications" },
   { id: "trading", label: "Trading" },
   { id: "data", label: "Data" },
 ] as const;
@@ -56,7 +53,7 @@ export default function SettingsPage() {
           <AppPageHeader
             eyebrow="Account"
             title="Settings"
-            description="Manage profile, trading preferences, notifications, and data controls."
+            description="Manage profile, trading preferences, and data controls."
           />
           <AppPanelEmptyState
             title="Loading settings"
@@ -349,7 +346,7 @@ function SettingsPageContent() {
         <AppPageHeader
           eyebrow="Account"
           title="Settings"
-          description="Manage profile, trading preferences, notifications, and data controls."
+          description="Manage profile, trading preferences, and data controls."
         />
         <AppPanelEmptyState
           title="Settings are unavailable"
@@ -365,7 +362,7 @@ function SettingsPageContent() {
         <AppPageHeader
           eyebrow="Account"
           title="Settings"
-          description="Manage profile, trading preferences, notifications, and data controls."
+          description="Manage profile, trading preferences, and data controls."
         />
         <AppPanelEmptyState
           title="Loading settings"
@@ -382,7 +379,7 @@ function SettingsPageContent() {
         <AppPageHeader
           eyebrow="Account"
           title="Settings"
-          description="Manage profile, trading preferences, notifications, and data controls."
+          description="Manage profile, trading preferences, and data controls."
         />
         <AppPanelEmptyState
           title="Sign in to manage settings"
@@ -453,11 +450,6 @@ function SettingsPageContent() {
             theme={themeValue}
             onThemeChange={(value) => setTheme(value)}
           />
-        </TabsContent>
-
-        <TabsContent value="notifications" className="space-y-6">
-          <SettingsNotificationsPanels />
-          <SettingsNotificationsPreviewCard />
         </TabsContent>
 
         <TabsContent value="trading" className="space-y-6">

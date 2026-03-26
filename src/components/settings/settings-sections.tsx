@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   ArrowDown,
   ArrowUp,
-  BellRing,
   Download,
   ExternalLink,
   GripVertical,
@@ -44,29 +43,6 @@ const THEME_OPTIONS: Array<{
   { value: "dark", icon: Moon, label: "Dark" },
   { value: "system", icon: Monitor, label: "System" },
 ];
-
-const NOTIFICATION_PREVIEW = [
-  {
-    key: "email",
-    label: "Email Notifications",
-    description: "Account updates, sync issues, and workflow alerts.",
-  },
-  {
-    key: "push",
-    label: "Push Notifications",
-    description: "Browser alerts for urgent events and thresholds.",
-  },
-  {
-    key: "weeklyReport",
-    label: "Weekly Report",
-    description: "Scheduled performance summaries and review reminders.",
-  },
-  {
-    key: "drawdownAlert",
-    label: "Drawdown Alerts",
-    description: "Warnings when account drawdown approaches limits.",
-  },
-] as const;
 
 function SettingsSaveFeedback({
   status,
@@ -290,49 +266,6 @@ export function SettingsAppearancePanels({
         </InsetPanel>
       </AppPanel>
     </>
-  );
-}
-
-export function SettingsNotificationsPanels() {
-  return (
-    <AppPanel>
-      <PanelTitle
-        title="Notification Preferences"
-        subtitle="Delivery preferences will return here once account-level notification settings are implemented."
-      />
-
-      <WidgetEmptyState
-        title="Notification delivery settings are not live yet."
-        description="We removed the old fake switches. These options will return once email, browser, and weekly summary preferences are backed by real account settings."
-      />
-
-      <div className="mt-4 space-y-3">
-        {NOTIFICATION_PREVIEW.map((item) => (
-          <ListItemRow
-            key={item.key}
-            leading={
-              <div>
-                <p className="text-sm font-medium">{item.label}</p>
-                <p
-                  className="mt-1 text-sm"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  {item.description}
-                </p>
-              </div>
-            }
-            trailing={
-              <span
-                className="text-[0.68rem] font-semibold uppercase tracking-wider"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                Planned
-              </span>
-            }
-          />
-        ))}
-      </div>
-    </AppPanel>
   );
 }
 
@@ -629,26 +562,6 @@ export function SettingsDataPanels({
         </InsetPanel>
       </AppPanel>
     </>
-  );
-}
-
-export function SettingsNotificationsPreviewCard() {
-  return (
-    <InsetPanel tone="accent">
-      <div className="flex items-center gap-2">
-        <BellRing
-          className="h-4 w-4"
-          style={{ color: "var(--accent-primary)" }}
-        />
-        <p className="text-sm font-medium">Notification channels are still being wired up.</p>
-      </div>
-      <p
-        className="mt-2 text-sm"
-        style={{ color: "var(--text-tertiary)" }}
-      >
-        We removed the local-only toggles so this tab does not pretend to save settings that do not exist yet.
-      </p>
-    </InsetPanel>
   );
 }
 

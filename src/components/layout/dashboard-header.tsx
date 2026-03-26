@@ -27,7 +27,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/weekly": "Weekly Review",
   "/prop-firm": "Prop Firm",
   "/settings": "Settings",
-  "/profile": "Profile",
 };
 
 function ThemeToggle() {
@@ -204,7 +203,7 @@ export function DashboardHeader({ onMobileMenuClick }: DashboardHeaderProps) {
 
       {/* User avatar pill */}
       <Link
-        href="/profile"
+        href="/settings"
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
           "h-auto shrink-0 gap-2 rounded-[var(--radius-default)] px-2 py-1.5 hover:bg-[var(--surface-elevated)] sm:gap-2.5 sm:px-3",

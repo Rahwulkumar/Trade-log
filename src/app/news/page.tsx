@@ -1,52 +1,100 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { format, addDays, startOfWeek } from "date-fns";
 import {
+  AlertTriangle,
+  CalendarDays,
+  Clock3,
   RefreshCw,
-  Clock,
-  TrendingUp,
   Zap,
 } from "lucide-react";
-import type { EconomicEvent } from "@/app/api/news/economic-calendar/route";
+
+import type { EconomicEvent } from "@/lib/news/economic-calendar";
 import { Button } from "@/components/ui/button";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const CURRENCIES = [
-  { code: "USD", flag: "🇺🇸", name: "US Dollar" },
-  { code: "EUR", flag: "🇪🇺", name: "Euro" },
-  { code: "GBP", flag: "🇬🇧", name: "British Pound" },
-  { code: "JPY", flag: "🇯🇵", name: "Japanese Yen" },
-  { code: "CAD", flag: "🇨🇦", name: "Canadian Dollar" },
-  { code: "AUD", flag: "🇦🇺", name: "Australian Dollar" },
-  { code: "CHF", flag: "🇨🇭", name: "Swiss Franc" },
-  { code: "NZD", flag: "🇳🇿", name: "New Zealand Dollar" },
-  { code: "CNY", flag: "🇨🇳", name: "Chinese Yuan" },
-];
-
-// Currency code → accent colour for the chip in event rows
-const CURRENCY_COLOR: Record<string, string> = {
-  USD: "#3b82f6",
-  EUR: "#10b981",
-  GBP: "#8b5cf6",
-  JPY: "#f59e0b",
-  CAD: "#ef4444",
-  AUD: "#06b6d4",
-  CHF: "#ec4899",
-  NZD: "#84cc16",
-  CNY: "#f97316",
-};
+import {
+  AppMetricCard,
+  AppPageHeader,
+  AppPanel,
+  AppPanelEmptyState,
+  SectionHeader,
+} from "@/components/ui/page-primitives";
+import {
+  ChoiceChip,
+  ControlSurface,
+  FieldGroup,
+} from "@/components/ui/control-primitives";
+import {
+  InsetPanel,
+  ListItemRow,
+  WidgetEmptyState,
+} from "@/components/ui/surface-primitives";
 
 type DateRange = "today" | "tomorrow" | "this-week" | "next-week";
+type ImpactFilter = "all" | "High" | "Medium" | "Low";
+
+const CURRENCIES = [
+  { code: "USD", name: "US Dollar" },
+  { code: "EUR", name: "Euro" },
+  { code: "GBP", name: "British Pound" },
+  { code: "JPY", name: "Japanese Yen" },
+  { code: "CAD", name: "Canadian Dollar" },
+  { code: "AUD", name: "Australian Dollar" },
+  { code: "CHF", name: "Swiss Franc" },
+  { code: "NZD", name: "New Zealand Dollar" },
+  { code: "CNY", name: "Chinese Yuan" },
+];
+
+const DATE_RANGE_OPTIONS: Array<{ key: DateRange; label: string }> = [
+  { key: "today", label: "Today" },
+  { key: "tomorrow", label: "Tomorrow" },
+  { key: "this-week", label: "This Week" },
+  { key: "next-week", label: "Next Week" },
+];
+
+const IMPACT_OPTIONS: Array<{
+  key: ImpactFilter;
+  label: string;
+  activeColor?: string;
+  activeBackground?: string;
+  activeBorderColor?: string;
+}> = [
+  { key: "all", label: "All" },
+  {
+    key: "High",
+    label: "High",
+    activeColor: "var(--loss-primary)",
+    activeBackground: "var(--loss-bg)",
+    activeBorderColor: "var(--loss-primary)",
+  },
+  {
+    key: "Medium",
+    label: "Medium",
+    activeColor: "var(--warning-primary)",
+    activeBackground: "var(--warning-bg)",
+    activeBorderColor: "var(--warning-primary)",
+  },
+  {
+    key: "Low",
+    label: "Low",
+    activeColor: "var(--accent-primary)",
+    activeBackground: "var(--accent-soft)",
+    activeBorderColor: "var(--accent-primary)",
+  },
+];
 
 function getRange(range: DateRange): { from: string; to: string } {
   const today = new Date();
-  const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+  const fmt = (date: Date) => format(date, "yyyy-MM-dd");
+
   switch (range) {
     case "today":
       return { from: fmt(today), to: fmt(today) };
     case "tomorrow":
-      return { from: fmt(addDays(today, 1)), to: fmt(addDays(today, 1)) };
+      return {
+        from: fmt(addDays(today, 1)),
+        to: fmt(addDays(today, 1)),
+      };
     case "this-week": {
       const start = startOfWeek(today, { weekStartsOn: 1 });
       return { from: fmt(start), to: fmt(addDays(start, 6)) };
@@ -58,247 +106,224 @@ function getRange(range: DateRange): { from: string; to: string } {
   }
 }
 
-// ─── Impact Badge ─────────────────────────────────────────────────────────────
-function ImpactBadge({ impact }: { impact: "High" | "Medium" | "Low" }) {
-  const cls =
-    impact === "High"
-      ? "impact-high"
-      : impact === "Medium"
-        ? "impact-medium"
-        : "impact-low";
+function formatValue(value: string | null) {
+  return value ?? "--";
+}
 
-  const dot =
+function ImpactPill({ impact }: { impact: EconomicEvent["impact"] }) {
+  const styles =
     impact === "High"
-      ? "#ef4444"
+      ? {
+          color: "var(--loss-primary)",
+          background: "var(--loss-bg)",
+          borderColor: "color-mix(in srgb, var(--loss-primary) 30%, transparent)",
+        }
       : impact === "Medium"
-        ? "#f59e0b"
-        : "var(--text-tertiary)";
+        ? {
+            color: "var(--warning-primary)",
+            background: "var(--warning-bg)",
+            borderColor:
+              "color-mix(in srgb, var(--warning-primary) 30%, transparent)",
+          }
+        : {
+            color: "var(--accent-primary)",
+            background: "var(--accent-soft)",
+            borderColor:
+              "color-mix(in srgb, var(--accent-primary) 28%, transparent)",
+          };
 
   return (
     <span
-      className={`${cls} inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[0.62rem] font-bold tracking-wide`}
+      className="inline-flex items-center rounded-full border px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-wide"
+      style={styles}
     >
-      <span
-        className="w-1.5 h-1.5 rounded-full shrink-0"
-        style={{ background: dot }}
-      />
       {impact}
     </span>
   );
 }
 
-// ─── Data cell ────────────────────────────────────────────────────────────────
-function DataCell({
+function EventValueCell({
   label,
   value,
-  accent,
+  tone = "default",
 }: {
   label: string;
   value: string | null;
-  accent?: boolean;
+  tone?: "default" | "accent";
 }) {
   return (
-    <div className="flex flex-col items-center gap-0.5 min-w-[60px]">
-      <span
-        className="text-[0.52rem] uppercase tracking-widest font-semibold"
+    <InsetPanel
+      tone={tone === "accent" && value ? "accent" : "default"}
+      paddingClassName="px-3 py-2"
+      className="min-w-0"
+    >
+      <p
+        className="text-[0.6rem] uppercase tracking-widest font-bold"
         style={{ color: "var(--text-tertiary)" }}
       >
         {label}
-      </span>
-      <span
-        className="font-mono font-semibold text-[0.78rem]"
+      </p>
+      <p
+        className="mono mt-1 text-[0.78rem] font-semibold"
         style={{
-          color: value
-            ? accent
+          color:
+            tone === "accent" && value
               ? "var(--accent-primary)"
-              : "var(--text-primary)"
-            : "var(--text-tertiary)",
+              : "var(--text-primary)",
         }}
       >
-        {value ?? "—"}
-      </span>
-    </div>
+        {formatValue(value)}
+      </p>
+    </InsetPanel>
   );
 }
 
-// ─── Event Row ────────────────────────────────────────────────────────────────
-function EventRow({ event, index }: { event: EconomicEvent; index: number }) {
-  const eventTime = new Date(event.time);
-  const isUpcoming = eventTime > new Date();
-  const isHigh = event.impact === "High";
-
-  return (
-    <div
-      className="group flex items-center gap-4 px-5 py-3.5 transition-all duration-150 cursor-default"
-      style={{
-        borderBottom: "1px solid var(--border-subtle)",
-        background:
-          isHigh && isUpcoming
-            ? "rgba(224, 82, 90, 0.025)"
-            : !isUpcoming
-              ? "var(--surface-elevated)"
-              : "transparent",
-        animationDelay: `${index * 30}ms`,
-      }}
-      onMouseEnter={(e) =>
-        (e.currentTarget.style.background = "var(--surface-hover)")
-      }
-      onMouseLeave={(e) =>
-        (e.currentTarget.style.background =
-          isHigh && isUpcoming
-            ? "rgba(224, 82, 90, 0.025)"
-            : !isUpcoming
-              ? "var(--surface-elevated)"
-              : "transparent")
-      }
-    >
-      {/* High impact accent bar */}
-      {isHigh && isUpcoming && (
-        <div
-          className="absolute left-0 w-0.5 h-8 rounded-r"
-          style={{ background: "var(--loss-primary)", opacity: 0.6 }}
-        />
-      )}
-
-      {/* Time */}
-      <div className="w-14 shrink-0 flex flex-col gap-0.5">
-        <span
-          className="font-mono text-[0.76rem] font-semibold leading-none"
-          style={{
-            color: isUpcoming ? "var(--text-primary)" : "var(--text-tertiary)",
-          }}
-        >
-          {format(eventTime, "HH:mm")}
-        </span>
-        <span
-          className="text-[0.58rem] font-medium"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          {format(eventTime, "MMM d")}
-        </span>
-      </div>
-
-      {/* Currency badge */}
-      <div
-        className="w-12 shrink-0 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-[var(--radius-default)] transition-all"
-        style={{
-          background: isUpcoming
-            ? "var(--accent-soft)"
-            : "var(--surface-elevated)",
-          border: `1px solid ${isUpcoming ? "var(--border-active)" : "var(--border-default)"}`,
-        }}
-      >
-        <span
-          className="font-mono font-black text-[0.7rem] leading-none"
-          style={{
-            color: CURRENCY_COLOR[event.currency] ?? "var(--accent-primary)",
-          }}
-        >
-          {event.currency}
-        </span>
-      </div>
-
-      {/* Impact */}
-      <div className="w-20 shrink-0">
-        <ImpactBadge impact={event.impact} />
-      </div>
-
-      {/* Event name */}
-      <div className="flex-1 min-w-0">
-        <p
-          className="text-[0.83rem] font-semibold truncate leading-snug"
-          style={{
-            color: isUpcoming ? "var(--text-primary)" : "var(--text-secondary)",
-          }}
-        >
-          {event.event}
-        </p>
-        <p
-          className="text-[0.63rem] font-medium mt-0.5"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          {event.country}
-        </p>
-      </div>
-
-      {/* Data cells */}
-      <div className="flex items-center gap-5 shrink-0">
-        <DataCell label="Actual" value={event.actual} accent />
-        <DataCell label="Forecast" value={event.forecast} />
-        <DataCell label="Previous" value={event.previous} />
-      </div>
-    </div>
-  );
-}
-
-// ─── Skeleton Row ─────────────────────────────────────────────────────────────
-function SkeletonRow() {
-  return (
-    <div
-      className="flex items-center gap-4 px-5 py-3.5"
-      style={{ borderBottom: "1px solid var(--border-subtle)" }}
-    >
-      <div className="w-14 h-7 rounded shimmer" />
-      <div className="w-12 h-10 rounded-[var(--radius-default)] shimmer" />
-      <div className="w-20 h-5 rounded-full shimmer" />
-      <div className="flex-1 space-y-1.5">
-        <div className="h-3.5 w-2/3 rounded shimmer" />
-        <div className="h-2.5 w-1/3 rounded shimmer" />
-      </div>
-      <div className="flex gap-5">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="w-12 h-7 rounded shimmer" />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Stat Chip ────────────────────────────────────────────────────────────────
-function StatChip({
-  dot,
-  count,
-  label,
+function EventCard({
+  event,
+  nowTimestamp,
 }: {
-  dot: string;
-  count: number;
-  label: string;
+  event: EconomicEvent;
+  nowTimestamp: number;
 }) {
+  const eventTime = new Date(event.time);
+  const isUpcoming = eventTime.getTime() >= nowTimestamp;
+
   return (
-    <div className="flex items-center gap-2">
-      <span
-        className="w-2.5 h-2.5 rounded-full shrink-0"
-        style={{ background: dot, boxShadow: `0 0 6px ${dot}80` }}
-      />
-      <span
-        className="font-mono font-bold text-[0.8rem]"
-        style={{ color: "var(--text-primary)" }}
-      >
-        {count}
-      </span>
-      <span
-        className="text-[0.68rem] font-medium"
-        style={{ color: "var(--text-tertiary)" }}
-      >
-        {label}
-      </span>
-    </div>
+    <ListItemRow
+      className="sm:items-start"
+      leading={
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <InsetPanel
+              paddingClassName="px-3 py-2"
+              className="min-w-[86px]"
+              tone={isUpcoming ? "accent" : "default"}
+            >
+              <p
+                className="mono text-[0.85rem] font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {format(eventTime, "HH:mm")}
+              </p>
+              <p
+                className="text-[0.63rem] font-medium"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                {format(eventTime, "EEE, MMM d")}
+              </p>
+            </InsetPanel>
+
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[0.72rem] font-bold"
+              style={{
+                background: isUpcoming
+                  ? "var(--accent-soft)"
+                  : "var(--surface)",
+                borderColor: isUpcoming
+                  ? "var(--accent-primary)"
+                  : "var(--border-subtle)",
+                color: "var(--text-primary)",
+              }}
+            >
+              {event.currency}
+            </span>
+
+            <ImpactPill impact={event.impact} />
+
+            <span
+              className="rounded-full px-2 py-1 text-[0.65rem] font-medium"
+              style={{
+                background: isUpcoming
+                  ? "var(--surface)"
+                  : "var(--surface-elevated)",
+                color: "var(--text-tertiary)",
+              }}
+            >
+              {isUpcoming ? "Upcoming" : "Passed"}
+            </span>
+          </div>
+
+          <div>
+            <p
+              className="text-[0.92rem] font-semibold leading-snug"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {event.event}
+            </p>
+            <p
+              className="mt-1 text-[0.72rem] font-medium"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              {event.country}
+            </p>
+          </div>
+        </div>
+      }
+      trailing={
+        <div className="grid min-w-full grid-cols-3 gap-2 sm:min-w-[260px]">
+          <EventValueCell label="Actual" value={event.actual} tone="accent" />
+          <EventValueCell label="Forecast" value={event.forecast} />
+          <EventValueCell label="Previous" value={event.previous} />
+        </div>
+      }
+    />
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+function EventSkeleton() {
+  return (
+    <InsetPanel className="animate-pulse" paddingClassName="p-4">
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <div
+            className="h-11 w-24 rounded-[var(--radius-md)]"
+            style={{ background: "var(--border-subtle)" }}
+          />
+          <div
+            className="h-8 w-16 rounded-full"
+            style={{ background: "var(--border-subtle)" }}
+          />
+          <div
+            className="h-8 w-20 rounded-full"
+            style={{ background: "var(--border-subtle)" }}
+          />
+        </div>
+        <div
+          className="h-4 w-2/3 rounded"
+          style={{ background: "var(--border-subtle)" }}
+        />
+        <div
+          className="h-3 w-1/3 rounded"
+          style={{ background: "var(--border-subtle)" }}
+        />
+        <div className="grid grid-cols-3 gap-2">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-16 rounded-[var(--radius-md)]"
+              style={{ background: "var(--border-subtle)" }}
+            />
+          ))}
+        </div>
+      </div>
+    </InsetPanel>
+  );
+}
+
 export default function NewsPage() {
   const [selectedCurrencies, setSelectedCurrencies] = useState<string[]>([]);
-  const [impact, setImpact] = useState<"all" | "High" | "Medium" | "Low">(
-    "all",
-  );
+  const [impact, setImpact] = useState<ImpactFilter>("all");
   const [dateRange, setDateRange] = useState<DateRange>("today");
   const [events, setEvents] = useState<EconomicEvent[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [nowTimestamp, setNowTimestamp] = useState<number>(() => Date.now());
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
+    setError(null);
+
     try {
       const { from, to } = getRange(dateRange);
       const params = new URLSearchParams({
@@ -307,365 +332,275 @@ export default function NewsPage() {
         currencies: selectedCurrencies.join(","),
         impact,
       });
-      const res = await fetch(`/api/news/economic-calendar?${params}`);
-      const data = await res.json();
-      setEvents(data.events ?? []);
+
+      const response = await fetch(`/api/news/economic-calendar?${params}`);
+      if (!response.ok) {
+        throw new Error("Failed to load calendar events");
+      }
+
+      const data = (await response.json()) as { events?: EconomicEvent[] };
+      setEvents(Array.isArray(data.events) ? data.events : []);
       setLastUpdated(new Date());
-    } catch {
+      setNowTimestamp(Date.now());
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Failed to load calendar events",
+      );
       setEvents([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedCurrencies, impact, dateRange]);
+  }, [dateRange, impact, selectedCurrencies]);
 
   useEffect(() => {
-    fetchEvents();
+    void fetchEvents();
   }, [fetchEvents]);
 
-  const toggleCurrency = (code: string) => {
-    setSelectedCurrencies((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
-    );
-  };
+  const highCount = useMemo(
+    () => events.filter((event) => event.impact === "High").length,
+    [events],
+  );
+  const mediumCount = useMemo(
+    () => events.filter((event) => event.impact === "Medium").length,
+    [events],
+  );
+  const lowCount = useMemo(
+    () => events.filter((event) => event.impact === "Low").length,
+    [events],
+  );
+  const upcomingCount = useMemo(
+    () =>
+      events.filter((event) => new Date(event.time).getTime() >= nowTimestamp)
+        .length,
+    [events, nowTimestamp],
+  );
 
-  const highCount = events.filter((e) => e.impact === "High").length;
-  const mediumCount = events.filter((e) => e.impact === "Medium").length;
-  const lowCount = events.filter((e) => e.impact === "Low").length;
-
-  const DATE_RANGE_OPTS: { key: DateRange; label: string }[] = [
-    { key: "today", label: "Today" },
-    { key: "tomorrow", label: "Tomorrow" },
-    { key: "this-week", label: "This Week" },
-    { key: "next-week", label: "Next Week" },
-  ];
-
-  const IMPACT_OPTS = [
-    { key: "all" as const, label: "All", dot: "var(--text-tertiary)" },
-    { key: "High" as const, label: "High", dot: "#ef4444" },
-    { key: "Medium" as const, label: "Medium", dot: "#f59e0b" },
-    { key: "Low" as const, label: "Low", dot: "var(--text-tertiary)" },
-  ];
+  const description = lastUpdated
+    ? `${events.length} scheduled releases in view. Updated at ${format(lastUpdated, "HH:mm")}.`
+    : "Major macro releases and central bank events for your selected window.";
 
   return (
-    <div
-      className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden page-enter"
-      style={{ background: "var(--app-bg)" }}
-    >
-      {/* ── Premium Page Header ── */}
-      <div
-        className="gradient-mesh-header px-6 pt-5 pb-4 shrink-0"
-        style={{
-          background: "var(--surface)",
-          borderBottom: "1px solid var(--border-default)",
-        }}
-      >
-        {/* Title Row */}
-        <div className="flex items-start justify-between mb-5 relative z-10">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <div
-                className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-default)]"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))",
-                  boxShadow: "0 4px 14px var(--accent-glow)",
-                }}
-              >
-                <Zap size={15} color="#fff" />
-              </div>
-              <h1
-                className="text-gradient"
-                style={{
-                  fontWeight: 800,
-                  fontSize: "1.5rem",
-                  letterSpacing: "-0.03em",
-                  lineHeight: 1.1,
-                }}
-              >
-                Economic Calendar
-              </h1>
-            </div>
-            <div className="flex items-center gap-3 pl-10">
-              <p
-                className="text-[0.72rem] font-medium"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                {lastUpdated
-                  ? `${events.length} events available · Updated at ${format(lastUpdated, "HH:mm")}`
-                  : "Fetching events..."}
-              </p>
-            </div>
-          </div>
+    <div className="page-root page-sections">
+      <AppPageHeader
+        eyebrow="Market Calendar"
+        title="Economic Calendar"
+        description={description}
+        icon={<Zap size={18} color="white" />}
+        actions={
+          <Button variant="outline" size="sm" onClick={fetchEvents} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
+      />
 
-          {/* Header Actions + Stats */}
-          <div className="flex items-center gap-3">
-            {/* Stat chips */}
-            <div
-              className="hidden md:flex items-center divide-x rounded-[var(--radius-lg)] px-4 py-2.5"
-              style={{
-                background: "var(--surface-elevated)",
-                border: "1px solid var(--border-default)",
-              }}
+      <ControlSurface>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,240px)_minmax(0,240px)_1fr]">
+          <FieldGroup label="Date Range">
+            <div className="flex flex-wrap gap-2">
+              {DATE_RANGE_OPTIONS.map((option) => (
+                <ChoiceChip
+                  key={option.key}
+                  active={dateRange === option.key}
+                  onClick={() => setDateRange(option.key)}
+                >
+                  {option.label}
+                </ChoiceChip>
+              ))}
+            </div>
+          </FieldGroup>
+
+          <FieldGroup label="Impact">
+            <div className="flex flex-wrap gap-2">
+              {IMPACT_OPTIONS.map((option) => (
+                <ChoiceChip
+                  key={option.key}
+                  active={impact === option.key}
+                  onClick={() => setImpact(option.key)}
+                  activeColor={option.activeColor}
+                  activeBackground={option.activeBackground}
+                  activeBorderColor={option.activeBorderColor}
+                >
+                  {option.label}
+                </ChoiceChip>
+              ))}
+            </div>
+          </FieldGroup>
+
+          <FieldGroup
+            label="Currencies"
+            meta={
+              selectedCurrencies.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 py-0 text-[0.72rem]"
+                  onClick={() => setSelectedCurrencies([])}
+                >
+                  Clear all
+                </Button>
+              ) : null
+            }
+          >
+            <div className="flex flex-wrap gap-2">
+              {CURRENCIES.map((currency) => {
+                const active = selectedCurrencies.includes(currency.code);
+                return (
+                  <ChoiceChip
+                    key={currency.code}
+                    active={active}
+                    onClick={() =>
+                      setSelectedCurrencies((current) =>
+                        current.includes(currency.code)
+                          ? current.filter((code) => code !== currency.code)
+                          : [...current, currency.code],
+                      )
+                    }
+                  >
+                    {currency.code}
+                  </ChoiceChip>
+                );
+              })}
+            </div>
+          </FieldGroup>
+        </div>
+      </ControlSurface>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricCard
+          label="High Impact"
+          value={String(highCount)}
+          helper="Priority releases"
+          tone="loss"
+        />
+        <AppMetricCard
+          label="Medium Impact"
+          value={String(mediumCount)}
+          helper="Watch closely"
+          tone="warning"
+        />
+        <AppMetricCard
+          label="Low Impact"
+          value={String(lowCount)}
+          helper="Lower urgency"
+          tone="accent"
+        />
+        <AppMetricCard
+          label="Upcoming"
+          value={String(upcomingCount)}
+          helper="Still ahead"
+          tone="default"
+        />
+      </div>
+
+      {error ? (
+        <AppPanelEmptyState
+          title="Unable to load the calendar"
+          description={error}
+          action={
+            <Button variant="outline" onClick={fetchEvents}>
+              Try again
+            </Button>
+          }
+        />
+      ) : null}
+
+      {!error ? (
+        <AppPanel>
+        <SectionHeader
+          eyebrow="Event Feed"
+          title="Major Scheduled Events"
+          subtitle="Important macro releases and central bank events in your selected window."
+          action={
+            <InsetPanel
+              paddingClassName="px-3 py-2"
+              className="hidden sm:block"
             >
-              <div className="pr-4">
-                <StatChip dot="#ef4444" count={highCount} label="High" />
-              </div>
-              <div className="px-4">
-                <StatChip dot="#f59e0b" count={mediumCount} label="Medium" />
-              </div>
-              <div className="pl-4">
-                <StatChip
-                  dot="var(--text-tertiary)"
-                  count={lowCount}
-                  label="Low"
-                />
-              </div>
-              <div className="pl-4 flex items-center gap-1.5">
-                <TrendingUp
-                  size={12}
+              <div className="flex items-center gap-2">
+                <CalendarDays
+                  className="h-4 w-4"
                   style={{ color: "var(--accent-primary)" }}
                 />
                 <span
-                  className="font-mono font-bold text-[0.8rem]"
+                  className="mono text-[0.76rem] font-semibold"
                   style={{ color: "var(--text-primary)" }}
                 >
                   {events.length}
                 </span>
                 <span
-                  className="text-[0.68rem] font-medium"
+                  className="text-[0.7rem]"
                   style={{ color: "var(--text-tertiary)" }}
                 >
-                  Total
+                  events
                 </span>
               </div>
-            </div>
+            </InsetPanel>
+          }
+        />
 
-            <Button
-              type="button"
-              onClick={fetchEvents}
-              disabled={loading}
-              variant="outline"
-              className="h-auto gap-1.5 rounded-[var(--radius-default)] border-[var(--border-default)] bg-[var(--surface-elevated)] px-3.5 py-2 text-[0.73rem] font-semibold text-[var(--text-secondary)] shadow-none"
-              style={{
-                background: "var(--surface-elevated)",
-              }}
-            >
-              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        {/* Date range tabs */}
-        <div className="flex items-center gap-1.5 mb-3 relative z-10">
-          <div
-            className="flex items-center gap-1 p-1 rounded-[var(--radius-md)]"
-            style={{
-              background: "var(--surface-elevated)",
-              border: "1px solid var(--border-default)",
-            }}
-          >
-            {DATE_RANGE_OPTS.map((opt) => (
-              <Button
-                key={opt.key}
-                type="button"
-                onClick={() => setDateRange(opt.key)}
-                variant="ghost"
-                size="sm"
-                className="h-auto rounded-[var(--radius-sm)] px-3 py-1 text-[0.71rem] font-semibold"
-                style={{
-                  background:
-                    dateRange === opt.key ? "var(--surface)" : "transparent",
-                  color:
-                    dateRange === opt.key
-                      ? "var(--text-primary)"
-                      : "var(--text-tertiary)",
-                  boxShadow:
-                    dateRange === opt.key ? "var(--shadow-sm)" : "none",
-                }}
-              >
-                {opt.label}
-              </Button>
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <EventSkeleton key={index} />
             ))}
           </div>
-
-          <div
-            style={{
-              width: "1px",
-              height: "20px",
-              background: "var(--border-default)",
-            }}
+        ) : events.length === 0 ? (
+          <WidgetEmptyState
+            icon={<Clock3 className="h-5 w-5" />}
+            title="No events matched your filters"
+            description="Adjust the date range, impact, or currencies to widen the calendar view."
+            action={
+              <Button variant="outline" onClick={() => {
+                setImpact("all");
+                setSelectedCurrencies([]);
+                setDateRange("today");
+              }}>
+                Reset filters
+              </Button>
+            }
           />
-
-          {/* Impact filter pills */}
-          <div className="flex items-center gap-1">
-            {IMPACT_OPTS.map((opt) => {
-              const isActive = impact === opt.key;
-              return (
-                <Button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => setImpact(opt.key)}
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto gap-1.5 rounded-full px-2.5 py-1 text-[0.69rem] font-semibold"
-                  style={{
-                    background: isActive ? "var(--surface)" : "transparent",
-                    color: isActive
-                      ? "var(--text-primary)"
-                      : "var(--text-tertiary)",
-                    border: `1px solid ${isActive ? "var(--border-active)" : "transparent"}`,
-                    boxShadow: isActive ? "var(--shadow-sm)" : "none",
-                  }}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: opt.dot }}
-                    />
-                    {opt.label}
-                </Button>
-              );
-            })}
+        ) : (
+          <div className="space-y-3">
+            {events.map((event) => (
+              <EventCard key={event.id} event={event} nowTimestamp={nowTimestamp} />
+            ))}
           </div>
-        </div>
+        )}
+        </AppPanel>
+      ) : null}
 
-        {/* Currency filter chips */}
-        <div className="flex items-center gap-1.5 flex-wrap relative z-10">
-          <span
-            className="text-[0.63rem] font-semibold uppercase tracking-wider mr-1"
+      <InsetPanel
+        tone="accent"
+        className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+      >
+        <div className="space-y-1">
+          <p className="headline-md">Reading the calendar</p>
+          <p
+            className="text-[0.78rem] leading-relaxed"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Focus first on high-impact releases, then narrow to the currencies
+            you actively trade. The filter bar and event cards now stay usable
+            on mobile, tablet, and desktop without collapsing the impact detail.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-start gap-2">
+          <AlertTriangle
+            className="mt-0.5 h-4 w-4"
+            style={{ color: "var(--warning-primary)" }}
+          />
+          <p
+            className="max-w-xs text-[0.72rem] leading-relaxed"
             style={{ color: "var(--text-tertiary)" }}
           >
-            Currencies
-          </span>
-          {CURRENCIES.map((currency) => {
-            const isSelected = selectedCurrencies.includes(currency.code);
-            return (
-              <Button
-                key={currency.code}
-                type="button"
-                onClick={() => toggleCurrency(currency.code)}
-                variant="ghost"
-                size="sm"
-                className={`h-auto gap-1.5 rounded-full px-2.5 py-1 text-[0.69rem] font-semibold border ${isSelected ? "currency-chip-active" : ""}`}
-                style={
-                  !isSelected
-                    ? {
-                        background: "var(--surface-elevated)",
-                        borderColor: "var(--border-default)",
-                        color: "var(--text-secondary)",
-                      }
-                    : undefined
-                }
-              >
-                <span>{currency.flag}</span>
-                <span>{currency.code}</span>
-              </Button>
-            );
-          })}
-          {selectedCurrencies.length > 0 && (
-            <Button
-              type="button"
-              onClick={() => setSelectedCurrencies([])}
-              variant="ghost"
-              size="sm"
-              className="ml-1 h-auto px-0 py-0 text-[0.67rem] font-semibold text-[var(--text-tertiary)] hover:bg-transparent hover:opacity-70"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Clear all
-            </Button>
-          )}
+            Treat clustered high-impact releases as active risk windows and
+            review the actual result once the event prints.
+          </p>
         </div>
-      </div>
-
-      {/* ── Body: Events + optional AI panel ── */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Events List */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Sticky column header */}
-          <div
-            className="sticky top-0 flex items-center gap-4 px-5 py-2.5 z-10"
-            style={{
-              background: "var(--surface-elevated)",
-              borderBottom: "1px solid var(--border-default)",
-              backdropFilter: "blur(8px)",
-            }}
-          >
-            {[
-              { w: "w-14", label: "Time" },
-              { w: "w-12", label: "CCY" },
-              { w: "w-20", label: "Impact" },
-              { w: "flex-1", label: "Event" },
-            ].map((col) => (
-              <div
-                key={col.label}
-                className={`${col.w} shrink-0 text-[0.58rem] uppercase tracking-widest font-bold`}
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                {col.label}
-              </div>
-            ))}
-            <div
-              className="flex gap-5 shrink-0 text-[0.58rem] uppercase tracking-widest font-bold"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              <div className="w-14 text-center">Actual</div>
-              <div className="w-14 text-center">Forecast</div>
-              <div className="w-14 text-center">Previous</div>
-            </div>
-          </div>
-
-          {/* Loading skeletons */}
-          {loading && (
-            <div>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <SkeletonRow key={i} />
-              ))}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!loading && events.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-28 gap-5">
-              <div
-                className="flex h-16 w-16 items-center justify-center rounded-2xl"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--accent-soft), var(--surface))",
-                  border: "1px solid var(--border-active)",
-                  boxShadow: "0 8px 32px var(--accent-glow)",
-                }}
-              >
-                <Clock size={26} style={{ color: "var(--accent-primary)" }} />
-              </div>
-              <div className="text-center">
-                <p
-                  className="font-semibold mb-1.5"
-                  style={{
-                    fontSize: "1rem",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  No events found
-                </p>
-                <p
-                  className="text-[0.76rem] font-medium max-w-xs"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  Adjust your currency filters or choose a different date range
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Events */}
-          {!loading &&
-            events.map((event, i) => (
-              <EventRow key={event.id} event={event} index={i} />
-            ))}
-        </div>
-
-
-      </div>
+      </InsetPanel>
     </div>
   );
 }
