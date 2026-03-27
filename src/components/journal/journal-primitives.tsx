@@ -4,14 +4,27 @@ import { type ReactNode, useCallback, useId, useState } from "react";
 import { Circle, Star } from "lucide-react";
 
 import type { QualityRating } from "@/domain/journal-types";
-import { ChoiceChip, AppTextArea } from "@/components/ui/control-primitives";
+import {
+  ChoiceChip,
+  AppTextArea,
+} from "@/components/ui/control-primitives";
 import { Input } from "@/components/ui/input";
 import { SectionHeader } from "@/components/ui/page-primitives";
 import { InsetPanel } from "@/components/ui/surface-primitives";
+import { cn } from "@/lib/utils";
 
 const QUALITY_VALUES: readonly QualityRating[] = [1, 2, 3, 4, 5];
 
 type JournalChoiceTone = "neutral" | "profit" | "loss" | "warning" | "accent";
+export type JournalTabState = "empty" | "progress" | "complete";
+type JournalSectionVariant = "editorial" | "structured" | "tool";
+
+export interface JournalTabItem {
+  id: string;
+  label: string;
+  progressLabel: string;
+  state: JournalTabState;
+}
 
 function choiceToneStyles(tone: JournalChoiceTone) {
   if (tone === "accent") {
@@ -53,23 +66,74 @@ function choiceToneStyles(tone: JournalChoiceTone) {
   };
 }
 
+function tabStateStyles(state: JournalTabState) {
+  if (state === "complete") {
+    return {
+      dotColor: "var(--profit-primary)",
+      metaColor: "var(--profit-primary)",
+    };
+  }
+
+  if (state === "progress") {
+    return {
+      dotColor: "var(--warning-primary)",
+      metaColor: "var(--warning-primary)",
+    };
+  }
+
+  return {
+    dotColor: "var(--border-default)",
+    metaColor: "var(--text-tertiary)",
+  };
+}
+
 export function JournalSection({
   title,
   subtitle,
   children,
+  variant = "structured",
+  className,
+  contentClassName,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  variant?: JournalSectionVariant;
+  className?: string;
+  contentClassName?: string;
 }) {
+  if (variant === "editorial") {
+    return (
+      <section
+        className={cn("space-y-6 pb-8", className)}
+        style={{ borderBottom: "1px solid var(--border-subtle)" }}
+      >
+        <SectionHeader
+          className="mb-0"
+          title={title}
+          subtitle={subtitle}
+        />
+        <div className={cn("space-y-5", contentClassName)}>{children}</div>
+      </section>
+    );
+  }
+
+  const panelPadding =
+    variant === "tool" ? "px-4 py-4 sm:px-5" : "px-5 py-5 sm:px-6";
+
   return (
-    <InsetPanel className="space-y-5" paddingClassName="px-5 py-5 sm:px-6">
+    <InsetPanel
+      className={cn(variant === "tool" ? "space-y-4" : "space-y-5", className)}
+      paddingClassName={panelPadding}
+    >
       <SectionHeader
         className="mb-0"
         title={title}
         subtitle={subtitle}
       />
-      {children}
+      <div className={cn(variant === "tool" ? "space-y-4" : "space-y-5", contentClassName)}>
+        {children}
+      </div>
     </InsetPanel>
   );
 }
@@ -100,6 +164,113 @@ export function JournalChoiceChip({
   );
 }
 
+export function JournalTabRail({
+  items,
+  activeTab,
+  onChange,
+  ariaLabel = "Journal sections",
+}: {
+  items: JournalTabItem[];
+  activeTab: string;
+  onChange: (id: string) => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <div
+      className="overflow-x-auto"
+      style={{ scrollbarWidth: "thin" }}
+    >
+      <div
+        role="tablist"
+        aria-label={ariaLabel}
+        className="flex min-w-max gap-2 pb-1"
+      >
+        {items.map((item) => {
+          const active = item.id === activeTab;
+          const styles = tabStateStyles(item.state);
+
+          return (
+            <button
+              key={item.id}
+              id={`${item.id}-tab`}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-controls={`${item.id}-panel`}
+              tabIndex={active ? 0 : -1}
+              onClick={() => onChange(item.id)}
+              className="min-w-[8.5rem] shrink-0 rounded-t-[var(--radius-sm)] border-b-2 px-2.5 pb-3 pt-1 text-left transition-colors sm:min-w-[9.5rem]"
+              style={{
+                background: "transparent",
+                borderBottomColor: active
+                  ? "var(--accent-primary)"
+                  : "transparent",
+              }}
+            >
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: styles.dotColor }}
+                />
+                <span
+                  className="truncate"
+                  style={{
+                    color: active
+                      ? "var(--accent-primary)"
+                      : "var(--text-primary)",
+                    fontFamily: "var(--font-inter)",
+                    fontSize: "12.5px",
+                    fontWeight: 700,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {item.label}
+                </span>
+              </div>
+              <p
+                style={{
+                  color: styles.metaColor,
+                  fontFamily: "var(--font-jb-mono)",
+                  fontSize: "11px",
+                  lineHeight: 1.35,
+                  marginTop: "8px",
+                  paddingLeft: "18px",
+                }}
+              >
+                {item.progressLabel}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function JournalTabPanel({
+  id,
+  active,
+  children,
+  className,
+}: {
+  id: string;
+  active: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      id={`${id}-panel`}
+      role="tabpanel"
+      aria-labelledby={`${id}-tab`}
+      hidden={!active}
+      className={cn("space-y-8", className)}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function JournalPromptField({
   prompt,
   value,
@@ -116,14 +287,14 @@ export function JournalPromptField({
   const fieldId = useId();
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <label
         htmlFor={fieldId}
         style={{
           color: "var(--text-secondary)",
           fontFamily: "var(--font-inter)",
-          fontSize: "13px",
-          lineHeight: 1.5,
+          fontSize: "13.5px",
+          lineHeight: 1.65,
         }}
       >
         {prompt}
@@ -134,12 +305,12 @@ export function JournalPromptField({
         onChange={(event) => onChange(event.target.value)}
         rows={rows}
         placeholder={placeholder}
-        className="px-4 py-3 text-[0.875rem]"
+        className="px-5 py-4 text-[0.9375rem]"
         style={{
           background: "var(--surface)",
           borderColor: "var(--border-subtle)",
           color: "var(--text-primary)",
-          lineHeight: 1.7,
+          lineHeight: 1.8,
         }}
       />
     </div>
@@ -346,14 +517,14 @@ export function JournalTagField({
           </ChoiceChip>
         ))}
         <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={commit}
-            id={fieldId}
-            aria-label={label}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === ",") {
-                event.preventDefault();
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          id={fieldId}
+          aria-label={label}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
               commit();
             }
           }}
@@ -363,9 +534,9 @@ export function JournalTagField({
             background: "var(--surface)",
             borderColor: "var(--border-subtle)",
             color: "var(--text-primary)",
-            }}
-          />
-        </div>
+          }}
+        />
+      </div>
     </fieldset>
   );
 }

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { AnimatePresence } from "framer-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import {
@@ -18,11 +19,11 @@ import {
 } from "@/components/journal/trade-review-rail";
 import { TradeReviewDocument } from "@/components/journal/trade-review-document";
 import {
-  AppPageHeader,
   AppPanel,
   AppPanelEmptyState,
 } from "@/components/ui/page-primitives";
 import { WidgetEmptyState } from "@/components/ui/surface-primitives";
+import { Button } from "@/components/ui/button";
 import { mapTradeToViewModel } from "@/domain/journal-mapper";
 import type { JournalTradeViewModel } from "@/domain/journal-types";
 import { getTrades } from "@/lib/api/client/trades";
@@ -138,6 +139,7 @@ export default function JournalPage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [railOpen, setRailOpen] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
   const tradeParam = searchParams.get("trade");
@@ -317,6 +319,14 @@ export default function JournalPage() {
     [pathname, router, searchParams],
   );
 
+  const handleSelectTrade = useCallback(
+    (tradeId: string) => {
+      goToTrade(tradeId);
+      setRailOpen(false);
+    },
+    [goToTrade],
+  );
+
   const goToNextPending = useCallback(() => {
     if (!activeRecord) {
       return;
@@ -338,7 +348,7 @@ export default function JournalPage() {
 
   if (loading) {
     return (
-      <div className="page-root page-sections h-[calc(100dvh-64px)]">
+      <div className="flex h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6">
         <AppPanel className="flex min-h-[220px] items-center px-6">
           <p
             style={{
@@ -356,7 +366,7 @@ export default function JournalPage() {
 
   if (records.length === 0) {
     return (
-      <div className="page-root page-sections h-[calc(100dvh-64px)]">
+      <div className="flex h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6">
         <AppPanelEmptyState
           minHeight={260}
           title="No closed trades yet"
@@ -367,14 +377,73 @@ export default function JournalPage() {
   }
 
   return (
-    <div className="page-root page-sections h-[calc(100dvh-64px)] overflow-hidden">
-      <AppPageHeader
-        className="stagger-1"
-        eyebrow="Trade Review"
-        title="Journal"
-        description={`Post-trade review for ${accountLabel}. ${pendingCount} still need review.`}
-        actions={
+    <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col gap-4 overflow-hidden px-4 py-4 sm:px-6">
+      <AppPanel className="stagger-1 px-4 py-3 sm:px-5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                style={{
+                  color: "var(--text-tertiary)",
+                  fontFamily: "var(--font-inter)",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  letterSpacing: "0.16em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Journal workspace
+              </span>
+              <span
+                className="rounded-full px-2.5 py-1"
+                style={{
+                  background: "var(--surface-elevated)",
+                  border: "1px solid var(--border-subtle)",
+                  color: "var(--text-secondary)",
+                  fontFamily: "var(--font-inter)",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                }}
+              >
+                {accountLabel}
+              </span>
+            </div>
+            <p
+              className="mt-1"
+              style={{
+                color: "var(--text-secondary)",
+                fontFamily: "var(--font-inter)",
+                fontSize: "14px",
+                lineHeight: 1.5,
+              }}
+            >
+              {pendingCount} pending reviews across {records.length} closed trades.
+            </p>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setRailOpen((current) => !current)}
+              style={{
+                background: "var(--surface)",
+                borderColor: railOpen
+                  ? "var(--accent-primary)"
+                  : "var(--border-subtle)",
+                color: railOpen
+                  ? "var(--accent-primary)"
+                  : "var(--text-primary)",
+              }}
+            >
+              {railOpen ? (
+                <PanelLeftClose size={14} />
+              ) : (
+                <PanelLeftOpen size={14} />
+              )}
+              {railOpen ? "Hide trade list" : "Browse trades"}
+            </Button>
             <span className="badge-accent rounded-full px-2.5 py-1">
               {pendingCount} pending
             </span>
@@ -382,23 +451,37 @@ export default function JournalPage() {
               {records.length} closed trades loaded
             </span>
           </div>
-        }
-      />
+        </div>
+      </AppPanel>
 
-      <section className="stagger-2 grid min-h-0 flex-1 grid-rows-[300px_minmax(0,1fr)] gap-5 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)] lg:grid-rows-1">
-        <AppPanel className="min-h-0 overflow-hidden p-0">
-          <TradeReviewRail
-            items={filteredRecords.map((record) => record.item)}
-            activeTradeId={activeTradeId}
-            search={search}
-            onSearchChange={setSearch}
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-            onSelectTrade={goToTrade}
+      <section className="stagger-2 relative min-h-0 flex-1 overflow-hidden">
+        {railOpen ? (
+          <button
+            type="button"
+            aria-label="Close trade list"
+            className="absolute inset-0 z-10"
+            onClick={() => setRailOpen(false)}
+            style={{ background: "color-mix(in srgb, var(--surface) 62%, transparent)" }}
           />
-        </AppPanel>
+        ) : null}
 
-        <AppPanel className="min-h-0 overflow-hidden p-0">
+        {railOpen ? (
+          <div className="absolute inset-y-0 left-0 z-20 w-full max-w-[24rem] pr-3 sm:w-[21rem]">
+            <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-[0_20px_48px_rgba(15,23,42,0.18)]">
+              <TradeReviewRail
+                items={filteredRecords.map((record) => record.item)}
+                activeTradeId={activeTradeId}
+                search={search}
+                onSearchChange={setSearch}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+                onSelectTrade={handleSelectTrade}
+              />
+            </AppPanel>
+          </div>
+        ) : null}
+
+        <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-none">
           {!activeRecord ? (
             <div className="flex h-full items-center justify-center px-6">
               <WidgetEmptyState
