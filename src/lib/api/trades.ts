@@ -46,86 +46,81 @@ export async function getTrades(
   userId: string,
   filters?: TradeFilters
 ): Promise<Trade[]> {
-  try {
-    // Build conditions array
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const conditions: any[] = [eq(trades.userId, userId)];
+  // Build conditions array
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const conditions: any[] = [eq(trades.userId, userId)];
 
-    if (filters?.status && filters.status !== 'all') {
-      // Normalise to uppercase to match DB constraint ('OPEN' | 'CLOSED')
-      conditions.push(eq(trades.status, filters.status.toUpperCase()));
-    }
-    if (filters?.direction && filters.direction !== 'all') {
-      conditions.push(eq(trades.direction, filters.direction));
-    }
-    if (filters?.playbookId) {
-      conditions.push(eq(trades.playbookId, filters.playbookId));
-    }
-    if (filters?.propAccountId === 'unassigned') {
-      conditions.push(isNull(trades.propAccountId));
-    } else if (filters?.propAccountId) {
-      conditions.push(eq(trades.propAccountId, filters.propAccountId));
-    }
-    if (filters?.startDate) {
-      conditions.push(gte(trades.entryDate, new Date(filters.startDate)));
-    }
-    if (filters?.endDate) {
-      conditions.push(lte(trades.entryDate, new Date(filters.endDate)));
-    }
-    if (filters?.exitStartDate) {
-      conditions.push(gte(trades.exitDate, new Date(filters.exitStartDate)));
-    }
-    if (filters?.exitEndDate) {
-      conditions.push(lte(trades.exitDate, new Date(filters.exitEndDate)));
-    }
-    if (filters?.search) {
-      conditions.push(ilike(trades.symbol, `%${filters.search}%`));
-    }
-
-    const orderColumn =
-      filters?.sortBy === 'exitDate'
-        ? trades.exitDate
-        : filters?.sortBy === 'createdAt'
-          ? trades.createdAt
-          : trades.entryDate;
-    const orderDirection =
-      filters?.sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
-
-    const query = db
-      .select()
-      .from(trades)
-      .where(and(...conditions))
-      .orderBy(orderDirection);
-
-    const hasLimit =
-      typeof filters?.limit === 'number' && Number.isFinite(filters.limit);
-    const hasOffset =
-      typeof filters?.offset === 'number' &&
-      Number.isFinite(filters.offset) &&
-      filters.offset > 0;
-
-    if (hasLimit && hasOffset) {
-      const safeLimit = Math.max(1, Math.min(filters.limit as number, 250));
-      const safeOffset = filters.offset as number;
-      return query
-        .limit(safeLimit)
-        .offset(safeOffset);
-    }
-
-    if (hasLimit) {
-      const safeLimit = Math.max(1, Math.min(filters.limit as number, 250));
-      return query.limit(safeLimit);
-    }
-
-    if (hasOffset) {
-      return query.offset(filters.offset as number);
-    }
-
-    return query;
-  } catch (err) {
-    console.warn('[getTrades] error:', err instanceof Error ? err.message : String(err));
-    return [];
+  if (filters?.status && filters.status !== 'all') {
+    // Normalise to uppercase to match DB constraint ('OPEN' | 'CLOSED')
+    conditions.push(eq(trades.status, filters.status.toUpperCase()));
   }
+  if (filters?.direction && filters.direction !== 'all') {
+    conditions.push(eq(trades.direction, filters.direction));
+  }
+  if (filters?.playbookId) {
+    conditions.push(eq(trades.playbookId, filters.playbookId));
+  }
+  if (filters?.propAccountId === 'unassigned') {
+    conditions.push(isNull(trades.propAccountId));
+  } else if (filters?.propAccountId) {
+    conditions.push(eq(trades.propAccountId, filters.propAccountId));
+  }
+  if (filters?.startDate) {
+    conditions.push(gte(trades.entryDate, new Date(filters.startDate)));
+  }
+  if (filters?.endDate) {
+    conditions.push(lte(trades.entryDate, new Date(filters.endDate)));
+  }
+  if (filters?.exitStartDate) {
+    conditions.push(gte(trades.exitDate, new Date(filters.exitStartDate)));
+  }
+  if (filters?.exitEndDate) {
+    conditions.push(lte(trades.exitDate, new Date(filters.exitEndDate)));
+  }
+  if (filters?.search) {
+    conditions.push(ilike(trades.symbol, `%${filters.search}%`));
+  }
+
+  const orderColumn =
+    filters?.sortBy === 'exitDate'
+      ? trades.exitDate
+      : filters?.sortBy === 'createdAt'
+        ? trades.createdAt
+        : trades.entryDate;
+  const orderDirection =
+    filters?.sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+
+  const query = db
+    .select()
+    .from(trades)
+    .where(and(...conditions))
+    .orderBy(orderDirection);
+
+  const hasLimit =
+    typeof filters?.limit === 'number' && Number.isFinite(filters.limit);
+  const hasOffset =
+    typeof filters?.offset === 'number' &&
+    Number.isFinite(filters.offset) &&
+    filters.offset > 0;
+
+  if (hasLimit && hasOffset) {
+    const safeLimit = Math.max(1, Math.min(filters.limit as number, 250));
+    const safeOffset = filters.offset as number;
+    return query
+      .limit(safeLimit)
+      .offset(safeOffset);
+  }
+
+  if (hasLimit) {
+    const safeLimit = Math.max(1, Math.min(filters.limit as number, 250));
+    return query.limit(safeLimit);
+  }
+
+  if (hasOffset) {
+    return query.offset(filters.offset as number);
+  }
+
+  return query;
 }
 
 export async function getTrade(id: string, userId: string): Promise<Trade | null> {

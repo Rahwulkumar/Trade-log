@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, RefreshCw } from "lucide-react";
 
 import { API_ROUTES } from "@/lib/constants/routes";
@@ -39,7 +39,6 @@ const CHART_POLL_MS = 4000;
 
 interface JournalTradeChartProps {
   tradeId: string;
-  symbol: string;
   entryPrice: number | null;
   exitPrice: number | null;
   stopLoss: number | null;
@@ -49,9 +48,8 @@ interface JournalTradeChartProps {
   direction: "LONG" | "SHORT";
 }
 
-export function JournalTradeChart({
+function JournalTradeChartInner({
   tradeId,
-  symbol,
   entryPrice,
   exitPrice,
   stopLoss,
@@ -96,8 +94,7 @@ export function JournalTradeChart({
   const canLoad =
     entryPrice != null &&
     !!entryTime &&
-    !!exitTime &&
-    symbol.trim().length > 0;
+    !!exitTime;
 
   useEffect(() => {
     activeTimeframeRef.current = timeframe;
@@ -105,7 +102,7 @@ export function JournalTradeChart({
 
   useEffect(() => {
     timeframeCacheRef.current = {};
-  }, [tradeId, symbol, entryTime, exitTime]);
+  }, [tradeId, entryTime, exitTime]);
 
   const loadChart = useCallback(
     async ({ force = false }: { force?: boolean } = {}) => {
@@ -183,9 +180,6 @@ export function JournalTradeChart({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tradeId,
-            symbol,
-            entryTime,
-            exitTime,
             timeframe: requestedTimeframe,
           }),
         });
@@ -260,7 +254,6 @@ export function JournalTradeChart({
       entryPrice,
       entryTime,
       exitTime,
-      symbol,
       timeframe,
       tradeId,
     ],
@@ -412,3 +405,6 @@ export function JournalTradeChart({
     </InsetPanel>
   );
 }
+
+export const JournalTradeChart = memo(JournalTradeChartInner);
+JournalTradeChart.displayName = "JournalTradeChart";

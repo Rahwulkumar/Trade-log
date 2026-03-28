@@ -30,7 +30,7 @@ import {
   getPlaybooks,
   type Playbook,
 } from "@/lib/api/client/playbooks";
-import { getTrades } from "@/lib/api/client/trades";
+import { getTradesStrict } from "@/lib/api/client/trades";
 import type { Trade } from "@/lib/api/trades";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 
@@ -144,9 +144,11 @@ export default function JournalPage() {
   const [loading, setLoading] = useState(true);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [railOpen, setRailOpen] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   const currentUserId = user?.id ?? null;
   const deferredSearch = useDeferredValue(search);
@@ -157,7 +159,7 @@ export default function JournalPage() {
       return [] as Trade[];
     }
 
-    return getTrades({
+    return getTradesStrict({
       status: "closed",
       propAccountId: selectedAccountId ?? undefined,
       sortBy: "exitDate",
@@ -181,6 +183,7 @@ export default function JournalPage() {
       if (!currentUserId) {
         if (!cancelled) {
           setTrades([]);
+          setLoadError(null);
           setLoading(false);
         }
         return;
@@ -190,18 +193,31 @@ export default function JournalPage() {
         setLoading(true);
       }
 
-      const rows = await loadTrades();
+      try {
+        const rows = await loadTrades();
 
-      if (!cancelled) {
-        setTrades(rows);
-        setLoading(false);
+        if (!cancelled) {
+          setTrades(rows);
+          setLoadError(null);
+          setLoading(false);
+        }
+      } catch (loadTradesError) {
+        if (!cancelled) {
+          setTrades([]);
+          setLoadError(
+            loadTradesError instanceof Error
+              ? loadTradesError.message
+              : "The journal could not load your trades right now.",
+          );
+          setLoading(false);
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, loadTrades]);
+  }, [currentUserId, loadTrades, reloadNonce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -332,6 +348,12 @@ export default function JournalPage() {
     (record) => record.trade.id === activeTradeId,
   );
   const activeRecord = activeIndex >= 0 ? filteredRecords[activeIndex] : null;
+  const previousTradeId =
+    activeIndex > 0 ? filteredRecords[activeIndex - 1]?.trade.id ?? null : null;
+  const nextTradeId =
+    activeIndex >= 0 && activeIndex < filteredRecords.length - 1
+      ? filteredRecords[activeIndex + 1]?.trade.id ?? null
+      : null;
   const pendingCount = records.filter(
     (record) => record.reviewStatus !== "complete",
   ).length;
@@ -390,6 +412,18 @@ export default function JournalPage() {
     }
   }, [activeRecord, filteredRecords, goToTrade]);
 
+  const handlePreviousTrade = useCallback(() => {
+    if (previousTradeId) {
+      goToTrade(previousTradeId);
+    }
+  }, [goToTrade, previousTradeId]);
+
+  const handleNextTrade = useCallback(() => {
+    if (nextTradeId) {
+      goToTrade(nextTradeId);
+    }
+  }, [goToTrade, nextTradeId]);
+
   if (loading) {
     return (
       <div className="flex min-h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6 lg:h-[calc(100dvh-64px)]">
@@ -415,6 +449,28 @@ export default function JournalPage() {
           minHeight={260}
           title="Sign in to journal trades"
           description="The journal workspace needs your account session so it can load your closed trades and save reviews."
+        />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex min-h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6 lg:h-[calc(100dvh-64px)]">
+        <AppPanelEmptyState
+          minHeight={260}
+          title="Could not load journal trades"
+          description={loadError}
+          action={(
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setReloadNonce((current) => current + 1)}
+            >
+              Retry
+            </Button>
+          )}
         />
       </div>
     );
@@ -559,19 +615,8 @@ export default function JournalPage() {
                       total={filteredRecords.length}
                       hasPrevious={activeIndex > 0}
                       hasNext={activeIndex >= 0 && activeIndex < filteredRecords.length - 1}
-                      onPrevious={() => {
-                        if (activeIndex > 0) {
-                          goToTrade(filteredRecords[activeIndex - 1].trade.id);
-                        }
-                      }}
-                      onNext={() => {
-                        if (
-                          activeIndex >= 0 &&
-                          activeIndex < filteredRecords.length - 1
-                        ) {
-                          goToTrade(filteredRecords[activeIndex + 1].trade.id);
-                        }
-                      }}
+                      onPrevious={handlePreviousTrade}
+                      onNext={handleNextTrade}
                       onNextPending={
                         filteredRecords.some(
                           (record) => record.reviewStatus !== "complete",
@@ -639,19 +684,8 @@ export default function JournalPage() {
                     total={filteredRecords.length}
                     hasPrevious={activeIndex > 0}
                     hasNext={activeIndex >= 0 && activeIndex < filteredRecords.length - 1}
-                    onPrevious={() => {
-                      if (activeIndex > 0) {
-                        goToTrade(filteredRecords[activeIndex - 1].trade.id);
-                      }
-                    }}
-                    onNext={() => {
-                      if (
-                        activeIndex >= 0 &&
-                        activeIndex < filteredRecords.length - 1
-                      ) {
-                        goToTrade(filteredRecords[activeIndex + 1].trade.id);
-                      }
-                    }}
+                    onPrevious={handlePreviousTrade}
+                    onNext={handleNextTrade}
                     onNextPending={
                       filteredRecords.some(
                         (record) => record.reviewStatus !== "complete",

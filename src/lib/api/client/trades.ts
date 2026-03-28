@@ -45,7 +45,29 @@ function clearTradeQueryCache() {
   pendingTradeRequests.clear();
 }
 
-export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
+export function invalidateTradesCache() {
+  clearTradeQueryCache();
+}
+
+async function requestTrades(cacheKey: string): Promise<Trade[]> {
+  const res = await fetch(cacheKey);
+  if (!res.ok) {
+    const errorPayload = await readJsonIfAvailable<{ error?: string }>(res.clone());
+    throw new Error(errorPayload?.error ?? 'Failed to load trades');
+  }
+
+  const data = (await readJsonIfAvailable<Trade[]>(res)) ?? [];
+  tradeResponseCache.set(cacheKey, {
+    expiresAt: Date.now() + TRADE_CACHE_TTL_MS,
+    data,
+  });
+  return data;
+}
+
+async function getTradesInternal(
+  filters: TradeFilters | undefined,
+  strict: boolean,
+): Promise<Trade[]> {
   const cacheKey = getCacheKey(filters);
   const now = Date.now();
   const cached = tradeResponseCache.get(cacheKey);
@@ -55,33 +77,39 @@ export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
 
   const pending = pendingTradeRequests.get(cacheKey);
   if (pending) {
-    return pending;
-  }
-
-  const request = (async () => {
+    if (strict) {
+      return pending;
+    }
     try {
-      const res = await fetch(cacheKey);
-      if (!res.ok) return [];
-      const data = (await readJsonIfAvailable<Trade[]>(res)) ?? [];
-      tradeResponseCache.set(cacheKey, {
-        expiresAt: Date.now() + TRADE_CACHE_TTL_MS,
-        data,
-      });
-      return data;
+      return await pending;
     } catch {
       return [];
-    } finally {
-      pendingTradeRequests.delete(cacheKey);
     }
-  })();
+  }
+
+  const request = requestTrades(cacheKey).finally(() => {
+    pendingTradeRequests.delete(cacheKey);
+  });
 
   pendingTradeRequests.set(cacheKey, request);
+
+  if (strict) {
+    return request;
+  }
 
   try {
     return await request;
   } catch {
     return [];
   }
+}
+
+export async function getTrades(filters?: TradeFilters): Promise<Trade[]> {
+  return getTradesInternal(filters, false);
+}
+
+export async function getTradesStrict(filters?: TradeFilters): Promise<Trade[]> {
+  return getTradesInternal(filters, true);
 }
 
 export async function getTrade(id: string): Promise<Trade | null> {
@@ -106,7 +134,7 @@ export async function createTrade(trade: Omit<Trade, 'id' | 'userId' | 'createdA
   }
   const createdTrade = await readJsonIfAvailable<Trade>(res);
   if (!createdTrade) throw new Error('Failed to create trade');
-  clearTradeQueryCache();
+  invalidateTradesCache();
   return createdTrade;
 }
 
@@ -119,14 +147,14 @@ export async function updateTrade(id: string, updates: Partial<Trade>): Promise<
   if (!res.ok) throw new Error('Failed to update trade');
   const trade = await readJsonIfAvailable<Trade>(res);
   if (!trade) throw new Error('Failed to update trade');
-  clearTradeQueryCache();
+  invalidateTradesCache();
   return trade;
 }
 
 export async function deleteTrade(id: string): Promise<void> {
   const res = await fetch(`/api/trades/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete trade');
-  clearTradeQueryCache();
+  invalidateTradesCache();
 }
 
 export async function getTradesByDateRange(

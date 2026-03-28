@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { JournalEntryDraft } from "@/domain/journal-types";
 import { mapDraftToApiUpdate } from "@/domain/journal-mapper";
 import type { Trade } from "@/lib/api/trades";
 import { readJsonIfAvailable } from "@/lib/api/client/http";
+import { invalidateTradesCache } from "@/lib/api/client/trades";
 
 // ─── useJournalAutosave ─────────────────────────────────────────────────────
 // Replaces the ad-hoc useEffect + handleSave pattern in TradeJournal.
@@ -55,11 +56,6 @@ function stableDraftSnapshot(draft: JournalEntryDraft) {
     ),
     journalReview: { ...draft.journalReview },
   });
-}
-
-function isDraftDirty(a: JournalEntryDraft, b: JournalEntryDraft): boolean {
-  if (a === b) return false;
-  return stableDraftSnapshot(a) !== stableDraftSnapshot(b);
 }
 
 export function useJournalAutosave({
@@ -143,6 +139,7 @@ export function useJournalAutosave({
         return;
       }
 
+      invalidateTradesCache();
       setSavedAt(new Date());
       onSavedRef.current(savedTrade);
     } catch (e) {
@@ -163,7 +160,12 @@ export function useJournalAutosave({
   }, [performSave]);
 
   // ── Autosave effect (trailing debounce) ───────────────────────────────
-  const isDirty = isDraftDirty(draft, initialDraft);
+  const initialSnapshot = useMemo(
+    () => stableDraftSnapshot(initialDraft),
+    [initialDraft],
+  );
+  const draftSnapshot = useMemo(() => stableDraftSnapshot(draft), [draft]);
+  const isDirty = draft !== initialDraft && draftSnapshot !== initialSnapshot;
 
   useEffect(() => {
     if (!isDirty) return;
@@ -179,7 +181,7 @@ export function useJournalAutosave({
         timerRef.current = null;
       }
     };
-  }, [draft, isDirty, debounceMs, performSave]);
+  }, [draftSnapshot, isDirty, debounceMs, performSave]);
 
   return { saving, savedAt, isDirty, save };
 }

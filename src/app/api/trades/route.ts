@@ -32,8 +32,14 @@ export async function GET(request: NextRequest) {
     sortOrder: (searchParams.get('sortOrder') as TradeFilters['sortOrder']) ?? undefined,
   };
 
-  const trades = await getTrades(userId, filters);
-  return NextResponse.json(trades);
+  try {
+    const trades = await getTrades(userId, filters);
+    return NextResponse.json(trades);
+  } catch (routeError) {
+    const message =
+      routeError instanceof Error ? routeError.message : 'Failed to load trades';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {

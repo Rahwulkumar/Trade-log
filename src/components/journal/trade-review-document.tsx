@@ -1,7 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -224,7 +232,7 @@ interface TradeReviewDocumentProps {
   onSaved: (trade: Trade) => void;
 }
 
-export function TradeReviewDocument({
+function TradeReviewDocumentInner({
   trade,
   userId,
   playbooks,
@@ -240,6 +248,7 @@ export function TradeReviewDocument({
   const viewModel = useMemo(() => mapTradeToViewModel(trade), [trade]);
   const initialDraft = useMemo(() => viewModelToDraft(viewModel), [viewModel]);
   const [draft, setDraft] = useState<JournalEntryDraft>(initialDraft);
+  const deferredDraft = useDeferredValue(draft);
   const [activeChapter, setActiveChapter] =
     useState<JournalChapterId>("narrative");
   const [setupTagDraft, setSetupTagDraft] = useState("");
@@ -301,8 +310,8 @@ export function TradeReviewDocument({
         orderLabel: "01",
         summary: "Tell the trade cleanly from first observation to final exit.",
         ...describeChapterProgress([
-          hasText(draft.notes),
-          draft.screenshots.length > 0,
+          hasText(deferredDraft.notes),
+          deferredDraft.screenshots.length > 0,
         ]),
       },
       {
@@ -311,11 +320,11 @@ export function TradeReviewDocument({
         orderLabel: "02",
         summary: "Capture the edge, invalidation, and target logic.",
         ...describeChapterProgress([
-          hasText(draft.journalReview.strategyName),
-          hasText(draft.journalReview.setupName),
-          hasText(draft.journalReview.reasonForTrade),
-          hasText(draft.journalReview.invalidation),
-          hasText(draft.journalReview.targetPlan),
+          hasText(deferredDraft.journalReview.strategyName),
+          hasText(deferredDraft.journalReview.setupName),
+          hasText(deferredDraft.journalReview.reasonForTrade),
+          hasText(deferredDraft.journalReview.invalidation),
+          hasText(deferredDraft.journalReview.targetPlan),
         ]),
       },
       {
@@ -325,14 +334,14 @@ export function TradeReviewDocument({
         summary:
           "Record alignment, conditions, and the context around the trade.",
         ...describeChapterProgress([
-          hasValue(draft.journalReview.timeframeAlignment),
-          hasText(draft.journalReview.higherTimeframeBias),
-          hasText(draft.journalReview.executionTimeframe),
-          hasText(draft.journalReview.triggerTimeframe),
-          hasText(draft.journalReview.higherTimeframeNotes),
-          hasValue(draft.marketCondition),
-          hasText(draft.observations),
-          hasText(draft.journalReview.marketContext),
+          hasValue(deferredDraft.journalReview.timeframeAlignment),
+          hasText(deferredDraft.journalReview.higherTimeframeBias),
+          hasText(deferredDraft.journalReview.executionTimeframe),
+          hasText(deferredDraft.journalReview.triggerTimeframe),
+          hasText(deferredDraft.journalReview.higherTimeframeNotes),
+          hasValue(deferredDraft.marketCondition),
+          hasText(deferredDraft.observations),
+          hasText(deferredDraft.journalReview.marketContext),
         ]),
       },
       {
@@ -341,11 +350,11 @@ export function TradeReviewDocument({
         orderLabel: "04",
         summary: "Break down the entry, management, and exit decisions.",
         ...describeChapterProgress([
-          draft.executionArrays.length > 0,
-          hasText(draft.journalReview.entryReason),
-          hasText(draft.journalReview.managementReview),
-          hasText(draft.executionNotes),
-          hasText(draft.journalReview.exitReason),
+          deferredDraft.executionArrays.length > 0,
+          hasText(deferredDraft.journalReview.entryReason),
+          hasText(deferredDraft.journalReview.managementReview),
+          hasText(deferredDraft.executionNotes),
+          hasText(deferredDraft.journalReview.exitReason),
         ]),
       },
       {
@@ -355,10 +364,10 @@ export function TradeReviewDocument({
         summary:
           "Describe the emotional state before, during, and after the trade.",
         ...describeChapterProgress([
-          hasText(draft.journalReview.psychologyBefore),
-          hasText(draft.journalReview.psychologyDuring),
-          hasText(draft.journalReview.psychologyAfter),
-          hasText(draft.feelings),
+          hasText(deferredDraft.journalReview.psychologyBefore),
+          hasText(deferredDraft.journalReview.psychologyDuring),
+          hasText(deferredDraft.journalReview.psychologyAfter),
+          hasText(deferredDraft.feelings),
         ]),
       },
       {
@@ -367,15 +376,15 @@ export function TradeReviewDocument({
         orderLabel: "06",
         summary: "Rate the trade, record conviction, tags, and excursion.",
         ...describeChapterProgress([
-          hasValue(draft.entryRating),
-          hasValue(draft.exitRating),
-          hasValue(draft.managementRating),
-          hasValue(draft.conviction),
-          hasValue(draft.journalReview.retakeDecision),
-          hasNumber(draft.mae),
-          hasNumber(draft.mfe),
-          draft.setupTags.length > 0,
-          draft.mistakeTags.length > 0,
+          hasValue(deferredDraft.entryRating),
+          hasValue(deferredDraft.exitRating),
+          hasValue(deferredDraft.managementRating),
+          hasValue(deferredDraft.conviction),
+          hasValue(deferredDraft.journalReview.retakeDecision),
+          hasNumber(deferredDraft.mae),
+          hasNumber(deferredDraft.mfe),
+          deferredDraft.setupTags.length > 0,
+          deferredDraft.mistakeTags.length > 0,
         ]),
       },
       {
@@ -385,14 +394,14 @@ export function TradeReviewDocument({
         summary:
           "Distill the lesson and define the next change you will make.",
         ...describeChapterProgress([
-          hasText(draft.lessonLearned),
-          hasText(draft.journalReview.followUpAction),
+          hasText(deferredDraft.lessonLearned),
+          hasText(deferredDraft.journalReview.followUpAction),
         ]),
       },
     ] satisfies JournalChapterItem[];
 
     return items;
-  }, [draft]);
+  }, [deferredDraft]);
 
   const completedChapterCount = chapterItems.filter(
     (item) => item.state === "complete",
@@ -1735,7 +1744,6 @@ export function TradeReviewDocument({
                   <div className="mt-6">
                     <JournalTradeChart
                       tradeId={trade.id}
-                      symbol={viewModel.symbol}
                       entryPrice={viewModel.entryPrice}
                       exitPrice={viewModel.exitPrice}
                       stopLoss={viewModel.stopLoss}
@@ -1856,3 +1864,6 @@ export function TradeReviewDocument({
     </motion.article>
   );
 }
+
+export const TradeReviewDocument = memo(TradeReviewDocumentInner);
+TradeReviewDocument.displayName = "TradeReviewDocument";

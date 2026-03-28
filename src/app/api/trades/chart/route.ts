@@ -4,6 +4,19 @@ import { getTrade } from '@/lib/api/trades';
 import { getTradeChartData } from '@/lib/api/pricing';
 import { parseTradeChartPayload } from '@/lib/validation/trade-chart';
 
+function toTradeTimestamp(value: Date | string | null | undefined): string | null {
+    if (!value) {
+        return null;
+    }
+
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value.toISOString();
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
 export async function POST(request: NextRequest) {
     const { userId, error: authError } = await requireAuth();
     if (authError) return authError;
@@ -21,11 +34,22 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { tradeId, symbol, entryTime, exitTime, timeframe } = result.data;
+        const { tradeId, timeframe } = result.data;
 
         const trade = await getTrade(tradeId, userId);
         if (!trade) {
             return NextResponse.json({ error: 'Trade not found' }, { status: 404 });
+        }
+
+        const entryTime = toTradeTimestamp(trade.entryDate);
+        const exitTime = toTradeTimestamp(trade.exitDate ?? trade.entryDate);
+        const symbol = trade.symbol?.trim();
+
+        if (!symbol || !entryTime || !exitTime) {
+            return NextResponse.json(
+                { error: 'Trade does not have complete chart context in the database' },
+                { status: 400 }
+            );
         }
 
         const chart = await getTradeChartData(

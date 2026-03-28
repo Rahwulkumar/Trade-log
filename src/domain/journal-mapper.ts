@@ -294,6 +294,7 @@ export function mapDraftToTradeUpdate(
       ? draft.screenshots.map((item) => ({
           url: item.url,
           timeframe: item.timeframe,
+          created_at: item.createdAt || undefined,
         }))
       : null,
     journal_review: journalReview,
@@ -379,6 +380,7 @@ export function mapDraftToApiUpdate(
       ? draft.screenshots.map((item) => ({
           url: item.url,
           timeframe: item.timeframe,
+          created_at: item.createdAt || undefined,
         }))
       : null,
     journalReview,
