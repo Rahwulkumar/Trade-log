@@ -9,7 +9,7 @@ import {
 const updateProfileSchema = z.object({
   first_name: z.string().trim().max(80).nullable().optional(),
   last_name: z.string().trim().max(80).nullable().optional(),
-  timezone: z.enum(['utc', 'est', 'pst', 'ist']).nullable().optional(),
+  timezone: z.enum(['utc-4', 'utc', 'est', 'pst', 'ist']).nullable().optional(),
   default_risk_percent: z.number().finite().min(0).max(100).nullable().optional(),
   default_rr_ratio: z.number().finite().min(0).max(100).nullable().optional(),
   default_timeframe: z.enum(['m15', 'm30', 'h1', 'h4', 'd1']).nullable().optional(),

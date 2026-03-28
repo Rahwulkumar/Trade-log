@@ -3,6 +3,9 @@ import 'server-only';
 import { and, asc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
 
 import { computeAnalytics } from '@/lib/analytics/compute';
+import {
+  resolveAnalyticsTimeZone,
+} from '@/lib/analytics/timezone';
 import type {
   AnalyticsAccountScope,
   AnalyticsPayload,
@@ -22,26 +25,6 @@ export interface AnalyticsFilters {
   from?: string | null;
   to?: string | null;
   timeZone?: string | null;
-}
-
-const TIME_ZONE_ALIASES: Record<string, string> = {
-  utc: 'UTC',
-  est: 'America/New_York',
-  pst: 'America/Los_Angeles',
-  ist: 'Asia/Kolkata',
-};
-
-function normalizeTimeZone(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const normalized = TIME_ZONE_ALIASES[trimmed.toLowerCase()] ?? trimmed;
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: normalized }).format(new Date());
-    return normalized;
-  } catch {
-    return null;
-  }
 }
 
 function parseDateStart(value: string | null | undefined): Date | null {
@@ -166,10 +149,10 @@ export async function getAnalyticsPayload(
         ? Number(accountMeta.maxLossPercent)
         : null;
 
-    const timeZone =
-      normalizeTimeZone(filters.timeZone) ??
-      normalizeTimeZone(userPrefsRows[0]?.timezone) ??
-      'UTC';
+    const timeZone = resolveAnalyticsTimeZone(
+      filters.timeZone,
+      userPrefsRows[0]?.timezone,
+    );
 
     return computeAnalytics(tradeRows, {
       accountScope: filters.accountScope,
@@ -220,10 +203,7 @@ export async function getAnalyticsPayload(
     }, 0);
   }
 
-  const timeZone =
-    normalizeTimeZone(filters.timeZone) ??
-    normalizeTimeZone(userPrefs?.timezone) ??
-    'UTC';
+  const timeZone = resolveAnalyticsTimeZone(filters.timeZone, userPrefs?.timezone);
 
   return computeAnalytics(tradeRows, {
     accountScope: filters.accountScope,

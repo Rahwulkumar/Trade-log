@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/auth/server';
-import { analyzeNews, analyzeTrades, chatWithAI, generateStrategy, type ChatMessage } from '@/lib/api/gemini';
+import { analyzeNews, analyzeTrades, chatWithAI, evaluateStrategy, type ChatMessage } from '@/lib/api/gemini';
 import { apiError, apiSuccess, apiValidationError } from '@/lib/api/http';
 import { parseAiRequestPayload } from '@/lib/validation/ai';
 import { checkRateLimit, createRateLimitResponse, getRateLimitClientId } from '@/lib/rate-limit';
@@ -28,12 +28,12 @@ export async function POST(request: NextRequest) {
         const params = result.data;
 
         switch (params.action) {
-            case 'generate-strategy': {
-                const strategy = await generateStrategy(
-                    params.prompt,
-                    params.context as Parameters<typeof generateStrategy>[1]
+            case 'evaluate-strategy': {
+                const evaluation = await evaluateStrategy(
+                    params.strategy,
+                    params.context as Parameters<typeof evaluateStrategy>[1]
                 );
-                return apiSuccess({ strategy });
+                return apiSuccess({ evaluation });
             }
 
             case 'chat': {

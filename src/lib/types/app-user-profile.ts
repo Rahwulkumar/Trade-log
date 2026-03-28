@@ -1,4 +1,4 @@
-export const DEFAULT_APP_TIMEZONE = 'utc';
+export const DEFAULT_APP_TIMEZONE = 'utc-4';
 export const DEFAULT_APP_RISK_PERCENT = 1;
 export const DEFAULT_APP_RR_RATIO = 2;
 export const DEFAULT_APP_TIMEFRAME = 'h4';

@@ -1,12 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { AppPanel, SectionHeader } from "@/components/ui/page-primitives";
 import {
   InsetPanel,
   WidgetEmptyState,
 } from "@/components/ui/surface-primitives";
 import { PlaybookCard } from "@/components/playbooks/playbook-card";
+import {
+  evaluateStrategyWithAI,
+  type StrategyEvaluation,
+} from "@/lib/api/client/ai";
 import type { PlaybookCardData } from "@/lib/playbooks/view-model";
+import { StrategyEvaluationPanel } from "@/components/strategies/strategy-evaluation-panel";
 
 interface StrategyDetailViewProps {
   playbook: PlaybookCardData | null;
@@ -23,6 +30,16 @@ export function StrategyDetailView({
   onToggleActive,
   onDelete,
 }: StrategyDetailViewProps) {
+  const [evaluation, setEvaluation] = useState<StrategyEvaluation | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evaluationError, setEvaluationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEvaluation(null);
+    setEvaluationError(null);
+    setEvaluating(false);
+  }, [playbook?.id]);
+
   if (!playbook) {
     return (
       <AppPanel>
@@ -32,6 +49,27 @@ export function StrategyDetailView({
         />
       </AppPanel>
     );
+  }
+
+  async function handleEvaluate() {
+    if (!playbook) return;
+
+    try {
+      setEvaluating(true);
+      setEvaluationError(null);
+      const next = await evaluateStrategyWithAI({
+        name: playbook.name,
+        description: playbook.description,
+        rules: playbook.rules,
+      });
+      setEvaluation(next);
+    } catch (error) {
+      setEvaluationError(
+        error instanceof Error ? error.message : "Unable to evaluate strategy.",
+      );
+    } finally {
+      setEvaluating(false);
+    }
   }
 
   return (
@@ -88,6 +126,23 @@ export function StrategyDetailView({
               "No strategy narrative has been written yet. Use the manage flow to add market context, trigger logic, and execution intent."}
           </p>
         </AppPanel>
+
+        {evaluationError ? (
+          <InsetPanel tone="loss">
+            <p className="text-sm" style={{ color: "var(--loss-primary)" }}>
+              {evaluationError}
+            </p>
+          </InsetPanel>
+        ) : null}
+
+        <StrategyEvaluationPanel
+          evaluation={evaluation}
+          evaluating={evaluating}
+          onEvaluate={handleEvaluate}
+          disabled={playbook.rules.length === 0}
+          emptyTitle="No AI evaluation yet"
+          emptyDescription="Run an evaluation to see whether this saved strategy is clear, complete, and executable."
+        />
       </div>
 
       <PlaybookCard

@@ -43,13 +43,20 @@ const newsEventSchema = z
   })
   .passthrough();
 
+const strategyEvaluationSchema = z
+  .object({
+    name: trimmedString(160).min(1),
+    description: nullableString(4000).optional(),
+    rules: stringArray(40, 400).min(1),
+  })
+  .strict();
+
 const aiRequestSchema = z.discriminatedUnion('action', [
   z
     .object({
-      action: z.literal('generate-strategy'),
-      prompt: trimmedString(4000).min(1),
+      action: z.literal('evaluate-strategy'),
+      strategy: strategyEvaluationSchema,
       context: strategyContextSchema.optional(),
-      messages: z.array(chatMessageSchema).max(40).optional(),
     })
     .strict(),
   z

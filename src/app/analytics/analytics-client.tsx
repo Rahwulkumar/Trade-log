@@ -6,6 +6,7 @@ import { Activity, Download } from 'lucide-react';
 
 import { AnalyticsAccountSync } from '@/app/analytics/analytics-account-sync';
 import { AnalyticsControls } from '@/app/analytics/analytics-controls';
+import { AnalyticsWorkspace } from '@/components/analytics/analytics-workspace';
 import {
   BehaviorSection,
   BreakdownSection,
@@ -17,6 +18,7 @@ import {
   TimingSection,
 } from '@/components/analytics/analytics-sections';
 import type { AnalyticsPayload } from '@/lib/analytics/types';
+import { formatAnalyticsTimeZoneLabel } from '@/lib/analytics/timezone';
 import {
   AppPageHeader,
   AppPanelEmptyState,
@@ -36,6 +38,7 @@ export function AnalyticsClient({
   currentTo: string | null;
   shouldSyncSelection: boolean;
 }) {
+  const analyticsTimeZoneLabel = formatAnalyticsTimeZoneLabel(payload.meta.timeZone);
   const eqData = useMemo(
     () =>
       payload.equity.map((point) => ({
@@ -81,7 +84,7 @@ export function AnalyticsClient({
     () => [
       ['Metric', 'Value'],
       ['Account Scope', payload.meta.accountLabel],
-      ['Time Zone', payload.meta.timeZone],
+      ['Time Zone', analyticsTimeZoneLabel],
       ['Trades', String(payload.summary.totalTrades)],
       ['Win Rate', `${payload.summary.winRate.toFixed(2)}%`],
       ['Total Net P&L', payload.summary.totalNetPnl.toFixed(2)],
@@ -111,7 +114,7 @@ export function AnalyticsClient({
         strategy.totalPnl.toFixed(2),
       ]),
     ],
-    [payload],
+    [analyticsTimeZoneLabel, payload],
   );
 
   const handleExport = useCallback(() => {
@@ -193,6 +196,13 @@ export function AnalyticsClient({
         currentAccount={accountScope}
         currentFrom={currentFrom}
         currentTo={currentTo}
+        timeZone={payload.meta.timeZone}
+      />
+
+      <AnalyticsWorkspace
+        accountScope={accountScope}
+        from={currentFrom}
+        to={currentTo}
         timeZone={payload.meta.timeZone}
       />
 

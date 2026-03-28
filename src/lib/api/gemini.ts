@@ -55,6 +55,15 @@ export interface GeneratedStrategy {
     riskLevel: 'low' | 'medium' | 'high';
 }
 
+export interface StrategyEvaluation {
+    score: number;
+    readiness: 'weak' | 'workable' | 'strong';
+    summary: string;
+    strengths: string[];
+    weaknesses: string[];
+    improvements: string[];
+}
+
 const SYSTEM_PROMPT = `You are an expert trading strategy assistant. Your role is to:
 1. Help traders define their trading strategies in clear, actionable rules
 2. Convert natural language descriptions into structured trading rules
@@ -69,48 +78,47 @@ When creating strategies, always include:
 
 Format your rules as JSON when asked to create a strategy.`;
 
-/**
- * Generate a trading strategy from natural language description
- */
-export async function generateStrategy(
-    prompt: string,
+export async function evaluateStrategy(
+    strategy: { name: string; description?: string | null; rules: string[] },
     context?: { existingStrategies?: string[]; tradingHistory?: Trade[] }
-): Promise<GeneratedStrategy> {
+): Promise<StrategyEvaluation> {
     const model = getGeminiModel();
 
     const userPrompt = `
-Create a trading strategy based on this description: "${prompt}"
+Evaluate this trading strategy written by the trader. Do not rewrite it into a different strategy. Critique its clarity, completeness, and execution readiness.
 
-${context?.existingStrategies?.length ? `User's existing strategies: ${context.existingStrategies.join(', ')}` : ''}
+Strategy name: ${strategy.name}
+Description: ${strategy.description?.trim() || 'No description provided.'}
+Rules:
+${strategy.rules.map((rule, index) => `${index + 1}. ${rule}`).join('\n')}
+
+${context?.existingStrategies?.length ? `Existing strategy names in the library: ${context.existingStrategies.join(', ')}` : ''}
 
 Return a JSON object with this exact structure:
 {
-  "name": "Strategy Name",
-  "description": "Brief description",
-  "rules": [
-    {
-      "id": "rule_1",
-      "text": "Human readable rule",
-      "type": "entry|exit|filter|risk",
-      "required": true|false
-    }
-  ],
-  "suggestedAssets": ["NQ", "EUR/USD"],
-  "riskLevel": "low|medium|high"
+  "score": 78,
+  "readiness": "weak|workable|strong",
+  "summary": "One concise paragraph explaining the overall quality of the strategy.",
+  "strengths": ["strength 1", "strength 2"],
+  "weaknesses": ["weakness 1", "weakness 2"],
+  "improvements": ["improvement 1", "improvement 2"]
 }
 
-Only return the JSON, no markdown or explanation.`;
+Rules:
+- Score must be 0 to 100
+- Weaknesses should point out ambiguity, missing risk logic, or missing execution details
+- Improvements must be concrete and actionable
+- Return only the JSON, no markdown or explanation outside the JSON.`;
 
     const result = await model.generateContent([SYSTEM_PROMPT, userPrompt]);
     const text = result.response.text();
 
-    // Parse JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-        throw new Error('Failed to parse strategy response');
+        throw new Error('Failed to parse strategy evaluation response');
     }
 
-    return JSON.parse(jsonMatch[0]) as GeneratedStrategy;
+    return JSON.parse(jsonMatch[0]) as StrategyEvaluation;
 }
 
 /**

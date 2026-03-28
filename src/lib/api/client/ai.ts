@@ -1,35 +1,36 @@
 import { readJsonIfAvailable } from "@/lib/api/client/http";
 
-export interface StrategyBuilderMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
+export interface StrategyEvaluation {
+  score: number;
+  readiness: "weak" | "workable" | "strong";
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  improvements: string[];
 }
 
-export interface GeneratedStrategy {
-  name: string;
-  description: string;
-  rules: { id: string; text: string; required: boolean }[];
-}
-
-interface GenerateStrategyResponse {
+interface EvaluateStrategyResponse {
   success: boolean;
-  strategy?: GeneratedStrategy;
+  evaluation?: StrategyEvaluation;
   error?: string;
 }
 
-export async function generateStrategyWithAI(params: {
-  prompt: string;
-  messages?: StrategyBuilderMessage[];
+export async function evaluateStrategyWithAI(params: {
+  name: string;
+  description?: string | null;
+  rules: string[];
   existingStrategies?: string[];
-}): Promise<GeneratedStrategy> {
+}): Promise<StrategyEvaluation> {
   const response = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      action: "generate-strategy",
-      prompt: params.prompt,
-      messages: params.messages,
+      action: "evaluate-strategy",
+      strategy: {
+        name: params.name,
+        description: params.description ?? null,
+        rules: params.rules,
+      },
       context: params.existingStrategies?.length
         ? {
             existingStrategies: params.existingStrategies,
@@ -38,11 +39,11 @@ export async function generateStrategyWithAI(params: {
     }),
   });
 
-  const payload = await readJsonIfAvailable<GenerateStrategyResponse>(response);
+  const payload = await readJsonIfAvailable<EvaluateStrategyResponse>(response);
 
-  if (!response.ok || !payload?.success || !payload.strategy) {
-    throw new Error(payload?.error || "Unable to generate strategy.");
+  if (!response.ok || !payload?.success || !payload.evaluation) {
+    throw new Error(payload?.error || "Unable to evaluate strategy.");
   }
 
-  return payload.strategy;
+  return payload.evaluation;
 }

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/control-primitives';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { formatAnalyticsTimeZoneLabel } from '@/lib/analytics/timezone';
 import {
   Select,
   SelectContent,
@@ -60,6 +61,7 @@ function AnalyticsControlsForm({
   const [account, setAccount] = useState(currentAccount);
   const [from, setFrom] = useState(currentFrom ?? '');
   const [to, setTo] = useState(currentTo ?? '');
+  const timeZoneLabel = formatAnalyticsTimeZoneLabel(timeZone);
 
   const navigateWith = (nextAccount: string, nextFrom: string, nextTo: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -176,10 +178,10 @@ function AnalyticsControlsForm({
             border: '1px solid var(--border-subtle)',
           }}
         >
-          Timezone: {timeZone}
+          Timezone: {timeZoneLabel}
         </span>
         <span>Entry-day and hourly charts use this timezone.</span>
-        <span>Session buckets use DST-aware UTC market windows.</span>
+        <span>Session buckets use the same fixed trading-session windows.</span>
         <Link href="/settings" className="underline underline-offset-4">
           Update timezone in settings
         </Link>

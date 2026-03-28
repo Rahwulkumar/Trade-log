@@ -20,6 +20,7 @@ import {
 import { Activity, TrendingDown, TrendingUp } from 'lucide-react';
 
 import type { AnalyticsPayload } from '@/lib/analytics/types';
+import { formatAnalyticsTimeZoneLabel } from '@/lib/analytics/timezone';
 import { CHART_COLORS } from '@/lib/constants/chart-colors';
 import { ValueBar } from '@/components/ui/control-primitives';
 import {
@@ -440,12 +441,13 @@ export function TimingSection({
   payload,
   maxHourlyAbsPnl,
 }: TimingSectionProps) {
+  const timeZoneLabel = formatAnalyticsTimeZoneLabel(payload.meta.timeZone);
   return (
     <section>
       <SectionHeader
         eyebrow="Timing Intelligence"
         title="Session & Time Analysis"
-        subtitle={`Session cards use DST-aware UTC market windows. Day/hour charts use ${payload.meta.timeZone} entry time.`}
+        subtitle={`Session cards use fixed UTC-4 trading windows. Day/hour charts use ${timeZoneLabel} entry time.`}
       />
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {payload.time.session.length > 0 ? (
@@ -462,7 +464,7 @@ export function TimingSection({
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <AppPanel>
-          <PanelTitle title="Performance by Day of Week" subtitle={`Win rate and trade count by entry day in ${payload.meta.timeZone}.`} />
+          <PanelTitle title="Performance by Day of Week" subtitle={`Win rate and trade count by entry day in ${timeZoneLabel}.`} />
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={payload.time.dayOfWeek}>
@@ -480,7 +482,7 @@ export function TimingSection({
         </AppPanel>
 
         <AppPanel>
-          <PanelTitle title="Hour-of-Day Heatmap" subtitle={`Average net P&L by entry hour in ${payload.meta.timeZone}.`} />
+          <PanelTitle title="Hour-of-Day Heatmap" subtitle={`Average net P&L by entry hour in ${timeZoneLabel}.`} />
           <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(8, 1fr)' }}>
             {payload.time.hourly.map((hour) => {
               const abs = Math.min(Math.abs(hour.avgPnl) / maxHourlyAbsPnl, 1);

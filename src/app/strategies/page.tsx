@@ -8,12 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import {
-  AlertCircle,
-  Loader2,
-  RefreshCw,
-  WandSparkles,
-} from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
@@ -33,9 +28,8 @@ import {
   type Playbook,
 } from "@/lib/api/client/playbooks";
 import {
-  generateStrategyWithAI,
-  type GeneratedStrategy,
-  type StrategyBuilderMessage,
+  evaluateStrategyWithAI,
+  type StrategyEvaluation,
 } from "@/lib/api/client/ai";
 import {
   EMPTY_PLAYBOOK_STATS,
@@ -48,12 +42,11 @@ import { StrategyDetailView } from "@/components/strategies/strategy-detail-view
 import { StrategyBuilderView } from "@/components/strategies/strategy-builder-view";
 import { PlaybookManageDialog } from "@/components/playbooks/playbook-manage-dialog";
 
-function buildIntroMessage(): StrategyBuilderMessage {
+function createEmptyDraft() {
   return {
-    id: "intro",
-    role: "assistant",
-    content:
-      "Describe the setup you want to build. Include market type, trigger, invalidation, and the risk conditions that must be present.",
+    name: "",
+    description: "",
+    rules: [""],
   };
 }
 
@@ -73,18 +66,21 @@ export default function StrategiesPage() {
   );
 
   const [isCreating, setIsCreating] = useState(false);
-  const [messages, setMessages] = useState<StrategyBuilderMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [thinking, setThinking] = useState(false);
-  const [generated, setGenerated] = useState<GeneratedStrategy | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
+  const [draftRules, setDraftRules] = useState<string[]>([""]);
+  const [evaluation, setEvaluation] = useState<StrategyEvaluation | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
 
   const resetBuilder = useCallback(() => {
-    setMessages([buildIntroMessage()]);
-    setGenerated(null);
-    setInput("");
+    const next = createEmptyDraft();
+    setDraftName(next.name);
+    setDraftDescription(next.description);
+    setDraftRules(next.rules);
+    setEvaluation(null);
   }, []);
 
   const loadPlaybooks = useCallback(async () => {
@@ -160,6 +156,14 @@ export default function StrategiesPage() {
     );
   }, [filteredPlaybooks, selectedPlaybookId]);
 
+  const normalizedDraftRules = useMemo(
+    () => draftRules.map((rule) => rule.trim()).filter(Boolean),
+    [draftRules],
+  );
+  const canSaveDraft = draftName.trim().length > 0 && normalizedDraftRules.length > 0;
+  const canEvaluateDraft =
+    draftName.trim().length > 0 && normalizedDraftRules.length > 0;
+
   useEffect(() => {
     if (isCreating || filteredPlaybooks.length === 0) {
       return;
@@ -181,67 +185,79 @@ export default function StrategiesPage() {
 
   function backToLibrary() {
     setIsCreating(false);
+    setEvaluation(null);
   }
 
-  async function send() {
-    if (!input.trim() || thinking) return;
+  function updateRule(index: number, value: string) {
+    setDraftRules((current) =>
+      current.map((rule, currentIndex) =>
+        currentIndex === index ? value : rule,
+      ),
+    );
+  }
 
-    const outgoingMessage: StrategyBuilderMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input.trim(),
-    };
-    const nextMessages = [...messages, outgoingMessage];
+  function addRule() {
+    setDraftRules((current) => [...current, ""]);
+  }
 
-    setMessages(nextMessages);
-    setInput("");
-    setThinking(true);
-    setError(null);
+  function removeRule(index: number) {
+    setDraftRules((current) =>
+      current.length === 1
+        ? current
+        : current.filter((_, currentIndex) => currentIndex !== index),
+    );
+  }
+
+  function moveRule(index: number, direction: -1 | 1) {
+    setDraftRules((current) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  }
+
+  async function evaluateDraft() {
+    if (!canEvaluateDraft || evaluating) return;
 
     try {
-      const strategy = await generateStrategyWithAI({
-        prompt: outgoingMessage.content,
-        messages: nextMessages,
-        existingStrategies: playbooks.map((playbook) => playbook.name),
+      setEvaluating(true);
+      setError(null);
+
+      const nextEvaluation = await evaluateStrategyWithAI({
+        name: draftName.trim(),
+        description: draftDescription.trim() || null,
+        rules: normalizedDraftRules,
+        existingStrategies: playbooks
+          .map((playbook) => playbook.name)
+          .filter((name) => name !== draftName.trim()),
       });
 
-      setGenerated(strategy);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-assistant`,
-          role: "assistant",
-          content: `Generated "${strategy.name}" with ${strategy.rules.length} rules. Review the draft on the right before saving it to your library.`,
-        },
-      ]);
+      setEvaluation(nextEvaluation);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Unable to generate strategy.";
-      setError(message);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-assistant`,
-          role: "assistant",
-          content: message,
-        },
-      ]);
+      setError(
+        err instanceof Error ? err.message : "Unable to evaluate strategy.",
+      );
     } finally {
-      setThinking(false);
+      setEvaluating(false);
     }
   }
 
-  async function saveGeneratedStrategy() {
-    if (!generated) return;
+  async function saveDraftStrategy() {
+    if (!canSaveDraft) return;
 
     try {
       setSaving(true);
       setError(null);
 
       const created = await createPlaybook({
-        name: generated.name,
-        description: generated.description,
-        rules: generated.rules.map((rule) => rule.text),
+        name: draftName.trim(),
+        description: draftDescription.trim() || null,
+        rules: normalizedDraftRules,
         isActive: true,
       });
 
@@ -348,7 +364,7 @@ export default function StrategiesPage() {
         <AppPanelEmptyState
           className="max-w-xl"
           title="Supabase Not Configured"
-          description="Add your Supabase credentials to generate and manage strategy playbooks."
+          description="Add your Supabase credentials to create and manage strategy playbooks."
           minHeight={180}
         />
       </div>
@@ -361,7 +377,7 @@ export default function StrategiesPage() {
         <AppPanelEmptyState
           className="max-w-xl"
           title="Login Required"
-          description="Sign in to generate strategies and manage your playbook library."
+          description="Sign in to create strategies and manage your playbook library."
           action={
             <Button asChild>
               <Link href="/auth/login">Sign In</Link>
@@ -392,15 +408,15 @@ export default function StrategiesPage() {
 
       <main className="min-w-0 space-y-4">
         <AppPageHeader
-          eyebrow={isCreating ? "AI Assistant" : "Strategies"}
+          eyebrow={isCreating ? "Manual Builder" : "Strategies"}
           title={
             isCreating
-              ? "Strategy Builder"
+              ? draftName.trim() || "Create Strategy"
               : displayedPlaybook?.name || "Strategy Library"
           }
           description={
             isCreating
-              ? "Describe the setup, let the assistant draft the strategy, then save it into your library once the rules are solid."
+              ? "Write your own strategy rules first. Once the structure is clear, use AI to critique the draft and highlight missing logic."
               : displayedPlaybook?.description ||
                 "Review strategy performance, edit execution rules, and maintain the active playbook catalog."
           }
@@ -411,10 +427,7 @@ export default function StrategiesPage() {
                   Back to Library
                 </Button>
               ) : (
-                <Button onClick={startCreating}>
-                  <WandSparkles className="h-4 w-4" />
-                  Build with AI
-                </Button>
+                <Button onClick={startCreating}>Create Strategy</Button>
               )}
               <Button
                 variant="outline"
@@ -456,14 +469,40 @@ export default function StrategiesPage() {
 
         {isCreating ? (
           <StrategyBuilderView
-            messages={messages}
-            input={input}
-            onInputChange={setInput}
-            onSend={send}
-            thinking={thinking}
-            generated={generated}
+            name={draftName}
+            description={draftDescription}
+            rules={draftRules}
+            onNameChange={(value) => {
+              setDraftName(value);
+              setEvaluation(null);
+            }}
+            onDescriptionChange={(value) => {
+              setDraftDescription(value);
+              setEvaluation(null);
+            }}
+            onRuleChange={(index, value) => {
+              updateRule(index, value);
+              setEvaluation(null);
+            }}
+            onAddRule={() => {
+              addRule();
+              setEvaluation(null);
+            }}
+            onRemoveRule={(index) => {
+              removeRule(index);
+              setEvaluation(null);
+            }}
+            onMoveRule={(index, direction) => {
+              moveRule(index, direction);
+              setEvaluation(null);
+            }}
+            onSave={saveDraftStrategy}
             saving={saving}
-            onSave={saveGeneratedStrategy}
+            canSave={canSaveDraft}
+            evaluation={evaluation}
+            evaluating={evaluating}
+            onEvaluate={evaluateDraft}
+            canEvaluate={canEvaluateDraft}
           />
         ) : loading ? (
           <AppPanel className="flex min-h-[320px] items-center justify-center">
@@ -475,13 +514,8 @@ export default function StrategiesPage() {
         ) : playbooks.length === 0 ? (
           <AppPanelEmptyState
             title="No strategies in your library yet"
-            description="Use the AI builder to create the first strategy, then refine it into a repeatable playbook."
-            action={
-              <Button onClick={startCreating}>
-                <WandSparkles className="h-4 w-4" />
-                Create with AI
-              </Button>
-            }
+            description="Create your first strategy manually, then use AI to evaluate and refine the structure."
+            action={<Button onClick={startCreating}>Create Strategy</Button>}
           />
         ) : filteredPlaybooks.length === 0 ? (
           <AppPanelEmptyState

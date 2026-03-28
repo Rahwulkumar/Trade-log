@@ -17,6 +17,11 @@ import type {
   StreakStats,
   StrategyRow,
 } from '@/lib/analytics/types';
+import {
+  deriveTradingSession,
+  normalizeTradingSession,
+  type TradingSessionLabel,
+} from '@/lib/trading-session';
 
 type DrawdownCycle = {
   start: Date;
@@ -39,45 +44,27 @@ const SESSION_CONFIG = [
     key: 'Asia',
     label: 'Asia',
     color: '#5fb3ff',
+    range: '20:00-02:00 UTC-4',
   },
   {
     key: 'London',
     label: 'London',
     color: '#8e7dff',
-  },
-  {
-    key: 'Overlap',
-    label: 'London/NY Overlap',
-    color: '#f7c36a',
+    range: '02:00-05:00 UTC-4',
   },
   {
     key: 'New York',
     label: 'New York',
     color: '#ff7a59',
+    range: '08:00-11:30 UTC-4',
   },
   {
-    key: 'Off Session',
-    label: 'Off Session',
+    key: 'Overnight',
+    label: 'Overnight',
     color: '#768395',
+    range: 'Everything else',
   },
 ] as const;
-
-type SessionKey = (typeof SESSION_CONFIG)[number]['key'];
-
-const LONDON_MARKET_HOURS = {
-  timeZone: 'Europe/London',
-  startHour: 8,
-  endHour: 16,
-} as const;
-
-const NEW_YORK_MARKET_HOURS = {
-  timeZone: 'America/New_York',
-  startHour: 8,
-  endHour: 17,
-} as const;
-
-const sessionScheduleCache = new Map<string, SessionKey[]>();
-const sessionRangeCache = new Map<string, Map<SessionKey, string>>();
 
 const WEEKDAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -169,142 +156,6 @@ function getLocalHour(date: Date, timeZone: string): number {
   }).formatToParts(date);
   const hour = parts.find((part) => part.type === 'hour')?.value ?? '0';
   return Number.parseInt(hour, 10) % 24;
-}
-
-function utcHour(date: Date): number {
-  return date.getUTCHours();
-}
-
-function utcDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function formatHourLabel(hour: number): string {
-  return `${String(hour).padStart(2, '0')}:00`;
-}
-
-function isLocalSessionOpen(
-  date: Date,
-  timeZone: string,
-  startHour: number,
-  endHour: number,
-): boolean {
-  const localHour = getLocalHour(date, timeZone);
-  return localHour >= startHour && localHour < endHour;
-}
-
-function hoursToUtcRange(hours: number[]): string {
-  if (hours.length === 0) return 'DST-aware UTC window';
-  const start = hours[0];
-  const end = (hours[hours.length - 1] + 1) % 24;
-  return `${formatHourLabel(start)}-${formatHourLabel(end)} UTC`;
-}
-
-function buildSessionSchedule(date: Date): SessionKey[] {
-  const key = utcDateKey(date);
-  const cached = sessionScheduleCache.get(key);
-  if (cached) return cached;
-
-  const londonActive: boolean[] = [];
-  const newYorkActive: boolean[] = [];
-
-  for (let hour = 0; hour < 24; hour += 1) {
-    const sample = new Date(
-      Date.UTC(
-        date.getUTCFullYear(),
-        date.getUTCMonth(),
-        date.getUTCDate(),
-        hour,
-      ),
-    );
-    londonActive[hour] = isLocalSessionOpen(
-      sample,
-      LONDON_MARKET_HOURS.timeZone,
-      LONDON_MARKET_HOURS.startHour,
-      LONDON_MARKET_HOURS.endHour,
-    );
-    newYorkActive[hour] = isLocalSessionOpen(
-      sample,
-      NEW_YORK_MARKET_HOURS.timeZone,
-      NEW_YORK_MARKET_HOURS.startHour,
-      NEW_YORK_MARKET_HOURS.endHour,
-    );
-  }
-
-  const londonOpenHour = londonActive.findIndex(Boolean);
-  const schedule = Array.from({ length: 24 }, (_, hour): SessionKey => {
-    if (londonActive[hour] && newYorkActive[hour]) return 'Overlap';
-    if (londonActive[hour]) return 'London';
-    if (newYorkActive[hour]) return 'New York';
-    if (londonOpenHour !== -1 && hour < londonOpenHour) return 'Asia';
-    return 'Off Session';
-  });
-
-  sessionScheduleCache.set(key, schedule);
-  return schedule;
-}
-
-function buildSessionRangeMap(date: Date): Map<SessionKey, string> {
-  const key = utcDateKey(date);
-  const cached = sessionRangeCache.get(key);
-  if (cached) return cached;
-
-  const schedule = buildSessionSchedule(date);
-  const rangeMap = new Map<SessionKey, string>();
-
-  for (const config of SESSION_CONFIG) {
-    const hours: number[] = [];
-    for (let hour = 0; hour < schedule.length; hour += 1) {
-      if (schedule[hour] === config.key) {
-        hours.push(hour);
-      }
-    }
-    rangeMap.set(config.key, hoursToUtcRange(hours));
-  }
-
-  sessionRangeCache.set(key, rangeMap);
-  return rangeMap;
-}
-
-function summarizeSessionRanges(rangeLabels: Set<string> | undefined): string {
-  if (!rangeLabels || rangeLabels.size === 0) return 'DST-aware UTC window';
-  if (rangeLabels.size === 1) {
-    return [...rangeLabels][0];
-  }
-
-  const parsed = [...rangeLabels]
-    .map((label) => {
-      const match = label.match(/^(\d{2}:\d{2})-(\d{2}:\d{2}) UTC$/);
-      if (!match) return null;
-      return { start: match[1], end: match[2] };
-    })
-    .filter(
-      (value): value is { start: string; end: string } => value != null,
-    );
-
-  if (parsed.length === 0) return 'DST-aware UTC window';
-
-  const starts = [...new Set(parsed.map((value) => value.start))].sort();
-  const ends = [...new Set(parsed.map((value) => value.end))].sort();
-
-  return `${starts.join('/')} - ${ends.join('/')} UTC (DST-aware)`;
-}
-
-function normalizeStoredSession(session: string | null): string | null {
-  if (!session) return null;
-  const normalized = session.trim().toLowerCase();
-  if (!normalized) return null;
-  if (normalized === 'asian' || normalized === 'asia') return 'Asia';
-  if (normalized === 'london') return 'London';
-  if (normalized === 'new york' || normalized === 'newyork') return 'New York';
-  if (normalized === 'overlap' || normalized === 'london/new york overlap') {
-    return 'Overlap';
-  }
-  return null;
-}
-
-function deriveSession(date: Date): string {
-  return buildSessionSchedule(date)[utcHour(date)] ?? 'Off Session';
 }
 
 function formatHoldTime(seconds: number): string {
@@ -596,10 +447,7 @@ function toStrategyRows(statsByStrategy: Map<string, AggregateStats>): StrategyR
     .sort((left, right) => right.totalPnl - left.totalPnl);
 }
 
-function sessionBucketsFromMap(
-  sessionMap: Map<string, AggregateStats>,
-  sessionRanges: Map<string, Set<string>>,
-): SessionBucket[] {
+function sessionBucketsFromMap(sessionMap: Map<string, AggregateStats>): SessionBucket[] {
   const buckets: SessionBucket[] = [];
 
   for (const config of SESSION_CONFIG) {
@@ -607,7 +455,7 @@ function sessionBucketsFromMap(
     if (!stats || stats.trades === 0) continue;
     buckets.push({
       session: config.label,
-      range: summarizeSessionRanges(sessionRanges.get(config.key)),
+      range: config.range,
       trades: stats.trades,
       winRate: round((stats.wins / stats.trades) * 100, 1),
       pnl: round(stats.totalPnl),
@@ -721,7 +569,6 @@ export function computeAnalytics(
   const weekdayMap = new Map<string, { pnl: number; trades: number; wins: number }>();
   const hourlyMap = new Map<number, { pnl: number; trades: number }>();
   const sessionMap = new Map<string, AggregateStats>();
-  const sessionRangeLabels = new Map<string, Set<string>>();
   const instrumentMap = new Map<string, AggregateStats>();
   const strategyMap = new Map<string, AggregateStats>();
   const holdEntries: Array<{ seconds: number; pnl: number }> = [];
@@ -796,10 +643,10 @@ export function computeAnalytics(
     const rMultiple = trade.rMultiple != null ? toNumber(trade.rMultiple) : null;
     const totalCost = trade.pnlIncludesCosts ? 0 : commission + swap;
     const holdSeconds = Math.max(0, (exitDate.getTime() - entryDate.getTime()) / 1000);
-    const sessionKey = normalizeStoredSession(trade.session) ?? deriveSession(entryDate);
-    const sessionRange = buildSessionRangeMap(entryDate).get(
-      sessionKey as SessionKey,
-    );
+    const sessionKey =
+      (normalizeTradingSession(trade.session) ??
+        deriveTradingSession(entryDate) ??
+        'Overnight') as TradingSessionLabel;
 
     totalGrossPnl += grossPnl;
     totalCosts += totalCost;
@@ -882,11 +729,6 @@ export function computeAnalytics(
     hourlyMap.set(localHour, hourlyStats);
 
     addAggregate(sessionMap, sessionKey, netPnl, netPnl > 0, holdSeconds);
-    if (sessionRange) {
-      const existingRanges = sessionRangeLabels.get(sessionKey) ?? new Set<string>();
-      existingRanges.add(sessionRange);
-      sessionRangeLabels.set(sessionKey, existingRanges);
-    }
     addAggregate(instrumentMap, trade.symbol, netPnl, netPnl > 0, holdSeconds);
     addAggregate(
       strategyMap,
@@ -1016,7 +858,7 @@ export function computeAnalytics(
     orderedTrades.length > 0 ? (maeMfe.length / orderedTrades.length) * 100 : 0;
   const sessionCoverage =
     orderedTrades.length > 0
-      ? (orderedTrades.filter((trade) => normalizeStoredSession(trade.session) != null).length /
+      ? (orderedTrades.filter((trade) => normalizeTradingSession(trade.session) != null).length /
           orderedTrades.length) *
         100
       : 0;
@@ -1129,7 +971,7 @@ export function computeAnalytics(
       holdTime: buildHoldBuckets(holdEntries),
     },
     time: {
-      session: sessionBucketsFromMap(sessionMap, sessionRangeLabels),
+      session: sessionBucketsFromMap(sessionMap),
       dayOfWeek: weekdayBucketsFromMap(weekdayMap),
       hourly: hourlyBucketsFromMap(hourlyMap),
     },

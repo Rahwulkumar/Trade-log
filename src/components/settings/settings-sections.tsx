@@ -172,8 +172,9 @@ export function SettingsProfilePanels({
                   <SelectValue placeholder="Select timezone" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="utc-4">UTC-4 (Trading Default)</SelectItem>
                   <SelectItem value="utc">UTC (GMT+0)</SelectItem>
-                  <SelectItem value="est">Eastern Time (GMT-5)</SelectItem>
+                  <SelectItem value="est">Eastern Time (DST-aware)</SelectItem>
                   <SelectItem value="pst">Pacific Time (GMT-8)</SelectItem>
                   <SelectItem value="ist">India Standard Time (GMT+5:30)</SelectItem>
                 </SelectContent>
