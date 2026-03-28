@@ -5,6 +5,9 @@ import {
   createChart,
   CandlestickSeries,
   CandlestickData,
+  SeriesMarker,
+  SeriesMarkerPricePosition,
+  SeriesMarkerShape,
   Time,
   LineStyle,
   createSeriesMarkers,
@@ -26,6 +29,63 @@ interface TradeChartProps {
   rateLimited?: boolean;
   pending?: boolean;
   onRefresh?: () => void;
+}
+
+function toUnixSeconds(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = Math.floor(new Date(value).getTime() / 1000);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function priceDistanceToCandle(candle: ChartCandle, price: number): number {
+  if (price >= candle.low && price <= candle.high) {
+    return 0;
+  }
+
+  return Math.min(
+    Math.abs(price - candle.low),
+    Math.abs(price - candle.high),
+    Math.abs(price - candle.open),
+    Math.abs(price - candle.close),
+  );
+}
+
+function resolveTradeAnchorTime(
+  candles: ChartCandle[],
+  timestamp: number | null,
+  price: number | null | undefined,
+): number | null {
+  if (candles.length === 0) {
+    return null;
+  }
+
+  const hasPrice = price != null && Number.isFinite(price);
+  const timestampValue = timestamp ?? Number.NaN;
+
+  const scoredCandles = candles.map((candle) => ({
+    time: candle.time,
+    priceDistance: hasPrice ? priceDistanceToCandle(candle, price) : 0,
+    timeDistance: Number.isFinite(timestampValue)
+      ? Math.abs(candle.time - timestampValue)
+      : Number.MAX_SAFE_INTEGER,
+  }));
+
+  scoredCandles.sort((left, right) => {
+    if (left.priceDistance !== right.priceDistance) {
+      return left.priceDistance - right.priceDistance;
+    }
+
+    if (left.timeDistance !== right.timeDistance) {
+      return left.timeDistance - right.timeDistance;
+    }
+
+    return left.time - right.time;
+  });
+
+  return scoredCandles[0]?.time ?? null;
 }
 
 export function TradeChart({
@@ -191,7 +251,7 @@ export function TradeChart({
 
     candleSeries.setData(chartData);
 
-    if (stopLoss) {
+    if (stopLoss != null && Number.isFinite(stopLoss)) {
       priceLinesRef.current.push(
         candleSeries.createPriceLine({
           price: stopLoss,
@@ -204,7 +264,7 @@ export function TradeChart({
       );
     }
 
-    if (takeProfit) {
+    if (takeProfit != null && Number.isFinite(takeProfit)) {
       priceLinesRef.current.push(
         candleSeries.createPriceLine({
           price: takeProfit,
@@ -217,73 +277,52 @@ export function TradeChart({
       );
     }
 
-    priceLinesRef.current.push(
-      candleSeries.createPriceLine({
+    const entryMarkerTime = resolveTradeAnchorTime(
+      candles,
+      toUnixSeconds(entryTime),
+      entryPrice,
+    );
+    const exitMarkerTime = resolveTradeAnchorTime(
+      candles,
+      toUnixSeconds(exitTime),
+      exitPrice,
+    );
+    const markers: SeriesMarker<Time>[] = [];
+
+    if (entryMarkerTime != null && Number.isFinite(entryPrice)) {
+      markers.push({
+        time: entryMarkerTime as Time,
+        position: "atPriceBottom" as SeriesMarkerPricePosition,
         price: entryPrice,
         color: accentColor,
-        lineWidth: 2,
-        lineStyle: LineStyle.Solid,
-        axisLabelVisible: true,
-        title: "Entry",
-      }),
-    );
-
-    if (exitPrice) {
-      const exitColor =
-        direction === "LONG"
-          ? exitPrice > entryPrice
-            ? profitColor
-            : lossColor
-          : exitPrice < entryPrice
-            ? profitColor
-            : lossColor;
-
-      priceLinesRef.current.push(
-        candleSeries.createPriceLine({
-          price: exitPrice,
-          color: exitColor,
-          lineWidth: 2,
-          lineStyle: LineStyle.Solid,
-          axisLabelVisible: true,
-          title: "Exit",
-        }),
-      );
+        shape: (direction === "LONG"
+          ? "arrowUp"
+          : "arrowDown") as SeriesMarkerShape,
+        text: "Entry",
+      });
     }
 
-    const entryTimestamp = Math.floor(new Date(entryTime).getTime() / 1000);
-    const exitTimestamp = exitTime
-      ? Math.floor(new Date(exitTime).getTime() / 1000)
-      : null;
+    if (exitMarkerTime != null && exitPrice != null && Number.isFinite(exitPrice)) {
+      markers.push({
+        time: exitMarkerTime as Time,
+        position: "atPriceTop" as SeriesMarkerPricePosition,
+        price: exitPrice,
+        color:
+          exitPrice != null &&
+          ((direction === "LONG" && exitPrice > entryPrice) ||
+            (direction === "SHORT" && exitPrice < entryPrice))
+            ? profitColor
+            : lossColor,
+        shape: (direction === "LONG" ? "arrowDown" : "arrowUp") as
+          | "arrowUp"
+          | "arrowDown",
+        text: "Exit",
+      });
+    }
 
-    markerApiRef.current = createSeriesMarkers(candleSeries, [
-      {
-        time: entryTimestamp as Time,
-        position: direction === "LONG" ? "belowBar" : "aboveBar",
-        color: accentColor,
-        shape: direction === "LONG" ? "arrowUp" : "arrowDown",
-        text: "Entry",
-      },
-      ...(exitTimestamp
-        ? [
-            {
-              time: exitTimestamp as Time,
-              position: (direction === "LONG" ? "aboveBar" : "belowBar") as
-                | "aboveBar"
-                | "belowBar",
-              color:
-                exitPrice &&
-                ((direction === "LONG" && exitPrice > entryPrice) ||
-                  (direction === "SHORT" && exitPrice < entryPrice))
-                  ? profitColor
-                  : lossColor,
-              shape: (direction === "LONG" ? "arrowDown" : "arrowUp") as
-                | "arrowUp"
-                | "arrowDown",
-              text: "Exit",
-            },
-          ]
-        : []),
-    ]);
+    if (markers.length > 0) {
+      markerApiRef.current = createSeriesMarkers(candleSeries, markers);
+    }
 
     chart.timeScale().fitContent();
   }, [

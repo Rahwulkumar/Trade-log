@@ -392,7 +392,7 @@ export default function JournalPage() {
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6">
+      <div className="flex min-h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6 lg:h-[calc(100dvh-64px)]">
         <AppPanel className="flex min-h-[220px] items-center px-6">
           <p
             style={{
@@ -410,7 +410,7 @@ export default function JournalPage() {
 
   if (!currentUserId) {
     return (
-      <div className="flex h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6">
+      <div className="flex min-h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6 lg:h-[calc(100dvh-64px)]">
         <AppPanelEmptyState
           minHeight={260}
           title="Sign in to journal trades"
@@ -422,7 +422,7 @@ export default function JournalPage() {
 
   if (records.length === 0) {
     return (
-      <div className="flex h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6">
+      <div className="flex min-h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6 lg:h-[calc(100dvh-64px)]">
         <AppPanelEmptyState
           minHeight={260}
           title="No closed trades yet"
@@ -433,7 +433,7 @@ export default function JournalPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col gap-4 overflow-hidden px-4 py-4 sm:px-6">
+    <div className="flex min-h-[calc(100dvh-64px)] min-h-0 flex-col gap-3 overflow-visible px-3 py-3 sm:gap-4 sm:px-4 sm:py-4 lg:h-[calc(100dvh-64px)] lg:overflow-hidden lg:px-6">
       <div
         className="stagger-1 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] border px-3 py-2.5 sm:px-4"
         style={{
@@ -506,13 +506,13 @@ export default function JournalPage() {
         </div>
       </div>
 
-      <section className="stagger-2 relative min-h-0 flex-1 overflow-hidden">
+      <section className="stagger-2 relative min-h-0 flex-1 overflow-visible lg:overflow-hidden">
         <div className="hidden h-full min-h-0 lg:block">
           <div
             className="grid h-full min-h-0 gap-4"
             style={{
               gridTemplateColumns: railOpen
-                ? "minmax(24rem, 29rem) minmax(0, 1fr)"
+                ? "minmax(20rem, 24rem) minmax(0, 1fr)"
                 : "0 minmax(0, 1fr)",
               transition: "grid-template-columns 220ms ease",
             }}
@@ -603,7 +603,7 @@ export default function JournalPage() {
           ) : null}
 
           {railOpen ? (
-            <div className="absolute inset-y-0 left-0 z-20 w-full max-w-[29rem] pr-3 sm:w-[25rem]">
+            <div className="absolute inset-0 z-20 w-full sm:max-w-[25rem] sm:pr-3 md:max-w-[27rem]">
               <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-[0_20px_48px_rgba(15,23,42,0.18)]">
                 <TradeReviewRail
                   items={filteredRecords.map((record) => record.item)}

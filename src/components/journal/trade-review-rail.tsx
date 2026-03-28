@@ -238,7 +238,7 @@ export function TradeReviewRail({
         </div>
 
         <div className="space-y-3 px-3 pb-3">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <InsetPanel paddingClassName="px-3 py-3">
               <p className="text-label">Needs review</p>
               <p

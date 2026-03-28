@@ -10,6 +10,7 @@ import {
   SUPPORTED_CHART_TIMEFRAMES,
   type ChartTimeframe,
 } from "@/lib/chart/timeframes";
+import { aggregateChartCandles } from "@/lib/chart/aggregate";
 import type { ChartCandle } from "@/lib/terminal-farm/types";
 import { Button } from "@/components/ui/button";
 import { ChoiceChip } from "@/components/ui/control-primitives";
@@ -22,7 +23,7 @@ type TradeChartApiResponse = {
   error?: string;
   rateLimited?: boolean;
   pending?: boolean;
-  source?: "cache" | "mt5" | "external";
+  source?: "mt5" | "derived";
   timeframe?: ChartTimeframe;
 };
 
@@ -134,6 +135,29 @@ export function JournalTradeChart({
           }, CHART_POLL_MS);
         }
         return;
+      }
+
+      if (!force && requestedTimeframe !== DEFAULT_CHART_TIMEFRAME) {
+        const oneMinuteState = timeframeCacheRef.current[DEFAULT_CHART_TIMEFRAME];
+        if (oneMinuteState?.candles.length) {
+          const derivedState: TimeframeChartState = {
+            candles: aggregateChartCandles(
+              oneMinuteState.candles,
+              requestedTimeframe,
+            ),
+            pending: false,
+            rateLimited: false,
+            source: "derived",
+            error: null,
+          };
+
+          if (derivedState.candles.length > 0) {
+            timeframeCacheRef.current[requestedTimeframe] = derivedState;
+            applyChartState(derivedState);
+            setLoading(false);
+            return;
+          }
+        }
       }
 
       setLoading(true);
@@ -256,16 +280,13 @@ export function JournalTradeChart({
   }, [clearPollTimer, loadChart, open]);
 
   const sourceLabel = useMemo(() => {
-    if (source === "cache") {
-      return `${CHART_TIMEFRAME_LABELS[timeframe]} ready`;
-    }
     if (source === "mt5") {
       return pending
         ? `Waiting on MT5 ${CHART_TIMEFRAME_LABELS[timeframe]}`
         : `MT5 ${CHART_TIMEFRAME_LABELS[timeframe]}`;
     }
-    if (source === "external") {
-      return `Fallback ${CHART_TIMEFRAME_LABELS[timeframe]}`;
+    if (source === "derived") {
+      return `Derived ${CHART_TIMEFRAME_LABELS[timeframe]} from MT5 1m`;
     }
     return `${CHART_TIMEFRAME_LABELS[timeframe]} chart`;
   }, [pending, source, timeframe]);
@@ -311,7 +332,7 @@ export function JournalTradeChart({
               lineHeight: 1.55,
             }}
           >
-            Pulls candle context from the linked MT5 account and keeps it with the trade.
+            Uses MT5-synced candles only. Higher timeframes are derived from the cached 1m trade replay.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {SUPPORTED_CHART_TIMEFRAMES.map((option) => (
@@ -370,7 +391,7 @@ export function JournalTradeChart({
       </div>
 
       {open ? (
-        <div className="mt-4 h-[20rem]">
+        <div className="mt-4 h-[16rem] sm:h-[18rem] lg:h-[20rem] xl:h-[22rem]">
           <TradeChart
             candles={candles}
             entryPrice={entryPrice ?? 0}

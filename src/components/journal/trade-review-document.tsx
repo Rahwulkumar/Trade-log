@@ -1551,7 +1551,7 @@ export function TradeReviewDocument({
             </div>
           </div>
 
-          <div className="lg:hidden">
+          <div className="xl:hidden">
             <JournalTabRail
               items={chapterTabs}
               activeTab={activeChapter}
@@ -1564,8 +1564,8 @@ export function TradeReviewDocument({
 
       <div className="px-4 pb-16 pt-4 sm:px-6 lg:px-8">
         <div className="w-full">
-          <div className="grid gap-5 lg:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]">
-            <div className="hidden lg:block">
+          <div className="grid gap-5 xl:grid-cols-[248px_minmax(0,1fr)] 2xl:grid-cols-[288px_minmax(0,1fr)]">
+            <div className="hidden xl:block">
               <div className="sticky top-[90px] space-y-4">
                 <JournalOutlineRail
                   items={chapterItems}
@@ -1709,7 +1709,7 @@ export function TradeReviewDocument({
                       </div>
 
                       <div
-                        className="rounded-[var(--radius-xl)] border px-4 py-3 lg:max-w-[19rem]"
+                        className="rounded-[var(--radius-xl)] border px-4 py-3 xl:max-w-[19rem]"
                         style={{
                           background: "var(--surface-elevated)",
                           borderColor: "var(--border-subtle)",

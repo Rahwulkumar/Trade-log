@@ -6,12 +6,12 @@
  */
 
 import {
-  CHART_TIMEFRAME_INTERVALS,
   CHART_TIMEFRAME_PADDING_BARS,
   DEFAULT_CHART_TIMEFRAME,
   getChartTimeframeMs,
   type ChartTimeframe,
 } from '@/lib/chart/timeframes';
+import { aggregateChartCandles } from '@/lib/chart/aggregate';
 import {
   clearTradeChartCache,
   getCachedTradeChart,
@@ -27,11 +27,9 @@ export interface ChartDataResult {
   error?: string;
   rateLimited?: boolean;
   pending?: boolean;
-  source?: 'cache' | 'mt5' | 'external';
+  source?: 'mt5' | 'derived';
   timeframe?: ChartTimeframe;
 }
-
-const TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
 
 export async function getTradeChartData(
   tradeId: string,
@@ -46,9 +44,40 @@ export async function getTradeChartData(
       return {
         candles: cached.candles,
         cached: true,
-        source: 'cache',
+        source: cached.source === 'derived_from_1m' ? 'derived' : 'mt5',
         timeframe,
       };
+    }
+
+    if (timeframe !== DEFAULT_CHART_TIMEFRAME) {
+      const oneMinuteCache = await getCachedTradeChart(
+        tradeId,
+        DEFAULT_CHART_TIMEFRAME,
+      );
+
+      if (oneMinuteCache) {
+        const derivedCandles = aggregateChartCandles(
+          oneMinuteCache.candles,
+          timeframe,
+        );
+
+        if (derivedCandles.length > 0) {
+          await saveTradeChartCache({
+            tradeId,
+            timeframe,
+            symbol: oneMinuteCache.symbol || normalizeSymbol(symbol),
+            candles: derivedCandles,
+            source: 'derived_from_1m',
+          });
+
+          return {
+            candles: derivedCandles,
+            cached: true,
+            source: 'derived',
+            timeframe,
+          };
+        }
+      }
     }
 
     const { start, end } = calculatePrecisionWindow(entryTime, exitTime, timeframe);
@@ -70,42 +99,14 @@ export async function getTradeChartData(
       };
     }
 
-    const normalizedSymbol = normalizeSymbol(symbol);
-    const candles = await fetchFromTwelveData(
-      normalizedSymbol,
-      timeframe,
-      start,
-      end,
-    );
-
-    if (candles.length === 0) {
-      return {
-        candles: [],
-        cached: false,
-        error: 'No chart data is available for this trade yet.',
-        timeframe,
-      };
-    }
-
-    await saveTradeChartCache({
-      tradeId,
-      timeframe,
-      symbol: normalizedSymbol,
-      candles,
-      source: 'external',
-    });
-
     return {
-      candles,
+      candles: [],
       cached: false,
-      source: 'external',
+      error:
+        'MT5 chart data is not ready for this trade yet. Keep the worker running and refresh again.',
       timeframe,
     };
   } catch (error) {
-    if (error instanceof TwelveDataRateLimitError) {
-      return { candles: [], cached: false, rateLimited: true, timeframe };
-    }
-
     console.error('[Pricing] Unexpected error:', error);
     return {
       candles: [],
@@ -179,78 +180,6 @@ function normalizeSymbol(symbol: string): string {
   if (cryptoMatch) return `${cryptoMatch[1]}/${cryptoMatch[2]}`;
 
   return cleaned;
-}
-
-class TwelveDataRateLimitError extends Error {
-  constructor() {
-    super('Twelve Data rate limit reached');
-    this.name = 'TwelveDataRateLimitError';
-  }
-}
-
-async function fetchFromTwelveData(
-  symbol: string,
-  timeframe: ChartTimeframe,
-  startTime: Date,
-  endTime: Date,
-): Promise<ChartCandle[]> {
-  const apiKey = process.env.TWELVE_DATA_API_KEY?.trim();
-
-  if (!apiKey) {
-    throw new Error('Twelve Data API key not configured');
-  }
-
-  const formatDate = (d: Date) => d.toISOString().replace('T', ' ').substring(0, 19);
-  const params = new URLSearchParams({
-    symbol,
-    interval: CHART_TIMEFRAME_INTERVALS[timeframe],
-    start_date: formatDate(startTime),
-    end_date: formatDate(endTime),
-    apikey: apiKey,
-    format: 'JSON',
-    order: 'ASC',
-  });
-
-  const response = await fetch(`${TWELVE_DATA_BASE_URL}/time_series?${params}`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
-
-  if (response.status === 429) throw new TwelveDataRateLimitError();
-  if (!response.ok) {
-    throw new Error(`Twelve Data API error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-
-  if (data.status === 'error') {
-    if (data.code === 429) throw new TwelveDataRateLimitError();
-    throw new Error(`Twelve Data error: ${data.message || 'Unknown error'}`);
-  }
-
-  if (!Array.isArray(data.values)) {
-    return [];
-  }
-
-  return data.values
-    .map((candle: {
-      datetime: string;
-      open: string;
-      high: string;
-      low: string;
-      close: string;
-      volume?: string;
-    }) => ({
-      time: Math.floor(new Date(candle.datetime).getTime() / 1000),
-      open: Number.parseFloat(candle.open),
-      high: Number.parseFloat(candle.high),
-      low: Number.parseFloat(candle.low),
-      close: Number.parseFloat(candle.close),
-      ...(candle.volume != null
-        ? { volume: Number.parseFloat(candle.volume) }
-        : {}),
-    }))
-    .filter((candle: ChartCandle) => Number.isFinite(candle.time));
 }
 
 export async function hasChartData(

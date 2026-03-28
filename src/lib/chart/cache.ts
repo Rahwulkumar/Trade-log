@@ -34,6 +34,7 @@ interface SaveTradeChartCacheInput {
 }
 
 let warnedMissingTable = false;
+const TRUSTED_CHART_SOURCES = new Set(['terminal_farm', 'derived_from_1m']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -86,6 +87,10 @@ function normalizeChartTimeframe(
   return typeof raw === 'string' && isChartTimeframe(raw) ? raw : fallback;
 }
 
+function isTrustedChartSource(value: unknown): value is string {
+  return typeof value === 'string' && TRUSTED_CHART_SOURCES.has(value);
+}
+
 function normalizeLegacyChart(
   raw: unknown,
   timeframe: ChartTimeframe,
@@ -106,6 +111,10 @@ function normalizeLegacyChart(
   );
 
   if (storedTimeframe !== timeframe) {
+    return null;
+  }
+
+  if (!isTrustedChartSource(data.source)) {
     return null;
   }
 
@@ -199,6 +208,10 @@ export async function getCachedTradeChart(
       .limit(1);
 
     if (row) {
+      if (!isTrustedChartSource(row.source)) {
+        return null;
+      }
+
       const candles = normalizeCandles(row.candles);
       if (candles.length > 0) {
         return {
