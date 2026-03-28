@@ -54,16 +54,16 @@ export function CardSkeleton({ className }: { className?: string }) {
         className,
       )}
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="space-y-2 flex-1">
-          <div className="h-4 w-1/3 bg-bg-tertiary rounded-[var(--radius-sm)]" />
-          <div className="h-6 w-1/2 bg-bg-tertiary rounded-[var(--radius-sm)]" />
+      <div className="mb-4 flex items-start justify-between">
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-1/3 rounded-[var(--radius-sm)] bg-bg-tertiary" />
+          <div className="h-6 w-1/2 rounded-[var(--radius-sm)] bg-bg-tertiary" />
         </div>
-        <div className="w-12 h-12 bg-bg-tertiary rounded-[var(--radius-md)]" />
+        <div className="h-12 w-12 rounded-[var(--radius-md)] bg-bg-tertiary" />
       </div>
       <div className="space-y-2">
-        <div className="h-3 w-full bg-bg-tertiary rounded-[var(--radius-sm)]" />
-        <div className="h-3 w-4/5 bg-bg-tertiary rounded-[var(--radius-sm)]" />
+        <div className="h-3 w-full rounded-[var(--radius-sm)] bg-bg-tertiary" />
+        <div className="h-3 w-4/5 rounded-[var(--radius-sm)] bg-bg-tertiary" />
       </div>
     </div>
   );
@@ -72,11 +72,11 @@ export function CardSkeleton({ className }: { className?: string }) {
 // Table row skeleton
 export function TableRowSkeleton({ columns = 4 }: { columns?: number }) {
   return (
-    <div className="flex items-center gap-4 px-6 py-4 bg-bg-secondary rounded-[var(--radius-md)] animate-pulse">
+    <div className="flex animate-pulse items-center gap-4 rounded-[var(--radius-md)] bg-bg-secondary px-6 py-4">
       {Array.from({ length: columns }).map((_, i) => (
         <div
           key={i}
-          className="h-4 bg-bg-tertiary rounded-[var(--radius-sm)]"
+          className="h-4 rounded-[var(--radius-sm)] bg-bg-tertiary"
           style={{ width: `${100 / columns}%` }}
         />
       ))}
@@ -87,8 +87,8 @@ export function TableRowSkeleton({ columns = 4 }: { columns?: number }) {
 // Full page loader
 export function PageLoader() {
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center space-y-4">
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="space-y-4 text-center">
         <BarLoader className="mx-auto" />
         <p className="text-sm text-text-secondary">Loading...</p>
       </div>
@@ -105,9 +105,9 @@ export function Spinner({
   className?: string;
 }) {
   const sizeClasses = {
-    sm: "w-4 h-4",
-    md: "w-6 h-6",
-    lg: "w-8 h-8",
+    sm: "h-4 w-4",
+    md: "h-6 w-6",
+    lg: "h-8 w-8",
   };
 
   return (
