@@ -24,6 +24,7 @@ import {
   AppPanel,
   SectionHeader,
 } from '@/components/ui/page-primitives';
+import { LoadingMetricCard } from '@/components/ui/loading';
 import {
   IconAnalytics,
   IconDashboard,
@@ -121,16 +122,6 @@ function getChartRange(period: ChartPeriod, referenceNow: Date) {
 function monthDeltaLabel(current: number, previous: number | null) {
   if (previous == null) return undefined;
   return signedFmt(current - previous);
-}
-
-function StatSkeleton() {
-  return (
-    <div className="surface p-5 flex flex-col gap-3">
-      <div className="skeleton h-2.5 w-14 rounded" />
-      <div className="skeleton h-7 w-24 rounded" />
-      <div className="skeleton h-5 w-18 rounded-full" />
-    </div>
-  );
 }
 
 export default function DashboardPage() {
@@ -474,7 +465,9 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {loading ? (
-            Array.from({ length: 4 }).map((_, index) => <StatSkeleton key={index} />)
+            Array.from({ length: 4 }).map((_, index) => (
+              <LoadingMetricCard key={index} />
+            ))
           ) : (
             <>
               <DashboardAccountCard

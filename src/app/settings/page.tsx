@@ -25,10 +25,16 @@ import { Button } from "@/components/ui/button";
 import {
   AppPageHeader,
   AppPanelEmptyState,
+  AppPanel,
 } from "@/components/ui/page-primitives";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTheme } from "@/components/theme-provider";
 import { updateCurrentUserProfile } from "@/lib/api/client/profile";
+import {
+  LoadingBlock,
+  LoadingHeroPanel,
+  LoadingPanel,
+} from "@/components/ui/loading";
 
 const SETTINGS_TABS = [
   { id: "profile", label: "Profile" },
@@ -50,16 +56,22 @@ export default function SettingsPage() {
     <Suspense
       fallback={
         <>
-          <AppPageHeader
-            eyebrow="Account"
-            title="Settings"
-            description="Manage profile, trading preferences, and data controls."
-          />
-          <AppPanelEmptyState
-            title="Loading settings"
-            description="Preparing your account preferences."
-            minHeight={180}
-          />
+          <LoadingHeroPanel compact />
+          <AppPanel className="p-2">
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <LoadingBlock
+                  key={index}
+                  className="h-8 w-24 rounded-[var(--radius-md)]"
+                  tone={index === 0 ? "accent" : "default"}
+                />
+              ))}
+            </div>
+          </AppPanel>
+          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+            <LoadingPanel rows={5} />
+            <LoadingPanel rows={6} />
+          </div>
         </>
       }
     >
@@ -369,16 +381,22 @@ function SettingsPageContent() {
   if (!isLoaded || loading) {
     return (
       <>
-        <AppPageHeader
-          eyebrow="Account"
-          title="Settings"
-          description="Manage profile, trading preferences, and data controls."
-        />
-        <AppPanelEmptyState
-          title="Loading settings"
-          description="Fetching your account profile and saved defaults."
-          minHeight={180}
-        />
+        <LoadingHeroPanel compact />
+        <AppPanel className="p-2">
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <LoadingBlock
+                key={index}
+                className="h-8 w-24 rounded-[var(--radius-md)]"
+                tone={index === 0 ? "accent" : "default"}
+              />
+            ))}
+          </div>
+        </AppPanel>
+        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <LoadingPanel rows={5} />
+          <LoadingPanel rows={6} />
+        </div>
       </>
     );
   }

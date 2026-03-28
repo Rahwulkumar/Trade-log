@@ -30,6 +30,7 @@ import {
   AppPanel,
   PanelTitle,
 } from "@/components/ui/page-primitives";
+import { LoadingListRows } from "@/components/ui/loading";
 
 interface WeekStats {
   trades: number;
@@ -246,11 +247,7 @@ export default function WeeklyAnalysisPage() {
             />
 
             {loading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="skeleton h-10 rounded-lg" />
-                ))}
-              </div>
+              <LoadingListRows count={3} compact />
             ) : !stats || stats.trades === 0 ? (
               <p
                 className="text-[13px] py-6 text-center"

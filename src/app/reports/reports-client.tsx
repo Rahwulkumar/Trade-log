@@ -15,6 +15,11 @@ import {
   AppPanelEmptyState,
 } from "@/components/ui/page-primitives";
 import { InsetPanel } from "@/components/ui/surface-primitives";
+import {
+  LoadingHeroPanel,
+  LoadingListRows,
+  LoadingPanel,
+} from "@/components/ui/loading";
 import { getActivePlaybooks, type Playbook } from "@/lib/api/client/playbooks";
 import {
   deleteReport,
@@ -233,10 +238,16 @@ export function ReportsClient() {
 
   if (authLoading || reportsLoading) {
     return (
-      <AppPanelEmptyState
-        title="Loading reports..."
-        description="Preparing your saved reports and builder options."
-      />
+      <div className="space-y-6">
+        <LoadingHeroPanel />
+        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <LoadingPanel rows={6} />
+          <LoadingPanel rows={0}>
+            <LoadingListRows count={4} compact />
+          </LoadingPanel>
+        </section>
+        <LoadingPanel chart />
+      </div>
     );
   }
 

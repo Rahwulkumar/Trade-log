@@ -18,6 +18,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { AppMetricCard, AppPanel, PanelTitle } from "@/components/ui/page-primitives";
 import {
+  LoadingListRows,
+} from "@/components/ui/loading";
+import {
   ReportGrid,
   ReportGridHeader,
   ReportGridRow,
@@ -617,10 +620,7 @@ export function AnalyticsWorkspace({
           ) : null}
 
           {loading && !result ? (
-            <WidgetEmptyState
-              title="Loading workspace..."
-              description="Building grouped results from your closed trades."
-            />
+            <LoadingListRows count={5} compact />
           ) : result && result.rows.length > 0 ? (
             <ReportGrid className="space-y-2" minWidthClassName="min-w-[880px]">
               <ReportGridHeader columns="minmax(0,1.65fr) minmax(80px,0.65fr) minmax(110px,0.75fr) minmax(90px,0.7fr) minmax(110px,0.75fr) minmax(90px,0.65fr) minmax(95px,0.75fr)">

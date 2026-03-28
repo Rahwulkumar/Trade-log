@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   Loader2,
@@ -17,10 +17,14 @@ import { Button } from "@/components/ui/button";
 import {
   AppMetricCard,
   AppPageHeader,
-  AppPanel,
   AppPanelEmptyState,
   SectionHeader,
 } from "@/components/ui/page-primitives";
+import {
+  LoadingListRows,
+  LoadingMetricGrid,
+  LoadingPanel,
+} from "@/components/ui/loading";
 import {
   ChoiceChip,
   ControlSurface,
@@ -80,6 +84,7 @@ export default function PlaybooksPage() {
     description: "",
     rules: "",
   });
+  const deferredSearch = useDeferredValue(search);
 
   const loadPlaybooks = useCallback(async () => {
     if (!isConfigured || !user) {
@@ -277,9 +282,9 @@ export default function PlaybooksPage() {
           .join(" ")
           .toLowerCase();
 
-        return matchesStatus && haystack.includes(search.toLowerCase());
+        return matchesStatus && haystack.includes(deferredSearch.toLowerCase());
       }),
-    [playbooks, search, statusFilter],
+    [deferredSearch, playbooks, statusFilter],
   );
 
   if (!authLoading && !isConfigured) {
@@ -524,18 +529,11 @@ export default function PlaybooksPage() {
       ) : null}
 
       {loading ? (
-        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <AppPanel key={index} className="flex h-full flex-col gap-4 p-5">
-              <div className="skeleton h-10 rounded-[var(--radius-md)]" />
-              <div className="skeleton h-20 rounded-[var(--radius-md)]" />
-              <div className="skeleton h-28 rounded-[var(--radius-md)]" />
-              <div className="mt-auto flex justify-end">
-                <div className="skeleton h-8 w-28 rounded-[var(--radius-md)]" />
-              </div>
-            </AppPanel>
-          ))}
-        </section>
+        <>
+          <LoadingMetricGrid />
+          <LoadingPanel rows={2} />
+          <LoadingListRows count={6} />
+        </>
       ) : null}
 
       {!loading && playbooks.length === 0 ? (

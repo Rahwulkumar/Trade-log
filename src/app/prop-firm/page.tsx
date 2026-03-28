@@ -33,6 +33,10 @@ import {
   SectionHeader,
 } from "@/components/ui/page-primitives";
 import {
+  LoadingMetricGrid,
+  LoadingPanel,
+} from "@/components/ui/loading";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -684,17 +688,13 @@ export default function PropFirmPage() {
       ) : null}
 
       {loading ? (
-        <AppPanel className="flex min-h-[280px] items-center justify-center">
-          <div className="text-center">
-            <Loader2
-              className="mx-auto h-8 w-8 animate-spin"
-              style={{ color: "var(--text-tertiary)" }}
-            />
-            <p className="mt-3 text-sm" style={{ color: "var(--text-tertiary)" }}>
-              Loading prop accounts...
-            </p>
+        <div className="space-y-4">
+          <LoadingMetricGrid />
+          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+            <LoadingPanel rows={5} />
+            <LoadingPanel rows={4} />
           </div>
-        </AppPanel>
+        </div>
       ) : null}
 
       {!loading && accounts.length === 0 ? (

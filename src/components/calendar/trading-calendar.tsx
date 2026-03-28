@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Loader2,
   Target,
   TrendingDown,
   TrendingUp,
@@ -20,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AppMetricCard } from "@/components/ui/page-primitives";
+import { LoadingCalendarGrid } from "@/components/ui/loading";
 import {
   ListItemRow,
   WidgetEmptyState,
@@ -424,18 +424,7 @@ export function TradingCalendar({ embedded = false }: TradingCalendarProps) {
       ) : null}
 
       {loading ? (
-        <div
-          className="flex items-center justify-center rounded-2xl border border-border py-16"
-          style={{
-            background: "var(--surface)",
-            borderColor: "var(--border-subtle)",
-          }}
-        >
-          <Loader2
-            className="h-8 w-8 animate-spin"
-            style={{ color: "var(--text-tertiary)" }}
-          />
-        </div>
+        <LoadingCalendarGrid />
       ) : (
         <>
           <section className="space-y-3 md:hidden">

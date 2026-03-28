@@ -3,6 +3,7 @@
 import { Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { LoadingListRows } from "@/components/ui/loading";
 import { Input } from "@/components/ui/input";
 import { AppPanel } from "@/components/ui/page-primitives";
 import {
@@ -78,14 +79,7 @@ export function StrategyLibraryRail({
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         {loading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <div
-                key={index}
-                className="skeleton h-16 rounded-[var(--radius-md)]"
-              />
-            ))}
-          </div>
+          <LoadingListRows count={5} compact />
         ) : playbooks.length === 0 ? (
           <WidgetEmptyState
             title={

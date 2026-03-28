@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 
 import { useAuth } from "@/components/auth-provider";
+import { LoadingListRows } from "@/components/ui/loading";
 import { ListItemRow } from "@/components/ui/surface-primitives";
 import { NoTradesEmpty } from "@/components/ui/empty-state";
 import { getTrades } from "@/lib/api/client/trades";
@@ -50,25 +51,6 @@ function tradeDuration(entry: Date, exit: Date | null): string | null {
   const hours = Math.floor(totalMin / 60);
   const minutes = totalMin % 60;
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-}
-
-function SkeletonRow() {
-  return (
-    <div
-      className="flex items-center gap-3 px-5 py-4"
-      style={{ borderBottom: "1px solid var(--border-subtle)" }}
-    >
-      <div className="skeleton h-2 w-2 rounded-full shrink-0" />
-      <div className="flex-1 space-y-1.5">
-        <div className="skeleton h-3 w-24 rounded" />
-        <div className="skeleton h-2 w-36 rounded" />
-      </div>
-      <div className="space-y-1.5 text-right">
-        <div className="skeleton ml-auto h-3 w-16 rounded" />
-        <div className="skeleton ml-auto h-2 w-10 rounded" />
-      </div>
-    </div>
-  );
 }
 
 function TradeRow({ trade }: { trade: Trade }) {
@@ -234,13 +216,7 @@ export function RecentTrades({
   }, [authLoading, initialTrades, isConfigured, limit, propAccountId, user]);
 
   if (loading) {
-    return (
-      <div>
-        {Array.from({ length: limit }).map((_, i) => (
-          <SkeletonRow key={i} />
-        ))}
-      </div>
-    );
+    return <LoadingListRows count={limit} compact />;
   }
 
   if (trades.length === 0) {

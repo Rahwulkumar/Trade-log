@@ -3,6 +3,7 @@
 import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { LoadingListRows } from "@/components/ui/loading";
 import { AppPanel, PanelTitle } from "@/components/ui/page-primitives";
 import { ListItemRow, WidgetEmptyState } from "@/components/ui/surface-primitives";
 import { ReportTypeBadge } from "@/components/ui/report-primitives";
@@ -43,10 +44,7 @@ export function SavedReportList({
       />
 
       {loading ? (
-        <WidgetEmptyState
-          title="Loading saved reports..."
-          description="Fetching your saved report snapshots."
-        />
+        <LoadingListRows count={4} compact />
       ) : reports.length === 0 ? (
         <WidgetEmptyState
           title="No saved reports yet"

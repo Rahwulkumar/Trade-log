@@ -3,6 +3,7 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useAuth } from "@/components/auth-provider";
+import { LoadingBlock, LoadingListRows } from "@/components/ui/loading";
 import { getAnalyticsPayloadClient } from "@/lib/api/client/analytics";
 import type { AnalyticsSummary } from "@/lib/analytics/types";
 
@@ -160,6 +161,15 @@ export function StatisticsDonut({
 
   const fmtMoney = (v: number) =>
     `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  if (loading && !stats) {
+    return (
+      <div className="space-y-4">
+        <LoadingBlock className="h-[180px] w-full rounded-[var(--radius-xl)]" />
+        <LoadingListRows count={3} compact />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">

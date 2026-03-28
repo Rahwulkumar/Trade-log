@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
+import { LoadingListRows } from "@/components/ui/loading";
 import { ListItemRow } from "@/components/ui/surface-primitives";
 import { NoDataEmpty } from "@/components/ui/empty-state";
 import {
@@ -57,17 +58,7 @@ export function TopPlaybooks({
   }, [authLoading, initialPlaybooks, isConfigured, propAccountId, user]);
 
   if (loading) {
-    return (
-      <div className="space-y-2 px-1">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="skeleton h-14 rounded-lg"
-            style={{ borderRadius: "var(--radius-md)" }}
-          />
-        ))}
-      </div>
-    );
+    return <LoadingListRows count={3} compact className="px-1" />;
   }
 
   if (playbooks.length === 0) {

@@ -29,6 +29,7 @@ import {
   ListItemRow,
   WidgetEmptyState,
 } from "@/components/ui/surface-primitives";
+import { LoadingMetricGrid } from "@/components/ui/loading";
 
 type DateRange = "today" | "tomorrow" | "this-week" | "next-week";
 type ImpactFilter = "all" | "High" | "Medium" | "Low";
@@ -315,7 +316,7 @@ export default function NewsPage() {
   const [impact, setImpact] = useState<ImpactFilter>("all");
   const [dateRange, setDateRange] = useState<DateRange>("today");
   const [events, setEvents] = useState<EconomicEvent[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [nowTimestamp, setNowTimestamp] = useState<number>(() => Date.now());
@@ -380,6 +381,7 @@ export default function NewsPage() {
   const description = lastUpdated
     ? `${events.length} scheduled releases in view. Updated at ${format(lastUpdated, "HH:mm")}.`
     : "Major macro releases and central bank events for your selected window.";
+  const initialLoading = loading && events.length === 0;
 
   return (
     <div className="page-root page-sections">
@@ -469,32 +471,36 @@ export default function NewsPage() {
         </div>
       </ControlSurface>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <AppMetricCard
-          label="High Impact"
-          value={String(highCount)}
-          helper="Priority releases"
-          tone="loss"
-        />
-        <AppMetricCard
-          label="Medium Impact"
-          value={String(mediumCount)}
-          helper="Watch closely"
-          tone="warning"
-        />
-        <AppMetricCard
-          label="Low Impact"
-          value={String(lowCount)}
-          helper="Lower urgency"
-          tone="accent"
-        />
-        <AppMetricCard
-          label="Upcoming"
-          value={String(upcomingCount)}
-          helper="Still ahead"
-          tone="default"
-        />
-      </div>
+      {initialLoading ? (
+        <LoadingMetricGrid />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <AppMetricCard
+            label="High Impact"
+            value={String(highCount)}
+            helper="Priority releases"
+            tone="loss"
+          />
+          <AppMetricCard
+            label="Medium Impact"
+            value={String(mediumCount)}
+            helper="Watch closely"
+            tone="warning"
+          />
+          <AppMetricCard
+            label="Low Impact"
+            value={String(lowCount)}
+            helper="Lower urgency"
+            tone="accent"
+          />
+          <AppMetricCard
+            label="Upcoming"
+            value={String(upcomingCount)}
+            helper="Still ahead"
+            tone="default"
+          />
+        </div>
+      )}
 
       {error ? (
         <AppPanelEmptyState
@@ -541,7 +547,7 @@ export default function NewsPage() {
           }
         />
 
-        {loading ? (
+        {initialLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, index) => (
               <EventSkeleton key={index} />

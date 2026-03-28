@@ -15,6 +15,7 @@ import {
   ValueBar,
 } from "@/components/ui/control-primitives";
 import { AppPanel, SectionHeader } from "@/components/ui/page-primitives";
+import { LoadingPanel } from "@/components/ui/loading";
 import { getDailyPlan, upsertDailyPlan, type DailyPlanResponse } from "@/lib/api/client/daily-plans";
 import { getActivePlaybooks, type Playbook } from "@/lib/api/client/playbooks";
 
@@ -239,11 +240,7 @@ export function TodayPlanWidget() {
   }
 
   if (loading) {
-    return (
-      <AppPanel className="p-5">
-        <div className="skeleton h-40 w-full rounded-[var(--radius-lg)]" />
-      </AppPanel>
-    );
+    return <LoadingPanel rows={5} />;
   }
 
   const universalProgress = universalRules.length

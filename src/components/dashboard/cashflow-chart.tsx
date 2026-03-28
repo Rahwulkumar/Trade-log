@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { LoadingBlock } from "@/components/ui/loading";
 import type { Trade } from "@/lib/db/schema";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 
@@ -221,11 +222,17 @@ export const CashflowChart = memo(function CashflowChart({
       </div>
 
       {loading ? (
-        <div
-          className="flex h-[200px] items-center justify-center"
-          style={{ color: "var(--text-tertiary)", fontSize: "0.8rem" }}
-        >
-          Loading chart...
+        <div className="space-y-3">
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <LoadingBlock
+                key={index}
+                className="h-8 rounded-full"
+                tone={index === 0 ? "accent" : "default"}
+              />
+            ))}
+          </div>
+          <LoadingBlock className="h-[220px] w-full rounded-[var(--radius-xl)]" />
         </div>
       ) : data.length === 0 ? (
         <div

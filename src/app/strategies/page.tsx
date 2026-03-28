@@ -8,16 +8,19 @@ import {
   useMemo,
   useState,
 } from "react";
-import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import { Button } from "@/components/ui/button";
 import {
-  AppPanel,
   AppPageHeader,
   AppPanelEmptyState,
 } from "@/components/ui/page-primitives";
+import {
+  LoadingMetricGrid,
+  LoadingPanel,
+} from "@/components/ui/loading";
 import { InsetPanel } from "@/components/ui/surface-primitives";
 import {
   createPlaybook,
@@ -505,12 +508,10 @@ export default function StrategiesPage() {
             canEvaluate={canEvaluateDraft}
           />
         ) : loading ? (
-          <AppPanel className="flex min-h-[320px] items-center justify-center">
-            <Loader2
-              className="h-6 w-6 animate-spin"
-              style={{ color: "var(--text-tertiary)" }}
-            />
-          </AppPanel>
+          <div className="space-y-4">
+            <LoadingMetricGrid count={3} className="xl:grid-cols-3" />
+            <LoadingPanel rows={6} className="min-h-[340px]" />
+          </div>
         ) : playbooks.length === 0 ? (
           <AppPanelEmptyState
             title="No strategies in your library yet"

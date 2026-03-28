@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/page-primitives";
 import { WidgetEmptyState } from "@/components/ui/surface-primitives";
 import { Button } from "@/components/ui/button";
+import { LoadingJournalWorkspace } from "@/components/ui/loading";
 import { mapTradeToViewModel } from "@/domain/journal-mapper";
 import type { JournalTradeViewModel } from "@/domain/journal-types";
 import {
@@ -425,21 +426,7 @@ export default function JournalPage() {
   }, [goToTrade, nextTradeId]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6 lg:h-[calc(100dvh-64px)]">
-        <AppPanel className="flex min-h-[220px] items-center px-6">
-          <p
-            style={{
-              color: "var(--text-tertiary)",
-              fontFamily: "var(--font-inter)",
-              fontSize: "13px",
-            }}
-          >
-            Loading trade journal...
-          </p>
-        </AppPanel>
-      </div>
-    );
+    return <LoadingJournalWorkspace />;
   }
 
   if (!currentUserId) {
