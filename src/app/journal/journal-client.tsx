@@ -26,6 +26,10 @@ import { WidgetEmptyState } from "@/components/ui/surface-primitives";
 import { Button } from "@/components/ui/button";
 import { mapTradeToViewModel } from "@/domain/journal-mapper";
 import type { JournalTradeViewModel } from "@/domain/journal-types";
+import {
+  getPlaybooks,
+  type Playbook,
+} from "@/lib/api/client/playbooks";
 import { getTrades } from "@/lib/api/client/trades";
 import type { Trade } from "@/lib/api/trades";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
@@ -61,7 +65,7 @@ function getReviewStatus(viewModel: JournalTradeViewModel): TradeReviewStatus {
   const review = viewModel.journalReview;
 
   const signals = [
-    viewModel.notes.trim().length >= 80,
+    viewModel.notes.trim().length >= 80 || viewModel.screenshots.length > 0,
     Boolean(review.strategyName || review.setupName || viewModel.playbookId),
     Boolean(
       review.reasonForTrade ||
@@ -73,6 +77,7 @@ function getReviewStatus(viewModel: JournalTradeViewModel): TradeReviewStatus {
       review.managementReview ||
         review.exitReason ||
         viewModel.executionNotes ||
+        viewModel.executionArrays.length > 0 ||
         viewModel.entryRating ||
         viewModel.exitRating ||
         viewModel.managementRating,
@@ -102,6 +107,7 @@ function buildSearchText(viewModel: JournalTradeViewModel): string {
     viewModel.session ?? "",
     viewModel.notes,
     viewModel.observations,
+    viewModel.executionArrays.join(" "),
     viewModel.setupTags.join(" "),
     viewModel.mistakeTags.join(" "),
     viewModel.journalReview.strategyName,
@@ -137,15 +143,17 @@ export default function JournalPage() {
 
   const [loading, setLoading] = useState(true);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [railOpen, setRailOpen] = useState(false);
 
+  const currentUserId = user?.id ?? null;
   const deferredSearch = useDeferredValue(search);
   const tradeParam = searchParams.get("trade");
 
   const loadTrades = useCallback(async () => {
-    if (!user?.id) {
+    if (!currentUserId) {
       return [] as Trade[];
     }
 
@@ -156,7 +164,7 @@ export default function JournalPage() {
       sortOrder: "desc",
       limit: 400,
     });
-  }, [selectedAccountId, user?.id]);
+  }, [currentUserId, selectedAccountId]);
 
   const handleTradeSaved = useCallback((savedTrade: Trade) => {
     setTrades((currentTrades) =>
@@ -170,7 +178,7 @@ export default function JournalPage() {
     let cancelled = false;
 
     void (async () => {
-      if (!user?.id) {
+      if (!currentUserId) {
         if (!cancelled) {
           setTrades([]);
           setLoading(false);
@@ -193,7 +201,35 @@ export default function JournalPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadTrades, user?.id]);
+  }, [currentUserId, loadTrades]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      if (!currentUserId) {
+        if (!cancelled) {
+          setPlaybooks([]);
+        }
+        return;
+      }
+
+      try {
+        const rows = await getPlaybooks();
+        if (!cancelled) {
+          setPlaybooks(rows);
+        }
+      } catch {
+        if (!cancelled) {
+          setPlaybooks([]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
 
   const records = useMemo<JournalTradeRecord[]>(() => {
     return trades
@@ -322,6 +358,14 @@ export default function JournalPage() {
   const handleSelectTrade = useCallback(
     (tradeId: string) => {
       goToTrade(tradeId);
+      if (typeof window !== "undefined") {
+        const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+        if (!isDesktop) {
+          setRailOpen(false);
+        }
+        return;
+      }
+
       setRailOpen(false);
     },
     [goToTrade],
@@ -364,6 +408,18 @@ export default function JournalPage() {
     );
   }
 
+  if (!currentUserId) {
+    return (
+      <div className="flex h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6">
+        <AppPanelEmptyState
+          minHeight={260}
+          title="Sign in to journal trades"
+          description="The journal workspace needs your account session so it can load your closed trades and save reviews."
+        />
+      </div>
+    );
+  }
+
   if (records.length === 0) {
     return (
       <div className="flex h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6">
@@ -378,154 +434,238 @@ export default function JournalPage() {
 
   return (
     <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col gap-4 overflow-hidden px-4 py-4 sm:px-6">
-      <AppPanel className="stagger-1 px-4 py-3 sm:px-5">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                style={{
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "10px",
-                  fontWeight: 700,
-                  letterSpacing: "0.16em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Journal workspace
-              </span>
-              <span
-                className="rounded-full px-2.5 py-1"
-                style={{
-                  background: "var(--surface-elevated)",
-                  border: "1px solid var(--border-subtle)",
-                  color: "var(--text-secondary)",
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "11px",
-                  fontWeight: 600,
-                }}
-              >
-                {accountLabel}
-              </span>
-            </div>
-            <p
-              className="mt-1"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-inter)",
-                fontSize: "14px",
-                lineHeight: 1.5,
-              }}
-            >
-              {pendingCount} pending reviews across {records.length} closed trades.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setRailOpen((current) => !current)}
-              style={{
-                background: "var(--surface)",
-                borderColor: railOpen
-                  ? "var(--accent-primary)"
-                  : "var(--border-subtle)",
-                color: railOpen
-                  ? "var(--accent-primary)"
-                  : "var(--text-primary)",
-              }}
-            >
-              {railOpen ? (
-                <PanelLeftClose size={14} />
-              ) : (
-                <PanelLeftOpen size={14} />
-              )}
-              {railOpen ? "Hide trade list" : "Browse trades"}
-            </Button>
-            <span className="badge-accent rounded-full px-2.5 py-1">
-              {pendingCount} pending
-            </span>
-            <span style={{ color: "var(--text-tertiary)" }}>
-              {records.length} closed trades loaded
-            </span>
-          </div>
+      <div
+        className="stagger-1 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] border px-3 py-2.5 sm:px-4"
+        style={{
+          background: "color-mix(in srgb, var(--surface) 92%, transparent)",
+          borderColor: "var(--border-subtle)",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+          <span
+            style={{
+              color: "var(--text-primary)",
+              fontFamily: "var(--font-inter)",
+              fontSize: "13px",
+              fontWeight: 700,
+            }}
+          >
+            Journal
+          </span>
+          <span
+            className="rounded-full px-2 py-1"
+            style={{
+              background: "var(--surface-elevated)",
+              border: "1px solid var(--border-subtle)",
+              color: "var(--text-secondary)",
+              fontFamily: "var(--font-inter)",
+              fontSize: "11px",
+              fontWeight: 600,
+            }}
+          >
+            {accountLabel}
+          </span>
+          <span
+            style={{
+              color: "var(--text-tertiary)",
+              fontFamily: "var(--font-inter)",
+              fontSize: "12px",
+            }}
+          >
+            {pendingCount} pending
+          </span>
         </div>
-      </AppPanel>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setRailOpen((current) => !current)}
+            style={{
+              background: "var(--surface)",
+              borderColor: railOpen
+                ? "var(--accent-primary)"
+                : "var(--border-subtle)",
+              color: railOpen
+                ? "var(--accent-primary)"
+                : "var(--text-primary)",
+            }}
+          >
+            {railOpen ? (
+              <PanelLeftClose size={14} />
+            ) : (
+              <PanelLeftOpen size={14} />
+            )}
+            {railOpen ? "Hide trades" : "Browse trades"}
+          </Button>
+          <span className="badge-accent rounded-full px-2.5 py-1">
+            {records.length} loaded
+          </span>
+        </div>
+      </div>
 
       <section className="stagger-2 relative min-h-0 flex-1 overflow-hidden">
-        {railOpen ? (
-          <button
-            type="button"
-            aria-label="Close trade list"
-            className="absolute inset-0 z-10"
-            onClick={() => setRailOpen(false)}
-            style={{ background: "color-mix(in srgb, var(--surface) 62%, transparent)" }}
-          />
-        ) : null}
+        <div className="hidden h-full min-h-0 lg:block">
+          <div
+            className="grid h-full min-h-0 gap-4"
+            style={{
+              gridTemplateColumns: railOpen
+                ? "minmax(24rem, 29rem) minmax(0, 1fr)"
+                : "0 minmax(0, 1fr)",
+              transition: "grid-template-columns 220ms ease",
+            }}
+          >
+            <div
+              className="min-h-0 overflow-hidden"
+              style={{
+                opacity: railOpen ? 1 : 0,
+                pointerEvents: railOpen ? "auto" : "none",
+                transition: "opacity 180ms ease",
+              }}
+            >
+              <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-[0_20px_48px_rgba(15,23,42,0.12)]">
+                <TradeReviewRail
+                  items={filteredRecords.map((record) => record.item)}
+                  activeTradeId={activeTradeId}
+                  search={search}
+                  onSearchChange={setSearch}
+                  statusFilter={statusFilter}
+                  onStatusFilterChange={setStatusFilter}
+                  onSelectTrade={handleSelectTrade}
+                />
+              </AppPanel>
+            </div>
 
-        {railOpen ? (
-          <div className="absolute inset-y-0 left-0 z-20 w-full max-w-[24rem] pr-3 sm:w-[21rem]">
-            <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-[0_20px_48px_rgba(15,23,42,0.18)]">
-              <TradeReviewRail
-                items={filteredRecords.map((record) => record.item)}
-                activeTradeId={activeTradeId}
-                search={search}
-                onSearchChange={setSearch}
-                statusFilter={statusFilter}
-                onStatusFilterChange={setStatusFilter}
-                onSelectTrade={handleSelectTrade}
-              />
+            <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-none">
+              {!activeRecord ? (
+                <div className="flex h-full items-center justify-center px-6">
+                  <WidgetEmptyState
+                    className="w-full max-w-md"
+                    title="No trade in this view"
+                    description="Clear the current filter to continue journaling."
+                  />
+                </div>
+              ) : (
+                <div className="min-h-0 h-full overflow-y-auto">
+                  <AnimatePresence mode="wait">
+                    <TradeReviewDocument
+                      key={activeRecord.trade.id}
+                      trade={activeRecord.trade}
+                      userId={currentUserId}
+                      playbooks={playbooks}
+                      index={activeIndex >= 0 ? activeIndex : 0}
+                      total={filteredRecords.length}
+                      hasPrevious={activeIndex > 0}
+                      hasNext={activeIndex >= 0 && activeIndex < filteredRecords.length - 1}
+                      onPrevious={() => {
+                        if (activeIndex > 0) {
+                          goToTrade(filteredRecords[activeIndex - 1].trade.id);
+                        }
+                      }}
+                      onNext={() => {
+                        if (
+                          activeIndex >= 0 &&
+                          activeIndex < filteredRecords.length - 1
+                        ) {
+                          goToTrade(filteredRecords[activeIndex + 1].trade.id);
+                        }
+                      }}
+                      onNextPending={
+                        filteredRecords.some(
+                          (record) => record.reviewStatus !== "complete",
+                        )
+                          ? goToNextPending
+                          : undefined
+                      }
+                      onSaved={handleTradeSaved}
+                    />
+                  </AnimatePresence>
+                </div>
+              )}
             </AppPanel>
           </div>
-        ) : null}
+        </div>
 
-        <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-none">
-          {!activeRecord ? (
-            <div className="flex h-full items-center justify-center px-6">
-              <WidgetEmptyState
-                className="w-full max-w-md"
-                title="No trade in this view"
-                description="Clear the current filter to continue journaling."
-              />
-            </div>
-          ) : (
-            <div className="min-h-0 h-full overflow-y-auto">
-              <AnimatePresence mode="wait">
-                <TradeReviewDocument
-                  key={activeRecord.trade.id}
-                  trade={activeRecord.trade}
-                  index={activeIndex >= 0 ? activeIndex : 0}
-                  total={filteredRecords.length}
-                  hasPrevious={activeIndex > 0}
-                  hasNext={activeIndex >= 0 && activeIndex < filteredRecords.length - 1}
-                  onPrevious={() => {
-                    if (activeIndex > 0) {
-                      goToTrade(filteredRecords[activeIndex - 1].trade.id);
-                    }
-                  }}
-                  onNext={() => {
-                    if (
-                      activeIndex >= 0 &&
-                      activeIndex < filteredRecords.length - 1
-                    ) {
-                      goToTrade(filteredRecords[activeIndex + 1].trade.id);
-                    }
-                  }}
-                  onNextPending={
-                    filteredRecords.some(
-                      (record) => record.reviewStatus !== "complete",
-                    )
-                      ? goToNextPending
-                      : undefined
-                  }
-                  onSaved={handleTradeSaved}
+        <div className="h-full min-h-0 lg:hidden">
+          {railOpen ? (
+            <button
+              type="button"
+              aria-label="Close trade list"
+              className="absolute inset-0 z-10"
+              onClick={() => setRailOpen(false)}
+              style={{
+                background:
+                  "color-mix(in srgb, var(--surface) 62%, transparent)",
+              }}
+            />
+          ) : null}
+
+          {railOpen ? (
+            <div className="absolute inset-y-0 left-0 z-20 w-full max-w-[29rem] pr-3 sm:w-[25rem]">
+              <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-[0_20px_48px_rgba(15,23,42,0.18)]">
+                <TradeReviewRail
+                  items={filteredRecords.map((record) => record.item)}
+                  activeTradeId={activeTradeId}
+                  search={search}
+                  onSearchChange={setSearch}
+                  statusFilter={statusFilter}
+                  onStatusFilterChange={setStatusFilter}
+                  onSelectTrade={handleSelectTrade}
                 />
-              </AnimatePresence>
+              </AppPanel>
             </div>
-          )}
-        </AppPanel>
+          ) : null}
+
+          <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-none">
+            {!activeRecord ? (
+              <div className="flex h-full items-center justify-center px-6">
+                <WidgetEmptyState
+                  className="w-full max-w-md"
+                  title="No trade in this view"
+                  description="Clear the current filter to continue journaling."
+                />
+              </div>
+            ) : (
+              <div className="min-h-0 h-full overflow-y-auto">
+                <AnimatePresence mode="wait">
+                  <TradeReviewDocument
+                    key={activeRecord.trade.id}
+                    trade={activeRecord.trade}
+                    userId={currentUserId}
+                    playbooks={playbooks}
+                    index={activeIndex >= 0 ? activeIndex : 0}
+                    total={filteredRecords.length}
+                    hasPrevious={activeIndex > 0}
+                    hasNext={activeIndex >= 0 && activeIndex < filteredRecords.length - 1}
+                    onPrevious={() => {
+                      if (activeIndex > 0) {
+                        goToTrade(filteredRecords[activeIndex - 1].trade.id);
+                      }
+                    }}
+                    onNext={() => {
+                      if (
+                        activeIndex >= 0 &&
+                        activeIndex < filteredRecords.length - 1
+                      ) {
+                        goToTrade(filteredRecords[activeIndex + 1].trade.id);
+                      }
+                    }}
+                    onNextPending={
+                      filteredRecords.some(
+                        (record) => record.reviewStatus !== "complete",
+                      )
+                        ? goToNextPending
+                        : undefined
+                    }
+                    onSaved={handleTradeSaved}
+                  />
+                </AnimatePresence>
+              </div>
+            )}
+          </AppPanel>
+        </div>
       </section>
     </div>
   );

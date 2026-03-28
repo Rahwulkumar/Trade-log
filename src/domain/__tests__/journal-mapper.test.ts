@@ -81,6 +81,21 @@ describe("mapTradeToViewModel", () => {
     expect(vm.entryRating).toBe(5);
   });
 
+  it("prefers exact journal review scores when present", () => {
+    const vm = mapTradeToViewModel(
+      makeTrade({
+        entryRating: "Good",
+        journalReview: {
+          ...EMPTY_JOURNAL_REVIEW,
+          entryRatingScore: 4,
+          exitRatingScore: 2,
+        },
+      }),
+    );
+    expect(vm.entryRating).toBe(4);
+    expect(vm.exitRating).toBe(2);
+  });
+
   it("handles null pnl gracefully", () => {
     const vm = mapTradeToViewModel(makeTrade({ pnl: null }));
     expect(vm.pnl).toBeNull();
@@ -111,6 +126,22 @@ describe("mapDraftToTradeUpdate", () => {
     expect(update).toHaveProperty("journal_review");
     expect(update).toHaveProperty("setup_tags");
     expect(update).toHaveProperty("mistake_tags");
+  });
+
+  it("stores compatibility rating labels and preserves exact scores", () => {
+    const vm = mapTradeToViewModel(makeTrade());
+    const draft = viewModelToDraft(vm);
+    draft.entryRating = 4;
+    draft.exitRating = 2;
+
+    const update = mapDraftToTradeUpdate(draft);
+
+    expect(update.entry_rating).toBe("Good");
+    expect(update.exit_rating).toBe("Poor");
+    expect(update.journal_review).toMatchObject({
+      entryRatingScore: 4,
+      exitRatingScore: 2,
+    });
   });
 });
 

@@ -108,6 +108,34 @@ class Mt5Client:
             raise Mt5RuntimeError(f"MT5 history_deals_get failed: {mt5.last_error()}")
         return list(deals)
 
+    def get_candles(
+        self,
+        symbol: str,
+        timeframe: str,
+        start: datetime,
+        end: datetime,
+    ) -> list[Any]:
+        timeframe_map = {
+            "1m": mt5.TIMEFRAME_M1,
+            "5m": mt5.TIMEFRAME_M5,
+            "15m": mt5.TIMEFRAME_M15,
+            "30m": mt5.TIMEFRAME_M30,
+            "1h": mt5.TIMEFRAME_H1,
+            "4h": mt5.TIMEFRAME_H4,
+            "1d": mt5.TIMEFRAME_D1,
+        }
+
+        period = timeframe_map.get(timeframe.lower())
+        if period is None:
+            raise Mt5RuntimeError(f"Unsupported MT5 chart timeframe: {timeframe}")
+
+        rates = mt5.copy_rates_range(symbol, period, start, end)
+        if rates is None:
+            raise Mt5RuntimeError(
+                f"MT5 copy_rates_range failed for {symbol} {timeframe}: {mt5.last_error()}"
+            )
+        return list(rates)
+
     def get_total_deal_count(self, initial_history_days: int) -> int:
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=max(initial_history_days, 1))

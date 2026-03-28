@@ -14,7 +14,7 @@ try:
     from api_client import TradingJournalApiClient
     from config import WorkerConfig
     from cursor_store import CursorStore
-    from models import DealCursor, WorkerAssignment
+    from models import DealCursor, WorkerAssignment, WorkerChartJob
     from mt5_client import IMPORT_ERROR, Mt5Client, Mt5RuntimeError
 except ModuleNotFoundError as error:
     DEPENDENCY_IMPORT_ERROR = error
@@ -23,6 +23,7 @@ except ModuleNotFoundError as error:
     CursorStore = None  # type: ignore[assignment]
     DealCursor = None  # type: ignore[assignment]
     WorkerAssignment = None  # type: ignore[assignment]
+    WorkerChartJob = None  # type: ignore[assignment]
     IMPORT_ERROR = error
     Mt5Client = None  # type: ignore[assignment]
     Mt5RuntimeError = RuntimeError  # type: ignore[assignment]
@@ -43,6 +44,17 @@ def format_mt5_time(value: Any) -> str:
     if timestamp <= 0:
         return datetime.now(timezone.utc).strftime("%Y.%m.%d %H:%M:%S")
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y.%m.%d %H:%M:%S")
+
+
+def parse_iso_timestamp(value: str) -> datetime:
+    normalized = value.strip().replace(" ", "T")
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def normalize_positions(assignment: WorkerAssignment, positions: list[Any]) -> dict[str, Any]:
@@ -119,6 +131,34 @@ def normalize_deals(
         )
 
     return normalized, cursor
+
+
+def normalize_candles(
+    assignment: WorkerAssignment,
+    job: WorkerChartJob,
+    candles: list[Any],
+) -> dict[str, Any]:
+    normalized: list[dict[str, Any]] = []
+
+    for candle in candles:
+        normalized.append(
+            {
+                "time": int(candle["time"]),
+                "open": float(candle["open"]),
+                "high": float(candle["high"]),
+                "low": float(candle["low"]),
+                "close": float(candle["close"]),
+            }
+        )
+
+    return {
+        "terminalId": assignment.terminal_id,
+        "tradeId": job.trade_id,
+        "commandId": job.command_id,
+        "symbol": job.symbol,
+        "timeframe": job.timeframe,
+        "candles": normalized,
+    }
 
 
 class WindowsMt5Worker:
@@ -265,6 +305,9 @@ class WindowsMt5Worker:
                 logger.info("Uploaded %s new MT5 deals", len(new_deals))
             else:
                 logger.info("No new MT5 deals for terminal=%s", assignment.terminal_id)
+
+            for job in assignment.chart_jobs:
+                self._sync_chart_job(assignment, job)
         except (Mt5RuntimeError, OSError, RuntimeError) as error:
             logger.error("Worker sync failed for terminal=%s: %s", assignment.terminal_id, error)
             raise
@@ -306,6 +349,39 @@ class WindowsMt5Worker:
             self._lookup_contract_size,
         )
         return normalized, next_cursor
+
+    def _sync_chart_job(
+        self,
+        assignment: WorkerAssignment,
+        job: WorkerChartJob,
+    ) -> None:
+        try:
+            logger.info(
+                "Fetching MT5 candles for trade=%s symbol=%s timeframe=%s",
+                job.trade_id,
+                job.symbol,
+                job.timeframe,
+            )
+
+            candles = self._mt5.get_candles(
+                job.symbol,
+                job.timeframe,
+                parse_iso_timestamp(job.start_time),
+                parse_iso_timestamp(job.end_time),
+            )
+
+            self._api.post_candles(normalize_candles(assignment, job, candles))
+            logger.info(
+                "Uploaded %s MT5 candles for trade=%s",
+                len(candles),
+                job.trade_id,
+            )
+        except (Mt5RuntimeError, OSError, RuntimeError) as error:
+            logger.warning(
+                "MT5 candle fetch failed for trade=%s: %s",
+                job.trade_id,
+                error,
+            )
 
 
 def parse_args() -> argparse.Namespace:

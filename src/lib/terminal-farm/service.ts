@@ -4,9 +4,10 @@
  * Uses Neon (Drizzle) — no Supabase.
  */
 
-import { eq, inArray, like, asc, and, isNull, sql, or } from 'drizzle-orm';
+import { eq, inArray, asc, and, isNull, sql, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
+import { saveTradeChartCache } from '@/lib/chart/cache';
 import {
     terminalInstances,
     mt5Accounts,
@@ -39,6 +40,8 @@ import type {
     TerminalTradePayload,
     TerminalWebhookResponse,
 } from './types';
+
+const STALE_CHART_COMMAND_MS = 2 * 60 * 1000;
 import {
     TerminalHeartbeatPayloadSchema,
     TerminalSyncPayloadSchema,
@@ -1444,6 +1447,36 @@ export async function processTrades(data: TerminalSyncPayload): Promise<Terminal
 /**
  * Process candle data from terminal EA
  */
+function parseFetchCandlesCommandPayload(payload: string | null): {
+    symbol: string;
+    timeframe: string;
+    startTime: string;
+    endTime: string;
+    tradeId: string;
+} | null {
+    if (!payload) {
+        return null;
+    }
+
+    const parts = payload.split(',');
+    if (parts.length < 5) {
+        return null;
+    }
+
+    const [symbol, timeframe, startTime, endTime, tradeId] = parts;
+    if (!symbol || !timeframe || !startTime || !endTime || !tradeId) {
+        return null;
+    }
+
+    return {
+        symbol,
+        timeframe,
+        startTime,
+        endTime,
+        tradeId,
+    };
+}
+
 export async function processCandles(data: TerminalCandlesSyncPayload): Promise<void> {
     const validationResult = TerminalCandlesSyncPayloadSchema.safeParse(data);
     if (!validationResult.success) {
@@ -1451,23 +1484,66 @@ export async function processCandles(data: TerminalCandlesSyncPayload): Promise<
         throw new Error('Invalid payload');
     }
 
-    await db
-        .update(trades)
-        .set({
-            chartData: {
-                candles: data.candles.map(c => ({
-                    time: c.time,
-                    open: c.open,
-                    high: c.high,
-                    low: c.low,
-                    close: c.close,
-                })),
-                symbol: data.symbol,
-                fetchedAt: new Date().toISOString(),
-                source: 'terminal_farm',
-            },
+    const payload = validationResult.data;
+
+    await saveTradeChartCache({
+        tradeId: payload.tradeId,
+        timeframe: payload.timeframe,
+        symbol: payload.symbol,
+        candles: payload.candles.map(c => ({
+            time: c.time,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            ...(c.volume != null ? { volume: c.volume } : {}),
+        })),
+        source: 'terminal_farm',
+    });
+
+    if (payload.commandId) {
+        await db
+            .update(terminalCommands)
+            .set({
+                status: 'COMPLETED',
+                completedAt: new Date(),
+            })
+            .where(
+                and(
+                    eq(terminalCommands.id, payload.commandId),
+                    eq(terminalCommands.terminalId, payload.terminalId),
+                    eq(terminalCommands.status, 'DISPATCHED'),
+                )
+            );
+        return;
+    }
+
+    const commands = await db
+        .select({
+            id: terminalCommands.id,
+            payload: terminalCommands.payload,
         })
-        .where(eq(trades.id, data.tradeId));
+        .from(terminalCommands)
+        .where(
+            and(
+                eq(terminalCommands.terminalId, payload.terminalId),
+                eq(terminalCommands.command, 'FETCH_CANDLES'),
+                eq(terminalCommands.tradeId, payload.tradeId),
+                eq(terminalCommands.status, 'DISPATCHED'),
+            )
+        );
+
+    const matchedCommand = commands.find((command) => {
+        const parsed = parseFetchCandlesCommandPayload(command.payload);
+        return (
+            parsed?.tradeId === payload.tradeId &&
+            parsed.timeframe === payload.timeframe
+        );
+    });
+
+    if (!matchedCommand) {
+        return;
+    }
 
     await db
         .update(terminalCommands)
@@ -1475,13 +1551,7 @@ export async function processCandles(data: TerminalCandlesSyncPayload): Promise<
             status: 'COMPLETED',
             completedAt: new Date(),
         })
-        .where(
-            and(
-                eq(terminalCommands.terminalId, data.terminalId),
-                eq(terminalCommands.status, 'DISPATCHED'),
-                like(terminalCommands.payload, `%,${data.tradeId}`)
-            )
-        );
+        .where(eq(terminalCommands.id, matchedCommand.id));
 }
 
 /**
@@ -1591,7 +1661,7 @@ export async function queueFetchCandles(
     timeframe: string,
     startTime: Date,
     endTime: Date
-): Promise<void> {
+): Promise<boolean> {
     const [trade] = await db
         .select({ mt5AccountId: trades.mt5AccountId })
         .from(trades)
@@ -1600,18 +1670,76 @@ export async function queueFetchCandles(
 
     if (!trade?.mt5AccountId) {
         console.error('[TerminalFarm] Trade has no MT5 account');
-        return;
+        return false;
     }
 
     const terminal = await getTerminalByAccountId(trade.mt5AccountId);
     if (!terminal || terminal.status !== 'RUNNING') {
-        console.log('[TerminalFarm] No running terminal for this account, falling back to Twelve Data');
-        return;
+        console.log('[TerminalFarm] No running terminal for this account');
+        return false;
     }
 
-    if (readTerminalSyncProvider(terminal.metadata) !== 'terminal_farm') {
-        console.log('[TerminalFarm] Non-terminal-farm account does not use terminal command queue, falling back to Twelve Data');
-        return;
+    const provider = readTerminalSyncProvider(
+        terminal.metadata as Record<string, unknown> | null | undefined,
+    );
+    if (provider !== 'terminal_farm' && provider !== 'windows_mt5_python') {
+        console.log('[TerminalFarm] Terminal sync provider does not support chart queue');
+        return false;
+    }
+
+    const activeCommands = await db
+        .select({
+            id: terminalCommands.id,
+            status: terminalCommands.status,
+            dispatchedAt: terminalCommands.dispatchedAt,
+            payload: terminalCommands.payload,
+        })
+        .from(terminalCommands)
+        .where(
+            and(
+                eq(terminalCommands.terminalId, terminal.id),
+                eq(terminalCommands.command, 'FETCH_CANDLES'),
+                eq(terminalCommands.tradeId, tradeId),
+                or(
+                    eq(terminalCommands.status, 'PENDING'),
+                    eq(terminalCommands.status, 'DISPATCHED'),
+                ),
+            ),
+        );
+
+    const existing = activeCommands.find((command) => {
+        const parsed = parseFetchCandlesCommandPayload(command.payload);
+        return parsed?.tradeId === tradeId && parsed.timeframe === timeframe;
+    });
+
+    if (existing) {
+        if (existing.status === 'PENDING') {
+            return true;
+        }
+
+        const dispatchedAt = existing.dispatchedAt instanceof Date
+            ? existing.dispatchedAt.getTime()
+            : 0;
+        const isStale =
+            !dispatchedAt || Date.now() - dispatchedAt >= STALE_CHART_COMMAND_MS;
+
+        if (!isStale) {
+            return true;
+        }
+
+        await db
+            .update(terminalCommands)
+            .set({
+                status: 'PENDING',
+                dispatchedAt: null,
+                completedAt: null,
+            })
+            .where(eq(terminalCommands.id, existing.id));
+
+        console.log(
+            `[TerminalFarm] Re-queued stale FETCH_CANDLES for trade ${tradeId}`,
+        );
+        return true;
     }
 
     const payload = [
@@ -1630,6 +1758,7 @@ export async function queueFetchCandles(
         tradeId,
     });
     console.log(`[TerminalFarm] Queued FETCH_CANDLES for trade ${tradeId}`);
+    return true;
 }
 
 function detectAssetType(symbol: string): string {

@@ -1,5 +1,6 @@
 import type { Trade } from "@/lib/db/schema";
 import type { TradeScreenshot as SupabaseScreenshot } from "@/lib/supabase/types";
+import { resolveTradingSession } from "@/lib/trading-session";
 import {
   EMPTY_JOURNAL_REVIEW,
   type JournalEntryDraft,
@@ -98,17 +99,47 @@ function parseQuality(raw: string | null | undefined): QualityRating | null {
   return null;
 }
 
-function parseSession(raw: string | null | undefined): JournalSession | null {
-  if (!raw) {
+function parseQualityValue(raw: unknown): QualityRating | null {
+  if (
+    raw === "Good" ||
+    raw === "Neutral" ||
+    raw === "Poor" ||
+    typeof raw === "number" ||
+    typeof raw === "string" ||
+    raw == null
+  ) {
+    return parseQuality(raw == null ? null : String(raw));
+  }
+
+  return null;
+}
+
+function toLegacyQualityLabel(
+  value: QualityRating | null,
+): "Good" | "Neutral" | "Poor" | null {
+  if (value == null) {
     return null;
   }
 
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === "london") return "London";
-  if (normalized === "new york" || normalized === "newyork") return "New York";
-  if (normalized === "asia" || normalized === "asian") return "Asia";
-  if (normalized === "overnight") return "Overnight";
-  return null;
+  if (value >= 4) {
+    return "Good";
+  }
+
+  if (value <= 2) {
+    return "Poor";
+  }
+
+  return "Neutral";
+}
+
+function toLegacySessionValue(
+  value: JournalSession | null,
+): string | null {
+  if (value === "Asia") {
+    return "Asian";
+  }
+
+  return value;
 }
 
 function asString(raw: unknown): string {
@@ -128,6 +159,9 @@ function parseJournalReview(raw: unknown): JournalReview {
     reasonForTrade: asString(review.reasonForTrade),
     invalidation: asString(review.invalidation),
     targetPlan: asString(review.targetPlan),
+    entryRatingScore: parseQualityValue(review.entryRatingScore),
+    exitRatingScore: parseQualityValue(review.exitRatingScore),
+    managementRatingScore: parseQualityValue(review.managementRatingScore),
     timeframeAlignment:
       review.timeframeAlignment === "aligned" ||
       review.timeframeAlignment === "mixed" ||
@@ -157,6 +191,13 @@ function parseJournalReview(raw: unknown): JournalReview {
 }
 
 export function mapTradeToViewModel(trade: Trade): JournalTradeViewModel {
+  const journalReview = parseJournalReview(trade.journalReview);
+  const session =
+    resolveTradingSession(
+      trade.session,
+      trade.entryDate ?? trade.exitDate ?? trade.createdAt,
+    ) as JournalSession | null;
+
   return {
     id: trade.id,
     symbol: trade.symbol,
@@ -192,17 +233,18 @@ export function mapTradeToViewModel(trade: Trade): JournalTradeViewModel {
     mistakeTags: trade.mistakeTags ?? [],
     executionArrays: parseStringArray(trade.executionArrays),
     screenshots: parseScreenshots(trade.screenshots, trade.id),
-    session: parseSession(trade.session),
+    session,
     conviction: trade.conviction ?? null,
-    entryRating: parseQuality(trade.entryRating),
-    exitRating: parseQuality(trade.exitRating),
-    managementRating: parseQuality(trade.managementRating),
+    entryRating: journalReview.entryRatingScore ?? parseQuality(trade.entryRating),
+    exitRating: journalReview.exitRatingScore ?? parseQuality(trade.exitRating),
+    managementRating:
+      journalReview.managementRatingScore ?? parseQuality(trade.managementRating),
     mae: trade.mae ?? null,
     mfe: trade.mfe ?? null,
     lessonLearned: trade.lessonLearned ?? "",
     wouldTakeAgain: trade.wouldTakeAgain ?? null,
     tfObservations: parseTfObservations(trade.tfObservations),
-    journalReview: parseJournalReview(trade.journalReview),
+    journalReview,
   };
 }
 
@@ -213,6 +255,7 @@ export function viewModelToDraft(
     notes: viewModel.notes,
     feelings: viewModel.feelings,
     observations: viewModel.observations,
+    playbookId: viewModel.playbookId,
     setupTags: [...viewModel.setupTags],
     mistakeTags: [...viewModel.mistakeTags],
     session: viewModel.session,
@@ -236,6 +279,13 @@ export function viewModelToDraft(
 export function mapDraftToTradeUpdate(
   draft: JournalEntryDraft,
 ): Record<string, unknown> {
+  const journalReview = {
+    ...draft.journalReview,
+    entryRatingScore: draft.entryRating,
+    exitRatingScore: draft.exitRating,
+    managementRatingScore: draft.managementRating,
+  };
+
   return {
     notes: draft.notes || null,
     feelings: draft.feelings || null,
@@ -246,19 +296,19 @@ export function mapDraftToTradeUpdate(
           timeframe: item.timeframe,
         }))
       : null,
-    journal_review: draft.journalReview,
+    journal_review: journalReview,
     tf_observations: Object.keys(draft.tfObservations).length
       ? draft.tfObservations
       : null,
     setup_tags: draft.setupTags.length ? draft.setupTags : null,
     mistake_tags: draft.mistakeTags.length ? draft.mistakeTags : null,
-    session: draft.session,
+    playbook_id: draft.playbookId,
+    session: toLegacySessionValue(draft.session),
     market_condition: draft.marketCondition,
     conviction: draft.conviction,
-    entry_rating: draft.entryRating != null ? String(draft.entryRating) : null,
-    exit_rating: draft.exitRating != null ? String(draft.exitRating) : null,
-    management_rating:
-      draft.managementRating != null ? String(draft.managementRating) : null,
+    entry_rating: toLegacyQualityLabel(draft.entryRating),
+    exit_rating: toLegacyQualityLabel(draft.exitRating),
+    management_rating: toLegacyQualityLabel(draft.managementRating),
     mae: draft.mae,
     mfe: draft.mfe,
     lesson_learned: draft.lessonLearned || null,
@@ -279,7 +329,6 @@ export function isTradeJournaled(viewModel: JournalTradeViewModel): boolean {
       viewModel.marketCondition ||
       viewModel.setupTags.length > 0 ||
       viewModel.mistakeTags.length > 0 ||
-      viewModel.session ||
       viewModel.managementRating ||
       viewModel.lessonLearned ||
       viewModel.wouldTakeAgain !== null ||
@@ -315,6 +364,13 @@ export function isRawTradeJournaled(trade: Trade): boolean {
 export function mapDraftToApiUpdate(
   draft: JournalEntryDraft,
 ): Record<string, unknown> {
+  const journalReview = {
+    ...draft.journalReview,
+    entryRatingScore: draft.entryRating,
+    exitRatingScore: draft.exitRating,
+    managementRatingScore: draft.managementRating,
+  };
+
   return {
     notes: draft.notes || null,
     feelings: draft.feelings || null,
@@ -325,19 +381,19 @@ export function mapDraftToApiUpdate(
           timeframe: item.timeframe,
         }))
       : null,
-    journalReview: draft.journalReview,
+    journalReview,
     tfObservations: Object.keys(draft.tfObservations).length
       ? draft.tfObservations
       : null,
     setupTags: draft.setupTags.length ? draft.setupTags : null,
     mistakeTags: draft.mistakeTags.length ? draft.mistakeTags : null,
-    session: draft.session,
+    playbookId: draft.playbookId,
+    session: toLegacySessionValue(draft.session),
     marketCondition: draft.marketCondition,
     conviction: draft.conviction,
-    entryRating: draft.entryRating != null ? String(draft.entryRating) : null,
-    exitRating: draft.exitRating != null ? String(draft.exitRating) : null,
-    managementRating:
-      draft.managementRating != null ? String(draft.managementRating) : null,
+    entryRating: toLegacyQualityLabel(draft.entryRating),
+    exitRating: toLegacyQualityLabel(draft.exitRating),
+    managementRating: toLegacyQualityLabel(draft.managementRating),
     mae: draft.mae,
     mfe: draft.mfe,
     lessonLearned: draft.lessonLearned || null,

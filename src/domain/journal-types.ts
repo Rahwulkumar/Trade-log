@@ -33,6 +33,9 @@ export interface JournalReview {
   reasonForTrade: string;
   invalidation: string;
   targetPlan: string;
+  entryRatingScore: QualityRating | null;
+  exitRatingScore: QualityRating | null;
+  managementRatingScore: QualityRating | null;
   timeframeAlignment: JournalAlignment | null;
   retakeDecision: JournalRetakeDecision | null;
   higherTimeframeBias: string;
@@ -92,6 +95,7 @@ export interface JournalEntryDraft {
   notes: string;
   feelings: string;
   observations: string;
+  playbookId: string | null;
   setupTags: string[];
   mistakeTags: string[];
   session: JournalSession | null;
@@ -117,6 +121,9 @@ export const EMPTY_JOURNAL_REVIEW: JournalReview = {
   reasonForTrade: "",
   invalidation: "",
   targetPlan: "",
+  entryRatingScore: null,
+  exitRatingScore: null,
+  managementRatingScore: null,
   timeframeAlignment: null,
   retakeDecision: null,
   higherTimeframeBias: "",

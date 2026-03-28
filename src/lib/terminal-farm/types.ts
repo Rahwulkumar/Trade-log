@@ -3,6 +3,8 @@
  * Type definitions for MT5 terminal management and EA communication
  */
 
+import type { ChartTimeframe } from '@/lib/chart/timeframes';
+
 // Terminal status enum matching database constraint
 export type TerminalStatus = 'PENDING' | 'STARTING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'ERROR';
 export type TerminalSyncProvider = 'terminal_farm' | 'metaapi' | 'windows_mt5_python';
@@ -144,6 +146,8 @@ export interface TerminalCandlesSyncPayload {
     terminalId: string;
     tradeId: string;
     symbol: string;
+    commandId?: string;
+    timeframe?: ChartTimeframe;
     candles: TerminalCandlePayload[];
 }
 
@@ -232,6 +236,15 @@ export interface WindowsMt5PythonMetadata {
     lastError?: string | null;
 }
 
+export interface WindowsMt5ChartJob {
+    commandId: string;
+    tradeId: string;
+    symbol: string;
+    timeframe: string;
+    startTime: string;
+    endTime: string;
+}
+
 export interface WindowsMt5WorkerAssignment {
     terminalId: string;
     mt5AccountId: string;
@@ -245,6 +258,7 @@ export interface WindowsMt5WorkerAssignment {
     lastSyncAt: string | null;
     workerId: string | null;
     workerHost: string | null;
+    chartJobs: WindowsMt5ChartJob[];
 }
 
 export interface TerminalWebhookResponse {

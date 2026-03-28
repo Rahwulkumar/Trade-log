@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Search, Check } from "lucide-react";
+import { Search, Check, X, Clock3, FileEdit, BookCheck } from "lucide-react";
 import {
   ChoiceChip,
   ControlSurface,
@@ -58,6 +58,7 @@ function formatDate(value: string | Date | null): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "2-digit",
+    year: "numeric",
   }).format(new Date(value));
 }
 
@@ -71,11 +72,21 @@ function groupLabel(value: string | Date | null): string {
   }
   const date = new Date(value);
   const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
   const thisWeekStart = new Date(now);
   const day = thisWeekStart.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   thisWeekStart.setHours(0, 0, 0, 0);
   thisWeekStart.setDate(thisWeekStart.getDate() + diff);
+  if (date >= todayStart) {
+    return "Today";
+  }
+  if (date >= yesterdayStart) {
+    return "Yesterday";
+  }
   if (date >= thisWeekStart) {
     return "This Week";
   }
@@ -91,6 +102,49 @@ function statusLabel(status: TradeReviewStatus): string {
   return "Open";
 }
 
+function statusDescription(status: TradeReviewStatus): string {
+  if (status === "complete") return "Reviewed and closed";
+  if (status === "draft") return "Continue the review";
+  return "Needs a full write-up";
+}
+
+function statusTone(status: TradeReviewStatus) {
+  if (status === "complete") {
+    return {
+      color: "var(--accent-primary)",
+      background: "var(--accent-soft)",
+      borderColor: "var(--accent-primary)",
+      icon: BookCheck,
+    };
+  }
+
+  if (status === "draft") {
+    return {
+      color: "var(--warning-primary)",
+      background: "var(--warning-bg)",
+      borderColor: "var(--warning-primary)",
+      icon: FileEdit,
+    };
+  }
+
+  return {
+    color: "var(--text-tertiary)",
+    background: "var(--surface)",
+    borderColor: "var(--border-subtle)",
+    icon: Clock3,
+  };
+}
+
+function outcomeTone(outcome: TradeReviewRailItem["outcome"]) {
+  if (outcome === "WIN") {
+    return "var(--profit-primary)";
+  }
+  if (outcome === "LOSS") {
+    return "var(--loss-primary)";
+  }
+  return "var(--warning-primary)";
+}
+
 export function TradeReviewRail({
   items,
   activeTradeId,
@@ -100,6 +154,7 @@ export function TradeReviewRail({
   onStatusFilterChange,
   onSelectTrade,
 }: TradeReviewRailProps) {
+  const totalCount = items.length;
   const grouped = useMemo(() => {
     const groups = new Map<string, TradeReviewRailItem[]>();
     items.forEach((item) => {
@@ -109,7 +164,39 @@ export function TradeReviewRail({
     return [...groups.entries()];
   }, [items]);
 
-  const pendingCount = items.filter((item) => item.reviewStatus !== "complete").length;
+  const pendingCount = items.filter(
+    (item) => item.reviewStatus !== "complete",
+  ).length;
+  const draftCount = items.filter(
+    (item) => item.reviewStatus === "draft",
+  ).length;
+  const completeCount = items.filter(
+    (item) => item.reviewStatus === "complete",
+  ).length;
+  const activeTrade = items.find((item) => item.id === activeTradeId) ?? null;
+  const activeTradeTone = activeTrade ? statusTone(activeTrade.reviewStatus) : null;
+  const statusOptions = [
+    {
+      value: "all",
+      label: "All",
+      count: totalCount,
+    },
+    {
+      value: "pending",
+      label: "Needs review",
+      count: pendingCount,
+    },
+    {
+      value: "draft",
+      label: "Drafts",
+      count: draftCount,
+    },
+    {
+      value: "complete",
+      label: "Done",
+      count: completeCount,
+    },
+  ] as const;
 
   return (
     <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden">
@@ -121,24 +208,163 @@ export function TradeReviewRail({
         }}
       >
         <div className="px-4 pb-3 pt-4">
-          <div className="space-y-1">
-            <p className="headline-md">Trade queue</p>
-            <p
-              className="text-label"
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="headline-md">Browse trades</p>
+              <p
+                className="text-label"
+                style={{
+                  textTransform: "none",
+                  letterSpacing: 0,
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                Pick a trade, resume drafts, or jump straight into the open queue.
+              </p>
+            </div>
+            <span
+              className="rounded-full px-2.5 py-1"
               style={{
-                textTransform: "none",
-                letterSpacing: 0,
-                color: "var(--text-tertiary)",
+                background: "var(--surface-elevated)",
+                border: "1px solid var(--border-subtle)",
+                color: "var(--text-secondary)",
+                fontFamily: "var(--font-jb-mono)",
+                fontSize: "10px",
               }}
             >
-              {pendingCount} still need review
-            </p>
+              {totalCount} total
+            </span>
           </div>
         </div>
 
-        <div className="px-3 pb-3">
+        <div className="space-y-3 px-3 pb-3">
+          <div className="grid grid-cols-3 gap-2">
+            <InsetPanel paddingClassName="px-3 py-3">
+              <p className="text-label">Needs review</p>
+              <p
+                style={{
+                  color: "var(--text-primary)",
+                  fontFamily: "var(--font-jb-mono)",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  marginTop: "4px",
+                }}
+              >
+                {pendingCount}
+              </p>
+            </InsetPanel>
+            <InsetPanel paddingClassName="px-3 py-3">
+              <p className="text-label">Drafts</p>
+              <p
+                style={{
+                  color: "var(--warning-primary)",
+                  fontFamily: "var(--font-jb-mono)",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  marginTop: "4px",
+                }}
+              >
+                {draftCount}
+              </p>
+            </InsetPanel>
+            <InsetPanel paddingClassName="px-3 py-3">
+              <p className="text-label">Done</p>
+              <p
+                style={{
+                  color: "var(--accent-primary)",
+                  fontFamily: "var(--font-jb-mono)",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  marginTop: "4px",
+                }}
+              >
+                {completeCount}
+              </p>
+            </InsetPanel>
+          </div>
+
+          {activeTrade && activeTradeTone ? (
+            <InsetPanel
+              paddingClassName="px-3 py-3"
+              style={{
+                background: "var(--surface)",
+                borderColor: activeTradeTone.borderColor,
+              }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-label">Currently open</p>
+                  <div className="flex items-center gap-2">
+                    <span
+                      style={{
+                        color: "var(--text-primary)",
+                        fontFamily: "var(--font-jb-mono)",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {activeTrade.symbol}
+                    </span>
+                    <span
+                      style={{
+                        color: outcomeTone(activeTrade.outcome),
+                        fontFamily: "var(--font-jb-mono)",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {formatPnl(activeTrade.netPnl)}
+                    </span>
+                  </div>
+                  <p
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                    }}
+                  >
+                    {statusDescription(activeTrade.reviewStatus)}
+                  </p>
+                </div>
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-1"
+                  style={{
+                    background: activeTradeTone.background,
+                    color: activeTradeTone.color,
+                    border: `1px solid ${activeTradeTone.borderColor}`,
+                    fontFamily: "var(--font-inter)",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                  }}
+                >
+                  <activeTradeTone.icon size={12} />
+                  {statusLabel(activeTrade.reviewStatus)}
+                </span>
+              </div>
+            </InsetPanel>
+          ) : null}
+
           <ControlSurface className="space-y-3">
-            <FieldGroup label="Search trades" className="space-y-2">
+            <FieldGroup
+              label="Find a trade"
+              meta={
+                search.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => onSearchChange("")}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold transition-colors"
+                    style={{
+                      color: "var(--text-tertiary)",
+                      background: "var(--surface)",
+                      border: "1px solid var(--border-subtle)",
+                    }}
+                  >
+                    <X size={10} />
+                    Clear
+                  </button>
+                ) : null
+              }
+              className="space-y-2"
+            >
               <div className="relative">
                 <Search
                   size={13}
@@ -148,32 +374,66 @@ export function TradeReviewRail({
                 <Input
                   value={search}
                   onChange={(event) => onSearchChange(event.target.value)}
-                  placeholder="Search symbol, date..."
-                  className="h-9 pl-9 text-[0.75rem]"
+                  placeholder="Search symbol, setup, date..."
+                  className="h-9 pl-9 pr-9 text-[0.75rem]"
                   style={{
                     background: "var(--surface)",
                     borderColor: "var(--border-subtle)",
                     color: "var(--text-primary)",
                   }}
                 />
+                {search.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => onSearchChange("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 transition-colors"
+                    style={{ color: "var(--text-tertiary)" }}
+                    aria-label="Clear search"
+                  >
+                    <X size={12} />
+                  </button>
+                ) : null}
               </div>
             </FieldGroup>
 
-            <FieldGroup label="Review status" className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                {([
-                  ["all", "All"],
-                  ["pending", "Needs Review"],
-                  ["draft", "Draft"],
-                  ["complete", "Complete"],
-                ] as const).map(([value, label]) => (
+            <FieldGroup
+              label="Queue focus"
+              meta={
+                <span
+                  style={{
+                    color: "var(--text-tertiary)",
+                    fontFamily: "var(--font-jb-mono)",
+                    fontSize: "10px",
+                  }}
+                >
+                  {items.length} showing
+                </span>
+              }
+              className="space-y-2"
+            >
+              <div className="flex flex-wrap gap-2">
+                {statusOptions.map((option) => (
                   <ChoiceChip
-                    key={value}
-                    active={statusFilter === value}
-                    onClick={() => onStatusFilterChange(value)}
-                    className="justify-start"
+                    key={option.value}
+                    active={statusFilter === option.value}
+                    onClick={() => onStatusFilterChange(option.value)}
+                    className="justify-start rounded-full px-3"
                   >
-                    {label}
+                    <span>{option.label}</span>
+                    <span
+                      className="rounded-full px-1.5 py-0.5"
+                      style={{
+                        background:
+                          statusFilter === option.value
+                            ? "color-mix(in srgb, var(--accent-primary) 14%, transparent)"
+                            : "var(--surface-elevated)",
+                        fontFamily: "var(--font-jb-mono)",
+                        fontSize: "10px",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {option.count}
+                    </span>
                   </ChoiceChip>
                 ))}
               </div>
@@ -197,9 +457,9 @@ export function TradeReviewRail({
           </div>
         ) : (
           grouped.map(([label, groupItems]) => (
-            <div key={label}>
+            <div key={label} className="px-3 pt-4">
               <p
-                className="mx-3 mb-1 mt-4 text-label"
+                className="mb-2 text-label"
                 style={{
                   color: "var(--text-tertiary)",
                   fontSize: "10px",
@@ -223,16 +483,8 @@ export function TradeReviewRail({
                   item.netPnl >= 0
                     ? "var(--profit-primary)"
                     : "var(--loss-primary)";
-                const statusBg =
-                  item.reviewStatus === "complete"
-                    ? "var(--accent-soft)"
-                    : item.reviewStatus === "draft"
-                      ? "var(--surface-elevated)"
-                      : "transparent";
-                const statusColor =
-                  item.reviewStatus === "complete"
-                    ? "var(--accent-primary)"
-                    : "var(--text-tertiary)";
+                const statusMeta = statusTone(item.reviewStatus);
+                const StatusIcon = statusMeta.icon;
 
                 return (
                   <motion.button
@@ -240,12 +492,11 @@ export function TradeReviewRail({
                     variants={ROW}
                     type="button"
                     onClick={() => onSelectTrade(item.id)}
-                    className="mx-[6px] my-[1px] block w-[calc(100%-12px)] text-left"
-                    style={{ width: "calc(100% - 12px)" }}
+                    className="mb-2 block w-full text-left last:mb-0"
                   >
                     <InsetPanel
                       className="transition-colors duration-100"
-                      paddingClassName="px-3 py-2.5"
+                      paddingClassName="px-3.5 py-3"
                       style={{
                         background: isActive
                           ? "var(--accent-soft)"
@@ -258,69 +509,112 @@ export function TradeReviewRail({
                       }}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <span
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              style={{
+                                color: isActive
+                                  ? "var(--accent-primary)"
+                                  : "var(--text-primary)",
+                                fontFamily: "var(--font-jb-mono)",
+                                fontSize: "13px",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {item.symbol}
+                            </span>
+                            <span
+                              style={{
+                                background: directionBg,
+                                borderRadius: "999px",
+                                color: directionColor,
+                                fontFamily: "var(--font-jb-mono)",
+                                fontSize: "10px",
+                                padding: "2px 7px",
+                              }}
+                            >
+                              {item.direction === "LONG" ? "LONG" : "SHORT"}
+                            </span>
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full px-2 py-1"
+                              style={{
+                                background: statusMeta.background,
+                                color: statusMeta.color,
+                                border: `1px solid ${statusMeta.borderColor}`,
+                                fontFamily: "var(--font-inter)",
+                                fontSize: "10px",
+                                fontWeight: 700,
+                              }}
+                            >
+                              <StatusIcon size={11} />
+                              {statusLabel(item.reviewStatus)}
+                            </span>
+                          </div>
+                          <p
                             style={{
-                              color: isActive
-                                ? "var(--accent-primary)"
-                                : "var(--text-primary)",
+                              color: "var(--text-tertiary)",
+                              fontFamily: "var(--font-inter)",
+                              fontSize: "11px",
+                              lineHeight: 1.45,
+                            }}
+                          >
+                            {statusDescription(item.reviewStatus)}
+                          </p>
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                          <p
+                            style={{
+                              color: pnlColor,
                               fontFamily: "var(--font-jb-mono)",
                               fontSize: "12px",
                               fontWeight: 700,
                             }}
                           >
-                            {item.symbol}
-                          </span>
-                          <span
+                            {formatPnl(item.netPnl)}
+                          </p>
+                          <p
                             style={{
-                              background: directionBg,
-                              borderRadius: "var(--radius-sm)",
-                              color: directionColor,
+                              color: "var(--text-tertiary)",
                               fontFamily: "var(--font-jb-mono)",
                               fontSize: "10px",
-                              padding: "2px 5px",
+                              marginTop: "4px",
                             }}
                           >
-                            {item.direction === "LONG" ? "L" : "S"}
-                          </span>
+                            {formatDate(item.closedAt)}
+                          </p>
                         </div>
-
-                        <span
-                          style={{
-                            color: "var(--text-tertiary)",
-                            fontFamily: "var(--font-jb-mono)",
-                            fontSize: "10px",
-                          }}
-                        >
-                          {formatDate(item.closedAt)}
-                        </span>
                       </div>
 
-                      <div className="mt-1 flex items-center justify-between gap-3">
+                      <div
+                        className="mt-3 flex items-center justify-between gap-3 border-t pt-2.5"
+                        style={{ borderTop: "1px solid var(--border-subtle)" }}
+                      >
                         <div className="flex items-center gap-2">
                           <span
                             style={{
-                              color: pnlColor,
-                              fontFamily: "var(--font-jb-mono)",
-                              fontSize: "12px",
-                            }}
-                          >
-                            {formatPnl(item.netPnl)}
-                          </span>
-                          <span
-                            style={{
-                              background: statusBg,
-                              border: "1px solid var(--border-subtle)",
-                              borderRadius: "var(--radius-sm)",
-                              color: statusColor,
+                              color: outcomeTone(item.outcome),
                               fontFamily: "var(--font-inter)",
-                              fontSize: "9px",
-                              fontWeight: 600,
-                              padding: "2px 6px",
+                              fontSize: "10px",
+                              fontWeight: 700,
+                              letterSpacing: "0.08em",
+                              textTransform: "uppercase",
                             }}
                           >
-                            {statusLabel(item.reviewStatus)}
+                            {item.outcome}
                           </span>
+                          {isActive ? (
+                            <span
+                              style={{
+                                color: "var(--accent-primary)",
+                                fontFamily: "var(--font-inter)",
+                                fontSize: "10px",
+                                fontWeight: 700,
+                              }}
+                            >
+                              Open now
+                            </span>
+                          ) : null}
                         </div>
 
                         {item.reviewStatus === "complete" ? (

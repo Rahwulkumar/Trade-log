@@ -257,6 +257,26 @@ export const trades = pgTable('trades', {
   ),
 ]);
 
+export const tradeChartCache = pgTable('trade_chart_cache', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tradeId: uuid('trade_id')
+    .notNull()
+    .references(() => trades.id, { onDelete: 'cascade' }),
+  timeframe: text('timeframe').notNull(),
+  symbol: text('symbol').notNull(),
+  candles: jsonb('candles').notNull().default(sql`'[]'::jsonb`),
+  source: text('source').notNull().default('mt5'),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('trade_chart_cache_trade_timeframe_idx').on(
+    table.tradeId,
+    table.timeframe,
+  ),
+  index('trade_chart_cache_trade_fetched_idx').on(table.tradeId, table.fetchedAt),
+]);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MT5 ACCOUNTS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -423,6 +443,8 @@ export type PlaybookInsert = typeof playbooks.$inferInsert;
 export type Trade = typeof trades.$inferSelect;
 export type TradeInsert = typeof trades.$inferInsert;
 export type TradeUpdate = Partial<Omit<TradeInsert, 'id' | 'userId' | 'createdAt'>>;
+export type TradeChartCache = typeof tradeChartCache.$inferSelect;
+export type TradeChartCacheInsert = typeof tradeChartCache.$inferInsert;
 
 export type MT5Account = typeof mt5Accounts.$inferSelect;
 export type MT5AccountInsert = typeof mt5Accounts.$inferInsert;

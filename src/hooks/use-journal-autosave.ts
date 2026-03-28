@@ -38,6 +38,7 @@ interface UseJournalAutosaveReturn {
 function stableDraftSnapshot(draft: JournalEntryDraft) {
   return JSON.stringify({
     ...draft,
+    playbookId: draft.playbookId,
     setupTags: [...draft.setupTags],
     mistakeTags: [...draft.mistakeTags],
     executionArrays: [...draft.executionArrays],
@@ -115,8 +116,24 @@ export function useJournalAutosave({
       if (gen !== genRef.current) return;
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error("[Journal save error]", err);
+        const errorPayload = await readJsonIfAvailable<{
+          error?: string;
+          message?: string;
+          details?: unknown;
+        }>(res.clone());
+        const fallbackText = await res.text().catch(() => "");
+        const resolvedError =
+          errorPayload?.error ??
+          errorPayload?.message ??
+          fallbackText.trim() ??
+          "Unknown journal save error";
+
+        console.error("[Journal save error]", {
+          status: res.status,
+          statusText: res.statusText,
+          error: resolvedError || "Unknown journal save error",
+          details: errorPayload?.details ?? null,
+        });
         return;
       }
 

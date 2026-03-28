@@ -1,8 +1,8 @@
 import 'server-only';
 
-import { desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { mt5Accounts, terminalInstances } from '@/lib/db/schema';
+import { mt5Accounts, terminalCommands, terminalInstances } from '@/lib/db/schema';
 import { decrypt } from '@/lib/mt5/encryption';
 import {
     mergeTerminalMetadata,
@@ -11,6 +11,7 @@ import {
 } from '@/lib/terminal-farm/metadata';
 import { selectWindowsMt5WorkerCandidate } from '@/lib/mt5-sync/runtime';
 import type {
+    WindowsMt5ChartJob,
     WindowsMt5PythonMetadata,
     WindowsMt5WorkerAssignment,
 } from '@/lib/terminal-farm/types';
@@ -34,6 +35,8 @@ type WindowsAssignmentCandidate = {
     workerMetadata: WindowsMt5PythonMetadata | null;
 };
 
+const STALE_CHART_COMMAND_MS = 2 * 60 * 1000;
+
 function isWindowsWorkerRow(
     row: AssignmentRow
 ): row is AssignmentRow {
@@ -56,7 +59,8 @@ function toCandidate(row: AssignmentRow): WindowsAssignmentCandidate {
 function toAssignment(
     candidate: WindowsAssignmentCandidate,
     workerId: string,
-    workerHost: string | null
+    workerHost: string | null,
+    chartJobs: WindowsMt5ChartJob[]
 ): WindowsMt5WorkerAssignment {
     return {
         terminalId: candidate.row.terminalId,
@@ -71,7 +75,110 @@ function toAssignment(
         lastSyncAt: candidate.row.lastSyncAt?.toISOString() ?? null,
         workerId,
         workerHost,
+        chartJobs,
     };
+}
+
+function parseFetchCandlesPayload(
+    commandId: string,
+    tradeId: string | null,
+    payload: string | null,
+): WindowsMt5ChartJob | null {
+    if (!tradeId || !payload) {
+        return null;
+    }
+
+    const parts = payload.split(',');
+    if (parts.length < 5) {
+        return null;
+    }
+
+    const [symbol, timeframe, startTime, endTime] = parts;
+
+    if (!symbol || !timeframe || !startTime || !endTime) {
+        return null;
+    }
+
+    return {
+        commandId,
+        tradeId,
+        symbol,
+        timeframe,
+        startTime,
+        endTime,
+    };
+}
+
+async function claimPendingChartJobs(
+    terminalId: string,
+): Promise<WindowsMt5ChartJob[]> {
+    const commands = await db
+        .select({
+            id: terminalCommands.id,
+            tradeId: terminalCommands.tradeId,
+            payload: terminalCommands.payload,
+            status: terminalCommands.status,
+            dispatchedAt: terminalCommands.dispatchedAt,
+        })
+        .from(terminalCommands)
+        .where(
+            and(
+                eq(terminalCommands.terminalId, terminalId),
+                eq(terminalCommands.command, 'FETCH_CANDLES'),
+                or(
+                    eq(terminalCommands.status, 'PENDING'),
+                    eq(terminalCommands.status, 'DISPATCHED'),
+                ),
+            ),
+        )
+        .orderBy(asc(terminalCommands.createdAt))
+        .limit(8);
+
+    const jobs: WindowsMt5ChartJob[] = [];
+
+    for (const command of commands) {
+        const dispatchedAt = command.dispatchedAt instanceof Date
+            ? command.dispatchedAt.getTime()
+            : 0;
+        const shouldClaim =
+            command.status === 'PENDING' ||
+            !dispatchedAt ||
+            Date.now() - dispatchedAt >= STALE_CHART_COMMAND_MS;
+
+        if (!shouldClaim) {
+            continue;
+        }
+
+        const [updated] = await db
+            .update(terminalCommands)
+            .set({
+                status: 'DISPATCHED',
+                dispatchedAt: new Date(),
+            })
+            .where(
+                and(
+                    eq(terminalCommands.id, command.id),
+                    eq(terminalCommands.status, command.status),
+                ),
+            )
+            .returning({ id: terminalCommands.id });
+
+        if (!updated) {
+            continue;
+        }
+
+        const job = parseFetchCandlesPayload(
+            command.id,
+            command.tradeId,
+            command.payload,
+        );
+
+        if (job) {
+            jobs.push(job);
+        }
+    }
+
+    return jobs;
 }
 
 async function claimCandidateForWorker(
@@ -155,5 +262,7 @@ export async function getWindowsMt5WorkerAssignments(
             ? selected
             : await claimCandidateForWorker(selected, workerId, workerHost);
 
-    return [toAssignment(claimed, workerId, workerHost)];
+    const chartJobs = await claimPendingChartJobs(claimed.row.terminalId);
+
+    return [toAssignment(claimed, workerId, workerHost, chartJobs)];
 }

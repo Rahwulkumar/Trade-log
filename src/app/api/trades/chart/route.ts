@@ -21,14 +21,20 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { tradeId, symbol, entryTime, exitTime } = result.data;
+        const { tradeId, symbol, entryTime, exitTime, timeframe } = result.data;
 
         const trade = await getTrade(tradeId, userId);
         if (!trade) {
             return NextResponse.json({ error: 'Trade not found' }, { status: 404 });
         }
 
-        const chart = await getTradeChartData(tradeId, symbol, entryTime, exitTime);
+        const chart = await getTradeChartData(
+            tradeId,
+            symbol,
+            entryTime,
+            exitTime,
+            timeframe,
+        );
 
         return NextResponse.json(chart);
     } catch (error) {

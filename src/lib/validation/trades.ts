@@ -120,6 +120,9 @@ const journalReview = z.union([
       reasonForTrade: nullableString(10000).optional(),
       invalidation: nullableString(4000).optional(),
       targetPlan: nullableString(4000).optional(),
+      entryRatingScore: z.union([z.number().int().min(1).max(5), z.null()]).optional(),
+      exitRatingScore: z.union([z.number().int().min(1).max(5), z.null()]).optional(),
+      managementRatingScore: z.union([z.number().int().min(1).max(5), z.null()]).optional(),
       timeframeAlignment: z
         .union([
           z.enum(['aligned', 'mixed', 'countertrend', 'unclear']),

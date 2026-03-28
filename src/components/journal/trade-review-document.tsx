@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -9,34 +10,57 @@ import {
   type JournalAlignment,
   type JournalEntryDraft,
   type JournalRetakeDecision,
-  type JournalSession,
 } from "@/domain/journal-types";
 import {
   mapTradeToViewModel,
   viewModelToDraft,
 } from "@/domain/journal-mapper";
 import { useJournalAutosave } from "@/hooks/use-journal-autosave";
+import type { Playbook } from "@/lib/api/client/playbooks";
+import {
+  ALLOWED_SCREENSHOT_TYPES,
+  MAX_SCREENSHOT_SIZE_BYTES,
+} from "@/lib/constants/app";
+import {
+  deleteTradeScreenshot,
+  getScreenshotUrl,
+  uploadTradeScreenshot,
+} from "@/lib/api/storage";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 import { AppTextArea } from "@/components/ui/control-primitives";
 import { Button } from "@/components/ui/button";
+import { SectionHeader } from "@/components/ui/page-primitives";
+import { InsetPanel } from "@/components/ui/surface-primitives";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  type JournalChapterItem,
   JournalChoiceChip,
   JournalConvictionInput,
+  JournalOutlineRail,
   JournalPromptField,
   JournalRatingInput,
-  JournalSection,
   JournalShortField,
-  JournalTabPanel,
   JournalTabRail,
   JournalTagField,
 } from "@/components/journal/journal-primitives";
+import { JournalTradeChart } from "@/components/journal/journal-trade-chart";
 
-const SESSION_OPTIONS: readonly JournalSession[] = [
-  "London",
-  "New York",
-  "Asia",
-  "Overnight",
-];
+const EXECUTION_CHECKLIST_OPTIONS = [
+  "Bias clear",
+  "HTF aligned",
+  "Liquidity mapped",
+  "Trigger confirmed",
+  "Risk defined",
+  "Session fit",
+  "News clear",
+  "Plan followed",
+] as const;
 
 const MARKET_CONDITIONS = [
   "Trending",
@@ -138,17 +162,16 @@ function outcomeTone(outcome: "WIN" | "LOSS" | "BE") {
   };
 }
 
-type JournalTabId =
-  | "overview"
-  | "setup"
+type JournalChapterId =
+  | "narrative"
+  | "thesis"
+  | "market"
   | "execution"
+  | "psychology"
   | "scorecard"
   | "closeout";
 
-interface SectionProgress {
-  complete: boolean;
-  touched: boolean;
-}
+type ChapterState = "empty" | "progress" | "complete";
 
 function hasText(value: string | null | undefined): boolean {
   return Boolean(value?.trim());
@@ -162,32 +185,35 @@ function hasNumber(value: number | null | undefined): boolean {
   return value != null && Number.isFinite(value);
 }
 
-function buildSectionProgress(checks: boolean[]): SectionProgress {
-  return {
-    complete: checks.length > 0 ? checks.every(Boolean) : true,
-    touched: checks.some(Boolean),
-  };
-}
+function describeChapterProgress(checks: boolean[]) {
+  const completeCount = checks.filter(Boolean).length;
+  const totalCount = checks.length;
 
-function describeTabProgress(sections: SectionProgress[]) {
-  const completeCount = sections.filter((section) => section.complete).length;
-  const totalCount = sections.length;
-
-  const state =
-    sections.length > 0 && sections.every((section) => section.complete)
+  const state: ChapterState =
+    checks.length > 0 && checks.every(Boolean)
       ? "complete"
-      : sections.some((section) => section.touched)
+      : checks.some(Boolean)
         ? "progress"
         : "empty";
 
   return {
-    progressLabel: `${completeCount}/${totalCount} sections`,
+    progressLabel: `${completeCount}/${totalCount}`,
     state,
   } as const;
 }
 
+function resolveScreenshotPreviewUrl(value: string): string {
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  return getScreenshotUrl(value);
+}
+
 interface TradeReviewDocumentProps {
   trade: Trade;
+  userId: string;
+  playbooks: Playbook[];
   index: number;
   total: number;
   hasPrevious: boolean;
@@ -200,6 +226,8 @@ interface TradeReviewDocumentProps {
 
 export function TradeReviewDocument({
   trade,
+  userId,
+  playbooks,
   index,
   total,
   hasPrevious,
@@ -212,9 +240,14 @@ export function TradeReviewDocument({
   const viewModel = useMemo(() => mapTradeToViewModel(trade), [trade]);
   const initialDraft = useMemo(() => viewModelToDraft(viewModel), [viewModel]);
   const [draft, setDraft] = useState<JournalEntryDraft>(initialDraft);
-  const [activeTab, setActiveTab] = useState<JournalTabId>("overview");
-  const panelTopRef = useRef<HTMLDivElement | null>(null);
-  const hasMountedRef = useRef(false);
+  const [activeChapter, setActiveChapter] =
+    useState<JournalChapterId>("narrative");
+  const [setupTagDraft, setSetupTagDraft] = useState("");
+  const [mistakeTagDraft, setMistakeTagDraft] = useState("");
+  const [executionChecklistDraft, setExecutionChecklistDraft] = useState("");
+  const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
+  const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const canvasAnchorRef = useRef<HTMLDivElement | null>(null);
 
   const setDraftField = useCallback((patch: Partial<JournalEntryDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
@@ -260,105 +293,1051 @@ export function TradeReviewDocument({
         ? "Unsaved edits"
         : "Autosave ready";
 
-  useEffect(() => {
-    if (!hasMountedRef.current) {
-      hasMountedRef.current = true;
-      return;
-    }
-
-    panelTopRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }, [activeTab]);
-
-  const tabItems = useMemo(() => {
-    const narrativeSection = buildSectionProgress([hasText(draft.notes)]);
-    const thesisSection = buildSectionProgress([
-      hasText(draft.journalReview.strategyName),
-      hasText(draft.journalReview.setupName),
-      hasText(draft.journalReview.reasonForTrade),
-      hasText(draft.journalReview.invalidation),
-      hasText(draft.journalReview.targetPlan),
-    ]);
-    const timeframeSection = buildSectionProgress([
-      hasValue(draft.journalReview.timeframeAlignment),
-      hasText(draft.journalReview.higherTimeframeBias),
-      hasText(draft.journalReview.executionTimeframe),
-      hasText(draft.journalReview.triggerTimeframe),
-      hasText(draft.journalReview.higherTimeframeNotes),
-    ]);
-    const marketSection = buildSectionProgress([
-      hasValue(draft.session),
-      hasValue(draft.marketCondition),
-      hasText(draft.observations),
-      hasText(draft.journalReview.marketContext),
-    ]);
-    const executionSection = buildSectionProgress([
-      hasText(draft.journalReview.entryReason),
-      hasText(draft.journalReview.managementReview),
-      hasText(draft.executionNotes),
-      hasText(draft.journalReview.exitReason),
-    ]);
-    const psychologySection = buildSectionProgress([
-      hasText(draft.journalReview.psychologyBefore),
-      hasText(draft.journalReview.psychologyDuring),
-      hasText(draft.journalReview.psychologyAfter),
-      hasText(draft.feelings),
-    ]);
-    const reviewControlsSection = buildSectionProgress([
-      hasValue(draft.entryRating),
-      hasValue(draft.exitRating),
-      hasValue(draft.managementRating),
-      hasValue(draft.conviction),
-      hasValue(draft.journalReview.retakeDecision),
-    ]);
-    const excursionSection = buildSectionProgress([
-      hasNumber(draft.mae),
-      hasNumber(draft.mfe),
-    ]);
-    const distillationSection = buildSectionProgress([
-      hasText(draft.lessonLearned),
-      hasText(draft.journalReview.followUpAction),
-    ]);
-
-    return [
+  const chapterItems = useMemo(() => {
+    const items = [
       {
-        id: "overview",
-        label: "Overview",
-        ...describeTabProgress([narrativeSection]),
+        id: "narrative",
+        label: "Narrative",
+        orderLabel: "01",
+        summary: "Tell the trade cleanly from first observation to final exit.",
+        ...describeChapterProgress([
+          hasText(draft.notes),
+          draft.screenshots.length > 0,
+        ]),
       },
       {
-        id: "setup",
-        label: "Setup",
-        ...describeTabProgress([
-          thesisSection,
-          timeframeSection,
-          marketSection,
+        id: "thesis",
+        label: "Thesis",
+        orderLabel: "02",
+        summary: "Capture the edge, invalidation, and target logic.",
+        ...describeChapterProgress([
+          hasText(draft.journalReview.strategyName),
+          hasText(draft.journalReview.setupName),
+          hasText(draft.journalReview.reasonForTrade),
+          hasText(draft.journalReview.invalidation),
+          hasText(draft.journalReview.targetPlan),
+        ]),
+      },
+      {
+        id: "market",
+        label: "Market",
+        orderLabel: "03",
+        summary:
+          "Record alignment, conditions, and the context around the trade.",
+        ...describeChapterProgress([
+          hasValue(draft.journalReview.timeframeAlignment),
+          hasText(draft.journalReview.higherTimeframeBias),
+          hasText(draft.journalReview.executionTimeframe),
+          hasText(draft.journalReview.triggerTimeframe),
+          hasText(draft.journalReview.higherTimeframeNotes),
+          hasValue(draft.marketCondition),
+          hasText(draft.observations),
+          hasText(draft.journalReview.marketContext),
         ]),
       },
       {
         id: "execution",
         label: "Execution",
-        ...describeTabProgress([executionSection, psychologySection]),
+        orderLabel: "04",
+        summary: "Break down the entry, management, and exit decisions.",
+        ...describeChapterProgress([
+          draft.executionArrays.length > 0,
+          hasText(draft.journalReview.entryReason),
+          hasText(draft.journalReview.managementReview),
+          hasText(draft.executionNotes),
+          hasText(draft.journalReview.exitReason),
+        ]),
+      },
+      {
+        id: "psychology",
+        label: "Psychology",
+        orderLabel: "05",
+        summary:
+          "Describe the emotional state before, during, and after the trade.",
+        ...describeChapterProgress([
+          hasText(draft.journalReview.psychologyBefore),
+          hasText(draft.journalReview.psychologyDuring),
+          hasText(draft.journalReview.psychologyAfter),
+          hasText(draft.feelings),
+        ]),
       },
       {
         id: "scorecard",
         label: "Scorecard",
-        ...describeTabProgress([reviewControlsSection, excursionSection]),
+        orderLabel: "06",
+        summary: "Rate the trade, record conviction, tags, and excursion.",
+        ...describeChapterProgress([
+          hasValue(draft.entryRating),
+          hasValue(draft.exitRating),
+          hasValue(draft.managementRating),
+          hasValue(draft.conviction),
+          hasValue(draft.journalReview.retakeDecision),
+          hasNumber(draft.mae),
+          hasNumber(draft.mfe),
+          draft.setupTags.length > 0,
+          draft.mistakeTags.length > 0,
+        ]),
       },
       {
         id: "closeout",
         label: "Closeout",
-        ...describeTabProgress([distillationSection]),
+        orderLabel: "07",
+        summary:
+          "Distill the lesson and define the next change you will make.",
+        ...describeChapterProgress([
+          hasText(draft.lessonLearned),
+          hasText(draft.journalReview.followUpAction),
+        ]),
       },
-    ] satisfies Array<{
-      id: JournalTabId;
-      label: string;
-      progressLabel: string;
-      state: "empty" | "progress" | "complete";
-    }>;
+    ] satisfies JournalChapterItem[];
+
+    return items;
   }, [draft]);
+
+  const completedChapterCount = chapterItems.filter(
+    (item) => item.state === "complete",
+  ).length;
+  const activeChapterIndex = chapterItems.findIndex(
+    (item) => item.id === activeChapter,
+  );
+  const activeChapterItem =
+    chapterItems[activeChapterIndex] ?? chapterItems[0];
+  const activeChapterLabel = activeChapterItem?.label ?? "Narrative";
+  const chapterTabs = useMemo(
+    () =>
+      chapterItems.map((item) => ({
+        id: item.id,
+        label: item.label,
+        progressLabel: item.progressLabel,
+        state: item.state,
+      })),
+    [chapterItems],
+  );
+
+  const chapterIntroText = useMemo(
+    () =>
+      ({
+        narrative: "Start with the full story while the trade is still fresh.",
+        thesis:
+          "Lock in why the trade existed and what would have invalidated it.",
+        market:
+          "Capture the structural context so the entry makes sense later.",
+        execution:
+          "Explain how the trade was handled, not just how it ended.",
+        psychology:
+          "Make the emotional pattern obvious enough to spot next time.",
+        scorecard: "Keep the scoring tight and the annotations honest.",
+        closeout:
+          "End with one sentence worth remembering and one change worth testing.",
+      })[activeChapter],
+    [activeChapter],
+  );
+
+  const chapterCueText = useMemo(
+    () =>
+      ({
+        narrative: "Write the trade before you judge it.",
+        thesis: "Name the edge so it is easy to repeat or reject later.",
+        market: "Give the setup enough context to make sense on a reread.",
+        execution: "Document the decisions, not just the outcome.",
+        psychology: "Be specific enough to catch the pattern next time.",
+        scorecard: "Keep the scoring crisp and the tags honest.",
+        closeout: "Finish with one lesson and one change worth testing.",
+      })[activeChapter],
+    [activeChapter],
+  );
+  const sortedPlaybooks = useMemo(
+    () =>
+      [...playbooks].sort((left, right) =>
+        left.name.localeCompare(right.name),
+      ),
+    [playbooks],
+  );
+  const selectedPlaybook =
+    sortedPlaybooks.find((playbook) => playbook.id === draft.playbookId) ?? null;
+  const usesManualStrategy =
+    !draft.playbookId && draft.journalReview.strategyName.trim().length > 0;
+
+  const activeChapterStateText =
+    activeChapterItem?.state === "complete"
+      ? "Ready"
+      : activeChapterItem?.state === "progress"
+        ? "In progress"
+        : "Start";
+
+  const changeChapter = useCallback((chapterId: JournalChapterId) => {
+    setActiveChapter(chapterId);
+  }, []);
+
+  const goToAdjacentChapter = useCallback(
+    (direction: -1 | 1) => {
+      if (activeChapterIndex < 0) {
+        return;
+      }
+
+      const nextItem = chapterItems[activeChapterIndex + direction];
+      if (!nextItem) {
+        return;
+      }
+
+      changeChapter(nextItem.id as JournalChapterId);
+    },
+    [activeChapterIndex, changeChapter, chapterItems],
+  );
+
+  const handleStrategyChange = useCallback(
+    (value: string) => {
+      if (value === "__none") {
+        setDraft((current) => ({
+          ...current,
+          playbookId: null,
+          journalReview: {
+            ...current.journalReview,
+            strategyName: "",
+          },
+        }));
+        return;
+      }
+
+      if (value === "__manual") {
+        setDraft((current) => ({
+          ...current,
+          playbookId: null,
+        }));
+        return;
+      }
+
+      const selected = sortedPlaybooks.find((playbook) => playbook.id === value);
+      setDraft((current) => ({
+        ...current,
+        playbookId: selected?.id ?? null,
+        journalReview: {
+          ...current.journalReview,
+          strategyName: selected?.name ?? current.journalReview.strategyName,
+        },
+      }));
+    },
+    [sortedPlaybooks],
+  );
+
+  const toggleExecutionChecklist = useCallback((value: string) => {
+    setDraft((current) => {
+      const exists = current.executionArrays.includes(value);
+      return {
+        ...current,
+        executionArrays: exists
+          ? current.executionArrays.filter((item) => item !== value)
+          : [...current.executionArrays, value],
+      };
+    });
+  }, []);
+
+  const handleScreenshotUpload = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) {
+        return;
+      }
+
+      setScreenshotError(null);
+      setUploadingScreenshots(true);
+
+      try {
+        const uploaded: JournalEntryDraft["screenshots"] = [];
+
+        for (const file of Array.from(files)) {
+          if (
+            !ALLOWED_SCREENSHOT_TYPES.includes(
+              file.type as (typeof ALLOWED_SCREENSHOT_TYPES)[number],
+            )
+          ) {
+            throw new Error("Only JPG, PNG, WEBP, or GIF screenshots are allowed.");
+          }
+
+          if (file.size > MAX_SCREENSHOT_SIZE_BYTES) {
+            throw new Error("Each screenshot must be 5 MB or smaller.");
+          }
+
+          const path = await uploadTradeScreenshot(file, userId);
+          uploaded.push({
+            id: `${trade.id}-${Date.now()}-${uploaded.length}`,
+            tradeId: trade.id,
+            url: path,
+            timeframe: activeChapterLabel,
+            createdAt: new Date().toISOString(),
+          });
+        }
+
+        setDraft((current) => ({
+          ...current,
+          screenshots: [...current.screenshots, ...uploaded],
+        }));
+      } catch (error) {
+        setScreenshotError(
+          error instanceof Error ? error.message : "Failed to upload screenshot.",
+        );
+      } finally {
+        setUploadingScreenshots(false);
+      }
+    },
+    [activeChapterLabel, trade.id, userId],
+  );
+
+  const handleScreenshotRemove = useCallback(async (screenshotId: string) => {
+    const screenshot = draft.screenshots.find((item) => item.id === screenshotId);
+    if (!screenshot) {
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      screenshots: current.screenshots.filter((item) => item.id !== screenshotId),
+    }));
+
+    if (!/^https?:\/\//i.test(screenshot.url)) {
+      try {
+        await deleteTradeScreenshot(screenshot.url);
+      } catch {
+        // Ignore storage cleanup errors; the journal state is already updated.
+      }
+    }
+  }, [draft.screenshots]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      canvasAnchorRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeChapter]);
+
+  const renderActiveChapter = () => {
+    switch (activeChapter) {
+      case "narrative":
+        return (
+          <div className="space-y-4">
+            <p
+              style={{
+                color: "var(--text-tertiary)",
+                fontFamily: "var(--font-inter)",
+                fontSize: "12px",
+                lineHeight: 1.55,
+              }}
+            >
+              Use this space like a replay. Capture what you noticed, why the
+              trade became interesting, how the management changed, and what
+              mattered after the exit.
+            </p>
+            <AppTextArea
+              value={draft.notes}
+              onChange={(event) =>
+                setDraftField({ notes: event.target.value })
+              }
+              rows={18}
+              placeholder="Tell the trade from first observation to final exit."
+              className="min-h-[24rem] w-full rounded-[var(--radius-xl)] px-6 py-5 text-[1rem]"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--border-subtle)",
+                color: "var(--text-primary)",
+                minHeight: "max(32rem, calc(100dvh - 260px))",
+                lineHeight: 1.9,
+              }}
+            />
+            <InsetPanel paddingClassName="px-4 py-4">
+              <SectionHeader
+                className="mb-0"
+                title="Screenshots"
+                subtitle="Attach the chart or execution evidence you want to keep with this trade."
+              />
+              <div className="mt-5 space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-[12px] font-semibold transition-colors"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: "var(--border-subtle)",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    Add screenshots
+                    <input
+                      type="file"
+                      accept={ALLOWED_SCREENSHOT_TYPES.join(",")}
+                      multiple
+                      className="hidden"
+                      onChange={(event) => {
+                        void handleScreenshotUpload(event.target.files);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                  <span
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                    }}
+                  >
+                    {uploadingScreenshots
+                      ? "Uploading..."
+                      : `${draft.screenshots.length} attached`}
+                  </span>
+                  <span
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                    }}
+                  >
+                    JPG, PNG, WEBP, GIF up to 5 MB
+                  </span>
+                </div>
+                {screenshotError ? (
+                  <p
+                    style={{
+                      color: "var(--loss-primary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                    }}
+                  >
+                    {screenshotError}
+                  </p>
+                ) : null}
+                {draft.screenshots.length > 0 ? (
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {draft.screenshots.map((screenshot) => (
+                      <div
+                        key={screenshot.id}
+                        className="overflow-hidden rounded-[var(--radius-xl)] border"
+                        style={{
+                          background: "var(--surface)",
+                          borderColor: "var(--border-subtle)",
+                        }}
+                      >
+                        <div
+                          className="relative aspect-[4/3] overflow-hidden"
+                          style={{ background: "var(--surface-elevated)" }}
+                        >
+                          <Image
+                            src={resolveScreenshotPreviewUrl(screenshot.url)}
+                            alt={`Trade screenshot ${screenshot.timeframe}`}
+                            fill
+                            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 px-3 py-3">
+                          <div className="min-w-0">
+                            <p className="text-label">Attached</p>
+                            <p
+                              className="truncate"
+                              style={{
+                                color: "var(--text-secondary)",
+                                fontFamily: "var(--font-jb-mono)",
+                                fontSize: "11px",
+                              }}
+                            >
+                              {screenshot.timeframe}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleScreenshotRemove(screenshot.id)}
+                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors"
+                            style={{
+                              background: "var(--surface)",
+                              borderColor: "var(--border-subtle)",
+                              color: "var(--text-tertiary)",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                    }}
+                  >
+                    No screenshots yet.
+                  </p>
+                )}
+              </div>
+            </InsetPanel>
+          </div>
+        );
+
+      case "thesis":
+        return (
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-label">Strategy</label>
+                <Select
+                  value={
+                    draft.playbookId ??
+                    (usesManualStrategy ? "__manual" : "__none")
+                  }
+                  onValueChange={handleStrategyChange}
+                >
+                  <SelectTrigger
+                    className="h-10 text-[0.8125rem]"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: "var(--border-subtle)",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    <SelectValue placeholder="Select a strategy" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">No linked strategy</SelectItem>
+                    {sortedPlaybooks.map((playbook) => (
+                      <SelectItem key={playbook.id} value={playbook.id}>
+                        {playbook.name}
+                      </SelectItem>
+                    ))}
+                    {usesManualStrategy ? (
+                      <SelectItem value="__manual">
+                        Manual: {draft.journalReview.strategyName}
+                      </SelectItem>
+                    ) : null}
+                  </SelectContent>
+                </Select>
+                {selectedPlaybook?.description ? (
+                  <p
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {selectedPlaybook.description}
+                  </p>
+                ) : null}
+              </div>
+              <JournalShortField
+                label="Setup"
+                value={draft.journalReview.setupName}
+                onChange={(value) => setReviewField("setupName", value)}
+                placeholder="Name the precise setup"
+              />
+            </div>
+            <JournalPromptField
+              prompt="Why did this trade exist at all?"
+              value={draft.journalReview.reasonForTrade}
+              onChange={(value) => setReviewField("reasonForTrade", value)}
+              rows={5}
+              placeholder="State the edge, structure, or order-flow reason without fluff."
+            />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <JournalPromptField
+                prompt="What would have invalidated the idea?"
+                value={draft.journalReview.invalidation}
+                onChange={(value) => setReviewField("invalidation", value)}
+                rows={4}
+                placeholder="What needed to stop being true for this trade to be wrong?"
+              />
+              <JournalPromptField
+                prompt="What was the intended target logic?"
+                value={draft.journalReview.targetPlan}
+                onChange={(value) => setReviewField("targetPlan", value)}
+                rows={4}
+                placeholder="Liquidity pool, higher-timeframe level, or asymmetric objective."
+              />
+            </div>
+          </div>
+        );
+
+      case "market":
+        return (
+          <div className="space-y-5">
+            <InsetPanel paddingClassName="px-4 py-4">
+              <SectionHeader
+                className="mb-0"
+                title="Timeframe alignment"
+                subtitle="Record the bias, execution frame, trigger frame, and whether the trade was aligned or forced."
+              />
+              <div className="mt-5 space-y-5">
+                <div className="flex flex-wrap gap-2">
+                  {ALIGNMENT_OPTIONS.map((option) => (
+                    <JournalChoiceChip
+                      key={option.value}
+                      active={
+                        draft.journalReview.timeframeAlignment === option.value
+                      }
+                      onClick={() =>
+                        setReviewField(
+                          "timeframeAlignment",
+                          draft.journalReview.timeframeAlignment === option.value
+                            ? null
+                            : option.value,
+                        )
+                      }
+                      tone="accent"
+                    >
+                      {option.label}
+                    </JournalChoiceChip>
+                  ))}
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <JournalShortField
+                    label="Higher timeframe bias"
+                    value={draft.journalReview.higherTimeframeBias}
+                    onChange={(value) =>
+                      setReviewField("higherTimeframeBias", value)
+                    }
+                    placeholder="Bullish, bearish, neutral"
+                  />
+                  <JournalShortField
+                    label="Execution timeframe"
+                    value={draft.journalReview.executionTimeframe}
+                    onChange={(value) =>
+                      setReviewField("executionTimeframe", value)
+                    }
+                    placeholder="e.g. 15m"
+                    mono
+                  />
+                  <JournalShortField
+                    label="Trigger timeframe"
+                    value={draft.journalReview.triggerTimeframe}
+                    onChange={(value) =>
+                      setReviewField("triggerTimeframe", value)
+                    }
+                    placeholder="e.g. 1m"
+                    mono
+                  />
+                </div>
+                <JournalPromptField
+                  prompt="How did the timeframes agree or fight each other?"
+                  value={draft.journalReview.higherTimeframeNotes}
+                  onChange={(value) =>
+                    setReviewField("higherTimeframeNotes", value)
+                  }
+                  rows={4}
+                  placeholder="Be explicit about alignment, conflict, or the one frame you ignored."
+                />
+              </div>
+            </InsetPanel>
+
+            <InsetPanel paddingClassName="px-4 py-4">
+              <SectionHeader
+                className="mb-0"
+                title="Market context"
+                subtitle="Session is handled automatically from the trade time. Use this chapter for the actual market context around the setup."
+              />
+              <div className="mt-5 space-y-5">
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="text-label">Auto session</span>
+                    <span
+                      className="rounded-full px-2.5 py-1"
+                      style={{
+                        background: "var(--accent-soft)",
+                        color: "var(--accent-primary)",
+                        fontFamily: "var(--font-jb-mono)",
+                        fontSize: "11px",
+                      }}
+                    >
+                      {draft.session ?? "Overnight"}
+                    </span>
+                    <span
+                      style={{
+                        color: "var(--text-tertiary)",
+                        fontFamily: "var(--font-inter)",
+                        fontSize: "11px",
+                      }}
+                    >
+                      detected from trade time
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {MARKET_CONDITIONS.map((option) => (
+                      <JournalChoiceChip
+                        key={option}
+                        active={draft.marketCondition === option}
+                        onClick={() =>
+                          setDraftField({
+                            marketCondition:
+                              draft.marketCondition === option ? null : option,
+                          })
+                        }
+                      >
+                        {option}
+                      </JournalChoiceChip>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <JournalPromptField
+                    prompt="What did price make obvious before the entry?"
+                    value={draft.observations}
+                    onChange={(value) => setDraftField({ observations: value })}
+                    rows={5}
+                    placeholder="Structure, liquidity, volatility, correlations, or timing tells."
+                  />
+                  <JournalPromptField
+                    prompt="What context around the trade mattered most?"
+                    value={draft.journalReview.marketContext}
+                    onChange={(value) => setReviewField("marketContext", value)}
+                    rows={5}
+                    placeholder="Macro driver, session behavior, news, or environmental context."
+                  />
+                </div>
+              </div>
+            </InsetPanel>
+          </div>
+        );
+      case "execution":
+        return (
+          <div className="space-y-5">
+            <InsetPanel paddingClassName="px-4 py-4">
+              <SectionHeader
+                className="mb-0"
+                title="Execution checklist"
+                subtitle="Mark the conditions that were actually present before and during the trade."
+              />
+              <div className="mt-5 space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {EXECUTION_CHECKLIST_OPTIONS.map((option) => (
+                    <JournalChoiceChip
+                      key={option}
+                      active={draft.executionArrays.includes(option)}
+                      onClick={() => toggleExecutionChecklist(option)}
+                      tone="accent"
+                    >
+                      {option}
+                    </JournalChoiceChip>
+                  ))}
+                </div>
+                <JournalTagField
+                  label="Custom checklist items"
+                  tags={draft.executionArrays.filter(
+                    (item) => !EXECUTION_CHECKLIST_OPTIONS.includes(item as (typeof EXECUTION_CHECKLIST_OPTIONS)[number]),
+                  )}
+                  onChange={(next) =>
+                    setDraft((current) => ({
+                      ...current,
+                      executionArrays: [
+                        ...current.executionArrays.filter((item) =>
+                          EXECUTION_CHECKLIST_OPTIONS.includes(
+                            item as (typeof EXECUTION_CHECKLIST_OPTIONS)[number],
+                          ),
+                        ),
+                        ...next,
+                      ],
+                    }))
+                  }
+                  tone="neutral"
+                  placeholder="Add custom checklist item"
+                  draftValue={executionChecklistDraft}
+                  onDraftValueChange={setExecutionChecklistDraft}
+                />
+              </div>
+            </InsetPanel>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <JournalPromptField
+                prompt="Why did you enter at that exact moment?"
+                value={draft.journalReview.entryReason}
+                onChange={(value) => setReviewField("entryReason", value)}
+                rows={5}
+                placeholder="What confirmed the trigger? What made it timely?"
+              />
+              <JournalPromptField
+                prompt="What happened during management?"
+                value={draft.journalReview.managementReview}
+                onChange={(value) => setReviewField("managementReview", value)}
+                rows={5}
+                placeholder="Partials, stop movement, patience, discipline, hesitation."
+              />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <JournalPromptField
+                prompt="What is the plain execution story?"
+                value={draft.executionNotes}
+                onChange={(value) => setDraftField({ executionNotes: value })}
+                rows={5}
+                placeholder="Describe the trade management as if another trader had to learn from it."
+              />
+              <JournalPromptField
+                prompt="Why did the exit happen where it did?"
+                value={draft.journalReview.exitReason}
+                onChange={(value) => setReviewField("exitReason", value)}
+                rows={5}
+                placeholder="Intentional target, fear, structure break, or loss of edge."
+              />
+            </div>
+          </div>
+        );
+
+      case "psychology":
+        return (
+          <div className="space-y-5">
+            <div className="grid gap-4 lg:grid-cols-3">
+              <JournalPromptField
+                prompt="Before the trade"
+                value={draft.journalReview.psychologyBefore}
+                onChange={(value) => setReviewField("psychologyBefore", value)}
+                rows={5}
+                placeholder="Confidence, caution, impatience, bias, or clarity before entry."
+              />
+              <JournalPromptField
+                prompt="During the trade"
+                value={draft.journalReview.psychologyDuring}
+                onChange={(value) => setReviewField("psychologyDuring", value)}
+                rows={5}
+                placeholder="How did your emotional state evolve while the trade was open?"
+              />
+              <JournalPromptField
+                prompt="After the trade"
+                value={draft.journalReview.psychologyAfter}
+                onChange={(value) => setReviewField("psychologyAfter", value)}
+                rows={5}
+                placeholder="What did the result make you want to do next?"
+              />
+            </div>
+            <JournalPromptField
+              prompt="How would you summarize the emotional weather of this trade?"
+              value={draft.feelings}
+              onChange={(value) => setDraftField({ feelings: value })}
+              rows={4}
+              placeholder="Name the dominant feeling plainly: calm, rushed, defensive, stubborn, detached, clear."
+            />
+          </div>
+        );
+      case "scorecard":
+        return (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
+            <InsetPanel paddingClassName="px-4 py-4">
+              <SectionHeader
+                className="mb-0"
+                title="Review controls"
+                subtitle="Score the trade, mark conviction, and decide whether it is worth repeating."
+              />
+              <div className="mt-5 space-y-5">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <JournalRatingInput
+                    label="Entry"
+                    value={draft.entryRating}
+                    onChange={(value) => setDraftField({ entryRating: value })}
+                  />
+                  <JournalRatingInput
+                    label="Exit"
+                    value={draft.exitRating}
+                    onChange={(value) => setDraftField({ exitRating: value })}
+                  />
+                  <JournalRatingInput
+                    label="Management"
+                    value={draft.managementRating}
+                    onChange={(value) =>
+                      setDraftField({ managementRating: value })
+                    }
+                  />
+                </div>
+                <JournalConvictionInput
+                  value={draft.conviction}
+                  onChange={(value) => setDraftField({ conviction: value })}
+                />
+                <div className="space-y-2">
+                  <p className="text-label">Would you take this trade again?</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {RETAKE_OPTIONS.map((option) => (
+                      <JournalChoiceChip
+                        key={option.value}
+                        active={verdict === option.value}
+                        onClick={() =>
+                          setReviewField(
+                            "retakeDecision",
+                            verdict === option.value ? null : option.value,
+                          )
+                        }
+                        tone={
+                          option.value === "yes"
+                            ? "profit"
+                            : option.value === "no"
+                              ? "loss"
+                              : "warning"
+                        }
+                      >
+                        {option.label}
+                      </JournalChoiceChip>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-5">
+                  <JournalTagField
+                    label="Setup tags"
+                    tags={draft.setupTags}
+                    onChange={(next) => setDraftField({ setupTags: next })}
+                    tone="neutral"
+                    placeholder="Add setup tag"
+                    draftValue={setupTagDraft}
+                    onDraftValueChange={setSetupTagDraft}
+                  />
+                  <JournalTagField
+                    label="Mistake tags"
+                    tags={draft.mistakeTags}
+                    onChange={(next) => setDraftField({ mistakeTags: next })}
+                    tone="loss"
+                    placeholder="Add mistake tag"
+                    draftValue={mistakeTagDraft}
+                    onDraftValueChange={setMistakeTagDraft}
+                  />
+                </div>
+              </div>
+            </InsetPanel>
+
+            <InsetPanel paddingClassName="px-4 py-4">
+              <SectionHeader
+                className="mb-0"
+                title="Excursion"
+                subtitle="Record how far price moved against you and for you."
+              />
+              <div className="mt-5 space-y-5">
+                <div
+                  className="relative h-px w-full"
+                  style={{ background: "var(--border-subtle)" }}
+                >
+                  <div
+                    className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                    style={{ background: "var(--text-primary)" }}
+                  />
+                  <div
+                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full"
+                    style={{
+                      left: `calc(50% - ${
+                        Math.min(Math.abs(draft.mae ?? 0), 5) * 9
+                      }%)`,
+                      background: "var(--loss-primary)",
+                    }}
+                  />
+                  <div
+                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full"
+                    style={{
+                      left: `calc(50% + ${
+                        Math.min(Math.abs(draft.mfe ?? 0), 5) * 9
+                      }%)`,
+                      background: "var(--profit-primary)",
+                    }}
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <JournalShortField
+                    label="MAE"
+                    value={draft.mae == null ? "" : String(draft.mae)}
+                    onChange={(value) => {
+                      if (value.trim() === "") {
+                        setDraftField({ mae: null });
+                        return;
+                      }
+
+                      const parsed = Number(value);
+                      if (Number.isFinite(parsed)) {
+                        setDraftField({ mae: parsed });
+                      }
+                    }}
+                    placeholder="Max adverse excursion"
+                    mono
+                  />
+                  <JournalShortField
+                    label="MFE"
+                    value={draft.mfe == null ? "" : String(draft.mfe)}
+                    onChange={(value) => {
+                      if (value.trim() === "") {
+                        setDraftField({ mfe: null });
+                        return;
+                      }
+
+                      const parsed = Number(value);
+                      if (Number.isFinite(parsed)) {
+                        setDraftField({ mfe: parsed });
+                      }
+                    }}
+                    placeholder="Max favorable excursion"
+                    mono
+                  />
+                </div>
+              </div>
+            </InsetPanel>
+          </div>
+        );
+
+      case "closeout":
+        return (
+          <div className="space-y-5">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+              <JournalPromptField
+                prompt="What is the lesson?"
+                value={draft.lessonLearned}
+                onChange={(value) => setDraftField({ lessonLearned: value })}
+                rows={4}
+                placeholder="Reduce the entire trade to one repeatable sentence."
+              />
+              <JournalPromptField
+                prompt="What changes next time?"
+                value={draft.journalReview.followUpAction}
+                onChange={(value) => setReviewField("followUpAction", value)}
+                rows={4}
+                placeholder="Define the next action, rule, or behavior change."
+              />
+            </div>
+
+            <AnimatePresence>
+              {draft.lessonLearned.trim() ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  style={{
+                    background: "var(--accent-soft)",
+                    borderLeft: "3px solid var(--accent-primary)",
+                    borderRadius:
+                      "0 var(--radius-default) var(--radius-default) 0",
+                    padding: "16px 18px",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "var(--accent-primary)",
+                      display: "block",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Lesson
+                  </span>
+                  <p
+                    style={{
+                      color: "var(--text-primary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "14px",
+                      fontStyle: "italic",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {draft.lessonLearned}
+                  </p>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </div>
+        );
+    }
+  };
 
   return (
     <motion.article
@@ -370,21 +1349,21 @@ export function TradeReviewDocument({
       style={{ background: "var(--surface)" }}
     >
       <div
-        className="sticky top-0 z-10 border-b px-5 py-4 sm:px-6 lg:px-8"
+        className="sticky top-0 z-10 border-b px-4 py-3 sm:px-6 lg:px-8"
         style={{
           background: "color-mix(in srgb, var(--surface) 96%, transparent)",
           borderBottomColor: "var(--border-subtle)",
           backdropFilter: "blur(12px)",
         }}
       >
-        <div className="mx-auto flex max-w-[1100px] flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-3">
+        <div className="flex w-full flex-col gap-3">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-wrap items-center gap-2.5">
               <h1
                 style={{
                   color: "var(--text-primary)",
                   fontFamily: "var(--font-jb-mono)",
-                  fontSize: "24px",
+                  fontSize: "22px",
                   fontWeight: 700,
                   lineHeight: 1.12,
                   letterSpacing: "-0.03em",
@@ -423,8 +1402,16 @@ export function TradeReviewDocument({
               >
                 {outcome}
               </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2.5">
+              <span
+                style={{
+                  color: tone.color,
+                  fontFamily: "var(--font-jb-mono)",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                }}
+              >
+                {formatPnl(netPnl)}
+              </span>
               <span
                 style={{
                   color: "var(--text-tertiary)",
@@ -458,32 +1445,42 @@ export function TradeReviewDocument({
                 {duration}
               </span>
             </div>
-          </div>
 
-          <div className="flex flex-col items-start gap-3 sm:items-end">
-            <div className="text-left sm:text-right">
-              <p
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="rounded-full px-2.5 py-1"
                 style={{
-                  color: tone.color,
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "28px",
-                  fontWeight: 700,
-                  lineHeight: 1.05,
-                }}
-              >
-                {formatPnl(netPnl)}
-              </p>
-              <p
-                style={{
+                  background: "var(--surface-elevated)",
                   color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "12px",
-                  marginTop: "4px",
+                  fontFamily: "var(--font-jb-mono)",
+                  fontSize: "11px",
                 }}
               >
-                entry {index + 1} of {total}
-              </p>
-              <p
+                {index + 1}/{total}
+              </span>
+              <span
+                className="rounded-full px-2.5 py-1"
+                style={{
+                  background: "var(--surface-elevated)",
+                  color: "var(--text-tertiary)",
+                  fontFamily: "var(--font-jb-mono)",
+                  fontSize: "11px",
+                }}
+              >
+                {activeChapterItem.orderLabel} · {activeChapterLabel}
+              </span>
+              <span
+                className="rounded-full px-2.5 py-1"
+                style={{
+                  background: "var(--accent-soft)",
+                  color: "var(--accent-primary)",
+                  fontFamily: "var(--font-jb-mono)",
+                  fontSize: "11px",
+                }}
+              >
+                {completedChapterCount}/{chapterItems.length} ready
+              </span>
+              <span
                 style={{
                   color: saving
                     ? "var(--accent-primary)"
@@ -492,14 +1489,11 @@ export function TradeReviewDocument({
                       : "var(--text-tertiary)",
                   fontFamily: "var(--font-inter)",
                   fontSize: "11px",
-                  marginTop: "6px",
+                  fontWeight: 600,
                 }}
               >
                 {saveStatusText}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
+              </span>
               <Button
                 type="button"
                 onClick={onPrevious}
@@ -516,7 +1510,7 @@ export function TradeReviewDocument({
                 }}
               >
                 <ChevronLeft size={14} />
-                Previous
+                <span className="hidden sm:inline">Previous trade</span>
               </Button>
 
               {onNextPending ? (
@@ -531,7 +1525,8 @@ export function TradeReviewDocument({
                     color: "var(--accent-primary)",
                   }}
                 >
-                  Next unreviewed
+                  <span className="hidden sm:inline">Next unreviewed</span>
+                  <span className="sm:hidden">Next open</span>
                 </Button>
               ) : null}
 
@@ -550,560 +1545,312 @@ export function TradeReviewDocument({
                   opacity: hasNext ? 1 : 0.45,
                 }}
               >
-                Next
+                <span className="hidden sm:inline">Next trade</span>
                 <ChevronRight size={14} />
               </Button>
             </div>
           </div>
-        </div>
 
-        <div
-          className="mx-auto mt-4 max-w-[1100px] border-t pt-3"
-          style={{ borderTopColor: "var(--border-subtle)" }}
-        >
-          <JournalTabRail
-            items={tabItems}
-            activeTab={activeTab}
-            onChange={(id) => setActiveTab(id as JournalTabId)}
-          />
+          <div className="lg:hidden">
+            <JournalTabRail
+              items={chapterTabs}
+              activeTab={activeChapter}
+              onChange={(id) => changeChapter(id as JournalChapterId)}
+              ariaLabel="Journal chapters"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-        <div className="mx-auto w-full max-w-[1100px] space-y-8">
-          <div ref={panelTopRef} style={{ scrollMarginTop: "196px" }} />
-
-          <JournalTabPanel id="overview" active={activeTab === "overview"}>
-            <JournalSection
-              variant="editorial"
-              title="Narrative"
-              subtitle="Write the trade in sequence: what you saw, what made the idea credible, where management changed, and what the chart looked like after you were gone."
-            >
-              <AppTextArea
-                value={draft.notes}
-                onChange={(event) =>
-                  setDraftField({ notes: event.target.value })
-                }
-                rows={15}
-                placeholder="Tell the trade from first observation to final exit."
-                className="min-h-[24rem] w-full rounded-[var(--radius-xl)] px-6 py-5 text-[1rem]"
-                style={{
-                  background: "var(--surface-elevated)",
-                  borderColor: "var(--border-subtle)",
-                  color: "var(--text-primary)",
-                  lineHeight: 1.9,
-                }}
-              />
-            </JournalSection>
-          </JournalTabPanel>
-
-          <JournalTabPanel id="setup" active={activeTab === "setup"}>
-            <JournalSection
-              variant="editorial"
-              title="Thesis"
-              subtitle="Capture the setup, why the trade was worth taking, what would have invalidated it, and where the upside was supposed to come from."
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <JournalShortField
-                  label="Strategy"
-                  value={draft.journalReview.strategyName}
-                  onChange={(value) => setReviewField("strategyName", value)}
-                  placeholder="e.g. London sweep reversal"
+      <div className="px-4 pb-16 pt-4 sm:px-6 lg:px-8">
+        <div className="w-full">
+          <div className="grid gap-5 lg:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]">
+            <div className="hidden lg:block">
+              <div className="sticky top-[90px] space-y-4">
+                <JournalOutlineRail
+                  items={chapterItems}
+                  activeChapter={activeChapter}
+                  onChange={(id) => changeChapter(id as JournalChapterId)}
                 />
-                <JournalShortField
-                  label="Setup"
-                  value={draft.journalReview.setupName}
-                  onChange={(value) => setReviewField("setupName", value)}
-                  placeholder="Name the precise setup"
-                />
-              </div>
-              <JournalPromptField
-                prompt="Why did this trade exist at all?"
-                value={draft.journalReview.reasonForTrade}
-                onChange={(value) => setReviewField("reasonForTrade", value)}
-                rows={5}
-                placeholder="State the edge, structure, or order-flow reason without fluff."
-              />
-              <div className="grid gap-4 lg:grid-cols-2">
-                <JournalPromptField
-                  prompt="What would have invalidated the idea?"
-                  value={draft.journalReview.invalidation}
-                  onChange={(value) => setReviewField("invalidation", value)}
-                  rows={4}
-                  placeholder="What needed to stop being true for this trade to be wrong?"
-                />
-                <JournalPromptField
-                  prompt="What was the intended target logic?"
-                  value={draft.journalReview.targetPlan}
-                  onChange={(value) => setReviewField("targetPlan", value)}
-                  rows={4}
-                  placeholder="Liquidity pool, higher-timeframe level, or asymmetric objective."
-                />
-              </div>
-            </JournalSection>
-
-            <JournalSection
-              variant="structured"
-              title="Timeframe alignment"
-              subtitle="Record the higher-timeframe read, the execution frame, the trigger frame, and whether the trade was aligned or forced."
-            >
-              <div className="flex flex-wrap gap-2">
-                {ALIGNMENT_OPTIONS.map((option) => (
-                  <JournalChoiceChip
-                    key={option.value}
-                    active={
-                      draft.journalReview.timeframeAlignment === option.value
-                    }
-                    onClick={() =>
-                      setReviewField(
-                        "timeframeAlignment",
-                        draft.journalReview.timeframeAlignment === option.value
-                          ? null
-                          : option.value,
-                      )
-                    }
-                    tone="accent"
+                <InsetPanel paddingClassName="px-4 py-4">
+                  <p className="text-label">Current focus</p>
+                  <p
+                    className="mt-2"
+                    style={{
+                      color: "var(--text-primary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      lineHeight: 1.45,
+                    }}
                   >
-                    {option.label}
-                  </JournalChoiceChip>
-                ))}
+                    {chapterCueText}
+                  </p>
+                  <p
+                    className="mt-2"
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {chapterIntroText}
+                  </p>
+                </InsetPanel>
               </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <JournalShortField
-                  label="Higher timeframe bias"
-                  value={draft.journalReview.higherTimeframeBias}
-                  onChange={(value) =>
-                    setReviewField("higherTimeframeBias", value)
-                  }
-                  placeholder="Bullish, bearish, neutral"
-                />
-                <JournalShortField
-                  label="Execution timeframe"
-                  value={draft.journalReview.executionTimeframe}
-                  onChange={(value) =>
-                    setReviewField("executionTimeframe", value)
-                  }
-                  placeholder="e.g. 15m"
-                  mono
-                />
-                <JournalShortField
-                  label="Trigger timeframe"
-                  value={draft.journalReview.triggerTimeframe}
-                  onChange={(value) =>
-                    setReviewField("triggerTimeframe", value)
-                  }
-                  placeholder="e.g. 1m"
-                  mono
-                />
-              </div>
-              <JournalPromptField
-                prompt="How did the timeframes agree or fight each other?"
-                value={draft.journalReview.higherTimeframeNotes}
-                onChange={(value) =>
-                  setReviewField("higherTimeframeNotes", value)
-                }
-                rows={4}
-                placeholder="Be explicit about alignment, conflict, or the one frame you ignored."
-              />
-            </JournalSection>
+            </div>
 
-            <JournalSection
-              variant="structured"
-              title="Market context"
-              subtitle="Add the session, the market condition, and the contextual detail that made the trade easier or more dangerous."
-            >
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {SESSION_OPTIONS.map((option) => (
-                    <JournalChoiceChip
-                      key={option}
-                      active={draft.session === option}
-                      onClick={() =>
-                        setDraftField({
-                          session: draft.session === option ? null : option,
-                        })
-                      }
-                    >
-                      {option}
-                    </JournalChoiceChip>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {MARKET_CONDITIONS.map((option) => (
-                    <JournalChoiceChip
-                      key={option}
-                      active={draft.marketCondition === option}
-                      onClick={() =>
-                        setDraftField({
-                          marketCondition:
-                            draft.marketCondition === option ? null : option,
-                        })
-                      }
-                    >
-                      {option}
-                    </JournalChoiceChip>
-                  ))}
-                </div>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <JournalPromptField
-                  prompt="What did price make obvious before the entry?"
-                  value={draft.observations}
-                  onChange={(value) => setDraftField({ observations: value })}
-                  rows={5}
-                  placeholder="Structure, liquidity, volatility, correlations, or timing tells."
-                />
-                <JournalPromptField
-                  prompt="What context around the trade mattered most?"
-                  value={draft.journalReview.marketContext}
-                  onChange={(value) => setReviewField("marketContext", value)}
-                  rows={5}
-                  placeholder="Macro driver, session behavior, news, or environmental context."
-                />
-              </div>
-            </JournalSection>
-          </JournalTabPanel>
-
-          <JournalTabPanel id="execution" active={activeTab === "execution"}>
-            <JournalSection
-              variant="editorial"
-              title="Execution review"
-              subtitle="Break the trade into the trigger, the handling, and the exit. This section should explain the decisions, not just the outcome."
-            >
-              <div className="grid gap-4 lg:grid-cols-2">
-                <JournalPromptField
-                  prompt="Why did you enter at that exact moment?"
-                  value={draft.journalReview.entryReason}
-                  onChange={(value) => setReviewField("entryReason", value)}
-                  rows={5}
-                  placeholder="What confirmed the trigger? What made it timely?"
-                />
-                <JournalPromptField
-                  prompt="What happened during management?"
-                  value={draft.journalReview.managementReview}
-                  onChange={(value) =>
-                    setReviewField("managementReview", value)
-                  }
-                  rows={5}
-                  placeholder="Partials, stop movement, patience, discipline, hesitation."
-                />
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <JournalPromptField
-                  prompt="What is the plain execution story?"
-                  value={draft.executionNotes}
-                  onChange={(value) =>
-                    setDraftField({ executionNotes: value })
-                  }
-                  rows={5}
-                  placeholder="Describe the trade management as if another trader had to learn from it."
-                />
-                <JournalPromptField
-                  prompt="Why did the exit happen where it did?"
-                  value={draft.journalReview.exitReason}
-                  onChange={(value) => setReviewField("exitReason", value)}
-                  rows={5}
-                  placeholder="Intentional target, fear, structure break, or loss of edge."
-                />
-              </div>
-            </JournalSection>
-
-            <JournalSection
-              variant="editorial"
-              title="Psychology"
-              subtitle="Write the internal state before, during, and after the trade. This is where hesitation, urgency, FOMO, stubbornness, and clarity belong."
-            >
-              <div className="grid gap-4 lg:grid-cols-3">
-                <JournalPromptField
-                  prompt="Before the trade"
-                  value={draft.journalReview.psychologyBefore}
-                  onChange={(value) =>
-                    setReviewField("psychologyBefore", value)
-                  }
-                  rows={5}
-                  placeholder="Confidence, caution, impatience, bias, or clarity before entry."
-                />
-                <JournalPromptField
-                  prompt="During the trade"
-                  value={draft.journalReview.psychologyDuring}
-                  onChange={(value) =>
-                    setReviewField("psychologyDuring", value)
-                  }
-                  rows={5}
-                  placeholder="How did your emotional state evolve while the trade was open?"
-                />
-                <JournalPromptField
-                  prompt="After the trade"
-                  value={draft.journalReview.psychologyAfter}
-                  onChange={(value) =>
-                    setReviewField("psychologyAfter", value)
-                  }
-                  rows={5}
-                  placeholder="What did the result make you want to do next?"
-                />
-              </div>
-              <JournalPromptField
-                prompt="How would you summarize the emotional weather of this trade?"
-                value={draft.feelings}
-                onChange={(value) => setDraftField({ feelings: value })}
-                rows={4}
-                placeholder="Name the dominant feeling plainly: calm, rushed, defensive, stubborn, detached, clear."
-              />
-            </JournalSection>
-          </JournalTabPanel>
-
-          <JournalTabPanel
-            id="scorecard"
-            active={activeTab === "scorecard"}
-            className="space-y-0"
-          >
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)]">
-              <JournalSection
-                variant="tool"
-                title="Review controls"
-                subtitle="Keep the annotations tight: rate the craft, mark the tags, set conviction, and record whether this is a trade worth repeating."
-                className="h-full"
+            <div ref={canvasAnchorRef} className="min-w-0 space-y-4">
+              <section
+                className="relative overflow-hidden rounded-[var(--radius-2xl)] border"
+                style={{
+                  background: "var(--surface)",
+                  borderColor: "var(--border-subtle)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
               >
-                <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)]">
-                  <div className="space-y-5">
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <JournalRatingInput
-                        label="Entry"
-                        value={draft.entryRating}
-                        onChange={(value) =>
-                          setDraftField({ entryRating: value })
-                        }
-                      />
-                      <JournalRatingInput
-                        label="Exit"
-                        value={draft.exitRating}
-                        onChange={(value) =>
-                          setDraftField({ exitRating: value })
-                        }
-                      />
-                      <JournalRatingInput
-                        label="Management"
-                        value={draft.managementRating}
-                        onChange={(value) =>
-                          setDraftField({ managementRating: value })
-                        }
-                      />
-                    </div>
-                    <JournalConvictionInput
-                      value={draft.conviction}
-                      onChange={(value) => setDraftField({ conviction: value })}
-                    />
-                    <div className="space-y-2">
-                      <p className="text-label">Would you take this trade again?</p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {RETAKE_OPTIONS.map((option) => (
-                          <JournalChoiceChip
-                            key={option.value}
-                            active={verdict === option.value}
-                            onClick={() =>
-                              setReviewField(
-                                "retakeDecision",
-                                verdict === option.value ? null : option.value,
-                              )
-                            }
-                            tone={
-                              option.value === "yes"
-                                ? "profit"
-                                : option.value === "no"
-                                  ? "loss"
-                                  : "warning"
-                            }
+                <div
+                  className="absolute inset-x-0 top-0 h-24"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 10%, transparent), transparent)",
+                  }}
+                />
+                <div
+                  className="absolute right-[-44px] top-[-36px] h-36 w-36 rounded-full"
+                  style={{
+                    background:
+                      "color-mix(in srgb, var(--accent-primary) 12%, transparent)",
+                    filter: "blur(18px)",
+                  }}
+                />
+
+                <div className="relative px-5 py-5 sm:px-7 sm:py-6 xl:px-10 xl:py-8">
+                  <div
+                    className="flex flex-col gap-5 border-b pb-5"
+                    style={{ borderBottomColor: "var(--border-subtle)" }}
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex items-start gap-4">
+                        <span
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border"
+                          style={{
+                            background: "var(--accent-soft)",
+                            borderColor: "var(--accent-primary)",
+                            color: "var(--accent-primary)",
+                            fontFamily: "var(--font-syne)",
+                            fontSize: "15px",
+                            fontWeight: 700,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {activeChapterItem.orderLabel}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-label">Active chapter</span>
+                            <span
+                              className="rounded-full px-2 py-0.5"
+                              style={{
+                                background: "var(--surface-elevated)",
+                                color:
+                                  activeChapterItem.state === "complete"
+                                    ? "var(--profit-primary)"
+                                    : activeChapterItem.state === "progress"
+                                      ? "var(--warning-primary)"
+                                      : "var(--text-tertiary)",
+                                fontFamily: "var(--font-jb-mono)",
+                                fontSize: "10px",
+                              }}
+                            >
+                              {activeChapterItem.progressLabel}
+                            </span>
+                            <span
+                              className="rounded-full px-2 py-0.5"
+                              style={{
+                                background: "var(--accent-soft)",
+                                color: "var(--accent-primary)",
+                                fontFamily: "var(--font-inter)",
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              {activeChapterStateText}
+                            </span>
+                          </div>
+                          <h2
+                            className="mt-2"
+                            style={{
+                              color: "var(--text-primary)",
+                              fontFamily: "var(--font-inter)",
+                              fontSize: "clamp(1.35rem, 2vw, 1.75rem)",
+                              fontWeight: 700,
+                              lineHeight: 1.08,
+                              letterSpacing: "-0.03em",
+                            }}
                           >
-                            {option.label}
-                          </JournalChoiceChip>
-                        ))}
+                            {activeChapterLabel}
+                          </h2>
+                          <p
+                            className="mt-2 max-w-3xl"
+                            style={{
+                              color: "var(--text-secondary)",
+                              fontFamily: "var(--font-inter)",
+                              fontSize: "14px",
+                              lineHeight: 1.65,
+                            }}
+                          >
+                            {activeChapterItem.summary}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div
+                        className="rounded-[var(--radius-xl)] border px-4 py-3 lg:max-w-[19rem]"
+                        style={{
+                          background: "var(--surface-elevated)",
+                          borderColor: "var(--border-subtle)",
+                        }}
+                      >
+                        <p className="text-label">Focus cue</p>
+                        <p
+                          className="mt-2"
+                          style={{
+                            color: "var(--text-primary)",
+                            fontFamily: "var(--font-inter)",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          {chapterCueText}
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-5">
-                    <JournalTagField
-                      label="Setup tags"
-                      tags={draft.setupTags}
-                      onChange={(next) => setDraftField({ setupTags: next })}
-                      tone="neutral"
-                      placeholder="Add setup tag"
-                    />
-                    <JournalTagField
-                      label="Mistake tags"
-                      tags={draft.mistakeTags}
-                      onChange={(next) => setDraftField({ mistakeTags: next })}
-                      tone="loss"
-                      placeholder="Add mistake tag"
+                  <div className="mt-6">
+                    <JournalTradeChart
+                      tradeId={trade.id}
+                      symbol={viewModel.symbol}
+                      entryPrice={viewModel.entryPrice}
+                      exitPrice={viewModel.exitPrice}
+                      stopLoss={viewModel.stopLoss}
+                      takeProfit={viewModel.takeProfit}
+                      entryTime={viewModel.entryDate}
+                      exitTime={viewModel.exitDate ?? viewModel.entryDate}
+                      direction={viewModel.direction}
                     />
                   </div>
-                </div>
-              </JournalSection>
 
-              <JournalSection
-                variant="tool"
-                title="Excursion"
-                subtitle="Record how far price went against you and for you. The pair matters because it tells you whether the problem was structure, timing, or management."
-                className="h-full"
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeChapter}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.18 }}
+                      className="mt-6"
+                    >
+                      {renderActiveChapter()}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </section>
+
+              <div
+                className="flex flex-col gap-3 rounded-[var(--radius-xl)] border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--surface) 94%, transparent)",
+                  borderColor: "var(--border-subtle)",
+                }}
               >
-                <div
-                  className="relative h-px w-full"
-                  style={{ background: "var(--border-subtle)" }}
-                >
-                  <div
-                    className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                    style={{ background: "var(--text-primary)" }}
-                  />
-                  <div
-                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full"
+                <div>
+                  <p
                     style={{
-                      left: `calc(50% - ${
-                        Math.min(Math.abs(draft.mae ?? 0), 5) * 9
-                      }%)`,
-                      background: "var(--loss-primary)",
-                    }}
-                  />
-                  <div
-                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full"
-                    style={{
-                      left: `calc(50% + ${
-                        Math.min(Math.abs(draft.mfe ?? 0), 5) * 9
-                      }%)`,
-                      background: "var(--profit-primary)",
-                    }}
-                  />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <JournalShortField
-                    label="MAE"
-                    value={draft.mae == null ? "" : String(draft.mae)}
-                    onChange={(value) => {
-                      if (value.trim() === "") {
-                        setDraftField({ mae: null });
-                        return;
-                      }
-                      const parsed = Number(value);
-                      if (Number.isFinite(parsed)) {
-                        setDraftField({ mae: parsed });
-                      }
-                    }}
-                    placeholder="Max adverse excursion"
-                    mono
-                  />
-                  <JournalShortField
-                    label="MFE"
-                    value={draft.mfe == null ? "" : String(draft.mfe)}
-                    onChange={(value) => {
-                      if (value.trim() === "") {
-                        setDraftField({ mfe: null });
-                        return;
-                      }
-                      const parsed = Number(value);
-                      if (Number.isFinite(parsed)) {
-                        setDraftField({ mfe: parsed });
-                      }
-                    }}
-                    placeholder="Max favorable excursion"
-                    mono
-                  />
-                </div>
-              </JournalSection>
-            </div>
-          </JournalTabPanel>
-
-          <JournalTabPanel id="closeout" active={activeTab === "closeout"}>
-            <JournalSection
-              variant="editorial"
-              title="Distillation"
-              subtitle="Finish with the one sentence worth remembering and the next action that should change future behavior."
-            >
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
-                <JournalPromptField
-                  prompt="What is the lesson?"
-                  value={draft.lessonLearned}
-                  onChange={(value) => setDraftField({ lessonLearned: value })}
-                  rows={4}
-                  placeholder="Reduce the entire trade to one repeatable sentence."
-                />
-                <JournalPromptField
-                  prompt="What changes next time?"
-                  value={draft.journalReview.followUpAction}
-                  onChange={(value) => setReviewField("followUpAction", value)}
-                  rows={4}
-                  placeholder="Define the next action, rule, or behavior change."
-                />
-              </div>
-
-              <AnimatePresence>
-                {draft.lessonLearned.trim() ? (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.97 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.97 }}
-                    transition={{ duration: 0.15 }}
-                    style={{
-                      background: "var(--accent-soft)",
-                      borderLeft: "3px solid var(--accent-primary)",
-                      borderRadius:
-                        "0 var(--radius-default) var(--radius-default) 0",
-                      padding: "16px 18px",
+                      color: "var(--text-primary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "13px",
+                      fontWeight: 700,
                     }}
                   >
-                    <span
-                      style={{
-                        color: "var(--accent-primary)",
-                        display: "block",
-                        fontFamily: "var(--font-inter)",
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        letterSpacing: "0.12em",
-                        textTransform: "uppercase",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      Lesson
-                    </span>
-                    <p
-                      style={{
-                        color: "var(--text-primary)",
-                        fontFamily: "var(--font-inter)",
-                        fontSize: "14px",
-                        fontStyle: "italic",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      {draft.lessonLearned}
-                    </p>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
+                    Chapter {activeChapterIndex + 1} of {chapterItems.length}
+                  </p>
+                  <p
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                    }}
+                  >
+                    {chapterIntroText}
+                  </p>
+                </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p
-                  style={{
-                    color: "var(--text-tertiary)",
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "12px",
-                  }}
-                >
-                  {saveStatusText}
-                </p>
-                <Button
-                  type="button"
-                  onClick={() => void save()}
-                  size="sm"
-                  variant="outline"
-                  style={{
-                    background: "var(--surface)",
-                    borderColor: "var(--border-subtle)",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  Save review
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => goToAdjacentChapter(-1)}
+                    disabled={activeChapterIndex <= 0}
+                    size="sm"
+                    variant="outline"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: "var(--border-subtle)",
+                      color:
+                        activeChapterIndex > 0
+                          ? "var(--text-primary)"
+                          : "var(--text-tertiary)",
+                      opacity: activeChapterIndex > 0 ? 1 : 0.45,
+                    }}
+                  >
+                    <ChevronLeft size={14} />
+                    Previous chapter
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => void save()}
+                    size="sm"
+                    variant="outline"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: "var(--border-subtle)",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    Save review
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => goToAdjacentChapter(1)}
+                    disabled={activeChapterIndex >= chapterItems.length - 1}
+                    size="sm"
+                    variant="outline"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor:
+                        activeChapterIndex >= chapterItems.length - 1
+                          ? "var(--border-subtle)"
+                          : "var(--accent-primary)",
+                      color:
+                        activeChapterIndex >= chapterItems.length - 1
+                          ? "var(--text-tertiary)"
+                          : "var(--accent-primary)",
+                      opacity:
+                        activeChapterIndex >= chapterItems.length - 1 ? 0.45 : 1,
+                    }}
+                  >
+                    Next chapter
+                    <ChevronRight size={14} />
+                  </Button>
+                </div>
               </div>
-            </JournalSection>
-          </JournalTabPanel>
+            </div>
+          </div>
         </div>
       </div>
     </motion.article>

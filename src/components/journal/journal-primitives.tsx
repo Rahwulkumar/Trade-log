@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useId, useState } from "react";
-import { Circle, Star } from "lucide-react";
+import { ChevronRight, Circle, Star } from "lucide-react";
 
 import type { QualityRating } from "@/domain/journal-types";
 import {
@@ -23,6 +23,15 @@ export interface JournalTabItem {
   id: string;
   label: string;
   progressLabel: string;
+  state: JournalTabState;
+}
+
+export interface JournalChapterItem {
+  id: string;
+  label: string;
+  orderLabel: string;
+  progressLabel: string;
+  summary: string;
   state: JournalTabState;
 }
 
@@ -105,9 +114,17 @@ export function JournalSection({
   if (variant === "editorial") {
     return (
       <section
-        className={cn("space-y-6 pb-8", className)}
+        className={cn("relative space-y-6 pb-10 pl-5", className)}
         style={{ borderBottom: "1px solid var(--border-subtle)" }}
       >
+        <span
+          className="absolute left-0 top-1 block w-px rounded-full"
+          style={{
+            height: "calc(100% - 2rem)",
+            background:
+              "linear-gradient(180deg, var(--accent-primary), transparent)",
+          }}
+        />
         <SectionHeader
           className="mb-0"
           title={title}
@@ -125,6 +142,11 @@ export function JournalSection({
     <InsetPanel
       className={cn(variant === "tool" ? "space-y-4" : "space-y-5", className)}
       paddingClassName={panelPadding}
+      style={
+        variant === "tool"
+          ? { background: "var(--surface)" }
+          : undefined
+      }
     >
       <SectionHeader
         className="mb-0"
@@ -164,6 +186,302 @@ export function JournalChoiceChip({
   );
 }
 
+export function JournalChapter({
+  item,
+  active,
+  onActivate,
+  children,
+  className,
+}: {
+  item: JournalChapterItem;
+  active: boolean;
+  onActivate: () => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  const styles = tabStateStyles(item.state);
+
+  return (
+    <section
+      className={cn(
+        "rounded-[var(--radius-xl)] border transition-[border-color,box-shadow,background-color]",
+        className,
+      )}
+      style={{
+        background: active ? "var(--surface)" : "var(--surface-elevated)",
+        borderColor: active
+          ? "var(--accent-primary)"
+          : "var(--border-subtle)",
+        boxShadow: active ? "var(--shadow-md)" : "none",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onActivate}
+        className="flex w-full items-start gap-4 px-4 py-4 text-left sm:px-5"
+      >
+        <div className="relative flex w-11 shrink-0 justify-center pt-0.5">
+          <span
+            className="flex h-8 w-8 items-center justify-center rounded-full border"
+            style={{
+              background: active ? "var(--accent-soft)" : "var(--surface)",
+              borderColor: active
+                ? "var(--accent-primary)"
+                : "var(--border-subtle)",
+              color: active ? "var(--accent-primary)" : styles.dotColor,
+              fontFamily: "var(--font-syne)",
+              fontSize: "12px",
+              fontWeight: 700,
+              lineHeight: 1,
+            }}
+          >
+            {item.orderLabel}
+          </span>
+          <span
+            className="absolute bottom-[-22px] top-10 w-px rounded-full"
+            style={{
+              background:
+                item.state === "complete"
+                  ? "linear-gradient(180deg, var(--profit-primary), transparent)"
+                  : item.state === "progress"
+                    ? "linear-gradient(180deg, var(--warning-primary), transparent)"
+                    : "linear-gradient(180deg, var(--border-default), transparent)",
+              opacity: active ? 0.9 : 0.5,
+            }}
+          />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2
+              style={{
+                color: active
+                  ? "var(--text-primary)"
+                  : "var(--text-secondary)",
+                fontFamily: "var(--font-inter)",
+                fontSize: "15px",
+                fontWeight: 700,
+                lineHeight: 1.3,
+              }}
+            >
+              {item.label}
+            </h2>
+            <span
+              className="rounded-full px-2 py-0.5"
+              style={{
+                background: active ? "var(--accent-soft)" : "var(--surface)",
+                color: styles.metaColor,
+                fontFamily: "var(--font-jb-mono)",
+                fontSize: "10px",
+                lineHeight: 1.2,
+              }}
+            >
+              {item.progressLabel}
+            </span>
+            {active ? (
+              <span
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background: "var(--accent-soft)",
+                  color: "var(--accent-primary)",
+                  fontFamily: "var(--font-inter)",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Writing
+              </span>
+            ) : null}
+          </div>
+          <p
+            className="mt-1"
+            style={{
+              color: active ? "var(--text-secondary)" : "var(--text-tertiary)",
+              fontFamily: "var(--font-inter)",
+              fontSize: "12px",
+              lineHeight: 1.55,
+            }}
+          >
+            {item.summary}
+          </p>
+        </div>
+
+        <span
+          className="mt-1 shrink-0 rounded-full p-1 transition-transform"
+          style={{
+            color: active ? "var(--accent-primary)" : "var(--text-tertiary)",
+            background: active ? "var(--accent-soft)" : "transparent",
+            transform: active ? "rotate(90deg)" : "rotate(0deg)",
+          }}
+        >
+          <ChevronRight size={14} />
+        </span>
+      </button>
+
+      <div
+        className={cn(
+          "overflow-hidden transition-[max-height,opacity,margin,padding] duration-300 ease-out",
+          active
+            ? "max-h-[5000px] px-4 pb-5 opacity-100 sm:px-5"
+            : "max-h-0 px-4 pb-0 opacity-0 pointer-events-none sm:px-5",
+        )}
+        aria-hidden={!active}
+      >
+        <div className="border-t pt-5" style={{ borderTopColor: "var(--border-subtle)" }}>
+          {children}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function JournalOutlineRail({
+  items,
+  activeChapter,
+  onChange,
+}: {
+  items: JournalChapterItem[];
+  activeChapter: string;
+  onChange: (id: string) => void;
+}) {
+  const completed = items.filter((item) => item.state === "complete").length;
+
+  return (
+    <aside className="space-y-4">
+      <InsetPanel paddingClassName="px-4 py-4">
+        <p className="text-label">Review progress</p>
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <div>
+            <p
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: "var(--font-jb-mono)",
+                fontSize: "24px",
+                fontWeight: 700,
+                lineHeight: 1,
+              }}
+            >
+              {completed}/{items.length}
+            </p>
+            <p
+              className="mt-1"
+              style={{
+                color: "var(--text-tertiary)",
+                fontFamily: "var(--font-inter)",
+                fontSize: "11px",
+              }}
+            >
+              Chapters complete
+            </p>
+          </div>
+          <div
+            className="h-10 w-10 rounded-full border"
+            style={{
+              borderColor: "var(--accent-primary)",
+              background: "var(--accent-soft)",
+              color: "var(--accent-primary)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "var(--font-syne)",
+              fontSize: "13px",
+              fontWeight: 700,
+            }}
+          >
+            {Math.round((completed / items.length) * 100)}%
+          </div>
+        </div>
+      </InsetPanel>
+
+      <div className="space-y-2">
+        {items.map((item) => {
+          const active = item.id === activeChapter;
+          const styles = tabStateStyles(item.state);
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onChange(item.id)}
+              className="w-full rounded-[var(--radius-lg)] border px-3 py-3 text-left transition-colors"
+              style={{
+                background: active ? "var(--surface)" : "var(--surface-elevated)",
+                borderColor: active
+                  ? "var(--accent-primary)"
+                  : "var(--border-subtle)",
+                boxShadow: active ? "var(--shadow-sm)" : "none",
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border"
+                  style={{
+                    borderColor: active
+                      ? "var(--accent-primary)"
+                      : "var(--border-subtle)",
+                    background: active ? "var(--accent-soft)" : "var(--surface)",
+                    color: active ? "var(--accent-primary)" : styles.dotColor,
+                    fontFamily: "var(--font-syne)",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    lineHeight: 1,
+                  }}
+                >
+                  {item.orderLabel}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      style={{
+                        color: active
+                          ? "var(--text-primary)"
+                          : "var(--text-secondary)",
+                        fontFamily: "var(--font-inter)",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {item.label}
+                    </span>
+                    <span
+                      className="rounded-full px-2 py-0.5"
+                      style={{
+                        background: active
+                          ? "var(--accent-soft)"
+                          : "var(--surface)",
+                        color: styles.metaColor,
+                        fontFamily: "var(--font-jb-mono)",
+                        fontSize: "10px",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {item.progressLabel}
+                    </span>
+                  </div>
+                  <p
+                    className="mt-1"
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {item.summary}
+                  </p>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
 export function JournalTabRail({
   items,
   activeTab,
@@ -183,7 +501,7 @@ export function JournalTabRail({
       <div
         role="tablist"
         aria-label={ariaLabel}
-        className="flex min-w-max gap-2 pb-1"
+        className="flex min-w-max gap-1.5 pb-1"
       >
         {items.map((item) => {
           const active = item.id === activeTab;
@@ -199,46 +517,48 @@ export function JournalTabRail({
               aria-controls={`${item.id}-panel`}
               tabIndex={active ? 0 : -1}
               onClick={() => onChange(item.id)}
-              className="min-w-[8.5rem] shrink-0 rounded-t-[var(--radius-sm)] border-b-2 px-2.5 pb-3 pt-1 text-left transition-colors sm:min-w-[9.5rem]"
+              className="flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-left transition-colors"
               style={{
-                background: "transparent",
-                borderBottomColor: active
+                background: active
+                  ? "var(--accent-soft)"
+                  : "var(--surface)",
+                borderColor: active
                   ? "var(--accent-primary)"
-                  : "transparent",
+                  : "var(--border-subtle)",
               }}
             >
-              <div className="flex items-center gap-2.5">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: styles.dotColor }}
-                />
-                <span
-                  className="truncate"
-                  style={{
-                    color: active
-                      ? "var(--accent-primary)"
-                      : "var(--text-primary)",
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "12.5px",
-                    fontWeight: 700,
-                    lineHeight: 1.3,
-                  }}
-                >
-                  {item.label}
-                </span>
-              </div>
-              <p
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: styles.dotColor }}
+              />
+              <span
+                className="truncate"
                 style={{
+                  color: active
+                    ? "var(--accent-primary)"
+                    : "var(--text-primary)",
+                  fontFamily: "var(--font-inter)",
+                  fontSize: "12.5px",
+                  fontWeight: 700,
+                  lineHeight: 1.3,
+                }}
+              >
+                {item.label}
+              </span>
+              <span
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background: active
+                    ? "color-mix(in srgb, var(--accent-primary) 14%, transparent)"
+                    : "var(--surface-elevated)",
                   color: styles.metaColor,
                   fontFamily: "var(--font-jb-mono)",
-                  fontSize: "11px",
-                  lineHeight: 1.35,
-                  marginTop: "8px",
-                  paddingLeft: "18px",
+                  fontSize: "10px",
+                  lineHeight: 1.2,
                 }}
               >
                 {item.progressLabel}
-              </p>
+              </span>
             </button>
           );
         })}
@@ -466,15 +786,21 @@ export function JournalTagField({
   onChange,
   tone,
   placeholder,
+  draftValue,
+  onDraftValueChange,
 }: {
   label: string;
   tags: string[];
   onChange: (next: string[]) => void;
   tone: "neutral" | "loss";
   placeholder: string;
+  draftValue?: string;
+  onDraftValueChange?: (value: string) => void;
 }) {
   const fieldId = useId();
-  const [draft, setDraft] = useState("");
+  const [localDraft, setLocalDraft] = useState("");
+  const draft = draftValue ?? localDraft;
+  const setDraft = onDraftValueChange ?? setLocalDraft;
 
   const commit = useCallback(() => {
     const next = draft.trim();
@@ -487,7 +813,7 @@ export function JournalTagField({
     }
     onChange([...tags, next]);
     setDraft("");
-  }, [draft, onChange, tags]);
+  }, [draft, onChange, setDraft, tags]);
 
   return (
     <fieldset className="space-y-2">

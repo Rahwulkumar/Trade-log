@@ -5,6 +5,27 @@ from typing import Any, Mapping, Optional
 
 
 @dataclass(slots=True)
+class WorkerChartJob:
+    command_id: str
+    trade_id: str
+    symbol: str
+    timeframe: str
+    start_time: str
+    end_time: str
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "WorkerChartJob":
+        return cls(
+            command_id=str(payload["commandId"]),
+            trade_id=str(payload["tradeId"]),
+            symbol=str(payload["symbol"]),
+            timeframe=str(payload["timeframe"]),
+            start_time=str(payload["startTime"]),
+            end_time=str(payload["endTime"]),
+        )
+
+
+@dataclass(slots=True)
 class WorkerAssignment:
     terminal_id: str
     mt5_account_id: str
@@ -18,6 +39,7 @@ class WorkerAssignment:
     last_sync_at: Optional[str]
     worker_id: Optional[str]
     worker_host: Optional[str]
+    chart_jobs: list[WorkerChartJob]
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "WorkerAssignment":
@@ -34,6 +56,11 @@ class WorkerAssignment:
             last_sync_at=payload.get("lastSyncAt"),
             worker_id=payload.get("workerId"),
             worker_host=payload.get("workerHost"),
+            chart_jobs=[
+                WorkerChartJob.from_payload(item)
+                for item in payload.get("chartJobs", [])
+                if isinstance(item, Mapping)
+            ],
         )
 
 

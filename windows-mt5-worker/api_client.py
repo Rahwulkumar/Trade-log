@@ -45,6 +45,9 @@ class TradingJournalApiClient:
     def post_trades(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._post("/api/internal/mt5-worker/trades", payload)
 
+    def post_candles(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post("/api/internal/mt5-worker/candles", payload)
+
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         data = self._request("POST", path, payload)
         if not isinstance(data, dict):

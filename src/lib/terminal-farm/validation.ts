@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+    DEFAULT_CHART_TIMEFRAME,
+    SUPPORTED_CHART_TIMEFRAMES,
+} from '@/lib/chart/timeframes';
 
 export const TerminalHeartbeatPayloadSchema = z.object({
     terminalId: z.string().uuid(),
@@ -89,5 +93,7 @@ export const TerminalCandlesSyncPayloadSchema = z.object({
     terminalId: z.string().uuid(),
     tradeId: z.string().uuid(),
     symbol: z.string().min(1).max(20),
+    commandId: z.string().uuid().optional(),
+    timeframe: z.enum(SUPPORTED_CHART_TIMEFRAMES).default(DEFAULT_CHART_TIMEFRAME),
     candles: z.array(TerminalCandlePayloadSchema),
 });
