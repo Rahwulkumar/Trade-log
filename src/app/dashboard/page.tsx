@@ -88,6 +88,12 @@ function chartPeriodLabel(period: ChartPeriod) {
   }
 }
 
+function chartBucketLabel(period: ChartPeriod) {
+  if (period === '1W' || period === '1M') return 'Daily';
+  if (period === '3M') return 'Weekly';
+  return 'Monthly';
+}
+
 function getChartRange(period: ChartPeriod, referenceNow: Date) {
   const endDate = toDateInput(referenceNow);
   let startDate: string;
@@ -598,7 +604,7 @@ export default function DashboardPage() {
         <AppPanel className="p-6 lg:col-span-2">
           <SectionHeader
             title="Performance"
-            subtitle={`Gross profit vs gross loss - ${chartPeriodLabel(chartPeriod)}`}
+            subtitle={`Net P&L by ${chartBucketLabel(chartPeriod).toLowerCase()} period - ${chartPeriodLabel(chartPeriod)}`}
             action={
               <div className="seg-control">
                 {CHART_PERIODS.map((period) => (
