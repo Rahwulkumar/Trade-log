@@ -6,9 +6,9 @@ import { db } from '@/lib/db';
 import { savedReports } from '@/lib/db/schema';
 import { mapSavedReportToListItem, mapSavedReportToRecord } from '@/lib/reports/serializers';
 import type {
+  ReportSnapshot,
   SavedReportListItem,
   SavedReportRecord,
-  TradeReportSnapshot,
 } from '@/lib/reports/types';
 
 export async function getSavedReports(userId: string): Promise<SavedReportListItem[]> {
@@ -38,7 +38,7 @@ export async function createSavedReport(
   userId: string,
   payload: {
     title: string;
-    snapshot: TradeReportSnapshot;
+    snapshot: ReportSnapshot;
   },
 ): Promise<SavedReportRecord> {
   const [row] = await db
@@ -55,8 +55,14 @@ export async function createSavedReport(
       fromDate: payload.snapshot.filters.from,
       toDate: payload.snapshot.filters.to,
       includeAi: payload.snapshot.filters.includeAi,
-      tradeCount: payload.snapshot.summary.totalTrades,
-      selectedTradeIds: payload.snapshot.selectedTradeIds,
+      tradeCount:
+        "workspace" in payload.snapshot
+          ? payload.snapshot.workspace.totals.filteredTrades
+          : payload.snapshot.summary.totalTrades,
+      selectedTradeIds:
+        "workspace" in payload.snapshot
+          ? []
+          : payload.snapshot.selectedTradeIds,
       snapshot: payload.snapshot as unknown as Record<string, unknown>,
       updatedAt: new Date(),
     })

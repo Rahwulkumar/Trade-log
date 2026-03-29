@@ -1,3 +1,11 @@
+import type {
+  AnalyticsWorkspaceDimension,
+  AnalyticsWorkspaceMeasure,
+  AnalyticsWorkspaceResult,
+  AnalyticsWorkspaceReviewState,
+  AnalyticsWorkspaceSortOrder,
+} from "@/lib/analytics/workspace-types";
+
 export const REPORT_TYPES = ['performance', 'playbook', 'risk'] as const;
 
 export type ReportType = (typeof REPORT_TYPES)[number];
@@ -14,8 +22,18 @@ export interface ReportFilters {
   from: string | null;
   to: string | null;
   includeAi: boolean;
+  groupBy: AnalyticsWorkspaceDimension;
+  measure: AnalyticsWorkspaceMeasure;
+  sortOrder: AnalyticsWorkspaceSortOrder;
+  limit: number;
+  timeZone: string | null;
   symbol: string | null;
+  session: string | null;
   playbookId: string | null;
+  setupTag: string | null;
+  mistakeTag: string | null;
+  direction: 'LONG' | 'SHORT' | null;
+  reviewStatus: AnalyticsWorkspaceReviewState | null;
 }
 
 export interface ReportSummary {
@@ -209,6 +227,28 @@ export interface TradeReportSnapshot {
   aiError: string | null;
 }
 
+export interface WorkspaceReportSnapshot {
+  kind: 'workspace';
+  title: string;
+  reportType: ReportType;
+  generatedAt: string;
+  filters: ReportFilters;
+  workspace: AnalyticsWorkspaceResult;
+}
+
+export type ReportSnapshot = TradeReportSnapshot | WorkspaceReportSnapshot;
+
+export function isWorkspaceReportSnapshot(
+  snapshot: ReportSnapshot | null | undefined,
+): snapshot is WorkspaceReportSnapshot {
+  return Boolean(
+    snapshot &&
+      typeof snapshot === 'object' &&
+      'kind' in snapshot &&
+      snapshot.kind === 'workspace',
+  );
+}
+
 export interface SavedReportListItem {
   id: string;
   title: string;
@@ -225,5 +265,5 @@ export interface SavedReportListItem {
 
 export interface SavedReportRecord extends SavedReportListItem {
   selectedTradeIds: string[];
-  snapshot: TradeReportSnapshot;
+  snapshot: ReportSnapshot;
 }

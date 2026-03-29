@@ -1,9 +1,9 @@
 import { readJsonIfAvailable } from '@/lib/api/client/http';
 import type {
   ReportFilters,
+  ReportSnapshot,
   SavedReportListItem,
   SavedReportRecord,
-  TradeReportSnapshot,
 } from '@/lib/reports/types';
 
 interface ApiSuccessPayload<T> {
@@ -29,14 +29,14 @@ function getErrorMessage(payload: unknown, fallback: string): string {
 
 export async function generateReport(
   filters: ReportFilters,
-): Promise<TradeReportSnapshot> {
+): Promise<ReportSnapshot> {
   const response = await fetch('/api/reports/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(filters),
   });
 
-  const payload = await readJsonIfAvailable<ApiSuccessPayload<TradeReportSnapshot>>(response);
+  const payload = await readJsonIfAvailable<ApiSuccessPayload<ReportSnapshot>>(response);
   if (!response.ok || !payload?.success || !payload.report) {
     throw new Error(getErrorMessage(payload, 'Failed to generate report'));
   }
@@ -66,7 +66,7 @@ export async function getSavedReport(id: string): Promise<SavedReportRecord> {
 
 export async function saveReport(
   title: string,
-  snapshot: TradeReportSnapshot,
+  snapshot: ReportSnapshot,
 ): Promise<SavedReportRecord> {
   const response = await fetch('/api/reports', {
     method: 'POST',

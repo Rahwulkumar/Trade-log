@@ -1,15 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import {
-  ArrowUpDown,
-  BookOpenText,
-  Filter,
-  Layers3,
-  Search,
-} from "lucide-react";
+import { ArrowUpDown, Filter, Layers3, Search } from "lucide-react";
 
+import {
+  ANALYTICS_WORKSPACE_DIMENSION_OPTIONS,
+  ANALYTICS_WORKSPACE_MEASURE_OPTIONS,
+  AnalyticsWorkspaceDrilldownSheet,
+  formatWorkspacePercent,
+  formatWorkspaceSignedMoney,
+} from "@/components/analytics/workspace-primitives";
 import { Button } from "@/components/ui/button";
 import {
   ControlSurface,
@@ -33,15 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   InsetPanel,
-  ListItemRow,
   WidgetEmptyState,
 } from "@/components/ui/surface-primitives";
 import type {
@@ -50,56 +42,6 @@ import type {
   AnalyticsWorkspaceQuery,
   AnalyticsWorkspaceResult,
 } from "@/lib/analytics/workspace-types";
-
-const DIMENSION_OPTIONS: Array<{
-  value: AnalyticsWorkspaceDimension;
-  label: string;
-}> = [
-  { value: "symbol", label: "Symbol" },
-  { value: "session", label: "Session" },
-  { value: "playbook", label: "Playbook" },
-  { value: "setupTag", label: "Setup Tag" },
-  { value: "mistakeTag", label: "Mistake Tag" },
-  { value: "direction", label: "Direction" },
-  { value: "weekday", label: "Weekday" },
-  { value: "reviewStatus", label: "Review Status" },
-];
-
-const MEASURE_OPTIONS: Array<{
-  value: AnalyticsWorkspaceMeasure;
-  label: string;
-}> = [
-  { value: "netPnl", label: "Net P&L" },
-  { value: "trades", label: "Trade Count" },
-  { value: "avgPnl", label: "Average P&L" },
-  { value: "winRate", label: "Win Rate" },
-  { value: "profitFactor", label: "Profit Factor" },
-  { value: "avgRMultiple", label: "Average R" },
-  { value: "reviewedPercent", label: "Reviewed %" },
-];
-
-function formatSignedMoney(value: number) {
-  return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function formatPercent(value: number) {
-  return `${value.toFixed(1)}%`;
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) return "--";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "--";
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 function emptyWorkspaceQuery(
   accountScope: string,
@@ -336,7 +278,7 @@ export function AnalyticsWorkspace({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {DIMENSION_OPTIONS.map((option) => (
+                      {ANALYTICS_WORKSPACE_DIMENSION_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
@@ -359,7 +301,7 @@ export function AnalyticsWorkspace({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {MEASURE_OPTIONS.map((option) => (
+                      {ANALYTICS_WORKSPACE_MEASURE_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
@@ -663,7 +605,7 @@ export function AnalyticsWorkspace({
                           className="mt-1 text-xs"
                           style={{ color: "var(--text-tertiary)" }}
                         >
-                          {formatPercent(row.share)} of matching trades
+                          {formatWorkspacePercent(row.share)} of matching trades
                         </p>
                       </div>
                       <span className="text-right text-sm">{row.trades}</span>
@@ -676,19 +618,19 @@ export function AnalyticsWorkspace({
                               : "var(--loss-primary)",
                         }}
                       >
-                        {formatSignedMoney(row.netPnl)}
+                        {formatWorkspaceSignedMoney(row.netPnl)}
                       </span>
                       <span className="text-right text-sm">
-                        {formatPercent(row.winRate)}
+                        {formatWorkspacePercent(row.winRate)}
                       </span>
                       <span className="text-right text-sm">
-                        {formatSignedMoney(row.avgPnl)}
+                        {formatWorkspaceSignedMoney(row.avgPnl)}
                       </span>
                       <span className="text-right text-sm">
                         {row.avgRMultiple == null ? "--" : `${row.avgRMultiple.toFixed(2)}R`}
                       </span>
                       <span className="text-right text-sm">
-                        {formatPercent(row.reviewedPercent)}
+                        {formatWorkspacePercent(row.reviewedPercent)}
                       </span>
                     </ReportGridRow>
                   </button>
@@ -704,107 +646,18 @@ export function AnalyticsWorkspace({
         </div>
       </AppPanel>
 
-      <Sheet
+      <AnalyticsWorkspaceDrilldownSheet
         open={Boolean(result?.drilldown)}
         onOpenChange={(open) => {
           if (!open) {
             setPartialQuery({ drilldownKey: null });
           }
         }}
-      >
-        <SheetContent side="right" className="w-full sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle>
-              {result?.drilldown?.label ?? "Trade Drilldown"}
-            </SheetTitle>
-            <SheetDescription>
-              {result?.drilldown
-                ? `${result.drilldown.trades.length} trades behind this ${DIMENSION_OPTIONS.find((option) => option.value === query.groupBy)?.label.toLowerCase() ?? "group"} bucket.`
-                : "Open a result row to inspect the actual trades behind it."}
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="space-y-3 overflow-y-auto px-4 pb-4">
-            {result?.drilldown?.trades.map((trade) => (
-              <ListItemRow
-                key={trade.id}
-                leading={
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="mono text-sm font-bold">{trade.symbol}</span>
-                      <span className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                        {trade.direction}
-                      </span>
-                      <span
-                        className="rounded-full border px-2 py-0.5 text-[10px]"
-                        style={{
-                          borderColor: "var(--border-subtle)",
-                          color: "var(--text-tertiary)",
-                        }}
-                      >
-                        {trade.session}
-                      </span>
-                      {trade.reviewed ? (
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                          style={{
-                            background: "var(--accent-soft)",
-                            color: "var(--accent-primary)",
-                          }}
-                        >
-                          Reviewed
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                      {trade.playbook}
-                    </p>
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      Entry {formatDateTime(trade.entryAt)} | Exit {formatDateTime(trade.exitAt)}
-                    </p>
-                    {trade.setupTags.length > 0 || trade.mistakeTags.length > 0 ? (
-                      <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                        Setup: {trade.setupTags.length > 0 ? trade.setupTags.join(", ") : "--"}
-                        {" | "}
-                        Mistakes: {trade.mistakeTags.length > 0 ? trade.mistakeTags.join(", ") : "--"}
-                      </p>
-                    ) : null}
-                  </div>
-                }
-                trailing={
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="text-right">
-                      <p
-                        className="text-sm font-semibold"
-                        style={{
-                          color:
-                            trade.netPnl >= 0
-                              ? "var(--profit-primary)"
-                              : "var(--loss-primary)",
-                        }}
-                      >
-                        {formatSignedMoney(trade.netPnl)}
-                      </p>
-                      <p
-                        className="text-xs"
-                        style={{ color: "var(--text-tertiary)" }}
-                      >
-                        {trade.rMultiple == null ? "--" : `${trade.rMultiple.toFixed(2)}R`}
-                      </p>
-                    </div>
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/journal?trade=${trade.id}`}>
-                        <BookOpenText className="h-4 w-4" />
-                        Open Journal
-                      </Link>
-                    </Button>
-                  </div>
-                }
-              />
-            ))}
-          </div>
-        </SheetContent>
-      </Sheet>
+        drilldown={result?.drilldown ?? null}
+        groupBy={query.groupBy}
+        loading={false}
+        error={null}
+      />
     </>
   );
 }

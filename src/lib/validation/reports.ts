@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+import {
+  ANALYTICS_WORKSPACE_DIMENSIONS,
+  ANALYTICS_WORKSPACE_MEASURES,
+  ANALYTICS_WORKSPACE_REVIEW_STATES,
+  ANALYTICS_WORKSPACE_SORT_ORDERS,
+} from '@/lib/analytics/workspace-types';
 import { REPORT_ACCOUNT_SCOPES, REPORT_TYPES } from '@/lib/reports/types';
 import { dateOnlyString, nullableString, trimmedString, uuidSchema } from '@/lib/validation/common';
 
@@ -15,8 +21,18 @@ export const reportGeneratePayloadSchema = z
     from: dateOnlyString.optional(),
     to: dateOnlyString.optional(),
     includeAi: z.boolean().optional(),
+    groupBy: z.enum(ANALYTICS_WORKSPACE_DIMENSIONS).optional(),
+    measure: z.enum(ANALYTICS_WORKSPACE_MEASURES).optional(),
+    sortOrder: z.enum(ANALYTICS_WORKSPACE_SORT_ORDERS).optional(),
+    limit: z.number().int().min(5).max(100).optional(),
+    timeZone: nullableString(64).optional(),
     symbol: nullableString(32).optional(),
+    session: nullableString(32).optional(),
     playbookId: z.union([uuidSchema, z.null()]).optional(),
+    setupTag: nullableString(64).optional(),
+    mistakeTag: nullableString(64).optional(),
+    direction: z.enum(['LONG', 'SHORT']).nullable().optional(),
+    reviewStatus: z.union([z.enum(ANALYTICS_WORKSPACE_REVIEW_STATES), z.null()]).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.accountScope === 'account' && !value.propAccountId) {

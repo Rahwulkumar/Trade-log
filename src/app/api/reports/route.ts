@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { createSavedReport, getSavedReports } from '@/lib/api/reports';
 import { apiError, apiSuccess, apiValidationError } from '@/lib/api/http';
 import { requireAuth } from '@/lib/auth/server';
-import type { TradeReportSnapshot } from '@/lib/reports/types';
+import type { ReportSnapshot } from '@/lib/reports/types';
 import { parseReportSavePayload } from '@/lib/validation/reports';
 
 export async function GET() {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   try {
     const report = await createSavedReport(userId, {
       title: result.data.title,
-      snapshot: result.data.snapshot as unknown as TradeReportSnapshot,
+      snapshot: result.data.snapshot as unknown as ReportSnapshot,
     });
     return apiSuccess({ report });
   } catch (routeError) {

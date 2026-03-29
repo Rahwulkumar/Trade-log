@@ -528,6 +528,64 @@ function buildFacets(tradesInScope: WorkspaceRow[]): AnalyticsWorkspaceResult["f
   };
 }
 
+function buildSummary(
+  filteredTrades: WorkspaceRow[],
+): AnalyticsWorkspaceResult["summary"] {
+  let winningTrades = 0;
+  let losingTrades = 0;
+  let breakevenTrades = 0;
+  let netPnl = 0;
+  let grossProfit = 0;
+  let grossLoss = 0;
+  let reviewedTrades = 0;
+  let rSum = 0;
+  let rCount = 0;
+
+  for (const trade of filteredTrades) {
+    netPnl += trade.netPnl;
+    if (trade.netPnl > 0) {
+      winningTrades += 1;
+      grossProfit += trade.netPnl;
+    } else if (trade.netPnl < 0) {
+      losingTrades += 1;
+      grossLoss += Math.abs(trade.netPnl);
+    } else {
+      breakevenTrades += 1;
+    }
+
+    if (trade.reviewed) {
+      reviewedTrades += 1;
+    }
+
+    if (trade.rMultiple != null) {
+      rSum += trade.rMultiple;
+      rCount += 1;
+    }
+  }
+
+  return {
+    winningTrades,
+    losingTrades,
+    breakevenTrades,
+    netPnl: round(netPnl),
+    avgPnl:
+      filteredTrades.length > 0 ? round(netPnl / filteredTrades.length) : 0,
+    winRate:
+      filteredTrades.length > 0
+        ? round((winningTrades / filteredTrades.length) * 100, 1)
+        : 0,
+    avgRMultiple: rCount > 0 ? round(rSum / rCount, 2) : null,
+    profitFactor:
+      grossProfit > 0 && grossLoss > 0
+        ? round(grossProfit / grossLoss, 2)
+        : null,
+    reviewedPercent:
+      filteredTrades.length > 0
+        ? round((reviewedTrades / filteredTrades.length) * 100, 1)
+        : 0,
+  };
+}
+
 export async function getAnalyticsWorkspaceResult(
   userId: string,
   query: AnalyticsWorkspaceQuery,
@@ -648,6 +706,7 @@ export async function getAnalyticsWorkspaceResult(
       filteredTrades: filteredTrades.length,
       groups: grouped.totalGroups,
     },
+    summary: buildSummary(filteredTrades),
     facets: buildFacets(filteredTrades),
     rows: grouped.rows,
     drilldown: buildDrilldown(filteredTrades, query),

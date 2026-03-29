@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileText, RefreshCw, Sparkles } from "lucide-react";
+import { FileText, RefreshCw } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
@@ -30,9 +30,13 @@ import {
 } from "@/lib/api/client/reports";
 import type {
   ReportFilters,
+  ReportSnapshot,
   SavedReportListItem,
-  TradeReportSnapshot,
 } from "@/lib/reports/types";
+import {
+  getDefaultReportQuerySettings,
+  normalizeReportFilters,
+} from "@/lib/reports/workspace-report";
 
 function todayDateString() {
   return new Date().toISOString().slice(0, 10);
@@ -60,15 +64,26 @@ function deriveFiltersFromAccount(
 function createInitialFilters(
   selectedAccountId: string | null | undefined,
 ): ReportFilters {
+  const defaults = getDefaultReportQuerySettings("performance");
   return {
     title: null,
     reportType: "performance",
     ...deriveFiltersFromAccount(selectedAccountId),
     from: monthStartDateString(),
     to: todayDateString(),
-    includeAi: true,
+    includeAi: false,
+    groupBy: defaults.groupBy,
+    measure: defaults.measure,
+    sortOrder: "desc",
+    limit: 24,
+    timeZone: null,
     symbol: null,
+    session: null,
     playbookId: null,
+    setupTag: null,
+    mistakeTag: null,
+    direction: null,
+    reviewStatus: null,
   };
 }
 
@@ -86,7 +101,7 @@ export function ReportsClient() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
-  const [currentReport, setCurrentReport] = useState<TradeReportSnapshot | null>(
+  const [currentReport, setCurrentReport] = useState<ReportSnapshot | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
@@ -141,20 +156,10 @@ export function ReportsClient() {
       setGenerating(true);
       setError(null);
 
-      const nextFilters = {
-        ...filters,
-        includeAi: true,
-      };
-      setFilters(nextFilters);
-
-      const report = await generateReport(nextFilters);
+      const report = await generateReport(filters);
       setCurrentReport(report);
       setActiveReportId(null);
-      setFilters((current) => ({
-        ...current,
-        includeAi: true,
-        title: report.title,
-      }));
+      setFilters(normalizeReportFilters({ ...filters, title: report.title }));
     } catch (generateError) {
       setError(
         generateError instanceof Error
@@ -184,10 +189,7 @@ export function ReportsClient() {
       setSavedReports((prev) => [saved, ...prev.filter((item) => item.id !== saved.id)]);
       setActiveReportId(saved.id);
       setCurrentReport(saved.snapshot);
-      setFilters({
-        ...saved.snapshot.filters,
-        title: saved.snapshot.title,
-      });
+      setFilters(normalizeReportFilters({ ...saved.snapshot.filters, title: saved.snapshot.title }));
     } catch (saveError) {
       setError(
         saveError instanceof Error ? saveError.message : "Failed to save report",
@@ -203,10 +205,7 @@ export function ReportsClient() {
       const saved = await getSavedReport(id);
       setActiveReportId(saved.id);
       setCurrentReport(saved.snapshot);
-      setFilters({
-        ...saved.snapshot.filters,
-        title: saved.snapshot.title,
-      });
+      setFilters(normalizeReportFilters({ ...saved.snapshot.filters, title: saved.snapshot.title }));
     } catch (openError) {
       setError(
         openError instanceof Error ? openError.message : "Failed to load report",
@@ -270,7 +269,7 @@ export function ReportsClient() {
       <AppPageHeader
         eyebrow="Analytics"
         title="Reports"
-        description="Generate an AI-first trading report from trade records only, inspect it on-page, and save the snapshot for later."
+        description="Generate deterministic saved analysis views from your closed trades, inspect the exact buckets, and reopen them later."
         icon={
           <FileText
             size={18}
@@ -323,26 +322,20 @@ export function ReportsClient() {
       />
 
       <InsetPanel tone="accent">
-        <div className="flex items-start gap-3">
-          <Sparkles
-            size={16}
-            className="mt-0.5 shrink-0"
-            style={{ color: "var(--accent-primary)" }}
-          />
-          <div>
-            <p className="text-label" style={{ color: "var(--accent-primary)" }}>
-              Report Method
-            </p>
-            <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-              The visible report is AI-written. It is still grounded on the
-              selected trade records, but the page no longer renders the
-              deterministic breakdowns directly.
-            </p>
-            <p className="mt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
-              Current scope: {scopeLabel} | {filters.from ?? "Start"} {"->"}{" "}
-              {filters.to ?? "Now"} | Saved snapshots: {savedReports.length}
-            </p>
-          </div>
+        <div>
+          <p className="text-label" style={{ color: "var(--accent-primary)" }}>
+            Report Method
+          </p>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+            Reports now save the deterministic workspace itself. The ranking,
+            filters, grouped buckets, and trade drilldowns come directly from
+            your trade data so the report can be reopened and inspected without
+            relying on AI narration.
+          </p>
+          <p className="mt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
+            Current scope: {scopeLabel} | {filters.from ?? "Start"} {"->"}{" "}
+            {filters.to ?? "Now"} | Saved snapshots: {savedReports.length}
+          </p>
         </div>
       </InsetPanel>
     </div>

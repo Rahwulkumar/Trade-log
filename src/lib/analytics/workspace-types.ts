@@ -116,6 +116,17 @@ export interface AnalyticsWorkspaceResult {
     filteredTrades: number;
     groups: number;
   };
+  summary: {
+    winningTrades: number;
+    losingTrades: number;
+    breakevenTrades: number;
+    netPnl: number;
+    avgPnl: number;
+    winRate: number;
+    avgRMultiple: number | null;
+    profitFactor: number | null;
+    reviewedPercent: number;
+  };
   facets: {
     sessions: AnalyticsWorkspaceFacetOption[];
     symbols: AnalyticsWorkspaceFacetOption[];

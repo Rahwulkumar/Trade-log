@@ -1,8 +1,8 @@
 import type { SavedReport } from '@/lib/db/schema';
 import type {
+  ReportSnapshot,
   SavedReportListItem,
   SavedReportRecord,
-  TradeReportSnapshot,
 } from '@/lib/reports/types';
 
 function toDateString(value: Date | string | null): string | null {
@@ -40,6 +40,6 @@ export function mapSavedReportToRecord(row: SavedReport): SavedReportRecord {
   return {
     ...mapSavedReportToListItem(row),
     selectedTradeIds: Array.isArray(row.selectedTradeIds) ? row.selectedTradeIds : [],
-    snapshot: row.snapshot as unknown as TradeReportSnapshot,
+    snapshot: row.snapshot as unknown as ReportSnapshot,
   };
 }
