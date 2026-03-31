@@ -38,6 +38,15 @@ const analyticsWorkspaceFiltersSchema = z
     symbol: nullableTrimmedString.default(null),
     session: nullableTrimmedString.default(null),
     playbookId: z.union([uuidSchema, z.literal("unassigned"), z.null()]).default(null),
+    setupDefinitionId: z
+      .union([uuidSchema, z.literal("unassigned"), z.null()])
+      .default(null),
+    mistakeDefinitionId: z
+      .union([uuidSchema, z.literal("unassigned"), z.null()])
+      .default(null),
+    journalTemplateId: z
+      .union([uuidSchema, z.literal("unassigned"), z.null()])
+      .default(null),
     setupTag: nullableTrimmedString.default(null),
     mistakeTag: nullableTrimmedString.default(null),
     direction: z.union([z.literal("LONG"), z.literal("SHORT"), z.null()]).default(null),

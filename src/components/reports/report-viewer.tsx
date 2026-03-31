@@ -79,10 +79,64 @@ function getBadgeTone(reportType: WorkspaceReportSnapshot["reportType"]) {
 
 function buildFilterChips(snapshot: WorkspaceReportSnapshot) {
   const chips: string[] = [];
+  const playbookLabel =
+    snapshot.filters.playbookId && snapshot.filters.playbookId !== "unassigned"
+      ? snapshot.workspace.facets.playbooks.find(
+          (facet) => facet.id === snapshot.filters.playbookId,
+        )?.label
+      : null;
+  const setupLabel =
+    snapshot.filters.setupDefinitionId &&
+    snapshot.filters.setupDefinitionId !== "unassigned"
+      ? snapshot.workspace.facets.setups.find(
+          (facet) => facet.id === snapshot.filters.setupDefinitionId,
+        )?.label
+      : null;
+  const mistakeLabel =
+    snapshot.filters.mistakeDefinitionId &&
+    snapshot.filters.mistakeDefinitionId !== "unassigned"
+      ? snapshot.workspace.facets.mistakes.find(
+          (facet) => facet.id === snapshot.filters.mistakeDefinitionId,
+        )?.label
+      : null;
+  const templateLabel =
+    snapshot.filters.journalTemplateId &&
+    snapshot.filters.journalTemplateId !== "unassigned"
+      ? snapshot.workspace.facets.templates.find(
+          (facet) => facet.id === snapshot.filters.journalTemplateId,
+        )?.label
+      : null;
 
   if (snapshot.filters.symbol) chips.push(`Symbol: ${snapshot.filters.symbol}`);
   if (snapshot.filters.session) chips.push(`Session: ${snapshot.filters.session}`);
-  if (snapshot.filters.playbookId) chips.push("Playbook filtered");
+  if (snapshot.filters.playbookId) {
+    chips.push(
+      snapshot.filters.playbookId === "unassigned"
+        ? "Playbook: Unassigned"
+        : `Playbook: ${playbookLabel ?? "Filtered"}`,
+    );
+  }
+  if (snapshot.filters.setupDefinitionId) {
+    chips.push(
+      snapshot.filters.setupDefinitionId === "unassigned"
+        ? "Setup: No Setup"
+        : `Setup: ${setupLabel ?? "Filtered"}`,
+    );
+  }
+  if (snapshot.filters.mistakeDefinitionId) {
+    chips.push(
+      snapshot.filters.mistakeDefinitionId === "unassigned"
+        ? "Mistake: No Mistake"
+        : `Mistake: ${mistakeLabel ?? "Filtered"}`,
+    );
+  }
+  if (snapshot.filters.journalTemplateId) {
+    chips.push(
+      snapshot.filters.journalTemplateId === "unassigned"
+        ? "Template: No Template"
+        : `Template: ${templateLabel ?? "Filtered"}`,
+    );
+  }
   if (snapshot.filters.setupTag) chips.push(`Setup: ${snapshot.filters.setupTag}`);
   if (snapshot.filters.mistakeTag) chips.push(`Mistake: ${snapshot.filters.mistakeTag}`);
   if (snapshot.filters.direction) chips.push(`Direction: ${snapshot.filters.direction}`);
@@ -303,7 +357,7 @@ function WorkspaceReportBody({
     <>
       <div className="space-y-5">
         <AppPanel>
-          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="mb-2">
                 <ReportTypeBadge
@@ -318,7 +372,7 @@ function WorkspaceReportBody({
               />
             </div>
 
-            <Button onClick={onSave} disabled={saving}>
+            <Button onClick={onSave} disabled={saving} className="w-full sm:w-auto">
               {saving ? "Saving..." : "Save Report"}
             </Button>
           </div>
@@ -357,7 +411,7 @@ function WorkspaceReportBody({
           </div>
         </AppPanel>
 
-        <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid gap-4 sm:gap-5 2xl:grid-cols-[1.05fr_0.95fr]">
           <InsetPanel tone="accent">
             <p className="text-label" style={{ color: "var(--accent-primary)" }}>
               Saved Analysis View
@@ -440,7 +494,97 @@ function WorkspaceReportBody({
               subtitle={`Top ${snapshot.workspace.rows.length} ${getAnalyticsWorkspaceDimensionLabel(snapshot.workspace.query.groupBy).toLowerCase()} buckets ranked by ${getAnalyticsWorkspaceMeasureLabel(snapshot.workspace.query.measure).toLowerCase()}.`}
             />
 
-            <ReportGrid minWidthClassName="min-w-[920px]">
+            <div className="space-y-3 lg:hidden">
+              {snapshot.workspace.rows.map((row) => {
+                const isActive = selectedKey === row.key;
+
+                return (
+                  <button
+                    key={row.key}
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => void openDrilldown(row.key)}
+                  >
+                    <InsetPanel
+                      paddingClassName="px-4 py-4"
+                      style={{
+                        background: isActive
+                          ? "var(--accent-soft)"
+                          : "var(--surface-elevated)",
+                        borderColor: isActive
+                          ? "var(--accent-muted)"
+                          : "var(--border-subtle)",
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">{row.label}</p>
+                          <p
+                            className="mt-1 text-xs"
+                            style={{ color: "var(--text-tertiary)" }}
+                          >
+                            Tap to open exact trades
+                          </p>
+                        </div>
+                        <span
+                          className="shrink-0 text-sm font-semibold"
+                          style={{
+                            color:
+                              row.netPnl >= 0
+                                ? "var(--profit-primary)"
+                                : "var(--loss-primary)",
+                          }}
+                        >
+                          {formatWorkspaceSignedMoney(row.netPnl)}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                        <div>
+                          <p style={{ color: "var(--text-tertiary)" }}>Trades</p>
+                          <p className="mt-1 font-semibold">{row.trades}</p>
+                        </div>
+                        <div>
+                          <p style={{ color: "var(--text-tertiary)" }}>Share</p>
+                          <p className="mt-1 font-semibold">
+                            {formatWorkspacePercent(row.share)}
+                          </p>
+                        </div>
+                        <div>
+                          <p style={{ color: "var(--text-tertiary)" }}>Win Rate</p>
+                          <p className="mt-1 font-semibold">
+                            {formatWorkspacePercent(row.winRate)}
+                          </p>
+                        </div>
+                        <div>
+                          <p style={{ color: "var(--text-tertiary)" }}>Avg P&amp;L</p>
+                          <p className="mt-1 font-semibold">
+                            {formatWorkspaceSignedMoney(row.avgPnl)}
+                          </p>
+                        </div>
+                        <div>
+                          <p style={{ color: "var(--text-tertiary)" }}>Avg R</p>
+                          <p className="mt-1 font-semibold">
+                            {row.avgRMultiple == null
+                              ? "--"
+                              : `${row.avgRMultiple.toFixed(2)}R`}
+                          </p>
+                        </div>
+                        <div>
+                          <p style={{ color: "var(--text-tertiary)" }}>Reviewed</p>
+                          <p className="mt-1 font-semibold">
+                            {formatWorkspacePercent(row.reviewedPercent)}
+                          </p>
+                        </div>
+                      </div>
+                    </InsetPanel>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="hidden lg:block">
+            <ReportGrid minWidthClassName="min-w-[880px]">
               <ReportGridHeader columns="minmax(0,1.75fr) minmax(80px,0.7fr) minmax(95px,0.8fr) minmax(110px,0.85fr) minmax(90px,0.75fr) minmax(110px,0.85fr) minmax(85px,0.75fr) minmax(90px,0.8fr)">
                 <span>{getAnalyticsWorkspaceDimensionLabel(snapshot.workspace.query.groupBy)}</span>
                 <span className="text-right">Trades</span>
@@ -516,6 +660,7 @@ function WorkspaceReportBody({
                 );
               })}
             </ReportGrid>
+            </div>
           </AppPanel>
         ) : (
           <AppPanelEmptyState

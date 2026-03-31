@@ -871,7 +871,15 @@ export default function DashboardPage() {
       </AppPanel>
 
       <AppPanel id="calendar" className="scroll-mt-8 p-6">
-        <SectionHeader title="Trading Calendar" subtitle="Daily P&L overview" />
+        <SectionHeader
+          title="Trading Calendar"
+          subtitle="Daily P&L overview"
+          action={
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/calendar">Open workspace {'->'}</Link>
+            </Button>
+          }
+        />
         <TradingCalendar embedded />
       </AppPanel>
     </div>

@@ -21,6 +21,9 @@ function sentenceCase(value: string) {
 }
 
 function getDimensionLabel(value: ReportFilters["groupBy"]) {
+  if (value === "setup") return "Setup";
+  if (value === "mistake") return "Mistake";
+  if (value === "template") return "Template";
   if (value === "setupTag") return "Setup Tag";
   if (value === "mistakeTag") return "Mistake Tag";
   if (value === "reviewStatus") return "Review Status";
@@ -47,7 +50,7 @@ export function getDefaultReportQuerySettings(reportType: ReportFilters["reportT
 
   if (reportType === "risk") {
     return {
-      groupBy: "mistakeTag" as const,
+      groupBy: "mistake" as const,
       measure: "netPnl" as const,
     };
   }
@@ -80,6 +83,9 @@ export function normalizeReportFilters(
     symbol: filters.symbol ?? null,
     session: filters.session ?? null,
     playbookId: filters.playbookId ?? null,
+    setupDefinitionId: filters.setupDefinitionId ?? null,
+    mistakeDefinitionId: filters.mistakeDefinitionId ?? null,
+    journalTemplateId: filters.journalTemplateId ?? null,
     setupTag: filters.setupTag ?? null,
     mistakeTag: filters.mistakeTag ?? null,
     direction: filters.direction ?? null,
@@ -112,6 +118,9 @@ export function buildAnalyticsWorkspaceQueryFromReportFilters(
       symbol: filters.symbol,
       session: filters.session,
       playbookId: filters.playbookId,
+      setupDefinitionId: filters.setupDefinitionId,
+      mistakeDefinitionId: filters.mistakeDefinitionId,
+      journalTemplateId: filters.journalTemplateId,
       setupTag: filters.setupTag,
       mistakeTag: filters.mistakeTag,
       direction: filters.direction,

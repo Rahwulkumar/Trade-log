@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 
 interface FieldGroupProps {
-  label: string;
+  label?: string;
   meta?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -66,10 +66,12 @@ export function FieldGroup({
 }: FieldGroupProps) {
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-label">{label}</p>
-        {meta ? <div className="shrink-0">{meta}</div> : null}
-      </div>
+      {label || meta ? (
+        <div className="flex items-center justify-between gap-3">
+          {label ? <p className="text-label">{label}</p> : <span />}
+          {meta ? <div className="shrink-0">{meta}</div> : null}
+        </div>
+      ) : null}
       {children}
     </div>
   );

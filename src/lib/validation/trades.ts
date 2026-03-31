@@ -149,6 +149,23 @@ const journalReview = z.union([
   z.null(),
 ]);
 
+const journalTemplateSnapshot = z.union([
+  z.record(z.string(), z.unknown()),
+  z.null(),
+]);
+
+const tradeRuleResults = z
+  .array(
+    z.object({
+      ruleItemId: uuidSchema,
+      title: trimmedString(160).min(1),
+      category: nullableString(120).optional(),
+      severity: nullableString(60).optional(),
+      status: z.enum(["followed", "broken", "skipped", "notApplicable"]),
+    }),
+  )
+  .max(100);
+
 const screenshotEntry = z.union([
   z.string().trim().min(1).max(4000),
   z.object({
@@ -176,6 +193,9 @@ const tradeCreateSchema = z
     exitDate: nullableDate.optional(),
     propAccountId: nullableUuid.optional(),
     playbookId: nullableUuid.optional(),
+    setupDefinitionId: nullableUuid.optional(),
+    journalTemplateId: nullableUuid.optional(),
+    ruleSetId: nullableUuid.optional(),
     notes: nullableString(10000).optional(),
     feelings: nullableString(4000).optional(),
     observations: nullableString(10000).optional(),
@@ -187,6 +207,8 @@ const tradeCreateSchema = z
     marketCondition: nullableString(64).optional(),
     setupTags: stringArray.nullable().optional(),
     mistakeTags: stringArray.nullable().optional(),
+    mistakeDefinitionIds: z.array(uuidSchema).max(50).optional(),
+    tradeRuleResults: tradeRuleResults.nullable().optional(),
     entryRating: qualityRating.optional(),
     exitRating: qualityRating.optional(),
     managementRating: qualityRating.optional(),
@@ -194,6 +216,7 @@ const tradeCreateSchema = z
     lessonLearned: nullableString(4000).optional(),
     wouldTakeAgain: nullableBoolean.optional(),
     journalReview: journalReview.optional(),
+    journalTemplateSnapshot: journalTemplateSnapshot.optional(),
     tfObservations: tfObservations.optional(),
     executionNotes: nullableString(10000).optional(),
     executionArrays: stringArray.nullable().optional(),
@@ -219,6 +242,9 @@ function normalizeTradePayload(raw: unknown): unknown {
   const aliases: Record<string, string> = {
     prop_account_id: 'propAccountId',
     playbook_id: 'playbookId',
+    setup_definition_id: 'setupDefinitionId',
+    journal_template_id: 'journalTemplateId',
+    rule_set_id: 'ruleSetId',
     entry_price: 'entryPrice',
     exit_price: 'exitPrice',
     position_size: 'positionSize',
@@ -231,12 +257,15 @@ function normalizeTradePayload(raw: unknown): unknown {
     market_condition: 'marketCondition',
     setup_tags: 'setupTags',
     mistake_tags: 'mistakeTags',
+    mistake_definition_ids: 'mistakeDefinitionIds',
+    trade_rule_results: 'tradeRuleResults',
     entry_rating: 'entryRating',
     exit_rating: 'exitRating',
     management_rating: 'managementRating',
     lesson_learned: 'lessonLearned',
     would_take_again: 'wouldTakeAgain',
     journal_review: 'journalReview',
+    journal_template_snapshot: 'journalTemplateSnapshot',
     tf_observations: 'tfObservations',
     execution_notes: 'executionNotes',
     execution_arrays: 'executionArrays',

@@ -63,6 +63,9 @@ function emptyWorkspaceQuery(
       symbol: null,
       session: null,
       playbookId: null,
+      setupDefinitionId: null,
+      mistakeDefinitionId: null,
+      journalTemplateId: null,
       setupTag: null,
       mistakeTag: null,
       direction: null,
@@ -130,6 +133,9 @@ export function AnalyticsWorkspace({
         symbol: deferredSymbol,
         session: query.filters.session,
         playbookId: query.filters.playbookId,
+        setupDefinitionId: query.filters.setupDefinitionId,
+        mistakeDefinitionId: query.filters.mistakeDefinitionId,
+        journalTemplateId: query.filters.journalTemplateId,
         setupTag: query.filters.setupTag,
         mistakeTag: query.filters.mistakeTag,
         direction: query.filters.direction,
@@ -142,10 +148,13 @@ export function AnalyticsWorkspace({
       query.filters.accountScope,
       query.filters.direction,
       query.filters.from,
+      query.filters.journalTemplateId,
       query.filters.mistakeTag,
+      query.filters.mistakeDefinitionId,
       query.filters.playbookId,
       query.filters.reviewStatus,
       query.filters.session,
+      query.filters.setupDefinitionId,
       query.filters.setupTag,
       query.filters.timeZone,
       query.filters.to,
@@ -244,6 +253,9 @@ export function AnalyticsWorkspace({
         symbol: null,
         session: null,
         playbookId: null,
+        setupDefinitionId: null,
+        mistakeDefinitionId: null,
+        journalTemplateId: null,
         setupTag: null,
         mistakeTag: null,
         direction: null,
@@ -257,7 +269,7 @@ export function AnalyticsWorkspace({
       <AppPanel>
         <PanelTitle
           title="Drilldown Workspace"
-          subtitle="Pivot by symbol, session, playbook, setups, mistakes, and review state, then open the exact trades behind each bucket."
+          subtitle="Pivot by symbol, session, playbook, setup, mistake, template, or review state, then open the exact trades behind each bucket."
         />
 
         <div className="space-y-4">
@@ -445,6 +457,87 @@ export function AnalyticsWorkspace({
                     <SelectContent>
                       <SelectItem value="all">All Playbooks</SelectItem>
                       {result?.facets.playbooks.map((option) => (
+                        <SelectItem
+                          key={option.id ?? option.label}
+                          value={option.id ?? "unassigned"}
+                        >
+                          {option.label} ({option.count})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldGroup>
+
+                <FieldGroup label="Setup">
+                  <Select
+                    value={query.filters.setupDefinitionId ?? "all"}
+                    onValueChange={(value) =>
+                      setPartialQuery(
+                        { drilldownKey: null },
+                        { setupDefinitionId: value === "all" ? null : value },
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Setups</SelectItem>
+                      {result?.facets.setups.map((option) => (
+                        <SelectItem
+                          key={option.id ?? option.label}
+                          value={option.id ?? "unassigned"}
+                        >
+                          {option.label} ({option.count})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldGroup>
+
+                <FieldGroup label="Mistake">
+                  <Select
+                    value={query.filters.mistakeDefinitionId ?? "all"}
+                    onValueChange={(value) =>
+                      setPartialQuery(
+                        { drilldownKey: null },
+                        { mistakeDefinitionId: value === "all" ? null : value },
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Mistakes</SelectItem>
+                      {result?.facets.mistakes.map((option) => (
+                        <SelectItem
+                          key={option.id ?? option.label}
+                          value={option.id ?? "unassigned"}
+                        >
+                          {option.label} ({option.count})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldGroup>
+
+                <FieldGroup label="Template">
+                  <Select
+                    value={query.filters.journalTemplateId ?? "all"}
+                    onValueChange={(value) =>
+                      setPartialQuery(
+                        { drilldownKey: null },
+                        { journalTemplateId: value === "all" ? null : value },
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Templates</SelectItem>
+                      {result?.facets.templates.map((option) => (
                         <SelectItem
                           key={option.id ?? option.label}
                           value={option.id ?? "unassigned"}

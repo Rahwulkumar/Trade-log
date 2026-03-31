@@ -13,7 +13,12 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import type { Trade } from "@/lib/api/trades";
+import type {
+  JournalTemplate,
+  MistakeDefinition,
+  SetupDefinition,
+  Trade,
+} from "@/lib/db/schema";
 import {
   type JournalAlignment,
   type JournalEntryDraft,
@@ -26,6 +31,17 @@ import {
 import { useJournalAutosave } from "@/hooks/use-journal-autosave";
 import type { Playbook } from "@/lib/api/client/playbooks";
 import {
+  DEFAULT_JOURNAL_TEMPLATE_CONFIG,
+  normalizeJournalTemplateConfig,
+  type JournalTemplateChapterId,
+  type JournalTemplateConfig,
+  type JournalTemplatePrompts,
+} from "@/lib/journal-structure/types";
+import {
+  type RuleItemStatus,
+  type RuleSetWithItems,
+} from "@/lib/rulebooks/types";
+import {
   ALLOWED_SCREENSHOT_TYPES,
   MAX_SCREENSHOT_SIZE_BYTES,
 } from "@/lib/constants/app";
@@ -35,7 +51,7 @@ import {
   uploadTradeScreenshot,
 } from "@/lib/api/storage";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
-import { AppTextArea } from "@/components/ui/control-primitives";
+import { AppTextArea, ChoiceChip } from "@/components/ui/control-primitives";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/page-primitives";
 import { InsetPanel } from "@/components/ui/surface-primitives";
@@ -91,6 +107,17 @@ const RETAKE_OPTIONS: Array<{
   { value: "yes", label: "Yes" },
   { value: "maybe", label: "Maybe" },
   { value: "no", label: "No" },
+];
+
+const RULE_STATUS_OPTIONS: Array<{
+  value: RuleItemStatus;
+  label: string;
+  tone: "profit" | "loss" | "warning" | "default";
+}> = [
+  { value: "followed", label: "Followed", tone: "profit" },
+  { value: "broken", label: "Broken", tone: "loss" },
+  { value: "skipped", label: "Skipped", tone: "warning" },
+  { value: "notApplicable", label: "N/A", tone: "default" },
 ];
 
 function formatDateTime(value: string | null): string {
@@ -222,6 +249,10 @@ interface TradeReviewDocumentProps {
   trade: Trade;
   userId: string;
   playbooks: Playbook[];
+  setupDefinitions: SetupDefinition[];
+  mistakeDefinitions: MistakeDefinition[];
+  journalTemplates: JournalTemplate[];
+  ruleSets: RuleSetWithItems[];
   index: number;
   total: number;
   hasPrevious: boolean;
@@ -236,6 +267,10 @@ function TradeReviewDocumentInner({
   trade,
   userId,
   playbooks,
+  setupDefinitions,
+  mistakeDefinitions,
+  journalTemplates,
+  ruleSets,
   index,
   total,
   hasPrevious,
@@ -302,6 +337,171 @@ function TradeReviewDocumentInner({
         ? "Unsaved edits"
         : "Autosave ready";
 
+  const sortedPlaybooks = useMemo(
+    () =>
+      [...playbooks].sort((left, right) =>
+        left.name.localeCompare(right.name),
+      ),
+    [playbooks],
+  );
+  const sortedSetups = useMemo(
+    () =>
+      [...setupDefinitions].sort((left, right) =>
+        left.name.localeCompare(right.name),
+      ),
+    [setupDefinitions],
+  );
+  const sortedMistakes = useMemo(
+    () =>
+      [...mistakeDefinitions].sort((left, right) =>
+        left.name.localeCompare(right.name),
+      ),
+    [mistakeDefinitions],
+  );
+  const sortedTemplates = useMemo(
+    () =>
+      [...journalTemplates].sort((left, right) =>
+        left.name.localeCompare(right.name),
+      ),
+    [journalTemplates],
+  );
+  const sortedRuleSets = useMemo(
+    () =>
+      [...ruleSets].sort((left, right) =>
+        left.name.localeCompare(right.name),
+      ),
+    [ruleSets],
+  );
+  const selectedPlaybook =
+    sortedPlaybooks.find((playbook) => playbook.id === draft.playbookId) ?? null;
+  const selectedSetup =
+    sortedSetups.find((setup) => setup.id === draft.setupDefinitionId) ?? null;
+  const selectedTemplate =
+    sortedTemplates.find((template) => template.id === draft.journalTemplateId) ??
+    null;
+  const selectedRuleSet =
+    sortedRuleSets.find((ruleSet) => ruleSet.id === draft.ruleSetId) ?? null;
+  const usesManualStrategy =
+    !draft.playbookId && draft.journalReview.strategyName.trim().length > 0;
+  const resolvedTemplateConfig = useMemo(
+    () =>
+      draft.journalTemplateSnapshot
+        ? normalizeJournalTemplateConfig(draft.journalTemplateSnapshot)
+        : selectedTemplate?.config &&
+            typeof selectedTemplate.config === "object" &&
+            !Array.isArray(selectedTemplate.config)
+          ? normalizeJournalTemplateConfig(
+              selectedTemplate.config as Partial<JournalTemplateConfig>,
+            )
+          : DEFAULT_JOURNAL_TEMPLATE_CONFIG,
+    [draft.journalTemplateSnapshot, selectedTemplate],
+  );
+  const enabledChapterIds = useMemo(
+    () => new Set(resolvedTemplateConfig.enabledChapters),
+    [resolvedTemplateConfig],
+  );
+  const checklistOptions = useMemo(
+    () =>
+      resolvedTemplateConfig.checklistItems.length > 0
+        ? resolvedTemplateConfig.checklistItems
+        : [...EXECUTION_CHECKLIST_OPTIONS],
+    [resolvedTemplateConfig],
+  );
+  const activeMistakeNames = useMemo(
+    () =>
+      sortedMistakes.filter((mistake) =>
+        draft.mistakeDefinitionIds.includes(mistake.id),
+      ),
+    [draft.mistakeDefinitionIds, sortedMistakes],
+  );
+  const resolveRuleSetForSelection = useCallback(
+    (
+      playbookId: string | null,
+      setupId: string | null,
+      templateId: string | null,
+      propAccountId: string | null,
+    ) => {
+      if (setupId) {
+        const setupScoped = sortedRuleSets.find(
+          (ruleSet) =>
+            ruleSet.scopeType === "setup" &&
+            ruleSet.setupDefinitionId === setupId,
+        );
+
+        if (setupScoped) {
+          return setupScoped;
+        }
+      }
+
+      if (templateId) {
+        const templateScoped = sortedRuleSets.find(
+          (ruleSet) =>
+            ruleSet.scopeType === "template" &&
+            ruleSet.journalTemplateId === templateId,
+        );
+
+        if (templateScoped) {
+          return templateScoped;
+        }
+      }
+
+      if (playbookId) {
+        const playbookScoped = sortedRuleSets.find(
+          (ruleSet) =>
+            ruleSet.scopeType === "playbook" &&
+            ruleSet.playbookId === playbookId,
+        );
+
+        if (playbookScoped) {
+          return playbookScoped;
+        }
+      }
+
+      if (propAccountId) {
+        const accountScoped = sortedRuleSets.find(
+          (ruleSet) =>
+            ruleSet.scopeType === "account" &&
+            ruleSet.propAccountId === propAccountId,
+        );
+
+        if (accountScoped) {
+          return accountScoped;
+        }
+      }
+
+      return (
+        sortedRuleSets.find((ruleSet) => ruleSet.scopeType === "global") ??
+        sortedRuleSets[0] ??
+        null
+      );
+    },
+    [sortedRuleSets],
+  );
+  const recommendedRuleSet = useMemo(
+    () =>
+      resolveRuleSetForSelection(
+        draft.playbookId,
+        draft.setupDefinitionId,
+        draft.journalTemplateId,
+        trade.propAccountId ?? null,
+      ),
+    [
+      draft.journalTemplateId,
+      draft.playbookId,
+      draft.setupDefinitionId,
+      resolveRuleSetForSelection,
+      trade.propAccountId,
+    ],
+  );
+  const effectiveRuleSet = selectedRuleSet ?? recommendedRuleSet;
+  const ruleResultsByItemId = useMemo(
+    () =>
+      new Map(
+        draft.tradeRuleResults.map((result) => [result.ruleItemId, result]),
+      ),
+    [draft.tradeRuleResults],
+  );
+
   const chapterItems = useMemo(() => {
     const items = [
       {
@@ -320,6 +520,7 @@ function TradeReviewDocumentInner({
         orderLabel: "02",
         summary: "Capture the edge, invalidation, and target logic.",
         ...describeChapterProgress([
+          hasValue(deferredDraft.setupDefinitionId),
           hasText(deferredDraft.journalReview.strategyName),
           hasText(deferredDraft.journalReview.setupName),
           hasText(deferredDraft.journalReview.reasonForTrade),
@@ -383,6 +584,8 @@ function TradeReviewDocumentInner({
           hasValue(deferredDraft.journalReview.retakeDecision),
           hasNumber(deferredDraft.mae),
           hasNumber(deferredDraft.mfe),
+          deferredDraft.tradeRuleResults.length > 0,
+          deferredDraft.mistakeDefinitionIds.length > 0,
           deferredDraft.setupTags.length > 0,
           deferredDraft.mistakeTags.length > 0,
         ]),
@@ -400,8 +603,10 @@ function TradeReviewDocumentInner({
       },
     ] satisfies JournalChapterItem[];
 
-    return items;
-  }, [deferredDraft]);
+    return items.filter((item) =>
+      enabledChapterIds.has(item.id as JournalTemplateChapterId),
+    );
+  }, [deferredDraft, enabledChapterIds]);
 
   const completedChapterCount = chapterItems.filter(
     (item) => item.state === "complete",
@@ -423,13 +628,20 @@ function TradeReviewDocumentInner({
     [chapterItems],
   );
 
+  useEffect(() => {
+    if (!chapterItems.some((item) => item.id === activeChapter)) {
+      setActiveChapter((chapterItems[0]?.id as JournalChapterId) ?? "narrative");
+    }
+  }, [activeChapter, chapterItems]);
+
   const chapterIntroText = useMemo(
-    () =>
-      ({
-        narrative: "Start with the full story while the trade is still fresh.",
-        thesis:
-          "Lock in why the trade existed and what would have invalidated it.",
-        market:
+    () => {
+      const templatePrompts = resolvedTemplateConfig.prompts;
+      const defaultMap: Record<JournalChapterId, string> = {
+          narrative: "Start with the full story while the trade is still fresh.",
+          thesis:
+            "Lock in why the trade existed and what would have invalidated it.",
+          market:
           "Capture the structural context so the entry makes sense later.",
         execution:
           "Explain how the trade was handled, not just how it ended.",
@@ -438,34 +650,71 @@ function TradeReviewDocumentInner({
         scorecard: "Keep the scoring tight and the annotations honest.",
         closeout:
           "End with one sentence worth remembering and one change worth testing.",
-      })[activeChapter],
-    [activeChapter],
+      };
+
+      return (
+        templatePrompts[activeChapter as keyof JournalTemplatePrompts] ??
+        defaultMap[activeChapter]
+      );
+    },
+    [activeChapter, resolvedTemplateConfig.prompts],
   );
 
   const chapterCueText = useMemo(
-    () =>
-      ({
-        narrative: "Write the trade before you judge it.",
-        thesis: "Name the edge so it is easy to repeat or reject later.",
-        market: "Give the setup enough context to make sense on a reread.",
-        execution: "Document the decisions, not just the outcome.",
-        psychology: "Be specific enough to catch the pattern next time.",
-        scorecard: "Keep the scoring crisp and the tags honest.",
-        closeout: "Finish with one lesson and one change worth testing.",
-      })[activeChapter],
-    [activeChapter],
+    () => {
+      const templatePrompts = resolvedTemplateConfig.prompts;
+      const defaultMap: Record<JournalChapterId, string> = {
+          narrative: "Write the trade before you judge it.",
+          thesis: "Name the edge so it is easy to repeat or reject later.",
+          market: "Give the setup enough context to make sense on a reread.",
+          execution: "Document the decisions, not just the outcome.",
+          psychology: "Be specific enough to catch the pattern next time.",
+          scorecard: "Keep the scoring crisp and the tags honest.",
+          closeout: "Finish with one lesson and one change worth testing.",
+      };
+
+      return (
+        templatePrompts[activeChapter as keyof JournalTemplatePrompts] ??
+        defaultMap[activeChapter]
+      );
+    },
+    [activeChapter, resolvedTemplateConfig.prompts],
   );
-  const sortedPlaybooks = useMemo(
-    () =>
-      [...playbooks].sort((left, right) =>
-        left.name.localeCompare(right.name),
-      ),
-    [playbooks],
+  const resolveTemplateForSelection = useCallback(
+    (playbookId: string | null, setupId: string | null) => {
+      const selectedSetupDefinition = sortedSetups.find(
+        (setup) => setup.id === setupId,
+      );
+
+      if (selectedSetupDefinition?.defaultTemplateId) {
+        return (
+          sortedTemplates.find(
+            (template) => template.id === selectedSetupDefinition.defaultTemplateId,
+          ) ?? null
+        );
+      }
+
+      if (playbookId) {
+        const playbookScoped =
+          sortedTemplates.find(
+            (template) =>
+              template.playbookId === playbookId && template.scopeType === "playbook",
+          ) ??
+          sortedTemplates.find((template) => template.playbookId === playbookId);
+
+        if (playbookScoped) {
+          return playbookScoped;
+        }
+      }
+
+      return (
+        sortedTemplates.find((template) => template.scopeType === "global") ??
+        sortedTemplates[0] ??
+        null
+      );
+    },
+    [sortedSetups, sortedTemplates],
   );
-  const selectedPlaybook =
-    sortedPlaybooks.find((playbook) => playbook.id === draft.playbookId) ?? null;
-  const usesManualStrategy =
-    !draft.playbookId && draft.journalReview.strategyName.trim().length > 0;
 
   const activeChapterStateText =
     activeChapterItem?.state === "complete"
@@ -497,9 +746,20 @@ function TradeReviewDocumentInner({
   const handleStrategyChange = useCallback(
     (value: string) => {
       if (value === "__none") {
+        const nextTemplate = resolveTemplateForSelection(null, draft.setupDefinitionId);
         setDraft((current) => ({
           ...current,
           playbookId: null,
+          journalTemplateId: nextTemplate?.id ?? null,
+          ruleSetId: null,
+          tradeRuleResults: [],
+          journalTemplateSnapshot: nextTemplate?.config &&
+            typeof nextTemplate.config === "object" &&
+            !Array.isArray(nextTemplate.config)
+              ? normalizeJournalTemplateConfig(
+                  nextTemplate.config as Partial<JournalTemplateConfig>,
+                )
+              : null,
           journalReview: {
             ...current.journalReview,
             strategyName: "",
@@ -517,16 +777,183 @@ function TradeReviewDocumentInner({
       }
 
       const selected = sortedPlaybooks.find((playbook) => playbook.id === value);
+      const nextTemplate = resolveTemplateForSelection(
+        selected?.id ?? null,
+        draft.setupDefinitionId,
+      );
       setDraft((current) => ({
         ...current,
         playbookId: selected?.id ?? null,
+        journalTemplateId: nextTemplate?.id ?? null,
+        ruleSetId: null,
+        tradeRuleResults: [],
+        journalTemplateSnapshot: nextTemplate?.config &&
+          typeof nextTemplate.config === "object" &&
+          !Array.isArray(nextTemplate.config)
+            ? normalizeJournalTemplateConfig(
+                nextTemplate.config as Partial<JournalTemplateConfig>,
+              )
+            : null,
         journalReview: {
           ...current.journalReview,
           strategyName: selected?.name ?? current.journalReview.strategyName,
         },
       }));
     },
-    [sortedPlaybooks],
+    [draft.setupDefinitionId, resolveTemplateForSelection, sortedPlaybooks],
+  );
+
+  const handleSetupChange = useCallback(
+    (value: string) => {
+      if (value === "__none") {
+        const nextTemplate = resolveTemplateForSelection(draft.playbookId, null);
+        setDraft((current) => ({
+          ...current,
+          setupDefinitionId: null,
+          journalTemplateId: nextTemplate?.id ?? null,
+          ruleSetId: null,
+          tradeRuleResults: [],
+          journalTemplateSnapshot: nextTemplate?.config &&
+            typeof nextTemplate.config === "object" &&
+            !Array.isArray(nextTemplate.config)
+              ? normalizeJournalTemplateConfig(
+                  nextTemplate.config as Partial<JournalTemplateConfig>,
+                )
+              : null,
+        }));
+        return;
+      }
+
+      const selected = sortedSetups.find((setup) => setup.id === value) ?? null;
+      const nextPlaybookId = selected?.playbookId ?? draft.playbookId;
+      const nextTemplate = resolveTemplateForSelection(nextPlaybookId, value);
+
+      setDraft((current) => ({
+        ...current,
+        playbookId: nextPlaybookId,
+        setupDefinitionId: selected?.id ?? null,
+        journalTemplateId: nextTemplate?.id ?? null,
+        ruleSetId: null,
+        tradeRuleResults: [],
+        journalTemplateSnapshot: nextTemplate?.config &&
+          typeof nextTemplate.config === "object" &&
+          !Array.isArray(nextTemplate.config)
+            ? normalizeJournalTemplateConfig(
+                nextTemplate.config as Partial<JournalTemplateConfig>,
+              )
+            : null,
+        journalReview: {
+          ...current.journalReview,
+          strategyName:
+            sortedPlaybooks.find((playbook) => playbook.id === nextPlaybookId)?.name ??
+            current.journalReview.strategyName,
+          setupName: selected?.name ?? current.journalReview.setupName,
+        },
+      }));
+    },
+    [draft.playbookId, resolveTemplateForSelection, sortedPlaybooks, sortedSetups],
+  );
+
+  const handleTemplateChange = useCallback(
+    (value: string) => {
+      if (value === "__none") {
+        setDraft((current) => ({
+          ...current,
+          journalTemplateId: null,
+          ruleSetId: null,
+          tradeRuleResults: [],
+          journalTemplateSnapshot: null,
+        }));
+        return;
+      }
+
+      const selected = sortedTemplates.find((template) => template.id === value) ?? null;
+
+      setDraft((current) => ({
+        ...current,
+        journalTemplateId: selected?.id ?? null,
+        ruleSetId: null,
+        tradeRuleResults: [],
+        journalTemplateSnapshot: selected?.config &&
+          typeof selected.config === "object" &&
+          !Array.isArray(selected.config)
+            ? normalizeJournalTemplateConfig(
+                selected.config as Partial<JournalTemplateConfig>,
+              )
+            : null,
+      }));
+    },
+    [sortedTemplates],
+  );
+
+  const toggleMistakeDefinition = useCallback((mistakeId: string) => {
+    setDraft((current) => {
+      const exists = current.mistakeDefinitionIds.includes(mistakeId);
+      return {
+        ...current,
+        mistakeDefinitionIds: exists
+          ? current.mistakeDefinitionIds.filter((id) => id !== mistakeId)
+          : [...current.mistakeDefinitionIds, mistakeId],
+      };
+    });
+  }, []);
+
+  const handleRuleSetChange = useCallback(
+    (value: string) => {
+      if (value === "__auto" || value === "__none") {
+        setDraft((current) => ({
+          ...current,
+          ruleSetId: null,
+          tradeRuleResults: [],
+        }));
+        return;
+      }
+
+      const selected = sortedRuleSets.find((ruleSet) => ruleSet.id === value) ?? null;
+      setDraft((current) => ({
+        ...current,
+        ruleSetId: selected?.id ?? null,
+        tradeRuleResults: [],
+      }));
+    },
+    [sortedRuleSets],
+  );
+
+  const setTradeRuleStatus = useCallback(
+    (ruleItemId: string, status: RuleItemStatus) => {
+      const targetRuleSet = effectiveRuleSet;
+      if (!targetRuleSet) {
+        return;
+      }
+
+      const targetRule = targetRuleSet.items.find((item) => item.id === ruleItemId);
+      if (!targetRule) {
+        return;
+      }
+
+      setDraft((current) => {
+        const nextRuleSetId = current.ruleSetId ?? targetRuleSet.id;
+        const remainingResults = current.tradeRuleResults.filter(
+          (result) => result.ruleItemId !== ruleItemId,
+        );
+
+        return {
+          ...current,
+          ruleSetId: nextRuleSetId,
+          tradeRuleResults: [
+            ...remainingResults,
+            {
+              ruleItemId,
+              title: targetRule.title,
+              category: targetRule.category ?? null,
+              severity: targetRule.severity ?? null,
+              status,
+            },
+          ],
+        };
+      });
+    },
+    [effectiveRuleSet],
   );
 
   const toggleExecutionChecklist = useCallback((value: string) => {
@@ -769,15 +1196,28 @@ function TradeReviewDocumentInner({
                     ))}
                   </div>
                 ) : (
-                  <p
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "11px",
-                    }}
-                  >
-                    No screenshots yet.
-                  </p>
+                  <div className="space-y-1.5">
+                    <p
+                      style={{
+                        color: "var(--text-tertiary)",
+                        fontFamily: "var(--font-inter)",
+                        fontSize: "11px",
+                      }}
+                    >
+                      No screenshots yet.
+                    </p>
+                    {resolvedTemplateConfig.screenshotRequired ? (
+                      <p
+                        style={{
+                          color: "var(--warning-primary)",
+                          fontFamily: "var(--font-inter)",
+                          fontSize: "11px",
+                        }}
+                      >
+                        This template expects at least one screenshot for review.
+                      </p>
+                    ) : null}
+                  </div>
                 )}
               </div>
             </InsetPanel>
@@ -787,7 +1227,7 @@ function TradeReviewDocumentInner({
       case "thesis":
         return (
           <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
               <div className="space-y-2">
                 <label className="text-label">Strategy</label>
                 <Select
@@ -834,12 +1274,103 @@ function TradeReviewDocumentInner({
                   </p>
                 ) : null}
               </div>
+              <div className="space-y-2">
+                <label className="text-label">Setup Library</label>
+                <Select
+                  value={draft.setupDefinitionId ?? "__none"}
+                  onValueChange={handleSetupChange}
+                >
+                  <SelectTrigger
+                    className="h-10 text-[0.8125rem]"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: "var(--border-subtle)",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    <SelectValue placeholder="Select a setup" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">No linked setup</SelectItem>
+                    {sortedSetups.map((setup) => (
+                      <SelectItem key={setup.id} value={setup.id}>
+                        {setup.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedSetup?.description ? (
+                  <p
+                    style={{
+                      color: "var(--text-tertiary)",
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "11px",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {selectedSetup.description}
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <label className="text-label">Template</label>
+                <Select
+                  value={draft.journalTemplateId ?? "__none"}
+                  onValueChange={handleTemplateChange}
+                >
+                  <SelectTrigger
+                    className="h-10 text-[0.8125rem]"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: "var(--border-subtle)",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    <SelectValue placeholder="Select a template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">No linked template</SelectItem>
+                    {sortedTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p
+                  style={{
+                    color: "var(--text-tertiary)",
+                    fontFamily: "var(--font-inter)",
+                    fontSize: "11px",
+                    lineHeight: 1.55,
+                  }}
+                >
+                  {selectedTemplate
+                    ? `${selectedTemplate.name} • v${selectedTemplate.version}`
+                    : "Template controls which chapters and checklist items are active for this review."}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
               <JournalShortField
-                label="Setup"
+                label="Setup Note"
                 value={draft.journalReview.setupName}
                 onChange={(value) => setReviewField("setupName", value)}
-                placeholder="Name the precise setup"
+                placeholder="Add a setup note or refinement"
               />
+              <InsetPanel paddingClassName="px-4 py-3">
+                <p className="text-label">Template Summary</p>
+                <p
+                  className="mt-2 text-sm"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {resolvedTemplateConfig.enabledChapters.length} chapters enabled,{" "}
+                  {resolvedTemplateConfig.checklistItems.length} checklist items,{" "}
+                  {resolvedTemplateConfig.screenshotRequired
+                    ? "screenshots required"
+                    : "screenshots optional"}.
+                </p>
+              </InsetPanel>
             </div>
             <JournalPromptField
               prompt="Why did this trade exist at all?"
@@ -1017,7 +1548,7 @@ function TradeReviewDocumentInner({
               />
               <div className="mt-5 space-y-4">
                 <div className="flex flex-wrap gap-2">
-                  {EXECUTION_CHECKLIST_OPTIONS.map((option) => (
+                  {checklistOptions.map((option) => (
                     <JournalChoiceChip
                       key={option}
                       active={draft.executionArrays.includes(option)}
@@ -1028,24 +1559,22 @@ function TradeReviewDocumentInner({
                     </JournalChoiceChip>
                   ))}
                 </div>
-                <JournalTagField
-                  label="Custom checklist items"
-                  tags={draft.executionArrays.filter(
-                    (item) => !EXECUTION_CHECKLIST_OPTIONS.includes(item as (typeof EXECUTION_CHECKLIST_OPTIONS)[number]),
-                  )}
-                  onChange={(next) =>
-                    setDraft((current) => ({
-                      ...current,
-                      executionArrays: [
-                        ...current.executionArrays.filter((item) =>
-                          EXECUTION_CHECKLIST_OPTIONS.includes(
-                            item as (typeof EXECUTION_CHECKLIST_OPTIONS)[number],
+                  <JournalTagField
+                    label="Custom checklist items"
+                    tags={draft.executionArrays.filter(
+                      (item) => !checklistOptions.includes(item),
+                    )}
+                    onChange={(next) =>
+                      setDraft((current) => ({
+                        ...current,
+                        executionArrays: [
+                          ...current.executionArrays.filter((item) =>
+                            checklistOptions.includes(item),
                           ),
-                        ),
-                        ...next,
-                      ],
-                    }))
-                  }
+                          ...next,
+                        ],
+                      }))
+                    }
                   tone="neutral"
                   placeholder="Add custom checklist item"
                   draftValue={executionChecklistDraft}
@@ -1125,7 +1654,7 @@ function TradeReviewDocumentInner({
         );
       case "scorecard":
         return (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
+          <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
             <InsetPanel paddingClassName="px-4 py-4">
               <SectionHeader
                 className="mb-0"
@@ -1183,8 +1712,178 @@ function TradeReviewDocumentInner({
                   </div>
                 </div>
                 <div className="space-y-5">
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-label">Rulebook review</p>
+                        <p
+                          className="mt-1 text-xs"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          Evaluate this trade against the most relevant rulebook for the selected workflow.
+                        </p>
+                      </div>
+                      {recommendedRuleSet && !draft.ruleSetId ? (
+                        <p
+                          className="text-xs"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          Auto: {recommendedRuleSet.name}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Select
+                      value={draft.ruleSetId ?? "__auto"}
+                      onValueChange={handleRuleSetChange}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select rulebook" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__auto">
+                          {recommendedRuleSet
+                            ? `Auto (${recommendedRuleSet.name})`
+                            : "Auto (none matched)"}
+                        </SelectItem>
+                        {sortedRuleSets.map((ruleSet) => (
+                          <SelectItem key={ruleSet.id} value={ruleSet.id}>
+                            {ruleSet.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {effectiveRuleSet ? (
+                      <div className="space-y-3">
+                        {effectiveRuleSet.items.length > 0 ? (
+                          effectiveRuleSet.items.map((rule) => {
+                            const activeResult = ruleResultsByItemId.get(rule.id);
+
+                            return (
+                              <InsetPanel key={rule.id} paddingClassName="px-3 py-3">
+                                <div className="space-y-3">
+                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                      <p className="text-sm font-semibold">{rule.title}</p>
+                                      {rule.description ? (
+                                        <p
+                                          className="mt-1 text-xs"
+                                          style={{ color: "var(--text-secondary)" }}
+                                        >
+                                          {rule.description}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 text-[11px]">
+                                      {rule.category ? (
+                                        <span className="rounded-full border px-2 py-0.5">
+                                          {rule.category}
+                                        </span>
+                                      ) : null}
+                                      {rule.severity ? (
+                                        <span className="rounded-full border px-2 py-0.5">
+                                          {rule.severity}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {RULE_STATUS_OPTIONS.map((option) => (
+                                      <ChoiceChip
+                                        key={option.value}
+                                        active={activeResult?.status === option.value}
+                                        onClick={() =>
+                                          setTradeRuleStatus(rule.id, option.value)
+                                        }
+                                        activeColor={
+                                          option.tone === "profit"
+                                            ? "var(--profit-primary)"
+                                            : option.tone === "loss"
+                                              ? "var(--loss-primary)"
+                                              : option.tone === "warning"
+                                                ? "var(--warning-primary)"
+                                                : "var(--text-primary)"
+                                        }
+                                        activeBackground={
+                                          option.tone === "profit"
+                                            ? "var(--profit-bg)"
+                                            : option.tone === "loss"
+                                              ? "var(--loss-bg)"
+                                              : option.tone === "warning"
+                                                ? "var(--warning-bg)"
+                                                : "var(--surface-elevated)"
+                                        }
+                                        activeBorderColor={
+                                          option.tone === "profit"
+                                            ? "var(--profit-primary)"
+                                            : option.tone === "loss"
+                                              ? "var(--loss-primary)"
+                                              : option.tone === "warning"
+                                                ? "var(--warning-primary)"
+                                                : "var(--border-strong)"
+                                        }
+                                      >
+                                        {option.label}
+                                      </ChoiceChip>
+                                    ))}
+                                  </div>
+                                </div>
+                              </InsetPanel>
+                            );
+                          })
+                        ) : (
+                          <p
+                            className="text-xs"
+                            style={{ color: "var(--text-tertiary)" }}
+                          >
+                            This rulebook does not have any active rules yet.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p
+                        className="text-xs"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        Create a rulebook in the Playbooks workspace to start reviewing trades against explicit rules.
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-label">Structured mistakes</p>
+                    <div className="flex flex-wrap gap-2">
+                      {sortedMistakes.length > 0 ? (
+                        sortedMistakes.map((mistake) => (
+                          <ChoiceChip
+                            key={mistake.id}
+                            active={draft.mistakeDefinitionIds.includes(mistake.id)}
+                            onClick={() => toggleMistakeDefinition(mistake.id)}
+                            activeColor="var(--loss-primary)"
+                            activeBackground="var(--loss-bg)"
+                            activeBorderColor="var(--loss-primary)"
+                          >
+                            {mistake.name}
+                          </ChoiceChip>
+                        ))
+                      ) : (
+                        <p
+                          className="text-xs"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          Create mistake definitions in the Playbooks workspace to reuse them here.
+                        </p>
+                      )}
+                    </div>
+                    {activeMistakeNames.length > 0 ? (
+                      <p
+                        className="text-xs"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        Selected: {activeMistakeNames.map((item) => item.name).join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
                   <JournalTagField
-                    label="Setup tags"
+                    label="Additional setup tags"
                     tags={draft.setupTags}
                     onChange={(next) => setDraftField({ setupTags: next })}
                     tone="neutral"
@@ -1193,7 +1892,7 @@ function TradeReviewDocumentInner({
                     onDraftValueChange={setSetupTagDraft}
                   />
                   <JournalTagField
-                    label="Mistake tags"
+                    label="Additional mistake tags"
                     tags={draft.mistakeTags}
                     onChange={(next) => setDraftField({ mistakeTags: next })}
                     tone="loss"
@@ -1366,7 +2065,7 @@ function TradeReviewDocumentInner({
         }}
       >
         <div className="flex w-full flex-col gap-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1
                 style={{
@@ -1476,7 +2175,7 @@ function TradeReviewDocumentInner({
                   fontSize: "11px",
                 }}
               >
-                {activeChapterItem.orderLabel} · {activeChapterLabel}
+                {activeChapterItem.orderLabel} / {activeChapterLabel}
               </span>
               <span
                 className="rounded-full px-2.5 py-1"
@@ -1560,7 +2259,7 @@ function TradeReviewDocumentInner({
             </div>
           </div>
 
-          <div className="xl:hidden">
+          <div className="2xl:hidden">
             <JournalTabRail
               items={chapterTabs}
               activeTab={activeChapter}
@@ -1573,8 +2272,8 @@ function TradeReviewDocumentInner({
 
       <div className="px-4 pb-16 pt-4 sm:px-6 lg:px-8">
         <div className="w-full">
-          <div className="grid gap-5 xl:grid-cols-[248px_minmax(0,1fr)] 2xl:grid-cols-[288px_minmax(0,1fr)]">
-            <div className="hidden xl:block">
+          <div className="grid gap-5 2xl:grid-cols-[248px_minmax(0,1fr)]">
+            <div className="hidden 2xl:block">
               <div className="sticky top-[90px] space-y-4">
                 <JournalOutlineRail
                   items={chapterItems}
@@ -1635,7 +2334,7 @@ function TradeReviewDocumentInner({
                   }}
                 />
 
-                <div className="relative px-5 py-5 sm:px-7 sm:py-6 xl:px-10 xl:py-8">
+                <div className="relative px-5 py-5 sm:px-7 sm:py-6 lg:px-8 lg:py-7 2xl:px-10 2xl:py-8">
                   <div
                     className="flex flex-col gap-5 border-b pb-5"
                     style={{ borderBottomColor: "var(--border-subtle)" }}
@@ -1718,7 +2417,7 @@ function TradeReviewDocumentInner({
                       </div>
 
                       <div
-                        className="rounded-[var(--radius-xl)] border px-4 py-3 xl:max-w-[19rem]"
+                        className="rounded-[var(--radius-xl)] border px-4 py-3 2xl:max-w-[19rem]"
                         style={{
                           background: "var(--surface-elevated)",
                           borderColor: "var(--border-subtle)",

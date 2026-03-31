@@ -198,17 +198,23 @@ export function LoadingPanel({
   className,
   chart = false,
   rows = 3,
+  title = "Loading panel",
   children,
 }: {
   className?: string;
   chart?: boolean;
   rows?: number;
+  title?: string;
   children?: ReactNode;
 }) {
   return (
     <AppPanel className={cn("space-y-4 p-5", className)}>
       <div className="space-y-2.5">
-        <LoadingBlock className="h-4 w-36" tone="accent" />
+        <LoadingBlock
+          className="h-4 w-36"
+          tone="accent"
+          style={{ width: `${Math.min(Math.max(title.length * 7, 96), 220)}px` }}
+        />
         <LoadingBlock className="h-3 w-64 max-w-full" />
       </div>
 

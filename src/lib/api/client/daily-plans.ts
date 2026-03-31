@@ -20,6 +20,10 @@ export interface DailyPlanResponse {
   updatedAt: string;
 }
 
+export interface DailyPlanRangeResponse extends DailyPlanResponse {
+  playbookName: string | null;
+}
+
 export async function getDailyPlan(date: string): Promise<DailyPlanResponse | null> {
   try {
     const response = await fetch(`/api/daily-plans?date=${encodeURIComponent(date)}`, {
@@ -31,6 +35,24 @@ export async function getDailyPlan(date: string): Promise<DailyPlanResponse | nu
   } catch {
     return null;
   }
+}
+
+export async function getDailyPlansRange(
+  from: string,
+  to: string,
+): Promise<DailyPlanRangeResponse[]> {
+  const response = await fetch(
+    `/api/daily-plans?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    {
+      cache: 'no-store',
+      credentials: 'include',
+    },
+  );
+  if (!response.ok) {
+    const payload = await readJsonIfAvailable<{ error?: string }>(response);
+    throw new Error(payload?.error ?? 'Failed to load daily plans');
+  }
+  return (await readJsonIfAvailable<DailyPlanRangeResponse[]>(response)) ?? [];
 }
 
 export async function upsertDailyPlan(data: DailyPlanUpsert): Promise<DailyPlanResponse> {

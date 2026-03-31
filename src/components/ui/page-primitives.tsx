@@ -28,6 +28,8 @@ interface SectionHeaderProps {
   subtitle?: string;
   /** Optional trailing action slot (buttons, tabs, etc.) */
   action?: React.ReactNode;
+  /** Backward-compatible alias for action */
+  actions?: React.ReactNode;
   className?: string;
 }
 
@@ -183,8 +185,10 @@ export function SectionHeader({
   title,
   subtitle,
   action,
+  actions,
   className,
 }: SectionHeaderProps) {
+  const resolvedAction = action ?? actions;
   return (
     <div
       className={cn("mb-5 flex items-start justify-between gap-4", className)}
@@ -212,7 +216,7 @@ export function SectionHeader({
           </p>
         )}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {resolvedAction && <div className="shrink-0">{resolvedAction}</div>}
     </div>
   );
 }

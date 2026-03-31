@@ -3,7 +3,13 @@ import "server-only";
 import { and, asc, eq, gte, isNull, lte } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { playbooks, trades } from "@/lib/db/schema";
+import {
+  journalTemplates,
+  mistakeDefinitions,
+  playbooks,
+  setupDefinitions,
+  trades,
+} from "@/lib/db/schema";
 import { DEFAULT_ANALYTICS_TIME_ZONE } from "@/lib/analytics/timezone";
 import { resolveTradingSession } from "@/lib/trading-session";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
@@ -27,6 +33,12 @@ type WorkspaceRow = {
   session: string | null;
   playbookId: string | null;
   playbookName: string | null;
+  setupDefinitionId: string | null;
+  setupName: string | null;
+  journalTemplateId: string | null;
+  journalTemplateName: string | null;
+  mistakeDefinitionIds: string[];
+  mistakeNames: string[];
   setupTags: string[];
   mistakeTags: string[];
   journalReview: Record<string, unknown>;
@@ -106,6 +118,14 @@ function hasArrayItems(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0;
 }
 
+function normalizeUuidArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .flatMap((item) => (typeof item === "string" && item.trim() ? [item.trim()] : []))
+    .filter((item, index, array) => array.indexOf(item) === index);
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -138,6 +158,8 @@ function isReviewedRow(row: {
   screenshots: unknown;
   executionArrays: string[];
   journalReview: unknown;
+  setupDefinitionId?: string | null;
+  mistakeDefinitionIds?: string[];
 }): boolean {
   const review = asRecord(row.journalReview);
 
@@ -172,7 +194,9 @@ function isReviewedRow(row: {
       hasText(review.psychologyDuring) ||
       hasText(review.psychologyAfter) ||
       hasText(review.marketContext) ||
-      hasText(review.followUpAction)
+      hasText(review.followUpAction) ||
+      row.setupDefinitionId ||
+      (row.mistakeDefinitionIds?.length ?? 0) > 0
   );
 }
 
@@ -204,6 +228,35 @@ function buildGroupDescriptors(
       {
         key: trade.playbookId ?? "unassigned",
         label: trade.playbookName ?? "Unassigned",
+      },
+    ];
+  }
+
+  if (groupBy === "setup") {
+    return [
+      {
+        key: trade.setupDefinitionId ?? "unassigned",
+        label: trade.setupName ?? "No Setup",
+      },
+    ];
+  }
+
+  if (groupBy === "mistake") {
+    if (trade.mistakeDefinitionIds.length === 0) {
+      return [{ key: "unassigned", label: "No Mistake" }];
+    }
+
+    return trade.mistakeDefinitionIds.map((id, index) => ({
+      key: id,
+      label: trade.mistakeNames[index] ?? "Unknown Mistake",
+    }));
+  }
+
+  if (groupBy === "template") {
+    return [
+      {
+        key: trade.journalTemplateId ?? "unassigned",
+        label: trade.journalTemplateName ?? "No Template",
       },
     ];
   }
@@ -264,6 +317,9 @@ function applyWorkspaceFilters(
     symbol,
     session,
     playbookId,
+    setupDefinitionId,
+    mistakeDefinitionId,
+    journalTemplateId,
     setupTag,
     mistakeTag,
     direction,
@@ -286,6 +342,42 @@ function applyWorkspaceFilters(
       playbookId &&
       playbookId !== "unassigned" &&
       trade.playbookId !== playbookId
+    ) {
+      return false;
+    }
+    if (setupDefinitionId === "unassigned" && trade.setupDefinitionId !== null) {
+      return false;
+    }
+    if (
+      setupDefinitionId &&
+      setupDefinitionId !== "unassigned" &&
+      trade.setupDefinitionId !== setupDefinitionId
+    ) {
+      return false;
+    }
+    if (
+      mistakeDefinitionId === "unassigned" &&
+      trade.mistakeDefinitionIds.length > 0
+    ) {
+      return false;
+    }
+    if (
+      mistakeDefinitionId &&
+      mistakeDefinitionId !== "unassigned" &&
+      !trade.mistakeDefinitionIds.includes(mistakeDefinitionId)
+    ) {
+      return false;
+    }
+    if (
+      journalTemplateId === "unassigned" &&
+      trade.journalTemplateId !== null
+    ) {
+      return false;
+    }
+    if (
+      journalTemplateId &&
+      journalTemplateId !== "unassigned" &&
+      trade.journalTemplateId !== journalTemplateId
     ) {
       return false;
     }
@@ -452,6 +544,9 @@ function buildDrilldown(
       direction: trade.direction,
       session: trade.session ?? "Overnight",
       playbook: trade.playbookName ?? "Unassigned",
+      setup: trade.setupName ?? null,
+      mistakes: trade.mistakeNames,
+      template: trade.journalTemplateName ?? null,
       setupTags: trade.setupTags,
       mistakeTags: trade.mistakeTags,
       reviewed: trade.reviewed,
@@ -472,6 +567,9 @@ function buildFacets(tradesInScope: WorkspaceRow[]): AnalyticsWorkspaceResult["f
   const sessionCounts = new Map<string, number>();
   const symbolCounts = new Map<string, number>();
   const playbookCounts = new Map<string, { label: string; count: number }>();
+  const setupCounts = new Map<string, { label: string; count: number }>();
+  const mistakeCounts = new Map<string, { label: string; count: number }>();
+  const templateCounts = new Map<string, { label: string; count: number }>();
   const setupTagCounts = new Map<string, number>();
   const mistakeTagCounts = new Map<string, number>();
   const reviewStateCounts = new Map<string, number>([
@@ -494,6 +592,40 @@ function buildFacets(tradesInScope: WorkspaceRow[]): AnalyticsWorkspaceResult["f
     existingPlaybook.count += 1;
     playbookCounts.set(playbookKey, existingPlaybook);
 
+    const setupKey = trade.setupDefinitionId ?? "unassigned";
+    const existingSetup = setupCounts.get(setupKey) ?? {
+      label: trade.setupName ?? "No Setup",
+      count: 0,
+    };
+    existingSetup.count += 1;
+    setupCounts.set(setupKey, existingSetup);
+
+    const templateKey = trade.journalTemplateId ?? "unassigned";
+    const existingTemplate = templateCounts.get(templateKey) ?? {
+      label: trade.journalTemplateName ?? "No Template",
+      count: 0,
+    };
+    existingTemplate.count += 1;
+    templateCounts.set(templateKey, existingTemplate);
+
+    if (trade.mistakeDefinitionIds.length === 0) {
+      const existingMistake = mistakeCounts.get("unassigned") ?? {
+        label: "No Mistake",
+        count: 0,
+      };
+      existingMistake.count += 1;
+      mistakeCounts.set("unassigned", existingMistake);
+    } else {
+      for (const [index, id] of trade.mistakeDefinitionIds.entries()) {
+        const existingMistake = mistakeCounts.get(id) ?? {
+          label: trade.mistakeNames[index] ?? "Unknown Mistake",
+          count: 0,
+        };
+        existingMistake.count += 1;
+        mistakeCounts.set(id, existingMistake);
+      }
+    }
+
     for (const tag of trade.setupTags) {
       setupTagCounts.set(tag, (setupTagCounts.get(tag) ?? 0) + 1);
     }
@@ -511,6 +643,9 @@ function buildFacets(tradesInScope: WorkspaceRow[]): AnalyticsWorkspaceResult["f
     sessions: buildFacetOptions(sessionCounts),
     symbols: buildFacetOptions(symbolCounts),
     playbooks: buildPlaybookFacets(playbookCounts),
+    setups: buildPlaybookFacets(setupCounts),
+    mistakes: buildPlaybookFacets(mistakeCounts),
+    templates: buildPlaybookFacets(templateCounts),
     setupTags: buildFacetOptions(setupTagCounts),
     mistakeTags: buildFacetOptions(mistakeTagCounts),
     reviewStates: [
@@ -608,44 +743,71 @@ export async function getAnalyticsWorkspaceResult(
     conditions.push(lte(trades.exitDate, toDate));
   }
 
-  const rows = await db
-    .select({
-      id: trades.id,
-      symbol: trades.symbol,
-      direction: trades.direction,
-      entryDate: trades.entryDate,
-      exitDate: trades.exitDate,
-      session: trades.session,
-      playbookId: trades.playbookId,
-      playbookName: playbooks.name,
-      setupTags: trades.setupTags,
-      mistakeTags: trades.mistakeTags,
-      journalReview: trades.journalReview,
-      notes: trades.notes,
-      feelings: trades.feelings,
-      observations: trades.observations,
-      screenshots: trades.screenshots,
-      executionNotes: trades.executionNotes,
-      executionArrays: trades.executionArrays,
-      marketCondition: trades.marketCondition,
-      conviction: trades.conviction,
-      lessonLearned: trades.lessonLearned,
-      wouldTakeAgain: trades.wouldTakeAgain,
-      pnl: trades.pnl,
-      pnlIncludesCosts: trades.pnlIncludesCosts,
-      commission: trades.commission,
-      swap: trades.swap,
-      rMultiple: trades.rMultiple,
-    })
-    .from(trades)
-    .leftJoin(playbooks, eq(trades.playbookId, playbooks.id))
-    .where(and(...conditions))
-    .orderBy(asc(trades.exitDate), asc(trades.entryDate));
+  const [rows, mistakeRows] = await Promise.all([
+    db
+      .select({
+        id: trades.id,
+        symbol: trades.symbol,
+        direction: trades.direction,
+        entryDate: trades.entryDate,
+        exitDate: trades.exitDate,
+        session: trades.session,
+        playbookId: trades.playbookId,
+        playbookName: playbooks.name,
+        setupDefinitionId: trades.setupDefinitionId,
+        setupName: setupDefinitions.name,
+        journalTemplateId: trades.journalTemplateId,
+        journalTemplateName: journalTemplates.name,
+        mistakeDefinitionIds: trades.mistakeDefinitionIds,
+        setupTags: trades.setupTags,
+        mistakeTags: trades.mistakeTags,
+        journalReview: trades.journalReview,
+        notes: trades.notes,
+        feelings: trades.feelings,
+        observations: trades.observations,
+        screenshots: trades.screenshots,
+        executionNotes: trades.executionNotes,
+        executionArrays: trades.executionArrays,
+        marketCondition: trades.marketCondition,
+        conviction: trades.conviction,
+        lessonLearned: trades.lessonLearned,
+        wouldTakeAgain: trades.wouldTakeAgain,
+        pnl: trades.pnl,
+        pnlIncludesCosts: trades.pnlIncludesCosts,
+        commission: trades.commission,
+        swap: trades.swap,
+        rMultiple: trades.rMultiple,
+      })
+      .from(trades)
+      .leftJoin(playbooks, eq(trades.playbookId, playbooks.id))
+      .leftJoin(setupDefinitions, eq(trades.setupDefinitionId, setupDefinitions.id))
+      .leftJoin(
+        journalTemplates,
+        eq(trades.journalTemplateId, journalTemplates.id),
+      )
+      .where(and(...conditions))
+      .orderBy(asc(trades.exitDate), asc(trades.entryDate)),
+    db
+      .select({
+        id: mistakeDefinitions.id,
+        name: mistakeDefinitions.name,
+      })
+      .from(mistakeDefinitions)
+      .where(eq(mistakeDefinitions.userId, userId)),
+  ]);
+
+  const mistakeNameById = new Map(
+    mistakeRows.map((row) => [row.id, row.name?.trim() || "Unknown Mistake"]),
+  );
 
   const tradesInScope: WorkspaceRow[] = rows.map((row) => {
     const setupTags = normalizeStringArray(row.setupTags);
     const mistakeTags = normalizeStringArray(row.mistakeTags);
     const executionArrays = normalizeStringArray(row.executionArrays);
+    const mistakeDefinitionIds = normalizeUuidArray(row.mistakeDefinitionIds);
+    const mistakeNames = mistakeDefinitionIds.map(
+      (id) => mistakeNameById.get(id) ?? "Unknown Mistake",
+    );
     const session = normalizeSession(row.session, row.entryDate, row.exitDate);
     const reviewed = isReviewedRow({
       notes: row.notes,
@@ -661,6 +823,8 @@ export async function getAnalyticsWorkspaceResult(
       screenshots: row.screenshots,
       executionArrays,
       journalReview: row.journalReview,
+      setupDefinitionId: row.setupDefinitionId ?? null,
+      mistakeDefinitionIds,
     });
 
     return {
@@ -672,6 +836,12 @@ export async function getAnalyticsWorkspaceResult(
       session,
       playbookId: row.playbookId ?? null,
       playbookName: row.playbookName?.trim() || null,
+      setupDefinitionId: row.setupDefinitionId ?? null,
+      setupName: row.setupName?.trim() || null,
+      journalTemplateId: row.journalTemplateId ?? null,
+      journalTemplateName: row.journalTemplateName?.trim() || null,
+      mistakeDefinitionIds,
+      mistakeNames,
       setupTags,
       mistakeTags,
       journalReview: asRecord(row.journalReview),

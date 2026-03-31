@@ -31,9 +31,21 @@ import {
   getPlaybooks,
   type Playbook,
 } from "@/lib/api/client/playbooks";
+import {
+  getJournalTemplates,
+  getMistakeDefinitions,
+  getRuleSets,
+  getSetupDefinitions,
+} from "@/lib/api/client/journal-structure";
 import { getTradesStrict } from "@/lib/api/client/trades";
-import type { Trade } from "@/lib/api/trades";
+import type {
+  JournalTemplate,
+  MistakeDefinition,
+  SetupDefinition,
+  Trade,
+} from "@/lib/db/schema";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
+import type { RuleSetWithItems } from "@/lib/rulebooks/types";
 
 type StatusFilter = "all" | "pending" | "draft" | "complete";
 
@@ -145,6 +157,10 @@ export default function JournalPage() {
   const [loading, setLoading] = useState(true);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
+  const [setupDefinitions, setSetupDefinitions] = useState<SetupDefinition[]>([]);
+  const [mistakeDefinitions, setMistakeDefinitions] = useState<MistakeDefinition[]>([]);
+  const [journalTemplates, setJournalTemplates] = useState<JournalTemplate[]>([]);
+  const [ruleSets, setRuleSets] = useState<RuleSetWithItems[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -227,18 +243,37 @@ export default function JournalPage() {
       if (!currentUserId) {
         if (!cancelled) {
           setPlaybooks([]);
+          setSetupDefinitions([]);
+          setMistakeDefinitions([]);
+          setJournalTemplates([]);
+          setRuleSets([]);
         }
         return;
       }
 
       try {
-        const rows = await getPlaybooks();
+        const [playbookRows, setupRows, mistakeRows, templateRows, ruleSetRows] =
+          await Promise.all([
+            getPlaybooks(),
+            getSetupDefinitions({ activeOnly: true }),
+            getMistakeDefinitions({ activeOnly: true }),
+            getJournalTemplates({ activeOnly: true }),
+            getRuleSets({ activeOnly: true }),
+          ]);
         if (!cancelled) {
-          setPlaybooks(rows);
+          setPlaybooks(playbookRows);
+          setSetupDefinitions(setupRows);
+          setMistakeDefinitions(mistakeRows);
+          setJournalTemplates(templateRows);
+          setRuleSets(ruleSetRows);
         }
       } catch {
         if (!cancelled) {
           setPlaybooks([]);
+          setSetupDefinitions([]);
+          setMistakeDefinitions([]);
+          setJournalTemplates([]);
+          setRuleSets([]);
         }
       }
     })();
@@ -465,7 +500,7 @@ export default function JournalPage() {
 
   if (records.length === 0) {
     return (
-      <div className="flex min-h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6 lg:h-[calc(100dvh-64px)]">
+      <div className="flex min-h-[calc(100dvh-64px)] flex-col px-4 py-4 sm:px-6 xl:h-[calc(100dvh-64px)]">
         <AppPanelEmptyState
           minHeight={260}
           title="No closed trades yet"
@@ -476,7 +511,7 @@ export default function JournalPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-64px)] min-h-0 flex-col gap-3 overflow-visible px-3 py-3 sm:gap-4 sm:px-4 sm:py-4 lg:h-[calc(100dvh-64px)] lg:overflow-hidden lg:px-6">
+    <div className="flex min-h-[calc(100dvh-64px)] min-h-0 flex-col gap-3 overflow-visible px-3 py-3 sm:gap-4 sm:px-4 sm:py-4 xl:h-[calc(100dvh-64px)] xl:overflow-hidden xl:px-6">
       <div
         className="stagger-1 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] border px-3 py-2.5 sm:px-4"
         style={{
@@ -549,8 +584,8 @@ export default function JournalPage() {
         </div>
       </div>
 
-      <section className="stagger-2 relative min-h-0 flex-1 overflow-visible lg:overflow-hidden">
-        <div className="hidden h-full min-h-0 lg:block">
+      <section className="stagger-2 relative min-h-0 flex-1 overflow-visible xl:overflow-hidden">
+        <div className="hidden h-full min-h-0 xl:block">
           <div
             className="grid h-full min-h-0 gap-4"
             style={{
@@ -598,6 +633,10 @@ export default function JournalPage() {
                       trade={activeRecord.trade}
                       userId={currentUserId}
                       playbooks={playbooks}
+                      setupDefinitions={setupDefinitions}
+                      mistakeDefinitions={mistakeDefinitions}
+                      journalTemplates={journalTemplates}
+                      ruleSets={ruleSets}
                       index={activeIndex >= 0 ? activeIndex : 0}
                       total={filteredRecords.length}
                       hasPrevious={activeIndex > 0}
@@ -620,7 +659,7 @@ export default function JournalPage() {
           </div>
         </div>
 
-        <div className="h-full min-h-0 lg:hidden">
+        <div className="h-full min-h-0 xl:hidden">
           {railOpen ? (
             <button
               type="button"
@@ -667,6 +706,10 @@ export default function JournalPage() {
                     trade={activeRecord.trade}
                     userId={currentUserId}
                     playbooks={playbooks}
+                    setupDefinitions={setupDefinitions}
+                    mistakeDefinitions={mistakeDefinitions}
+                    journalTemplates={journalTemplates}
+                    ruleSets={ruleSets}
                     index={activeIndex >= 0 ? activeIndex : 0}
                     total={filteredRecords.length}
                     hasPrevious={activeIndex > 0}

@@ -4,6 +4,9 @@ export const ANALYTICS_WORKSPACE_DIMENSIONS = [
   "symbol",
   "session",
   "playbook",
+  "setup",
+  "mistake",
+  "template",
   "setupTag",
   "mistakeTag",
   "direction",
@@ -40,6 +43,8 @@ export const ANALYTICS_WORKSPACE_REVIEW_STATES = [
 export type AnalyticsWorkspaceReviewState =
   (typeof ANALYTICS_WORKSPACE_REVIEW_STATES)[number];
 
+export type AnalyticsWorkspaceScopedFilterId = string | "unassigned" | null;
+
 export interface AnalyticsWorkspaceFilters {
   accountScope: AnalyticsAccountScope;
   from: string | null;
@@ -47,7 +52,10 @@ export interface AnalyticsWorkspaceFilters {
   timeZone: string | null;
   symbol: string | null;
   session: string | null;
-  playbookId: string | null;
+  playbookId: AnalyticsWorkspaceScopedFilterId;
+  setupDefinitionId: AnalyticsWorkspaceScopedFilterId;
+  mistakeDefinitionId: AnalyticsWorkspaceScopedFilterId;
+  journalTemplateId: AnalyticsWorkspaceScopedFilterId;
   setupTag: string | null;
   mistakeTag: string | null;
   direction: "LONG" | "SHORT" | null;
@@ -75,6 +83,12 @@ export interface AnalyticsWorkspacePlaybookFacet {
   count: number;
 }
 
+export interface AnalyticsWorkspaceEntityFacet {
+  id: string | null;
+  label: string;
+  count: number;
+}
+
 export interface AnalyticsWorkspaceRow {
   key: string;
   label: string;
@@ -94,6 +108,9 @@ export interface AnalyticsWorkspaceTrade {
   direction: "LONG" | "SHORT";
   session: string;
   playbook: string;
+  setup: string | null;
+  mistakes: string[];
+  template: string | null;
   setupTags: string[];
   mistakeTags: string[];
   reviewed: boolean;
@@ -131,6 +148,9 @@ export interface AnalyticsWorkspaceResult {
     sessions: AnalyticsWorkspaceFacetOption[];
     symbols: AnalyticsWorkspaceFacetOption[];
     playbooks: AnalyticsWorkspacePlaybookFacet[];
+    setups: AnalyticsWorkspaceEntityFacet[];
+    mistakes: AnalyticsWorkspaceEntityFacet[];
+    templates: AnalyticsWorkspaceEntityFacet[];
     setupTags: AnalyticsWorkspaceFacetOption[];
     mistakeTags: AnalyticsWorkspaceFacetOption[];
     reviewStates: AnalyticsWorkspaceFacetOption[];

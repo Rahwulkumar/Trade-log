@@ -284,11 +284,11 @@ body {
   font-family: var(--font-syne), var(--font-inter), sans-serif;
   font-weight: 700;
   font-size: 2rem;
-  line-height: 1.24;
+  line-height: 1.28;
   letter-spacing: -0.02em;
   color: var(--text-primary);
   display: block;
-  padding-bottom: 0.1em;
+  padding-bottom: 0.16em;
 }
 
 .headline-md {

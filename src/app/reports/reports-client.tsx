@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FileText, RefreshCw } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
@@ -22,12 +22,22 @@ import {
 } from "@/components/ui/loading";
 import { getActivePlaybooks, type Playbook } from "@/lib/api/client/playbooks";
 import {
+  getJournalTemplates,
+  getMistakeDefinitions,
+  getSetupDefinitions,
+} from "@/lib/api/client/journal-structure";
+import {
   deleteReport,
   generateReport,
   getSavedReport,
   getSavedReports,
   saveReport,
 } from "@/lib/api/client/reports";
+import type {
+  JournalTemplate,
+  MistakeDefinition,
+  SetupDefinition,
+} from "@/lib/db/schema";
 import type {
   ReportFilters,
   ReportSnapshot,
@@ -80,6 +90,9 @@ function createInitialFilters(
     symbol: null,
     session: null,
     playbookId: null,
+    setupDefinitionId: null,
+    mistakeDefinitionId: null,
+    journalTemplateId: null,
     setupTag: null,
     mistakeTag: null,
     direction: null,
@@ -95,6 +108,11 @@ export function ReportsClient() {
     createInitialFilters(selectedAccountId),
   );
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
+  const [setupDefinitions, setSetupDefinitions] = useState<SetupDefinition[]>([]);
+  const [mistakeDefinitions, setMistakeDefinitions] = useState<MistakeDefinition[]>(
+    [],
+  );
+  const [journalTemplates, setJournalTemplates] = useState<JournalTemplate[]>([]);
   const [savedReports, setSavedReports] = useState<SavedReportListItem[]>([]);
   const [reportsLoading, setReportsLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -123,13 +141,20 @@ export function ReportsClient() {
       setReportsLoading(true);
       setError(null);
 
-      const [saved, active] = await Promise.all([
+      const [saved, activePlaybooks, activeSetups, activeMistakes, activeTemplates] =
+        await Promise.all([
         getSavedReports(),
         getActivePlaybooks(),
-      ]);
+        getSetupDefinitions({ activeOnly: true }),
+        getMistakeDefinitions({ activeOnly: true }),
+        getJournalTemplates({ activeOnly: true }),
+        ]);
 
       setSavedReports(saved);
-      setPlaybooks(active);
+      setPlaybooks(activePlaybooks);
+      setSetupDefinitions(activeSetups);
+      setMistakeDefinitions(activeMistakes);
+      setJournalTemplates(activeTemplates);
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : "Failed to load reports",
@@ -144,12 +169,6 @@ export function ReportsClient() {
       void loadSavedState();
     }
   }, [authLoading, loadSavedState]);
-
-  const scopeLabel = useMemo(() => {
-    if (filters.accountScope === "all") return "All Accounts";
-    if (filters.accountScope === "unassigned") return "Unassigned";
-    return "Scoped Account";
-  }, [filters.accountScope]);
 
   async function handleGenerate() {
     try {
@@ -237,9 +256,9 @@ export function ReportsClient() {
 
   if (authLoading || reportsLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5 sm:space-y-6">
         <LoadingHeroPanel />
-        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="grid gap-5 sm:gap-6 2xl:grid-cols-[1.15fr_0.85fr]">
           <LoadingPanel rows={6} />
           <LoadingPanel rows={0}>
             <LoadingListRows count={4} compact />
@@ -265,11 +284,11 @@ export function ReportsClient() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <AppPageHeader
         eyebrow="Analytics"
         title="Reports"
-        description="Generate deterministic saved analysis views from your closed trades, inspect the exact buckets, and reopen them later."
+        description="Build simple saved report views from your closed trades, then reopen them whenever you want."
         icon={
           <FileText
             size={18}
@@ -296,11 +315,14 @@ export function ReportsClient() {
         </InsetPanel>
       ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <section className="grid gap-5 sm:gap-6 2xl:grid-cols-[1.15fr_0.85fr]">
         <ReportBuilder
           filters={filters}
           propAccounts={propAccounts}
           playbooks={playbooks}
+          setupDefinitions={setupDefinitions}
+          mistakeDefinitions={mistakeDefinitions}
+          journalTemplates={journalTemplates}
           generating={generating}
           onChange={setFilters}
           onGenerate={() => void handleGenerate()}
@@ -320,24 +342,6 @@ export function ReportsClient() {
         saving={saving}
         onSave={() => void handleSave()}
       />
-
-      <InsetPanel tone="accent">
-        <div>
-          <p className="text-label" style={{ color: "var(--accent-primary)" }}>
-            Report Method
-          </p>
-          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-            Reports now save the deterministic workspace itself. The ranking,
-            filters, grouped buckets, and trade drilldowns come directly from
-            your trade data so the report can be reopened and inspected without
-            relying on AI narration.
-          </p>
-          <p className="mt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
-            Current scope: {scopeLabel} | {filters.from ?? "Start"} {"->"}{" "}
-            {filters.to ?? "Now"} | Saved snapshots: {savedReports.length}
-          </p>
-        </div>
-      </InsetPanel>
     </div>
   );
 }

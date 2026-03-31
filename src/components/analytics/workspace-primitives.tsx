@@ -26,6 +26,9 @@ export const ANALYTICS_WORKSPACE_DIMENSION_OPTIONS: Array<{
   { value: "symbol", label: "Symbol" },
   { value: "session", label: "Session" },
   { value: "playbook", label: "Playbook" },
+  { value: "setup", label: "Setup" },
+  { value: "mistake", label: "Mistake" },
+  { value: "template", label: "Template" },
   { value: "setupTag", label: "Setup Tag" },
   { value: "mistakeTag", label: "Mistake Tag" },
   { value: "direction", label: "Direction" },
@@ -135,92 +138,111 @@ export function AnalyticsWorkspaceDrilldownSheet({
 
           {loading && !drilldown ? <LoadingListRows count={4} compact /> : null}
 
-          {drilldown?.trades.map((trade) => (
-            <ListItemRow
-              key={trade.id}
-              leading={
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="mono text-sm font-bold">{trade.symbol}</span>
-                    <span className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                      {trade.direction}
-                    </span>
-                    <span
-                      className="rounded-full border px-2 py-0.5 text-[10px]"
-                      style={{
-                        borderColor: "var(--border-subtle)",
-                        color: "var(--text-tertiary)",
-                      }}
-                    >
-                      {trade.session}
-                    </span>
-                    {trade.reviewed ? (
+          {drilldown?.trades.map((trade) => {
+            const structuredMistakes = Array.isArray(trade.mistakes)
+              ? trade.mistakes
+              : [];
+            const setupTags = Array.isArray(trade.setupTags)
+              ? trade.setupTags
+              : [];
+            const mistakeTags = Array.isArray(trade.mistakeTags)
+              ? trade.mistakeTags
+              : [];
+
+            return (
+              <ListItemRow
+                key={trade.id}
+                leading={
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="mono text-sm font-bold">{trade.symbol}</span>
+                      <span className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                        {trade.direction}
+                      </span>
                       <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                        className="rounded-full border px-2 py-0.5 text-[10px]"
                         style={{
-                          background: "var(--accent-soft)",
-                          color: "var(--accent-primary)",
+                          borderColor: "var(--border-subtle)",
+                          color: "var(--text-tertiary)",
                         }}
                       >
-                        Reviewed
+                        {trade.session}
                       </span>
+                      {trade.reviewed ? (
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                          style={{
+                            background: "var(--accent-soft)",
+                            color: "var(--accent-primary)",
+                          }}
+                        >
+                          Reviewed
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                      {trade.playbook}
+                    </p>
+                    {trade.setup || trade.template || structuredMistakes.length > 0 ? (
+                      <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                        Setup: {trade.setup ?? "--"}
+                        {" | "}
+                        Template: {trade.template ?? "--"}
+                        {" | "}
+                        Mistakes:{" "}
+                        {structuredMistakes.length > 0
+                          ? structuredMistakes.join(", ")
+                          : "--"}
+                      </p>
+                    ) : null}
+                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                      Entry {formatWorkspaceDateTime(trade.entryAt)} | Exit{" "}
+                      {formatWorkspaceDateTime(trade.exitAt)}
+                    </p>
+                    {setupTags.length > 0 || mistakeTags.length > 0 ? (
+                      <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                        Setup Tags: {setupTags.length > 0 ? setupTags.join(", ") : "--"}
+                        {" | "}
+                        Mistake Tags:{" "}
+                        {mistakeTags.length > 0 ? mistakeTags.join(", ") : "--"}
+                      </p>
                     ) : null}
                   </div>
-                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                    {trade.playbook}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    Entry {formatWorkspaceDateTime(trade.entryAt)} | Exit{" "}
-                    {formatWorkspaceDateTime(trade.exitAt)}
-                  </p>
-                  {trade.setupTags.length > 0 || trade.mistakeTags.length > 0 ? (
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      Setup:{" "}
-                      {trade.setupTags.length > 0
-                        ? trade.setupTags.join(", ")
-                        : "--"}
-                      {" | "}
-                      Mistakes:{" "}
-                      {trade.mistakeTags.length > 0
-                        ? trade.mistakeTags.join(", ")
-                        : "--"}
-                    </p>
-                  ) : null}
-                </div>
-              }
-              trailing={
-                <div className="flex flex-col items-end gap-2">
-                  <div className="text-right">
-                    <p
-                      className="text-sm font-semibold"
-                      style={{
-                        color:
-                          trade.netPnl >= 0
-                            ? "var(--profit-primary)"
-                            : "var(--loss-primary)",
-                      }}
-                    >
-                      {formatWorkspaceSignedMoney(trade.netPnl)}
-                    </p>
-                    <p
-                      className="text-xs"
-                      style={{ color: "var(--text-tertiary)" }}
-                    >
-                      {trade.rMultiple == null
-                        ? "--"
-                        : `${trade.rMultiple.toFixed(2)}R`}
-                    </p>
+                }
+                trailing={
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="text-right">
+                      <p
+                        className="text-sm font-semibold"
+                        style={{
+                          color:
+                            trade.netPnl >= 0
+                              ? "var(--profit-primary)"
+                              : "var(--loss-primary)",
+                        }}
+                      >
+                        {formatWorkspaceSignedMoney(trade.netPnl)}
+                      </p>
+                      <p
+                        className="text-xs"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        {trade.rMultiple == null
+                          ? "--"
+                          : `${trade.rMultiple.toFixed(2)}R`}
+                      </p>
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/journal?trade=${trade.id}`}>
+                        <BookOpenText className="h-4 w-4" />
+                        Open Journal
+                      </Link>
+                    </Button>
                   </div>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/journal?trade=${trade.id}`}>
-                      <BookOpenText className="h-4 w-4" />
-                      Open Journal
-                    </Link>
-                  </Button>
-                </div>
-              }
-            />
-          ))}
+                }
+              />
+            );
+          })}
         </div>
       </SheetContent>
     </Sheet>

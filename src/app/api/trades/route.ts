@@ -1,7 +1,7 @@
 import { requireAuth } from '@/lib/auth/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getTrades, createTrade } from '@/lib/api/trades';
-import type { TradeFilters } from '@/lib/api/trades';
+import type { TradeFilters, TradeInsert } from '@/lib/api/trades';
 import { parseTradeCreatePayload } from '@/lib/validation/trades';
 
 function parseOptionalInt(value: string | null): number | undefined {
@@ -59,7 +59,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const trade = await createTrade(userId, result.data);
+    const payload: Omit<TradeInsert, 'userId'> = {
+      ...result.data,
+      tradeRuleResults: (result.data.tradeRuleResults ?? []) as Record<string, unknown>[],
+    };
+
+    const trade = await createTrade(userId, payload);
     return NextResponse.json(trade, { status: 201 });
   } catch (routeError) {
     const message =

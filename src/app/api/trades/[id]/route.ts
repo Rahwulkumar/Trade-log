@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/server';
 import { deleteTrade, getTrade, updateTrade } from '@/lib/api/trades';
+import type { TradeUpdate } from '@/lib/api/trades';
 import { parseTradeUpdatePayload } from '@/lib/validation/trades';
 
 export async function GET(
@@ -48,7 +49,15 @@ export async function PATCH(
   }
 
   try {
-    const trade = await updateTrade(id, userId, result.data);
+    const updates = { ...result.data } as TradeUpdate;
+    if (Object.prototype.hasOwnProperty.call(result.data, 'tradeRuleResults')) {
+      updates.tradeRuleResults = (result.data.tradeRuleResults ?? []) as Record<
+        string,
+        unknown
+      >[];
+    }
+
+    const trade = await updateTrade(id, userId, updates);
     return NextResponse.json(trade);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to update trade';

@@ -1,11 +1,14 @@
 import type { Trade } from "@/lib/db/schema";
+import { RULE_ITEM_STATUSES } from "@/lib/rulebooks/types";
 import type { TradeScreenshot as SupabaseScreenshot } from "@/lib/supabase/types";
+import { normalizeJournalTemplateConfig } from "@/lib/journal-structure/types";
 import { resolveTradingSession } from "@/lib/trading-session";
 import {
   EMPTY_JOURNAL_REVIEW,
   type JournalEntryDraft,
   type JournalReview,
   type JournalScreenshot,
+  type JournalTradeRuleResult,
   type JournalSession,
   type JournalTradeViewModel,
   type QualityRating,
@@ -79,6 +82,46 @@ function parseTfObservations(raw: unknown): Record<string, TfObservation> {
   }
 
   return result;
+}
+
+function parseTradeRuleResults(raw: unknown): JournalTradeRuleResult[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+
+    const record = item as Record<string, unknown>;
+    const ruleItemId =
+      typeof record.ruleItemId === "string" ? record.ruleItemId.trim() : "";
+    const title = typeof record.title === "string" ? record.title.trim() : "";
+    const category =
+      typeof record.category === "string" ? record.category.trim() || null : null;
+    const severity =
+      typeof record.severity === "string" ? record.severity.trim() || null : null;
+    const status =
+      typeof record.status === "string" &&
+      RULE_ITEM_STATUSES.includes(record.status as (typeof RULE_ITEM_STATUSES)[number])
+        ? (record.status as JournalTradeRuleResult["status"])
+        : null;
+
+    if (!ruleItemId || !title || !status) {
+      return [];
+    }
+
+    return [
+      {
+        ruleItemId,
+        title,
+        category,
+        severity,
+        status,
+      },
+    ];
+  });
 }
 
 function parseQuality(raw: string | null | undefined): QualityRating | null {
@@ -220,6 +263,23 @@ export function mapTradeToViewModel(trade: Trade): JournalTradeViewModel {
     takeProfit: trade.takeProfit != null ? Number(trade.takeProfit) : null,
     propAccountId: trade.propAccountId ?? null,
     playbookId: trade.playbookId ?? null,
+    setupDefinitionId: trade.setupDefinitionId ?? null,
+    mistakeDefinitionIds: Array.isArray(trade.mistakeDefinitionIds)
+      ? trade.mistakeDefinitionIds.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [],
+    journalTemplateId: trade.journalTemplateId ?? null,
+    ruleSetId: trade.ruleSetId ?? null,
+    tradeRuleResults: parseTradeRuleResults(trade.tradeRuleResults),
+    journalTemplateSnapshot:
+      trade.journalTemplateSnapshot &&
+      typeof trade.journalTemplateSnapshot === "object" &&
+      !Array.isArray(trade.journalTemplateSnapshot)
+        ? normalizeJournalTemplateConfig(
+            trade.journalTemplateSnapshot as Record<string, unknown>,
+          )
+        : null,
     createdAt:
       trade.createdAt instanceof Date
         ? trade.createdAt.toISOString()
@@ -256,6 +316,14 @@ export function viewModelToDraft(
     feelings: viewModel.feelings,
     observations: viewModel.observations,
     playbookId: viewModel.playbookId,
+    setupDefinitionId: viewModel.setupDefinitionId,
+    mistakeDefinitionIds: [...viewModel.mistakeDefinitionIds],
+    journalTemplateId: viewModel.journalTemplateId,
+    ruleSetId: viewModel.ruleSetId,
+    tradeRuleResults: [...viewModel.tradeRuleResults],
+    journalTemplateSnapshot: viewModel.journalTemplateSnapshot
+      ? normalizeJournalTemplateConfig(viewModel.journalTemplateSnapshot)
+      : null,
     setupTags: [...viewModel.setupTags],
     mistakeTags: [...viewModel.mistakeTags],
     session: viewModel.session,
@@ -301,6 +369,16 @@ export function mapDraftToTradeUpdate(
     tf_observations: Object.keys(draft.tfObservations).length
       ? draft.tfObservations
       : null,
+    setup_definition_id: draft.setupDefinitionId,
+    mistake_definition_ids: draft.mistakeDefinitionIds,
+    journal_template_id: draft.journalTemplateId,
+    rule_set_id: draft.ruleSetId,
+    trade_rule_results: draft.tradeRuleResults.length
+      ? draft.tradeRuleResults
+      : null,
+    journal_template_snapshot: draft.journalTemplateSnapshot
+      ? normalizeJournalTemplateConfig(draft.journalTemplateSnapshot)
+      : null,
     setup_tags: draft.setupTags.length ? draft.setupTags : null,
     mistake_tags: draft.mistakeTags.length ? draft.mistakeTags : null,
     playbook_id: draft.playbookId,
@@ -328,6 +406,9 @@ export function isTradeJournaled(viewModel: JournalTradeViewModel): boolean {
       viewModel.executionNotes ||
       viewModel.conviction ||
       viewModel.marketCondition ||
+      viewModel.setupDefinitionId ||
+      viewModel.mistakeDefinitionIds.length > 0 ||
+      viewModel.tradeRuleResults.length > 0 ||
       viewModel.setupTags.length > 0 ||
       viewModel.mistakeTags.length > 0 ||
       viewModel.managementRating ||
@@ -386,6 +467,14 @@ export function mapDraftToApiUpdate(
     journalReview,
     tfObservations: Object.keys(draft.tfObservations).length
       ? draft.tfObservations
+      : null,
+    setupDefinitionId: draft.setupDefinitionId,
+    mistakeDefinitionIds: draft.mistakeDefinitionIds,
+    journalTemplateId: draft.journalTemplateId,
+    ruleSetId: draft.ruleSetId,
+    tradeRuleResults: draft.tradeRuleResults.length ? draft.tradeRuleResults : null,
+    journalTemplateSnapshot: draft.journalTemplateSnapshot
+      ? normalizeJournalTemplateConfig(draft.journalTemplateSnapshot)
       : null,
     setupTags: draft.setupTags.length ? draft.setupTags : null,
     mistakeTags: draft.mistakeTags.length ? draft.mistakeTags : null,

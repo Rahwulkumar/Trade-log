@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/auth/server';
 import {
   buildAnalyticsWorkspaceQueryFromReportFilters,
   createWorkspaceReportSnapshot,
-  getDefaultReportQuerySettings,
+  normalizeReportFilters,
 } from '@/lib/reports/workspace-report';
 import { parseReportGeneratePayload } from '@/lib/validation/reports';
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const filters = {
+    const filters = normalizeReportFilters({
       title: result.data.title ?? null,
       reportType: result.data.reportType,
       accountScope: result.data.accountScope,
@@ -29,23 +29,22 @@ export async function POST(request: NextRequest) {
       from: result.data.from ?? null,
       to: result.data.to ?? null,
       includeAi: false,
-      groupBy:
-        result.data.groupBy ??
-        getDefaultReportQuerySettings(result.data.reportType).groupBy,
-      measure:
-        result.data.measure ??
-        getDefaultReportQuerySettings(result.data.reportType).measure,
+      groupBy: result.data.groupBy,
+      measure: result.data.measure,
       sortOrder: result.data.sortOrder ?? 'desc',
       limit: result.data.limit ?? 24,
       timeZone: result.data.timeZone ?? null,
       symbol: result.data.symbol ?? null,
       session: result.data.session ?? null,
       playbookId: result.data.playbookId ?? null,
+      setupDefinitionId: result.data.setupDefinitionId ?? null,
+      mistakeDefinitionId: result.data.mistakeDefinitionId ?? null,
+      journalTemplateId: result.data.journalTemplateId ?? null,
       setupTag: result.data.setupTag ?? null,
       mistakeTag: result.data.mistakeTag ?? null,
       direction: result.data.direction ?? null,
       reviewStatus: result.data.reviewStatus ?? null,
-    } as const;
+    });
 
     const workspace = await getAnalyticsWorkspaceResult(
       userId,

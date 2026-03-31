@@ -43,6 +43,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   createPlaybook,
   deletePlaybook,
@@ -56,6 +57,10 @@ import {
   PlaybookCard,
 } from "@/components/playbooks/playbook-card";
 import { PlaybookManageDialog } from "@/components/playbooks/playbook-manage-dialog";
+import { SetupLibraryPanel } from "@/components/playbooks/setup-library-panel";
+import { MistakeLibraryPanel } from "@/components/playbooks/mistake-library-panel";
+import { JournalTemplateLibraryPanel } from "@/components/playbooks/journal-template-library-panel";
+import { RulebookLibraryPanel } from "@/components/playbooks/rulebook-library-panel";
 import {
   EMPTY_PLAYBOOK_STATS,
   normalizePlaybook,
@@ -67,7 +72,7 @@ type StatusFilter = "all" | "active" | "paused";
 
 export default function PlaybooksPage() {
   const { user, isConfigured, loading: authLoading } = useAuth();
-  const { selectedAccountId } = usePropAccount();
+  const { selectedAccountId, propAccounts } = usePropAccount();
 
   const [playbooks, setPlaybooks] = useState<PlaybookCardData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -287,6 +292,15 @@ export default function PlaybooksPage() {
     [deferredSearch, playbooks, statusFilter],
   );
 
+  const playbookOptions = useMemo(
+    () =>
+      playbooks.map((playbook) => ({
+        id: playbook.id,
+        name: playbook.name,
+      })),
+    [playbooks],
+  );
+
   if (!authLoading && !isConfigured) {
     return (
       <div className="page-root page-sections">
@@ -323,7 +337,7 @@ export default function PlaybooksPage() {
       <AppPageHeader
         eyebrow="Strategies"
         title="Playbooks"
-        description="Document repeatable setups and track their execution outcomes."
+        description="Manage strategies, setups, mistakes, and journal templates from one structured library."
         actions={
           <>
             <Button
@@ -457,168 +471,199 @@ export default function PlaybooksPage() {
         </InsetPanel>
       ) : null}
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {summaryCards.map((card) => (
-          <AppMetricCard
-            key={card.label}
-            label={card.label}
-            value={card.value}
-            tone={card.tone}
-          />
-        ))}
-      </section>
+      <Tabs defaultValue="strategies" className="space-y-5">
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:grid-cols-5">
+          <TabsTrigger value="strategies">Strategies</TabsTrigger>
+          <TabsTrigger value="setups">Setups</TabsTrigger>
+          <TabsTrigger value="mistakes">Mistakes</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="rulebooks">Rulebooks</TabsTrigger>
+        </TabsList>
 
-      {!loading && playbooks.length > 0 ? (
-        <ControlSurface className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-            <FieldGroup
-              label="Search library"
-              meta={
-                <span
-                  className="text-[0.72rem]"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  {filtered.length} result{filtered.length === 1 ? "" : "s"}
-                </span>
-              }
-            >
-              <div className="relative max-w-xl">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-                  style={{ color: "var(--text-tertiary)" }}
-                />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search playbooks..."
-                  className="pl-9"
-                />
-              </div>
-            </FieldGroup>
-
-            <FieldGroup label="Status">
-              <div className="flex flex-wrap gap-2">
-                <ChoiceChip
-                  active={statusFilter === "all"}
-                  onClick={() => setStatusFilter("all")}
-                >
-                  All
-                </ChoiceChip>
-                <ChoiceChip
-                  active={statusFilter === "active"}
-                  onClick={() => setStatusFilter("active")}
-                  activeColor="var(--profit-primary)"
-                  activeBackground="var(--profit-bg)"
-                  activeBorderColor="var(--profit-primary)"
-                >
-                  Active
-                </ChoiceChip>
-                <ChoiceChip
-                  active={statusFilter === "paused"}
-                  onClick={() => setStatusFilter("paused")}
-                  activeColor="var(--warning-primary)"
-                  activeBackground="var(--warning-bg)"
-                  activeBorderColor="var(--warning-primary)"
-                >
-                  Paused
-                </ChoiceChip>
-              </div>
-            </FieldGroup>
-          </div>
-        </ControlSurface>
-      ) : null}
-
-      {loading ? (
-        <>
-          <LoadingMetricGrid />
-          <LoadingPanel rows={2} />
-          <LoadingListRows count={6} />
-        </>
-      ) : null}
-
-      {!loading && playbooks.length === 0 ? (
-        <AppPanelEmptyState
-          title="No playbooks yet"
-          description="Start by creating your first strategy template, then track how it performs across accounts."
-          action={
-            <Button onClick={() => setIsNewPlaybookOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Create First Playbook
-            </Button>
-          }
-        />
-      ) : null}
-
-      {!loading && playbooks.length > 0 && filtered.length === 0 ? (
-        <AppPanelEmptyState
-          title="No playbooks match these filters"
-          description="Try a broader search or clear the status filter to bring the full library back into view."
-          action={
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("all");
-              }}
-            >
-              Clear Filters
-            </Button>
-          }
-        />
-      ) : null}
-
-      {!loading && filtered.length > 0 ? (
-        <>
-          <SectionHeader
-            title="Playbook Library"
-            subtitle="Review the strategy catalog, monitor performance, and keep each template current."
-          />
-
-          <motion.section
-            className="grid gap-5 md:grid-cols-2 xl:grid-cols-3"
-            initial="hidden"
-            animate="show"
-            variants={{
-              hidden: {},
-              show: { transition: { staggerChildren: 0.06 } },
-            }}
-          >
-            {filtered.map((playbook) => (
-              <motion.div
-                key={playbook.id}
-                variants={{
-                  hidden: { opacity: 0, y: 14 },
-                  show: {
-                    opacity: 1,
-                    y: 0,
-                    transition: { duration: 0.25 },
-                  },
-                }}
-                className="h-full"
-              >
-                <PlaybookCard
-                  playbook={playbook}
-                  onManage={setManagedPlaybookId}
-                  onDuplicate={handleDuplicate}
-                  onToggleActive={handleToggleActive}
-                  onDelete={handleDelete}
-                />
-              </motion.div>
+        <TabsContent value="strategies" className="space-y-5">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {summaryCards.map((card) => (
+              <AppMetricCard
+                key={card.label}
+                label={card.label}
+                value={card.value}
+                tone={card.tone}
+              />
             ))}
-          </motion.section>
-        </>
-      ) : null}
+          </section>
 
-      <PlaybookManageDialog
-        playbookId={managedPlaybookId}
-        open={managedPlaybookId !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setManagedPlaybookId(null);
-          }
-        }}
-        onSaved={handleManageSaved}
-      />
+          {!loading && playbooks.length > 0 ? (
+            <ControlSurface className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <FieldGroup
+                  label="Search library"
+                  meta={
+                    <span
+                      className="text-[0.72rem]"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {filtered.length} result{filtered.length === 1 ? "" : "s"}
+                    </span>
+                  }
+                >
+                  <div className="relative max-w-xl">
+                    <Search
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                      style={{ color: "var(--text-tertiary)" }}
+                    />
+                    <Input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search playbooks..."
+                      className="pl-9"
+                    />
+                  </div>
+                </FieldGroup>
+
+                <FieldGroup label="Status">
+                  <div className="flex flex-wrap gap-2">
+                    <ChoiceChip
+                      active={statusFilter === "all"}
+                      onClick={() => setStatusFilter("all")}
+                    >
+                      All
+                    </ChoiceChip>
+                    <ChoiceChip
+                      active={statusFilter === "active"}
+                      onClick={() => setStatusFilter("active")}
+                      activeColor="var(--profit-primary)"
+                      activeBackground="var(--profit-bg)"
+                      activeBorderColor="var(--profit-primary)"
+                    >
+                      Active
+                    </ChoiceChip>
+                    <ChoiceChip
+                      active={statusFilter === "paused"}
+                      onClick={() => setStatusFilter("paused")}
+                      activeColor="var(--warning-primary)"
+                      activeBackground="var(--warning-bg)"
+                      activeBorderColor="var(--warning-primary)"
+                    >
+                      Paused
+                    </ChoiceChip>
+                  </div>
+                </FieldGroup>
+              </div>
+            </ControlSurface>
+          ) : null}
+
+          {loading ? (
+            <>
+              <LoadingMetricGrid />
+              <LoadingPanel rows={2} />
+              <LoadingListRows count={6} />
+            </>
+          ) : null}
+
+          {!loading && playbooks.length === 0 ? (
+            <AppPanelEmptyState
+              title="No playbooks yet"
+              description="Start by creating your first strategy template, then track how it performs across accounts."
+              action={
+                <Button onClick={() => setIsNewPlaybookOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Create First Playbook
+                </Button>
+              }
+            />
+          ) : null}
+
+          {!loading && playbooks.length > 0 && filtered.length === 0 ? (
+            <AppPanelEmptyState
+              title="No playbooks match these filters"
+              description="Try a broader search or clear the status filter to bring the full library back into view."
+              action={
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearch("");
+                    setStatusFilter("all");
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              }
+            />
+          ) : null}
+
+          {!loading && filtered.length > 0 ? (
+            <>
+              <SectionHeader
+                title="Playbook Library"
+                subtitle="Review the strategy catalog, monitor performance, and keep each template current."
+              />
+
+              <motion.section
+                className="grid gap-5 md:grid-cols-2 xl:grid-cols-3"
+                initial="hidden"
+                animate="show"
+                variants={{
+                  hidden: {},
+                  show: { transition: { staggerChildren: 0.06 } },
+                }}
+              >
+                {filtered.map((playbook) => (
+                  <motion.div
+                    key={playbook.id}
+                    variants={{
+                      hidden: { opacity: 0, y: 14 },
+                      show: {
+                        opacity: 1,
+                        y: 0,
+                        transition: { duration: 0.25 },
+                      },
+                    }}
+                    className="h-full"
+                  >
+                    <PlaybookCard
+                      playbook={playbook}
+                      onManage={setManagedPlaybookId}
+                      onDuplicate={handleDuplicate}
+                      onToggleActive={handleToggleActive}
+                      onDelete={handleDelete}
+                    />
+                  </motion.div>
+                ))}
+              </motion.section>
+            </>
+          ) : null}
+
+          <PlaybookManageDialog
+            playbookId={managedPlaybookId}
+            open={managedPlaybookId !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setManagedPlaybookId(null);
+              }
+            }}
+            onSaved={handleManageSaved}
+          />
+        </TabsContent>
+
+        <TabsContent value="setups">
+          <SetupLibraryPanel playbooks={playbookOptions} />
+        </TabsContent>
+
+        <TabsContent value="mistakes">
+          <MistakeLibraryPanel />
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <JournalTemplateLibraryPanel playbooks={playbookOptions} />
+        </TabsContent>
+
+        <TabsContent value="rulebooks">
+          <RulebookLibraryPanel
+            playbooks={playbookOptions}
+            propAccounts={propAccounts}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

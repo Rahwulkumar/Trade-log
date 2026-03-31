@@ -3,6 +3,7 @@ import type {
   AnalyticsWorkspaceMeasure,
   AnalyticsWorkspaceResult,
   AnalyticsWorkspaceReviewState,
+  AnalyticsWorkspaceScopedFilterId,
   AnalyticsWorkspaceSortOrder,
 } from "@/lib/analytics/workspace-types";
 
@@ -29,7 +30,10 @@ export interface ReportFilters {
   timeZone: string | null;
   symbol: string | null;
   session: string | null;
-  playbookId: string | null;
+  playbookId: AnalyticsWorkspaceScopedFilterId;
+  setupDefinitionId: AnalyticsWorkspaceScopedFilterId;
+  mistakeDefinitionId: AnalyticsWorkspaceScopedFilterId;
+  journalTemplateId: AnalyticsWorkspaceScopedFilterId;
   setupTag: string | null;
   mistakeTag: string | null;
   direction: 'LONG' | 'SHORT' | null;

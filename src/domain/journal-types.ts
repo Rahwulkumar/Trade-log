@@ -1,3 +1,6 @@
+import type { JournalTemplateConfig } from "@/lib/journal-structure/types";
+import type { RuleItemStatus, TradeRuleResult } from "@/lib/rulebooks/types";
+
 export type QualityRating = 1 | 2 | 3 | 4 | 5;
 
 export type JournalSession =
@@ -13,6 +16,8 @@ export type JournalAlignment =
   | "unclear";
 
 export type JournalRetakeDecision = "yes" | "maybe" | "no";
+export type JournalRuleStatus = RuleItemStatus;
+export type JournalTradeRuleResult = TradeRuleResult;
 
 export interface TfObservation {
   bias?: string;
@@ -68,6 +73,12 @@ export interface JournalTradeViewModel {
   takeProfit: number | null;
   propAccountId: string | null;
   playbookId: string | null;
+  setupDefinitionId: string | null;
+  mistakeDefinitionIds: string[];
+  journalTemplateId: string | null;
+  ruleSetId: string | null;
+  tradeRuleResults: JournalTradeRuleResult[];
+  journalTemplateSnapshot: JournalTemplateConfig | null;
   createdAt: string | null;
   marketCondition: string | null;
   notes: string;
@@ -96,6 +107,12 @@ export interface JournalEntryDraft {
   feelings: string;
   observations: string;
   playbookId: string | null;
+  setupDefinitionId: string | null;
+  mistakeDefinitionIds: string[];
+  journalTemplateId: string | null;
+  ruleSetId: string | null;
+  tradeRuleResults: JournalTradeRuleResult[];
+  journalTemplateSnapshot: JournalTemplateConfig | null;
   setupTags: string[];
   mistakeTags: string[];
   session: JournalSession | null;

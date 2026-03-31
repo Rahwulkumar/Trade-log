@@ -175,6 +175,18 @@ export const trades = pgTable('trades', {
   userId: text('user_id').notNull(),
   propAccountId: uuid('prop_account_id').references(() => propAccounts.id, { onDelete: 'set null' }),
   playbookId: uuid('playbook_id').references(() => playbooks.id, { onDelete: 'set null' }),
+  setupDefinitionId: uuid('setup_definition_id').references(
+    () => setupDefinitions.id,
+    { onDelete: 'set null' },
+  ),
+  journalTemplateId: uuid('journal_template_id').references(
+    () => journalTemplates.id,
+    { onDelete: 'set null' },
+  ),
+  ruleSetId: uuid('rule_set_id').references(
+    () => ruleSets.id,
+    { onDelete: 'set null' },
+  ),
 
   // Core trade data
   symbol: text('symbol').notNull(),
@@ -218,6 +230,14 @@ export const trades = pgTable('trades', {
   marketCondition: text('market_condition'), // Trending | Ranging | Choppy | High Volatility
   setupTags: text('setup_tags').array(),
   mistakeTags: text('mistake_tags').array(),
+  mistakeDefinitionIds: jsonb('mistake_definition_ids')
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  tradeRuleResults: jsonb('trade_rule_results')
+    .$type<Record<string, unknown>[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
   entryRating: text('entry_rating'), // Good | Neutral | Poor
   exitRating: text('exit_rating'),
   managementRating: text('management_rating'),
@@ -225,6 +245,8 @@ export const trades = pgTable('trades', {
   lessonLearned: text('lesson_learned'),
   wouldTakeAgain: boolean('would_take_again'),
   journalReview: jsonb('journal_review').default({}),
+  journalTemplateSnapshot: jsonb('journal_template_snapshot')
+    .$type<Record<string, unknown> | null>(),
 
   // Command center fields (20260209000000_journal_detail_command_center)
   tfObservations: jsonb('tf_observations').default({}),
@@ -387,6 +409,114 @@ export const journalEntries = pgTable('journal_entries', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const journalTemplates = pgTable('journal_templates', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  scopeType: text('scope_type').notNull().default('global'),
+  playbookId: uuid('playbook_id').references(() => playbooks.id, {
+    onDelete: 'set null',
+  }),
+  config: jsonb('config').notNull().default(sql`'{}'::jsonb`),
+  version: integer('version').notNull().default(1),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('journal_templates_user_scope_idx').on(table.userId, table.scopeType),
+]);
+
+export const setupDefinitions = pgTable('setup_definitions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: text('user_id').notNull(),
+  playbookId: uuid('playbook_id').references(() => playbooks.id, {
+    onDelete: 'set null',
+  }),
+  defaultTemplateId: uuid('default_template_id').references(
+    () => journalTemplates.id,
+    { onDelete: 'set null' },
+  ),
+  name: text('name').notNull(),
+  description: text('description'),
+  preferredSession: text('preferred_session'),
+  preferredMarketCondition: text('preferred_market_condition'),
+  entryCriteria: jsonb('entry_criteria').notNull().default(sql`'[]'::jsonb`),
+  invalidationRules: text('invalidation_rules'),
+  managementNotes: text('management_notes'),
+  exampleNotes: text('example_notes'),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('setup_definitions_user_playbook_idx').on(table.userId, table.playbookId),
+]);
+
+export const mistakeDefinitions = pgTable('mistake_definitions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  category: text('category'),
+  severity: text('severity'),
+  description: text('description'),
+  correctionGuidance: text('correction_guidance'),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('mistake_definitions_user_category_idx').on(table.userId, table.category),
+]);
+
+export const ruleSets = pgTable('rule_sets', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  scopeType: text('scope_type').notNull().default('global'),
+  playbookId: uuid('playbook_id').references(() => playbooks.id, {
+    onDelete: 'set null',
+  }),
+  setupDefinitionId: uuid('setup_definition_id').references(
+    () => setupDefinitions.id,
+    { onDelete: 'set null' },
+  ),
+  journalTemplateId: uuid('journal_template_id').references(
+    () => journalTemplates.id,
+    { onDelete: 'set null' },
+  ),
+  propAccountId: uuid('prop_account_id').references(() => propAccounts.id, {
+    onDelete: 'set null',
+  }),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('rule_sets_user_scope_idx').on(table.userId, table.scopeType),
+  index('rule_sets_user_playbook_idx').on(table.userId, table.playbookId),
+  index('rule_sets_user_setup_idx').on(table.userId, table.setupDefinitionId),
+  index('rule_sets_user_template_idx').on(table.userId, table.journalTemplateId),
+  index('rule_sets_user_account_idx').on(table.userId, table.propAccountId),
+]);
+
+export const ruleSetItems = pgTable('rule_set_items', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: text('user_id').notNull(),
+  ruleSetId: uuid('rule_set_id')
+    .notNull()
+    .references(() => ruleSets.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description'),
+  category: text('category'),
+  severity: text('severity'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('rule_set_items_rule_set_idx').on(table.ruleSetId, table.sortOrder),
+  index('rule_set_items_user_category_idx').on(table.userId, table.category),
+]);
+
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SAVED REPORTS
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -439,6 +569,21 @@ export type PropAccountInsert = typeof propAccounts.$inferInsert;
 
 export type Playbook = typeof playbooks.$inferSelect;
 export type PlaybookInsert = typeof playbooks.$inferInsert;
+
+export type JournalTemplate = typeof journalTemplates.$inferSelect;
+export type JournalTemplateInsert = typeof journalTemplates.$inferInsert;
+
+export type SetupDefinition = typeof setupDefinitions.$inferSelect;
+export type SetupDefinitionInsert = typeof setupDefinitions.$inferInsert;
+
+export type MistakeDefinition = typeof mistakeDefinitions.$inferSelect;
+export type MistakeDefinitionInsert = typeof mistakeDefinitions.$inferInsert;
+
+export type RuleSet = typeof ruleSets.$inferSelect;
+export type RuleSetInsert = typeof ruleSets.$inferInsert;
+
+export type RuleSetItem = typeof ruleSetItems.$inferSelect;
+export type RuleSetItemInsert = typeof ruleSetItems.$inferInsert;
 
 export type Trade = typeof trades.$inferSelect;
 export type TradeInsert = typeof trades.$inferInsert;

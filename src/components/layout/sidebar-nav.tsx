@@ -14,6 +14,7 @@ import {
   IconAnalytics,
   IconPlaybooks,
   IconStrategies,
+  IconCalendar,
   IconJournal,
   IconReports,
   IconPropFirm,
@@ -34,6 +35,7 @@ const NAV_GROUPS = [
     label: "Trading",
     items: [
       { href: "/journal", label: "Journal", Icon: IconJournal },
+      { href: "/calendar", label: "Calendar", Icon: IconCalendar },
       { href: "/playbooks", label: "Playbooks", Icon: IconPlaybooks },
       { href: "/strategies", label: "Strategies", Icon: IconStrategies },
     ],
