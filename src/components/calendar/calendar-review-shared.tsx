@@ -433,7 +433,7 @@ function CalendarCompactStat({
   tone?: CalendarTone;
 }) {
   return (
-    <div className="min-w-[170px] sm:min-w-0">
+    <div className="calendar-review-stat-item">
       <AppMetricCard
         label={label}
         value={value}
@@ -459,7 +459,7 @@ export function CalendarCompactStatStrip({
   }>;
 }) {
   return (
-    <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 xl:grid-cols-2">
+    <div className="calendar-review-stat-strip -mx-1 px-1 pb-1">
       {stats.map((stat) => (
         <CalendarCompactStat
           key={stat.label}

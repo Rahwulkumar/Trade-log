@@ -39,8 +39,8 @@ export function CalendarWorkspaceHero({
   onResetMonth: () => void;
 }) {
   return (
-    <AppPanel className="overflow-hidden p-0">
-      <div className="grid gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-6 min-[1700px]:grid-cols-[minmax(0,1fr)_minmax(260px,auto)] min-[1700px]:items-end">
+    <AppPanel className="calendar-review-hero overflow-hidden p-0">
+      <div className="calendar-review-hero-grid px-4 py-4 sm:gap-5 sm:px-6 sm:py-6">
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="badge-accent rounded-full px-2.5 py-1">Calendar Review</span>
@@ -59,7 +59,7 @@ export function CalendarWorkspaceHero({
         </div>
 
         <div
-          className="w-full rounded-[24px] border p-3 sm:p-4 min-[1700px]:w-auto"
+          className="calendar-review-hero-aside rounded-[24px] border p-3 sm:p-4"
           style={{
             background: "var(--surface-elevated)",
             borderColor: "var(--border-subtle)",
@@ -96,7 +96,7 @@ export function CalendarWorkspaceHero({
       </div>
 
       <div className="border-t border-border px-4 py-4 sm:px-6">
-        <div className="grid gap-4 min-[1900px]:grid-cols-[minmax(0,1fr)_auto] min-[1900px]:items-end">
+        <div className="calendar-review-toolbar-grid">
           <div className="space-y-2">
             <p className="text-label">Lens</p>
             <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
@@ -149,9 +149,9 @@ export function CalendarSummaryStrip({
 }) {
   return (
     <section className={cn("overflow-hidden", className)}>
-      <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-1 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 min-[1700px]:grid-cols-4">
+      <div className="calendar-review-summary-grid -mx-1 px-1 pb-1">
         {cards.map((card) => (
-          <div key={card.label} className="min-w-[250px] md:min-w-0">
+          <div key={card.label} className="calendar-review-summary-item">
             <AppMetricCard
               label={card.label}
               value={card.value}

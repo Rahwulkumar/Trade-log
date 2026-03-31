@@ -564,6 +564,185 @@ p.stat-huge {
   gap: 1.5rem;
 }
 
+.calendar-review-shell {
+  container-type: inline-size;
+  container-name: calendar-review;
+}
+
+.calendar-review-hero-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.calendar-review-hero-aside {
+  width: 100%;
+}
+
+.calendar-review-toolbar-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.calendar-review-summary-grid {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+}
+
+.calendar-review-summary-item {
+  flex: 0 0 16rem;
+  min-width: 16rem;
+}
+
+.calendar-review-main-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.calendar-review-agenda-shell {
+  display: block;
+}
+
+.calendar-review-board-shell {
+  display: none;
+}
+
+.calendar-review-board-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.calendar-review-board-grid {
+  min-width: 48rem;
+}
+
+.calendar-review-day-inspector {
+  container-type: inline-size;
+  container-name: calendar-day-inspector;
+}
+
+.calendar-review-stat-strip {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+}
+
+.calendar-review-stat-item {
+  flex: 0 0 10.5rem;
+  min-width: 10.5rem;
+}
+
+.calendar-review-plan-grid,
+.calendar-review-rule-summary-grid,
+.calendar-review-coverage-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.calendar-review-plan-check-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.calendar-review-plan-notes-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@container calendar-review (min-width: 48rem) {
+  .calendar-review-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .calendar-review-summary-item {
+    min-width: 0;
+  }
+}
+
+@container calendar-review (min-width: 72rem) {
+  .calendar-review-hero-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, auto);
+    align-items: end;
+  }
+
+  .calendar-review-hero-aside {
+    width: auto;
+  }
+
+  .calendar-review-agenda-shell {
+    display: none !important;
+  }
+
+  .calendar-review-board-shell {
+    display: block !important;
+  }
+}
+
+@container calendar-review (min-width: 80rem) {
+  .calendar-review-toolbar-grid {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .calendar-review-board-toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+@container calendar-review (min-width: 96rem) {
+  .calendar-review-main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.28fr) minmax(24rem, 0.72fr);
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .calendar-review-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .calendar-review-board-grid {
+    min-width: 52rem;
+  }
+
+  .calendar-review-inspector-shell {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+  }
+}
+
+@container calendar-day-inspector (min-width: 34rem) {
+  .calendar-review-stat-strip,
+  .calendar-review-plan-grid,
+  .calendar-review-rule-summary-grid,
+  .calendar-review-coverage-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .calendar-review-stat-item {
+    min-width: 0;
+  }
+
+  .calendar-review-plan-notes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container calendar-day-inspector (min-width: 48rem) {
+  .calendar-review-plan-check-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    PREMIUM DESIGN UTILITIES  — glassmorphism, gradients, glows, animations
 ═══════════════════════════════════════════════════════════════════════════ */

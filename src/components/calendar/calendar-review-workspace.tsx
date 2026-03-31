@@ -357,27 +357,54 @@ export function CalendarReviewWorkspace() {
     [calendarData.dateTools, calendarData.summary, mode],
   );
 
+  const scrollRefIntoViewIfNeeded = useCallback(
+    (targetRef: { current: HTMLDivElement | null }) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const element = targetRef.current;
+      if (!element) {
+        return;
+      }
+
+      const rect = element.getBoundingClientRect();
+      const padding = 24;
+      const fullyVisible =
+        rect.top >= padding &&
+        rect.bottom <= window.innerHeight - padding;
+
+      if (fullyVisible) {
+        return;
+      }
+
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      window.setTimeout(() => {
+        element.scrollIntoView({
+          behavior: prefersReducedMotion ? "auto" : "smooth",
+          block: "start",
+        });
+      }, 80);
+    },
+    [],
+  );
+
   const handleSelectDay = useCallback((dateKey: string) => {
     setSelectedDateKey(dateKey);
     setJournalExpanded(false);
 
-    if (typeof window !== "undefined" && window.innerWidth < 1280) {
-      window.setTimeout(() => {
-        detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 80);
-    }
-  }, []);
+    scrollRefIntoViewIfNeeded(detailRef);
+  }, [scrollRefIntoViewIfNeeded]);
 
   const handleSelectTrade = useCallback((tradeId: string) => {
     setSelectedTradeId(tradeId);
     setJournalExpanded(true);
 
-    if (typeof window !== "undefined" && window.innerWidth < 1440) {
-      window.setTimeout(() => {
-        journalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 80);
-    }
-  }, []);
+    scrollRefIntoViewIfNeeded(journalRef);
+  }, [scrollRefIntoViewIfNeeded]);
 
   const handleTradeSaved = useCallback((savedTrade: Trade) => {
     setTrades((currentTrades) =>
@@ -425,7 +452,7 @@ export function CalendarReviewWorkspace() {
 
   if (!authLoading && !isConfigured) {
     return (
-      <div className="page-root page-sections">
+      <div className="page-root page-sections calendar-review-shell">
         <WidgetEmptyState
           className="py-12"
           title="Supabase Not Configured"
@@ -437,7 +464,7 @@ export function CalendarReviewWorkspace() {
 
   if (!authLoading && !user) {
     return (
-      <div className="page-root page-sections">
+      <div className="page-root page-sections calendar-review-shell">
         <WidgetEmptyState
           className="py-12"
           icon={<CalendarDays className="h-5 w-5" />}
@@ -454,7 +481,7 @@ export function CalendarReviewWorkspace() {
   }
 
   return (
-    <div className="page-root page-sections">
+    <div className="page-root page-sections calendar-review-shell">
       <CalendarWorkspaceHero
         mode={mode}
         dateMode={dateMode}
@@ -486,10 +513,10 @@ export function CalendarReviewWorkspace() {
         <>
           <CalendarSummaryStrip cards={summaryCards} />
 
-          <section className="space-y-6 min-[2100px]:grid min-[2100px]:grid-cols-[minmax(0,1.32fr)_minmax(420px,0.68fr)] min-[2100px]:gap-6 min-[2100px]:space-y-0">
+          <section className="calendar-review-main-grid">
             <div className="space-y-6">
               <CalendarAgendaList
-                className="min-[1700px]:hidden"
+                className="calendar-review-agenda-shell"
                 days={agendaDays}
                 dateTools={calendarData.dateTools}
                 mode={mode}
@@ -498,7 +525,7 @@ export function CalendarReviewWorkspace() {
               />
 
               <CalendarMonthBoard
-                className="hidden min-[1700px]:block"
+                className="calendar-review-board-shell"
                 days={calendarData.days}
                 dateTools={calendarData.dateTools}
                 mode={mode}
@@ -508,10 +535,7 @@ export function CalendarReviewWorkspace() {
               />
             </div>
 
-            <div
-              ref={detailRef}
-              className="min-[2100px]:sticky min-[2100px]:top-4 min-[2100px]:self-start"
-            >
+            <div ref={detailRef} className="calendar-review-inspector-shell">
               <CalendarDayInspector
                 mode={mode}
                 selectedDay={selectedDay}

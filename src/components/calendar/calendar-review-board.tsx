@@ -321,7 +321,7 @@ export function CalendarMonthBoard({
       </div>
 
       <div className="border-b border-border bg-[var(--surface-elevated)] px-5 py-3 sm:px-6">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="calendar-review-board-toolbar">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             {BOARD_LEGEND_ITEMS.map((item) => (
               <CalendarLegendItem
@@ -364,7 +364,7 @@ export function CalendarMonthBoard({
       </div>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[780px] 2xl:min-w-[860px]">
+        <div className="calendar-review-board-grid">
           <div className="grid grid-cols-7 border-b border-border bg-[var(--surface-elevated)]">
             {WEEKDAY_LABELS.map((weekday) => (
               <div

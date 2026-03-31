@@ -49,7 +49,7 @@ function CalendarPlanSummary({ plan }: { plan: CalendarReviewPlan | null }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="calendar-review-plan-grid">
         <InsetPanel paddingClassName="px-4 py-4">
           <p className="text-label mb-1">Bias</p>
           <p className="text-sm font-semibold text-foreground">{plan.bias ?? "Not set"}</p>
@@ -74,7 +74,7 @@ function CalendarPlanSummary({ plan }: { plan: CalendarReviewPlan | null }) {
         </InsetPanel>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="calendar-review-plan-check-grid">
         <InsetPanel paddingClassName="px-4 py-4">
           <p className="text-label mb-1">Universal Checks</p>
           <p className="mono text-sm font-semibold text-foreground">
@@ -105,7 +105,7 @@ function CalendarPlanSummary({ plan }: { plan: CalendarReviewPlan | null }) {
       ) : null}
 
       {(plan.wentWell || plan.wentWrong) ? (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="calendar-review-plan-notes-grid">
           <InsetPanel paddingClassName="px-4 py-4">
             <p className="text-label mb-1">Went Well</p>
             <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
@@ -143,7 +143,7 @@ function CalendarRuleFlagSummary({ day }: { day: CalendarReviewDay }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="calendar-review-rule-summary-grid">
         <InsetPanel
           tone={day.violatedGlobalRules.length > 0 ? "loss" : "accent"}
           paddingClassName="px-4 py-4"
@@ -397,7 +397,7 @@ function CalendarDayCoverage({ day }: { day: CalendarReviewDay }) {
     <div className="space-y-3">
       <InsetPanel paddingClassName="px-4 py-4">
         <p className="text-label mb-3">Coverage</p>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="calendar-review-coverage-grid">
           <div>
             <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
               Screenshots
@@ -565,7 +565,12 @@ export function CalendarDayInspector({
     null;
 
   return (
-    <AppPanel className={cn("space-y-5 overflow-hidden p-5 sm:p-6", className)}>
+    <AppPanel
+      className={cn(
+        "calendar-review-day-inspector space-y-5 overflow-hidden p-5 sm:p-6",
+        className,
+      )}
+    >
       <InsetPanel tone={getSelectedDayTone(mode, selectedDay)} paddingClassName="px-5 py-5">
         <div className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
