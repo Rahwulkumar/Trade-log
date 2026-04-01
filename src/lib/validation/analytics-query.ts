@@ -4,6 +4,7 @@ import { dateOnlyString, uuidSchema } from "@/lib/validation/common";
 import {
   ANALYTICS_WORKSPACE_DIMENSIONS,
   ANALYTICS_WORKSPACE_MEASURES,
+  ANALYTICS_WORKSPACE_RULE_STATUSES,
   ANALYTICS_WORKSPACE_SORT_ORDERS,
   ANALYTICS_WORKSPACE_REVIEW_STATES,
 } from "@/lib/analytics/workspace-types";
@@ -52,6 +53,9 @@ const analyticsWorkspaceFiltersSchema = z
     direction: z.union([z.literal("LONG"), z.literal("SHORT"), z.null()]).default(null),
     reviewStatus: z
       .union([z.enum(ANALYTICS_WORKSPACE_REVIEW_STATES), z.null()])
+      .default(null),
+    ruleStatus: z
+      .union([z.enum(ANALYTICS_WORKSPACE_RULE_STATUSES), z.null()])
       .default(null),
   })
   .strict();

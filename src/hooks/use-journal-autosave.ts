@@ -123,13 +123,15 @@ export function useJournalAutosave({
           errorPayload?.message ??
           fallbackText.trim() ??
           "Unknown journal save error";
+        const detailsSummary =
+          errorPayload?.details == null
+            ? null
+            : JSON.stringify(errorPayload.details);
 
-        console.error("[Journal save error]", {
-          status: res.status,
-          statusText: res.statusText,
-          error: resolvedError || "Unknown journal save error",
-          details: errorPayload?.details ?? null,
-        });
+        console.error(
+          `[Journal save error] ${res.status} ${res.statusText}: ${resolvedError || "Unknown journal save error"}`,
+          detailsSummary,
+        );
         return;
       }
 

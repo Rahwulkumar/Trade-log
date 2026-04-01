@@ -6,6 +6,7 @@ export const ANALYTICS_WORKSPACE_DIMENSIONS = [
   "playbook",
   "setup",
   "mistake",
+  "rule",
   "template",
   "setupTag",
   "mistakeTag",
@@ -43,6 +44,16 @@ export const ANALYTICS_WORKSPACE_REVIEW_STATES = [
 export type AnalyticsWorkspaceReviewState =
   (typeof ANALYTICS_WORKSPACE_REVIEW_STATES)[number];
 
+export const ANALYTICS_WORKSPACE_RULE_STATUSES = [
+  "followed",
+  "broken",
+  "skipped",
+  "notApplicable",
+] as const;
+
+export type AnalyticsWorkspaceRuleStatus =
+  (typeof ANALYTICS_WORKSPACE_RULE_STATUSES)[number];
+
 export type AnalyticsWorkspaceScopedFilterId = string | "unassigned" | null;
 
 export interface AnalyticsWorkspaceFilters {
@@ -60,6 +71,7 @@ export interface AnalyticsWorkspaceFilters {
   mistakeTag: string | null;
   direction: "LONG" | "SHORT" | null;
   reviewStatus: AnalyticsWorkspaceReviewState | null;
+  ruleStatus: AnalyticsWorkspaceRuleStatus | null;
 }
 
 export interface AnalyticsWorkspaceQuery {
@@ -109,6 +121,11 @@ export interface AnalyticsWorkspaceTrade {
   session: string;
   playbook: string;
   setup: string | null;
+  rulebook: string | null;
+  brokenRules: string[];
+  followedRules: string[];
+  skippedRules: string[];
+  notApplicableRules: string[];
   mistakes: string[];
   template: string | null;
   setupTags: string[];
@@ -154,6 +171,7 @@ export interface AnalyticsWorkspaceResult {
     setupTags: AnalyticsWorkspaceFacetOption[];
     mistakeTags: AnalyticsWorkspaceFacetOption[];
     reviewStates: AnalyticsWorkspaceFacetOption[];
+    ruleStatuses: AnalyticsWorkspaceFacetOption[];
   };
   rows: AnalyticsWorkspaceRow[];
   drilldown: AnalyticsWorkspaceDrilldown | null;

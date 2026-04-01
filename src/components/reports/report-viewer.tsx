@@ -147,6 +147,16 @@ function buildFilterChips(snapshot: WorkspaceReportSnapshot) {
         : "Needs review only",
     );
   }
+  if (snapshot.filters.ruleStatus) {
+    chips.push(
+      `Rule Status: ${
+        snapshot.filters.ruleStatus === "notApplicable"
+          ? "N/A"
+          : snapshot.filters.ruleStatus.charAt(0).toUpperCase() +
+            snapshot.filters.ruleStatus.slice(1)
+      }`,
+    );
+  }
 
   return chips;
 }

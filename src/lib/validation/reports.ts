@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   ANALYTICS_WORKSPACE_DIMENSIONS,
   ANALYTICS_WORKSPACE_MEASURES,
+  ANALYTICS_WORKSPACE_RULE_STATUSES,
   ANALYTICS_WORKSPACE_REVIEW_STATES,
   ANALYTICS_WORKSPACE_SORT_ORDERS,
 } from '@/lib/analytics/workspace-types';
@@ -36,6 +37,7 @@ export const reportGeneratePayloadSchema = z
     mistakeTag: nullableString(64).optional(),
     direction: z.enum(['LONG', 'SHORT']).nullable().optional(),
     reviewStatus: z.union([z.enum(ANALYTICS_WORKSPACE_REVIEW_STATES), z.null()]).optional(),
+    ruleStatus: z.union([z.enum(ANALYTICS_WORKSPACE_RULE_STATUSES), z.null()]).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.accountScope === 'account' && !value.propAccountId) {

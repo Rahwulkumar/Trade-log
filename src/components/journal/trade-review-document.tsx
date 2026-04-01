@@ -66,6 +66,9 @@ import {
   type JournalChapterItem,
   JournalChoiceChip,
   JournalConvictionInput,
+  type JournalLibraryOption,
+  JournalLibraryMultiPicker,
+  JournalLibraryPicker,
   JournalOutlineRail,
   JournalPromptField,
   JournalRatingInput,
@@ -374,8 +377,6 @@ function TradeReviewDocumentInner({
   );
   const selectedPlaybook =
     sortedPlaybooks.find((playbook) => playbook.id === draft.playbookId) ?? null;
-  const selectedSetup =
-    sortedSetups.find((setup) => setup.id === draft.setupDefinitionId) ?? null;
   const selectedTemplate =
     sortedTemplates.find((template) => template.id === draft.journalTemplateId) ??
     null;
@@ -407,12 +408,32 @@ function TradeReviewDocumentInner({
         : [...EXECUTION_CHECKLIST_OPTIONS],
     [resolvedTemplateConfig],
   );
-  const activeMistakeNames = useMemo(
+  const setupPickerOptions = useMemo<JournalLibraryOption[]>(
     () =>
-      sortedMistakes.filter((mistake) =>
-        draft.mistakeDefinitionIds.includes(mistake.id),
-      ),
-    [draft.mistakeDefinitionIds, sortedMistakes],
+      sortedSetups.map((setup) => ({
+        id: setup.id,
+        label: setup.name,
+        meta: setup.description ?? null,
+      })),
+    [sortedSetups],
+  );
+  const preferredSetupIds = useMemo(
+    () =>
+      selectedPlaybook
+        ? sortedSetups
+            .filter((setup) => setup.playbookId === selectedPlaybook.id)
+            .map((setup) => setup.id)
+        : [],
+    [selectedPlaybook, sortedSetups],
+  );
+  const mistakePickerOptions = useMemo<JournalLibraryOption[]>(
+    () =>
+      sortedMistakes.map((mistake) => ({
+        id: mistake.id,
+        label: mistake.name,
+        meta: mistake.category ?? mistake.description ?? null,
+      })),
+    [sortedMistakes],
   );
   const resolveRuleSetForSelection = useCallback(
     (
@@ -1275,42 +1296,15 @@ function TradeReviewDocumentInner({
                 ) : null}
               </div>
               <div className="space-y-2">
-                <label className="text-label">Setup Library</label>
-                <Select
-                  value={draft.setupDefinitionId ?? "__none"}
-                  onValueChange={handleSetupChange}
-                >
-                  <SelectTrigger
-                    className="h-10 text-[0.8125rem]"
-                    style={{
-                      background: "var(--surface)",
-                      borderColor: "var(--border-subtle)",
-                      color: "var(--text-primary)",
-                    }}
-                  >
-                    <SelectValue placeholder="Select a setup" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none">No linked setup</SelectItem>
-                    {sortedSetups.map((setup) => (
-                      <SelectItem key={setup.id} value={setup.id}>
-                        {setup.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedSetup?.description ? (
-                  <p
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "11px",
-                      lineHeight: 1.55,
-                    }}
-                  >
-                    {selectedSetup.description}
-                  </p>
-                ) : null}
+                <JournalLibraryPicker
+                  label="Setup Library"
+                  options={setupPickerOptions}
+                  value={draft.setupDefinitionId}
+                  onSelect={(id) => handleSetupChange(id ?? "__none")}
+                  placeholder="Search setups by name or note"
+                  emptyLabel="No linked setup"
+                  preferredOptionIds={preferredSetupIds}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-label">Template</label>
@@ -1849,38 +1843,26 @@ function TradeReviewDocumentInner({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <p className="text-label">Structured mistakes</p>
-                    <div className="flex flex-wrap gap-2">
-                      {sortedMistakes.length > 0 ? (
-                        sortedMistakes.map((mistake) => (
-                          <ChoiceChip
-                            key={mistake.id}
-                            active={draft.mistakeDefinitionIds.includes(mistake.id)}
-                            onClick={() => toggleMistakeDefinition(mistake.id)}
-                            activeColor="var(--loss-primary)"
-                            activeBackground="var(--loss-bg)"
-                            activeBorderColor="var(--loss-primary)"
-                          >
-                            {mistake.name}
-                          </ChoiceChip>
-                        ))
-                      ) : (
+                    {sortedMistakes.length > 0 ? (
+                      <JournalLibraryMultiPicker
+                        label="Structured mistakes"
+                        options={mistakePickerOptions}
+                        values={draft.mistakeDefinitionIds}
+                        onToggle={toggleMistakeDefinition}
+                        placeholder="Search mistakes by name or category"
+                        tone="loss"
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-label">Structured mistakes</p>
                         <p
                           className="text-xs"
                           style={{ color: "var(--text-tertiary)" }}
                         >
                           Create mistake definitions in the Playbooks workspace to reuse them here.
                         </p>
-                      )}
-                    </div>
-                    {activeMistakeNames.length > 0 ? (
-                      <p
-                        className="text-xs"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        Selected: {activeMistakeNames.map((item) => item.name).join(", ")}
-                      </p>
-                    ) : null}
+                      </div>
+                    )}
                   </div>
                   <JournalTagField
                     label="Additional setup tags"

@@ -7,10 +7,16 @@ import {
   journalTemplates,
   mistakeDefinitions,
   playbooks,
+  ruleSets,
   setupDefinitions,
   trades,
 } from "@/lib/db/schema";
 import { DEFAULT_ANALYTICS_TIME_ZONE } from "@/lib/analytics/timezone";
+import {
+  RULE_ITEM_STATUSES,
+  type RuleItemStatus,
+  type TradeRuleResult,
+} from "@/lib/rulebooks/types";
 import { resolveTradingSession } from "@/lib/trading-session";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 import type {
@@ -20,6 +26,7 @@ import type {
   AnalyticsWorkspaceQuery,
   AnalyticsWorkspaceResult,
   AnalyticsWorkspaceReviewState,
+  AnalyticsWorkspaceRuleStatus,
   AnalyticsWorkspaceRow,
   AnalyticsWorkspaceTrade,
 } from "@/lib/analytics/workspace-types";
@@ -37,8 +44,11 @@ type WorkspaceRow = {
   setupName: string | null;
   journalTemplateId: string | null;
   journalTemplateName: string | null;
+  ruleSetId: string | null;
+  ruleSetName: string | null;
   mistakeDefinitionIds: string[];
   mistakeNames: string[];
+  tradeRuleResults: TradeRuleResult[];
   setupTags: string[];
   mistakeTags: string[];
   journalReview: Record<string, unknown>;
@@ -72,6 +82,13 @@ type GroupStats = {
   reviewed: number;
   rSum: number;
   rCount: number;
+};
+
+type WorkspaceRuleSummary = {
+  brokenRules: string[];
+  followedRules: string[];
+  skippedRules: string[];
+  notApplicableRules: string[];
 };
 
 type GroupedRowWithSort = {
@@ -126,6 +143,44 @@ function normalizeUuidArray(value: unknown): string[] {
     .filter((item, index, array) => array.indexOf(item) === index);
 }
 
+function normalizeTradeRuleResults(value: unknown): TradeRuleResult[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+
+    const record = item as Record<string, unknown>;
+    const ruleItemId =
+      typeof record.ruleItemId === "string" ? record.ruleItemId.trim() : "";
+    const title = typeof record.title === "string" ? record.title.trim() : "";
+    const category =
+      typeof record.category === "string" ? record.category.trim() || null : null;
+    const severity =
+      typeof record.severity === "string" ? record.severity.trim() || null : null;
+    const status =
+      typeof record.status === "string" &&
+      RULE_ITEM_STATUSES.includes(record.status as RuleItemStatus)
+        ? (record.status as RuleItemStatus)
+        : null;
+
+    if (!ruleItemId || !title || !status) {
+      return [];
+    }
+
+    return [
+      {
+        ruleItemId,
+        title,
+        category,
+        severity,
+        status,
+      },
+    ];
+  });
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -144,6 +199,44 @@ function getLocalWeekday(date: Date, timeZone: string): string {
   }).format(date);
 }
 
+function summarizeTradeRules(results: TradeRuleResult[]): WorkspaceRuleSummary {
+  const brokenRules: string[] = [];
+  const followedRules: string[] = [];
+  const skippedRules: string[] = [];
+  const notApplicableRules: string[] = [];
+
+  for (const result of results) {
+    if (result.status === "broken") {
+      brokenRules.push(result.title);
+      continue;
+    }
+    if (result.status === "followed") {
+      followedRules.push(result.title);
+      continue;
+    }
+    if (result.status === "skipped") {
+      skippedRules.push(result.title);
+      continue;
+    }
+    notApplicableRules.push(result.title);
+  }
+
+  return {
+    brokenRules,
+    followedRules,
+    skippedRules,
+    notApplicableRules,
+  };
+}
+
+function hasRuleStatus(
+  results: TradeRuleResult[],
+  status: AnalyticsWorkspaceRuleStatus | null,
+): boolean {
+  if (!status) return true;
+  return results.some((result) => result.status === status);
+}
+
 function isReviewedRow(row: {
   notes: string | null;
   feelings: string | null;
@@ -160,6 +253,7 @@ function isReviewedRow(row: {
   journalReview: unknown;
   setupDefinitionId?: string | null;
   mistakeDefinitionIds?: string[];
+  tradeRuleResults?: TradeRuleResult[];
 }): boolean {
   const review = asRecord(row.journalReview);
 
@@ -196,7 +290,8 @@ function isReviewedRow(row: {
       hasText(review.marketContext) ||
       hasText(review.followUpAction) ||
       row.setupDefinitionId ||
-      (row.mistakeDefinitionIds?.length ?? 0) > 0
+      (row.mistakeDefinitionIds?.length ?? 0) > 0 ||
+      (row.tradeRuleResults?.length ?? 0) > 0
   );
 }
 
@@ -214,6 +309,7 @@ function buildGroupDescriptors(
   trade: WorkspaceRow,
   groupBy: AnalyticsWorkspaceDimension,
   timeZone: string,
+  ruleStatus: AnalyticsWorkspaceRuleStatus | null,
 ): GroupDescriptor[] {
   if (groupBy === "symbol") {
     return [{ key: trade.symbol, label: trade.symbol }];
@@ -249,6 +345,21 @@ function buildGroupDescriptors(
     return trade.mistakeDefinitionIds.map((id, index) => ({
       key: id,
       label: trade.mistakeNames[index] ?? "Unknown Mistake",
+    }));
+  }
+
+  if (groupBy === "rule") {
+    const matchingRuleResults = ruleStatus
+      ? trade.tradeRuleResults.filter((result) => result.status === ruleStatus)
+      : trade.tradeRuleResults;
+
+    if (matchingRuleResults.length === 0) {
+      return [{ key: "unassigned", label: "No Rule Review" }];
+    }
+
+    return matchingRuleResults.map((result) => ({
+      key: result.ruleItemId,
+      label: result.title,
     }));
   }
 
@@ -324,6 +435,7 @@ function applyWorkspaceFilters(
     mistakeTag,
     direction,
     reviewStatus,
+    ruleStatus,
   } = query.filters;
 
   const symbolNeedle = symbol?.toLowerCase() ?? null;
@@ -396,6 +508,9 @@ function applyWorkspaceFilters(
     if (reviewStatus === "needsReview" && trade.reviewed) {
       return false;
     }
+    if (!hasRuleStatus(trade.tradeRuleResults, ruleStatus)) {
+      return false;
+    }
     return true;
   });
 }
@@ -411,6 +526,7 @@ function buildGroupedRows(
       trade,
       query.groupBy,
       query.filters.timeZone ?? DEFAULT_ANALYTICS_TIME_ZONE,
+      query.filters.ruleStatus,
     );
 
     for (const descriptor of descriptors) {
@@ -517,6 +633,7 @@ function buildDrilldown(
       trade,
       query.groupBy,
       query.filters.timeZone ?? DEFAULT_ANALYTICS_TIME_ZONE,
+      query.filters.ruleStatus,
     ).some((descriptor) => descriptor.key === query.drilldownKey),
   );
 
@@ -529,6 +646,7 @@ function buildDrilldown(
       matches[0],
       query.groupBy,
       query.filters.timeZone ?? DEFAULT_ANALYTICS_TIME_ZONE,
+      query.filters.ruleStatus,
     ).find((descriptor) => descriptor.key === query.drilldownKey)?.label ??
     query.drilldownKey;
 
@@ -538,23 +656,32 @@ function buildDrilldown(
       const rightTime = right.exitDate?.getTime() ?? right.entryDate?.getTime() ?? 0;
       return rightTime - leftTime;
     })
-    .map((trade) => ({
-      id: trade.id,
-      symbol: trade.symbol,
-      direction: trade.direction,
-      session: trade.session ?? "Overnight",
-      playbook: trade.playbookName ?? "Unassigned",
-      setup: trade.setupName ?? null,
-      mistakes: trade.mistakeNames,
-      template: trade.journalTemplateName ?? null,
-      setupTags: trade.setupTags,
-      mistakeTags: trade.mistakeTags,
-      reviewed: trade.reviewed,
-      entryAt: trade.entryDate?.toISOString() ?? null,
-      exitAt: trade.exitDate?.toISOString() ?? null,
-      netPnl: round(trade.netPnl),
-      rMultiple: trade.rMultiple != null ? round(trade.rMultiple, 2) : null,
-    }));
+    .map((trade) => {
+      const ruleSummary = summarizeTradeRules(trade.tradeRuleResults);
+
+      return {
+        id: trade.id,
+        symbol: trade.symbol,
+        direction: trade.direction,
+        session: trade.session ?? "Overnight",
+        playbook: trade.playbookName ?? "Unassigned",
+        setup: trade.setupName ?? null,
+        rulebook: trade.ruleSetName ?? null,
+        brokenRules: ruleSummary.brokenRules,
+        followedRules: ruleSummary.followedRules,
+        skippedRules: ruleSummary.skippedRules,
+        notApplicableRules: ruleSummary.notApplicableRules,
+        mistakes: trade.mistakeNames,
+        template: trade.journalTemplateName ?? null,
+        setupTags: trade.setupTags,
+        mistakeTags: trade.mistakeTags,
+        reviewed: trade.reviewed,
+        entryAt: trade.entryDate?.toISOString() ?? null,
+        exitAt: trade.exitDate?.toISOString() ?? null,
+        netPnl: round(trade.netPnl),
+        rMultiple: trade.rMultiple != null ? round(trade.rMultiple, 2) : null,
+      };
+    });
 
   return {
     key: query.drilldownKey,
@@ -572,6 +699,12 @@ function buildFacets(tradesInScope: WorkspaceRow[]): AnalyticsWorkspaceResult["f
   const templateCounts = new Map<string, { label: string; count: number }>();
   const setupTagCounts = new Map<string, number>();
   const mistakeTagCounts = new Map<string, number>();
+  const ruleStatusCounts = new Map<string, number>([
+    ["followed", 0],
+    ["broken", 0],
+    ["skipped", 0],
+    ["notApplicable", 0],
+  ]);
   const reviewStateCounts = new Map<string, number>([
     ["reviewed", 0],
     ["needsReview", 0],
@@ -633,6 +766,13 @@ function buildFacets(tradesInScope: WorkspaceRow[]): AnalyticsWorkspaceResult["f
       mistakeTagCounts.set(tag, (mistakeTagCounts.get(tag) ?? 0) + 1);
     }
 
+    for (const result of trade.tradeRuleResults) {
+      ruleStatusCounts.set(
+        result.status,
+        (ruleStatusCounts.get(result.status) ?? 0) + 1,
+      );
+    }
+
     const reviewKey: AnalyticsWorkspaceReviewState = trade.reviewed
       ? "reviewed"
       : "needsReview";
@@ -648,6 +788,28 @@ function buildFacets(tradesInScope: WorkspaceRow[]): AnalyticsWorkspaceResult["f
     templates: buildPlaybookFacets(templateCounts),
     setupTags: buildFacetOptions(setupTagCounts),
     mistakeTags: buildFacetOptions(mistakeTagCounts),
+    ruleStatuses: [
+      {
+        value: "followed",
+        label: "Followed",
+        count: ruleStatusCounts.get("followed") ?? 0,
+      },
+      {
+        value: "broken",
+        label: "Broken",
+        count: ruleStatusCounts.get("broken") ?? 0,
+      },
+      {
+        value: "skipped",
+        label: "Skipped",
+        count: ruleStatusCounts.get("skipped") ?? 0,
+      },
+      {
+        value: "notApplicable",
+        label: "N/A",
+        count: ruleStatusCounts.get("notApplicable") ?? 0,
+      },
+    ],
     reviewStates: [
       {
         value: "reviewed",
@@ -758,7 +920,10 @@ export async function getAnalyticsWorkspaceResult(
         setupName: setupDefinitions.name,
         journalTemplateId: trades.journalTemplateId,
         journalTemplateName: journalTemplates.name,
+        ruleSetId: trades.ruleSetId,
+        ruleSetName: ruleSets.name,
         mistakeDefinitionIds: trades.mistakeDefinitionIds,
+        tradeRuleResults: trades.tradeRuleResults,
         setupTags: trades.setupTags,
         mistakeTags: trades.mistakeTags,
         journalReview: trades.journalReview,
@@ -785,6 +950,7 @@ export async function getAnalyticsWorkspaceResult(
         journalTemplates,
         eq(trades.journalTemplateId, journalTemplates.id),
       )
+      .leftJoin(ruleSets, eq(trades.ruleSetId, ruleSets.id))
       .where(and(...conditions))
       .orderBy(asc(trades.exitDate), asc(trades.entryDate)),
     db
@@ -805,6 +971,7 @@ export async function getAnalyticsWorkspaceResult(
     const mistakeTags = normalizeStringArray(row.mistakeTags);
     const executionArrays = normalizeStringArray(row.executionArrays);
     const mistakeDefinitionIds = normalizeUuidArray(row.mistakeDefinitionIds);
+    const tradeRuleResults = normalizeTradeRuleResults(row.tradeRuleResults);
     const mistakeNames = mistakeDefinitionIds.map(
       (id) => mistakeNameById.get(id) ?? "Unknown Mistake",
     );
@@ -825,6 +992,7 @@ export async function getAnalyticsWorkspaceResult(
       journalReview: row.journalReview,
       setupDefinitionId: row.setupDefinitionId ?? null,
       mistakeDefinitionIds,
+      tradeRuleResults,
     });
 
     return {
@@ -840,8 +1008,11 @@ export async function getAnalyticsWorkspaceResult(
       setupName: row.setupName?.trim() || null,
       journalTemplateId: row.journalTemplateId ?? null,
       journalTemplateName: row.journalTemplateName?.trim() || null,
+      ruleSetId: row.ruleSetId ?? null,
+      ruleSetName: row.ruleSetName?.trim() || null,
       mistakeDefinitionIds,
       mistakeNames,
+      tradeRuleResults,
       setupTags,
       mistakeTags,
       journalReview: asRecord(row.journalReview),

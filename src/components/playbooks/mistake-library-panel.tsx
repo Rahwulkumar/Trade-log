@@ -6,6 +6,7 @@ import type { MistakeDefinition } from "@/lib/db/schema";
 import {
   createMistakeDefinition,
   deleteMistakeDefinition,
+  getMistakePromotionCandidates,
   getMistakeDefinitions,
   updateMistakeDefinition,
 } from "@/lib/api/client/journal-structure";
@@ -34,11 +35,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadingPanel } from "@/components/ui/loading";
 import { WidgetEmptyState } from "@/components/ui/surface-primitives";
+import { LibraryPromotionPanel } from "@/components/playbooks/library-promotion-panel";
+import {
+  normalizePromotionLabel,
+  type JournalPromotionCandidate,
+} from "@/lib/journal-structure/promotion";
 
 export function MistakeLibraryPanel() {
   const [items, setItems] = useState<MistakeDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [promotionCandidates, setPromotionCandidates] = useState<
+    JournalPromotionCandidate[]
+  >([]);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MistakeDefinition | null>(null);
@@ -54,15 +63,29 @@ export function MistakeLibraryPanel() {
   const deferredSearch = useDeferredValue(search);
 
   const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setItems(await getMistakeDefinitions());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load mistakes");
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    setError(null);
+
+    const [itemsResult, candidatesResult] = await Promise.allSettled([
+      getMistakeDefinitions(),
+      getMistakePromotionCandidates(),
+    ]);
+
+    if (itemsResult.status === "fulfilled") {
+      setItems(itemsResult.value);
+    } else {
+      setError(
+        itemsResult.reason instanceof Error
+          ? itemsResult.reason.message
+          : "Failed to load mistakes",
+      );
     }
+
+    if (candidatesResult.status === "fulfilled") {
+      setPromotionCandidates(candidatesResult.value);
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -115,6 +138,13 @@ export function MistakeLibraryPanel() {
         editing
           ? current.map((item) => (item.id === saved.id ? saved : item))
           : [saved, ...current],
+      );
+      setPromotionCandidates((current) =>
+        current.filter(
+          (candidate) =>
+            normalizePromotionLabel(candidate.label).toLowerCase() !==
+            normalizePromotionLabel(saved.name).toLowerCase(),
+        ),
       );
       setOpen(false);
       resetForm(null);
@@ -267,6 +297,23 @@ export function MistakeLibraryPanel() {
             </Dialog>
           }
         />
+
+        <div className="mt-4">
+          <LibraryPromotionPanel
+            title="Promote repeated mistake labels"
+            subtitle="Convert repeated freeform mistake tags into structured mistakes so review and analytics stay consistent."
+            items={promotionCandidates}
+            actionLabel="Start mistake"
+            onPromote={(candidate) => {
+              resetForm(null);
+              setForm((current) => ({
+                ...current,
+                name: candidate.label,
+              }));
+              setOpen(true);
+            }}
+          />
+        </div>
 
         <ControlSurface className="mt-4">
           <FieldGroup>

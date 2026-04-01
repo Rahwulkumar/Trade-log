@@ -28,6 +28,7 @@ export const ANALYTICS_WORKSPACE_DIMENSION_OPTIONS: Array<{
   { value: "playbook", label: "Playbook" },
   { value: "setup", label: "Setup" },
   { value: "mistake", label: "Mistake" },
+  { value: "rule", label: "Rule" },
   { value: "template", label: "Template" },
   { value: "setupTag", label: "Setup Tag" },
   { value: "mistakeTag", label: "Mistake Tag" },
@@ -183,15 +184,46 @@ export function AnalyticsWorkspaceDrilldownSheet({
                     <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                       {trade.playbook}
                     </p>
-                    {trade.setup || trade.template || structuredMistakes.length > 0 ? (
+                    {trade.setup ||
+                    trade.rulebook ||
+                    trade.template ||
+                    structuredMistakes.length > 0 ? (
                       <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                         Setup: {trade.setup ?? "--"}
+                        {" | "}
+                        Rulebook: {trade.rulebook ?? "--"}
                         {" | "}
                         Template: {trade.template ?? "--"}
                         {" | "}
                         Mistakes:{" "}
                         {structuredMistakes.length > 0
                           ? structuredMistakes.join(", ")
+                          : "--"}
+                      </p>
+                    ) : null}
+                    {trade.brokenRules.length > 0 ||
+                    trade.followedRules.length > 0 ||
+                    trade.skippedRules.length > 0 ||
+                    trade.notApplicableRules.length > 0 ? (
+                      <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                        Broken:{" "}
+                        {trade.brokenRules.length > 0
+                          ? trade.brokenRules.join(", ")
+                          : "--"}
+                        {" | "}
+                        Followed:{" "}
+                        {trade.followedRules.length > 0
+                          ? trade.followedRules.join(", ")
+                          : "--"}
+                        {" | "}
+                        Skipped:{" "}
+                        {trade.skippedRules.length > 0
+                          ? trade.skippedRules.join(", ")
+                          : "--"}
+                        {" | "}
+                        N/A:{" "}
+                        {trade.notApplicableRules.length > 0
+                          ? trade.notApplicableRules.join(", ")
                           : "--"}
                       </p>
                     ) : null}

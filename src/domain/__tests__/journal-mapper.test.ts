@@ -4,6 +4,7 @@
 import {
   mapTradeToViewModel,
   viewModelToDraft,
+  mapDraftToApiUpdate,
   mapDraftToTradeUpdate,
   isRawTradeJournaled,
   toSupabaseScreenshot,
@@ -141,6 +142,25 @@ describe("mapDraftToTradeUpdate", () => {
     expect(update.journal_review).toMatchObject({
       entryRatingScore: 4,
       exitRatingScore: 2,
+    });
+  });
+
+  it("keeps empty screenshots and rule results as arrays for save compatibility", () => {
+    const vm = mapTradeToViewModel(
+      makeTrade({
+        screenshots: null,
+        tradeRuleResults: [],
+      }),
+    );
+    const draft = viewModelToDraft(vm);
+
+    expect(mapDraftToTradeUpdate(draft)).toMatchObject({
+      screenshots: [],
+      trade_rule_results: [],
+    });
+    expect(mapDraftToApiUpdate(draft)).toMatchObject({
+      screenshots: [],
+      tradeRuleResults: [],
     });
   });
 });

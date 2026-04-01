@@ -358,13 +358,11 @@ export function mapDraftToTradeUpdate(
     notes: draft.notes || null,
     feelings: draft.feelings || null,
     observations: draft.observations || null,
-    screenshots: draft.screenshots.length
-      ? draft.screenshots.map((item) => ({
-          url: item.url,
-          timeframe: item.timeframe,
-          created_at: item.createdAt || undefined,
-        }))
-      : null,
+    screenshots: draft.screenshots.map((item) => ({
+      url: item.url,
+      timeframe: item.timeframe,
+      created_at: item.createdAt || undefined,
+    })),
     journal_review: journalReview,
     tf_observations: Object.keys(draft.tfObservations).length
       ? draft.tfObservations
@@ -373,9 +371,7 @@ export function mapDraftToTradeUpdate(
     mistake_definition_ids: draft.mistakeDefinitionIds,
     journal_template_id: draft.journalTemplateId,
     rule_set_id: draft.ruleSetId,
-    trade_rule_results: draft.tradeRuleResults.length
-      ? draft.tradeRuleResults
-      : null,
+    trade_rule_results: draft.tradeRuleResults,
     journal_template_snapshot: draft.journalTemplateSnapshot
       ? normalizeJournalTemplateConfig(draft.journalTemplateSnapshot)
       : null,
@@ -457,13 +453,11 @@ export function mapDraftToApiUpdate(
     notes: draft.notes || null,
     feelings: draft.feelings || null,
     observations: draft.observations || null,
-    screenshots: draft.screenshots.length
-      ? draft.screenshots.map((item) => ({
-          url: item.url,
-          timeframe: item.timeframe,
-          created_at: item.createdAt || undefined,
-        }))
-      : null,
+    screenshots: draft.screenshots.map((item) => ({
+      url: item.url,
+      timeframe: item.timeframe,
+      created_at: item.createdAt || undefined,
+    })),
     journalReview,
     tfObservations: Object.keys(draft.tfObservations).length
       ? draft.tfObservations
@@ -472,7 +466,7 @@ export function mapDraftToApiUpdate(
     mistakeDefinitionIds: draft.mistakeDefinitionIds,
     journalTemplateId: draft.journalTemplateId,
     ruleSetId: draft.ruleSetId,
-    tradeRuleResults: draft.tradeRuleResults.length ? draft.tradeRuleResults : null,
+    tradeRuleResults: draft.tradeRuleResults,
     journalTemplateSnapshot: draft.journalTemplateSnapshot
       ? normalizeJournalTemplateConfig(draft.journalTemplateSnapshot)
       : null,

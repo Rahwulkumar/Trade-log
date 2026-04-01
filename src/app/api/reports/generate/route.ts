@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
       mistakeTag: result.data.mistakeTag ?? null,
       direction: result.data.direction ?? null,
       reviewStatus: result.data.reviewStatus ?? null,
+      ruleStatus: result.data.ruleStatus ?? null,
     });
 
     const workspace = await getAnalyticsWorkspaceResult(

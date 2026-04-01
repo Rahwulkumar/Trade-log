@@ -6,6 +6,7 @@ import type { SetupDefinition } from "@/lib/db/schema";
 import {
   createSetupDefinition,
   deleteSetupDefinition,
+  getSetupPromotionCandidates,
   getSetupDefinitions,
   updateSetupDefinition,
 } from "@/lib/api/client/journal-structure";
@@ -41,6 +42,11 @@ import {
 } from "@/components/ui/select";
 import { LoadingPanel } from "@/components/ui/loading";
 import { WidgetEmptyState } from "@/components/ui/surface-primitives";
+import { LibraryPromotionPanel } from "@/components/playbooks/library-promotion-panel";
+import {
+  normalizePromotionLabel,
+  type JournalPromotionCandidate,
+} from "@/lib/journal-structure/promotion";
 
 interface PlaybookOption {
   id: string;
@@ -77,6 +83,9 @@ export function SetupLibraryPanel({
   const [items, setItems] = useState<SetupDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [promotionCandidates, setPromotionCandidates] = useState<
+    JournalPromotionCandidate[]
+  >([]);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SetupDefinition | null>(null);
@@ -96,15 +105,29 @@ export function SetupLibraryPanel({
   const deferredSearch = useDeferredValue(search);
 
   const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setItems(await getSetupDefinitions());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load setups");
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    setError(null);
+
+    const [itemsResult, candidatesResult] = await Promise.allSettled([
+      getSetupDefinitions(),
+      getSetupPromotionCandidates(),
+    ]);
+
+    if (itemsResult.status === "fulfilled") {
+      setItems(itemsResult.value);
+    } else {
+      setError(
+        itemsResult.reason instanceof Error
+          ? itemsResult.reason.message
+          : "Failed to load setups",
+      );
     }
+
+    if (candidatesResult.status === "fulfilled") {
+      setPromotionCandidates(candidatesResult.value);
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -171,6 +194,13 @@ export function SetupLibraryPanel({
         editing
           ? current.map((item) => (item.id === saved.id ? saved : item))
           : [saved, ...current],
+      );
+      setPromotionCandidates((current) =>
+        current.filter(
+          (candidate) =>
+            normalizePromotionLabel(candidate.label).toLowerCase() !==
+            normalizePromotionLabel(saved.name).toLowerCase(),
+        ),
       );
       setOpen(false);
       resetForm(null);
@@ -419,6 +449,24 @@ export function SetupLibraryPanel({
             </Dialog>
           }
         />
+
+        <div className="mt-4">
+          <LibraryPromotionPanel
+            title="Promote repeated setup labels"
+            subtitle="Start clean definitions from the setup names and tags you already used repeatedly in the journal."
+            items={promotionCandidates}
+            actionLabel="Start setup"
+            onPromote={(candidate) => {
+              resetForm(null);
+              setForm((current) => ({
+                ...current,
+                name: candidate.label,
+                playbookId: candidate.suggestedPlaybookId ?? "__none",
+              }));
+              setOpen(true);
+            }}
+          />
+        </div>
 
         <ControlSurface className="mt-4">
           <FieldGroup>

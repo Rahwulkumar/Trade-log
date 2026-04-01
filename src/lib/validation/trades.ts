@@ -85,6 +85,9 @@ const nullableInteger = z.union([z.number().int(), z.string().trim().min(1), z.n
 );
 
 const stringArray = z.array(z.string().trim().min(1).max(120)).max(50);
+const normalizedUuidArray = z
+  .union([z.array(uuidSchema).max(50), z.null()])
+  .transform((value) => value ?? []);
 const qualityRating = z
   .union([
     z.enum(['Good', 'Neutral', 'Poor']),
@@ -165,6 +168,9 @@ const tradeRuleResults = z
     }),
   )
   .max(100);
+const normalizedTradeRuleResults = z
+  .union([tradeRuleResults, z.null()])
+  .transform((value) => value ?? []);
 
 const screenshotEntry = z.union([
   z.string().trim().min(1).max(4000),
@@ -174,6 +180,9 @@ const screenshotEntry = z.union([
     created_at: z.string().trim().max(128).optional(),
   }),
 ]);
+const screenshotsPayload = z
+  .union([z.array(screenshotEntry).max(50), z.null()])
+  .transform((value) => value ?? []);
 
 const tradeCreateSchema = z
   .object({
@@ -199,7 +208,7 @@ const tradeCreateSchema = z
     notes: nullableString(10000).optional(),
     feelings: nullableString(4000).optional(),
     observations: nullableString(10000).optional(),
-    screenshots: z.array(screenshotEntry).max(50).optional(),
+    screenshots: screenshotsPayload.optional(),
     chartData: z.union([z.record(z.string(), z.unknown()), z.array(z.unknown()), z.null()]).optional(),
     mae: nullableNumber.optional(),
     mfe: nullableNumber.optional(),
@@ -207,8 +216,8 @@ const tradeCreateSchema = z
     marketCondition: nullableString(64).optional(),
     setupTags: stringArray.nullable().optional(),
     mistakeTags: stringArray.nullable().optional(),
-    mistakeDefinitionIds: z.array(uuidSchema).max(50).optional(),
-    tradeRuleResults: tradeRuleResults.nullable().optional(),
+    mistakeDefinitionIds: normalizedUuidArray.optional(),
+    tradeRuleResults: normalizedTradeRuleResults.optional(),
     entryRating: qualityRating.optional(),
     exitRating: qualityRating.optional(),
     managementRating: qualityRating.optional(),

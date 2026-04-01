@@ -24,6 +24,188 @@ const BOARD_LEGEND_ITEMS: Array<{ label: string; tone: CalendarTone }> = [
   { label: "Process break", tone: "loss" },
 ];
 
+function getMonthCellSummary(
+  day: CalendarReviewDay,
+  mode: CalendarReviewMode,
+): {
+  value: string;
+  eyebrow: string;
+  caption: string | null;
+  metrics: string[];
+  tone: CalendarTone;
+} {
+  const display = getDayDisplay(mode, day);
+
+  if (mode === "performance") {
+    return {
+      value: display.primaryValue,
+      eyebrow: `${day.tradesCount} trades`,
+      caption:
+        day.winningTrades > 0
+          ? `${day.winningTrades} wins`
+          : day.losingTrades > 0
+            ? `${day.losingTrades} losses`
+            : day.tradesCount > 0
+              ? "Flat day"
+              : null,
+      metrics: [
+        day.sessionsUsed.length > 0 ? `${day.sessionsUsed.length} sessions` : "No session",
+        day.screenshotCount > 0 ? `${day.screenshotCount} shots` : "No shots",
+      ],
+      tone: display.tone,
+    };
+  }
+
+  if (mode === "review") {
+    if (day.reviewableTrades === 0) {
+      return {
+        value: day.tradesCount > 0 ? "Open" : "Quiet",
+        eyebrow: day.tradesCount > 0 ? `${day.tradesCount} trades` : "No activity",
+        caption: day.tradesCount > 0 ? "No closed trades yet" : null,
+        metrics: [
+          day.setupAssignedTrades > 0
+            ? `${day.setupAssignedTrades} setups`
+            : "No setups",
+          day.screenshotCount > 0 ? `${day.screenshotCount} shots` : "No shots",
+        ],
+        tone: "default",
+      };
+    }
+
+    if (day.needsReviewTrades > 0) {
+      return {
+        value: display.primaryValue,
+        eyebrow: `${day.reviewedTrades}/${day.reviewableTrades} done`,
+        caption: `${day.needsReviewTrades} still pending`,
+        metrics: [
+          `${day.setupAssignedTrades} setups`,
+          day.screenshotCount > 0 ? `${day.screenshotCount} shots` : "No shots",
+        ],
+        tone: "warning",
+      };
+    }
+
+    return {
+      value: display.primaryValue,
+      eyebrow: `${day.reviewableTrades} reviewed`,
+      caption: "Review complete",
+      metrics: [
+        `${day.setupAssignedTrades} setups`,
+        day.screenshotCount > 0 ? `${day.screenshotCount} shots` : "No shots",
+      ],
+      tone: "profit",
+    };
+  }
+
+  if (!day.dailyPlan && day.tradesCount === 0) {
+    return {
+      value: "Quiet",
+      eyebrow: "No process data",
+      caption: null,
+      metrics: [],
+      tone: "default",
+    };
+  }
+
+  if (day.flaggedViolationsCount > 0) {
+    return {
+      value: `${day.flaggedViolationsCount}`,
+      eyebrow: "Rule flags",
+      caption: `${day.brokenRules} broken`,
+      metrics: [
+        `${day.followedRules} followed`,
+        day.dailyPlan ? "Plan saved" : "No plan",
+      ],
+      tone: "loss",
+    };
+  }
+
+  if (day.dailyPlan) {
+    return {
+      value: day.dailyPlan.dayGrade ?? "Plan",
+      eyebrow: day.dailyPlan.dayGrade ? "Day grade" : "Plan saved",
+      caption: `${day.followedRules} followed`,
+      metrics: [
+        `${day.tradesCount} trades`,
+        day.brokenRules > 0 ? `${day.brokenRules} broken` : "No breaks",
+      ],
+      tone: day.dailyPlan.dayGrade === "A" ? "profit" : "accent",
+    };
+  }
+
+  return {
+    value: "No plan",
+    eyebrow: `${day.tradesCount} trades`,
+    caption: "Unplanned day",
+    metrics: [
+      day.brokenRules > 0 ? `${day.brokenRules} broken` : "No breaks",
+      `${day.followedRules} followed`,
+    ],
+    tone: "warning",
+  };
+}
+
+function getMonthCellSurfaceStyle(
+  tone: CalendarTone,
+  selected: boolean,
+  inCurrentMonth: boolean,
+  quiet: boolean,
+) {
+  if (selected) {
+    return {
+      background: "color-mix(in_srgb,var(--accent-soft)_72%,var(--surface))",
+      boxShadow: "inset 0 0 0 1.5px var(--accent-primary)",
+    };
+  }
+
+  if (!inCurrentMonth) {
+    return {
+      background: "color-mix(in_srgb,var(--surface-elevated)_48%,transparent)",
+      boxShadow: undefined,
+    };
+  }
+
+  if (quiet) {
+    return {
+      background: "var(--surface)",
+      boxShadow: undefined,
+    };
+  }
+
+  if (tone === "profit") {
+    return {
+      background: "color-mix(in_srgb,var(--profit-bg)_70%,var(--surface))",
+      boxShadow: undefined,
+    };
+  }
+
+  if (tone === "loss") {
+    return {
+      background: "color-mix(in_srgb,var(--loss-bg)_68%,var(--surface))",
+      boxShadow: undefined,
+    };
+  }
+
+  if (tone === "warning") {
+    return {
+      background: "color-mix(in_srgb,var(--warning-bg)_74%,var(--surface))",
+      boxShadow: undefined,
+    };
+  }
+
+  if (tone === "accent") {
+    return {
+      background: "color-mix(in_srgb,var(--accent-soft)_66%,var(--surface))",
+      boxShadow: undefined,
+    };
+  }
+
+  return {
+    background: "var(--surface)",
+    boxShadow: undefined,
+  };
+}
+
 function CalendarMonthCell({
   day,
   dateTools,
@@ -38,23 +220,14 @@ function CalendarMonthCell({
   onSelectDay: (dateKey: string) => void;
 }) {
   const display = getDayDisplay(mode, day);
+  const summary = getMonthCellSummary(day, mode);
   const isQuietDay = day.tradesCount === 0 && !day.dailyPlan;
-  const bottomLabel =
-    mode === "performance"
-      ? `${day.tradesCount} trades`
-      : mode === "review"
-        ? `${day.needsReviewTrades} pending`
-        : `${day.flaggedViolationsCount} flagged`;
-  const sideLabel =
-    mode === "performance"
-      ? `${day.sessionsUsed.length || 0} sessions`
-      : mode === "review"
-        ? `${day.screenshotCount} shots`
-        : day.flaggedViolationsCount > 0
-          ? "Needs attention"
-          : day.dailyPlan
-            ? "Plan saved"
-            : "No plan";
+  const surfaceStyle = getMonthCellSurfaceStyle(
+    summary.tone,
+    selected,
+    day.inCurrentMonth,
+    isQuietDay,
+  );
 
   return (
     <button
@@ -63,22 +236,17 @@ function CalendarMonthCell({
       aria-pressed={selected}
       aria-label={getDaySelectionLabel(day, dateTools, mode)}
       className={cn(
-        "relative flex min-h-[112px] flex-col gap-3 p-3.5 text-left transition-colors 2xl:min-h-[132px] 2xl:p-4",
-        !day.inCurrentMonth &&
-          "bg-[color-mix(in_srgb,var(--surface-elevated)_48%,transparent)]",
+        "calendar-review-month-cell relative flex min-h-[104px] flex-col gap-3 p-3 text-left transition-colors 2xl:min-h-[120px] 2xl:p-3.5",
         day.inCurrentMonth &&
           "hover:bg-[color-mix(in_srgb,var(--surface-elevated)_20%,transparent)]",
-        selected && "bg-[color-mix(in_srgb,var(--accent-soft)_68%,var(--surface))]",
       )}
-      style={{
-        boxShadow: selected ? "inset 0 0 0 1.5px var(--accent-primary)" : undefined,
-      }}
+      style={surfaceStyle}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
+      <div className="calendar-review-month-dayhead">
+        <div>
           <span
             className={cn(
-              "inline-flex h-9 min-w-9 items-center justify-center rounded-full px-2 text-sm font-semibold",
+              "inline-flex h-9 min-w-9 items-center justify-center rounded-full px-2 text-[0.95rem] font-semibold",
               day.isToday && "bg-[var(--accent-primary)] text-white",
               !day.isToday && day.inCurrentMonth && "text-foreground",
               !day.isToday && !day.inCurrentMonth && "text-[var(--text-tertiary)]",
@@ -86,12 +254,9 @@ function CalendarMonthCell({
           >
             {dateTools.formatDayNumber(day.date)}
           </span>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-            {dateTools.formatDayShortLabel(day.date)}
-          </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="calendar-review-month-indicators">
           {day.dailyPlan ? (
             <span
               className="h-2.5 w-2.5 rounded-full"
@@ -118,46 +283,42 @@ function CalendarMonthCell({
 
       {day.inCurrentMonth ? (
         isQuietDay ? (
-          <div className="mt-auto flex items-end justify-between gap-2">
-            <span className="text-[11px] font-medium text-[var(--text-tertiary)]">
-              Quiet day
-            </span>
-            <span className="text-[10px] text-[var(--text-tertiary)]">
-              No activity
-            </span>
+          <div className="calendar-review-month-core">
+            <div className="calendar-review-month-center">
+              <p className="calendar-review-month-label">Quiet day</p>
+              <p className="calendar-review-month-meta">No trading activity</p>
+            </div>
           </div>
         ) : (
-          <>
-            <div className="space-y-1">
+          <div className="calendar-review-month-core">
+            <div className="calendar-review-month-center">
               <p
-                className="mono text-[0.95rem] font-bold 2xl:text-[1rem]"
+                className="calendar-review-month-label"
+                style={{ color: toneTextColor(summary.tone) }}
+              >
+                {summary.eyebrow}
+              </p>
+              <p
+                className="calendar-review-month-value mono font-bold"
                 style={{ color: toneTextColor(display.tone) }}
               >
-                {display.primaryValue}
+                {summary.value}
               </p>
-              <p className="text-[11px] font-medium text-[var(--text-tertiary)]">
-                {display.secondaryValue}
-              </p>
+              {summary.caption ? (
+                <p className="calendar-review-month-meta">{summary.caption}</p>
+              ) : null}
             </div>
 
-            <div className="mt-auto flex items-end justify-between gap-2">
-              <div className="min-w-0 space-y-1">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-                  Snapshot
-                </p>
-                <p className="line-clamp-1 text-[11px] text-[var(--text-secondary)]">
-                  {display.narrative}
-                </p>
+            {summary.metrics.length > 0 ? (
+              <div className="calendar-review-month-footer">
+                {summary.metrics.map((metric) => (
+                  <span key={`${day.dateKey}-${metric}`} className="calendar-review-month-metric">
+                    {metric}
+                  </span>
+                ))}
               </div>
-
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <CalendarDayPill tone={display.tone}>{bottomLabel}</CalendarDayPill>
-                <span className="text-[10px] font-medium text-[var(--text-tertiary)]">
-                  {sideLabel}
-                </span>
-              </div>
-            </div>
-          </>
+            ) : null}
+          </div>
         )
       ) : null}
     </button>

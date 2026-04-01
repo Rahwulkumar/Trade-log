@@ -10,6 +10,7 @@ import type {
   SetupDefinitionInsert,
 } from "@/lib/db/schema";
 import type { RuleSetWithItems } from "@/lib/rulebooks/types";
+import type { JournalPromotionCandidate } from "@/lib/journal-structure/promotion";
 
 interface ApiErrorPayload {
   error?: string;
@@ -97,6 +98,16 @@ export async function deleteSetupDefinition(id: string): Promise<void> {
   await readResponse<{ success: true }>(res, "Failed to delete setup");
 }
 
+export async function getSetupPromotionCandidates(): Promise<
+  JournalPromotionCandidate[]
+> {
+  const res = await fetch("/api/setups/candidates");
+  return readResponse<JournalPromotionCandidate[]>(
+    res,
+    "Failed to load setup suggestions",
+  );
+}
+
 export async function getMistakeDefinitions(options?: {
   activeOnly?: boolean;
 }): Promise<MistakeDefinition[]> {
@@ -136,6 +147,16 @@ export async function updateMistakeDefinition(
 export async function deleteMistakeDefinition(id: string): Promise<void> {
   const res = await fetch(`/api/mistakes/${id}`, { method: "DELETE" });
   await readResponse<{ success: true }>(res, "Failed to delete mistake");
+}
+
+export async function getMistakePromotionCandidates(): Promise<
+  JournalPromotionCandidate[]
+> {
+  const res = await fetch("/api/mistakes/candidates");
+  return readResponse<JournalPromotionCandidate[]>(
+    res,
+    "Failed to load mistake suggestions",
+  );
 }
 
 export async function getJournalTemplates(options?: {

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { AppMetricCard, SectionHeader } from "@/components/ui/page-primitives";
+import { SectionHeader } from "@/components/ui/page-primitives";
 import type {
   CalendarDateTools,
   CalendarReviewDay,
@@ -414,7 +414,7 @@ export function CalendarInspectorSection({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-3 rounded-[24px] border border-[var(--border-subtle)] bg-[var(--surface)] p-4 sm:p-5">
+    <section className="calendar-review-inspector-section space-y-4 p-4 sm:p-5">
       <SectionHeader className="mb-0" title={title} subtitle={subtitle} />
       {children}
     </section>
@@ -434,16 +434,20 @@ function CalendarCompactStat({
 }) {
   return (
     <div className="calendar-review-stat-item">
-      <AppMetricCard
-        label={label}
-        value={value}
-        helper={helper}
-        tone={tone}
-        size="compact"
-        shell="elevated"
-        monoValue
-        className="h-full"
-      />
+      <div className="calendar-review-mini-stat">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+          {label}
+        </p>
+        <p
+          className="mono mt-2 text-[1rem] font-semibold"
+          style={{ color: toneTextColor(tone) }}
+        >
+          {value}
+        </p>
+        <p className="mt-1.5 text-xs leading-relaxed text-[var(--text-secondary)]">
+          {helper}
+        </p>
+      </div>
     </div>
   );
 }
@@ -469,6 +473,37 @@ export function CalendarCompactStatStrip({
           tone={stat.tone}
         />
       ))}
+    </div>
+  );
+}
+
+export function CalendarMiniStat({
+  label,
+  value,
+  helper,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  tone?: CalendarTone;
+}) {
+  return (
+    <div className="calendar-review-mini-stat">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+        {label}
+      </p>
+      <p
+        className="mono mt-2 text-sm font-semibold"
+        style={{ color: toneTextColor(tone) }}
+      >
+        {value}
+      </p>
+      {helper ? (
+        <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
+          {helper}
+        </p>
+      ) : null}
     </div>
   );
 }

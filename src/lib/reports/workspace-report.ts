@@ -23,6 +23,7 @@ function sentenceCase(value: string) {
 function getDimensionLabel(value: ReportFilters["groupBy"]) {
   if (value === "setup") return "Setup";
   if (value === "mistake") return "Mistake";
+  if (value === "rule") return "Rule";
   if (value === "template") return "Template";
   if (value === "setupTag") return "Setup Tag";
   if (value === "mistakeTag") return "Mistake Tag";
@@ -90,6 +91,7 @@ export function normalizeReportFilters(
     mistakeTag: filters.mistakeTag ?? null,
     direction: filters.direction ?? null,
     reviewStatus: filters.reviewStatus ?? null,
+    ruleStatus: filters.ruleStatus ?? null,
   };
 }
 
@@ -125,6 +127,7 @@ export function buildAnalyticsWorkspaceQueryFromReportFilters(
       mistakeTag: filters.mistakeTag,
       direction: filters.direction,
       reviewStatus: filters.reviewStatus,
+      ruleStatus: filters.ruleStatus,
     },
   };
 

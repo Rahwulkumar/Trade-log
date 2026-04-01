@@ -1,0 +1,28 @@
+# Dependencies and build output
+node_modules
+.next
+out
+build
+coverage
+
+# Local environment and debug artifacts
+.env*
+.agent
+*.log
+eslint-*.json
+lint_*.json
+full_errors.txt
+build_errors.log
+tsc_error.log
+supabase_debug.log
+
+# Local MT5 and orchestration runtime files
+terminal-farm/mt5-install.zip
+windows-mt5-worker/.venv
+windows-mt5-worker/logs
+windows-mt5-worker/artifacts
+windows-mt5-worker/__pycache__
+orchestrator/venv
+
+# Local Vercel metadata
+.vercel

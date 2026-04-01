@@ -39,6 +39,7 @@ import { getPlaybooks, type Playbook } from "@/lib/api/client/playbooks";
 import { getTradesStrict } from "@/lib/api/client/trades";
 import {
   buildCalendarReviewMonth,
+  createCalendarDateTools,
   getCalendarMonthLabel,
   getCalendarMonthQueryRange,
   getCurrentCalendarMonthKey,
@@ -67,8 +68,9 @@ export function CalendarReviewWorkspace() {
     [profile?.timezone],
   );
 
-  const [currentMonthKey, setCurrentMonthKey] = useState(() =>
-    getCurrentCalendarMonthKey(timeZone),
+  const [currentMonthKey, setCurrentMonthKey] = useState<string | null>(null);
+  const [latestActivityMonthKey, setLatestActivityMonthKey] = useState<string | null>(
+    null,
   );
   const [mode, setMode] = useState<CalendarReviewMode>("performance");
   const [dateMode, setDateMode] = useState<CalendarDateMode>("entry");
@@ -89,6 +91,10 @@ export function CalendarReviewWorkspace() {
   const journalRef = useRef<HTMLDivElement | null>(null);
   const timeZoneLabel = useMemo(
     () => formatAnalyticsTimeZoneLabel(timeZone),
+    [timeZone],
+  );
+  const fallbackMonthKey = useMemo(
+    () => getCurrentCalendarMonthKey(timeZone),
     [timeZone],
   );
 
@@ -119,13 +125,88 @@ export function CalendarReviewWorkspace() {
   );
 
   const monthDates = useMemo(
-    () => getCalendarMonthQueryRange(currentMonthKey),
+    () => (currentMonthKey ? getCalendarMonthQueryRange(currentMonthKey) : null),
     [currentMonthKey],
   );
   const currentMonthLabel = useMemo(
-    () => getCalendarMonthLabel(currentMonthKey, timeZone),
+    () =>
+      currentMonthKey
+        ? getCalendarMonthLabel(currentMonthKey, timeZone)
+        : "Loading month...",
     [currentMonthKey, timeZone],
   );
+  const resetMonthLabel = useMemo(
+    () =>
+      latestActivityMonthKey && latestActivityMonthKey !== fallbackMonthKey
+        ? "Latest"
+        : "Current",
+    [fallbackMonthKey, latestActivityMonthKey],
+  );
+
+  useEffect(() => {
+    async function resolveMonth() {
+      if (authLoading) {
+        return;
+      }
+
+      const defaultMonthKey = getCurrentCalendarMonthKey(timeZone);
+
+      if (!isConfigured || !user) {
+        setLatestActivityMonthKey(defaultMonthKey);
+        setCurrentMonthKey(defaultMonthKey);
+        return;
+      }
+
+      try {
+        const latestTrades = await getTradesStrict(
+          dateMode === "entry"
+            ? {
+                propAccountId:
+                  selectedAccountId === "unassigned"
+                    ? "unassigned"
+                    : selectedAccountId ?? undefined,
+                limit: 1,
+                sortBy: "entryDate",
+                sortOrder: "desc",
+              }
+            : {
+                status: "closed",
+                propAccountId:
+                  selectedAccountId === "unassigned"
+                    ? "unassigned"
+                    : selectedAccountId ?? undefined,
+                limit: 1,
+                sortBy: "exitDate",
+                sortOrder: "desc",
+              },
+        );
+
+        const latestTrade = latestTrades[0] ?? null;
+        if (!latestTrade) {
+          setLatestActivityMonthKey(defaultMonthKey);
+          setCurrentMonthKey(defaultMonthKey);
+          return;
+        }
+
+        const targetDate =
+          dateMode === "exit" ? latestTrade.exitDate : latestTrade.entryDate;
+        const parsedDate =
+          targetDate instanceof Date ? targetDate : targetDate ? new Date(targetDate) : null;
+        const nextMonthKey =
+          parsedDate && !Number.isNaN(parsedDate.getTime())
+            ? createCalendarDateTools(timeZone).formatYearMonthKey(parsedDate)
+            : defaultMonthKey;
+
+        setLatestActivityMonthKey(nextMonthKey);
+        setCurrentMonthKey(nextMonthKey);
+      } catch {
+        setLatestActivityMonthKey(defaultMonthKey);
+        setCurrentMonthKey(defaultMonthKey);
+      }
+    }
+
+    void resolveMonth();
+  }, [authLoading, dateMode, isConfigured, selectedAccountId, timeZone, user]);
 
   useEffect(() => {
     async function loadLibraries() {
@@ -186,6 +267,11 @@ export function CalendarReviewWorkspace() {
         return;
       }
 
+      if (!monthDates) {
+        setLoading(true);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
@@ -233,10 +319,7 @@ export function CalendarReviewWorkspace() {
     authLoading,
     dateMode,
     isConfigured,
-    monthDates.fetchFrom,
-    monthDates.fetchTo,
-    monthDates.from,
-    monthDates.to,
+    monthDates,
     reloadNonce,
     selectedAccountId,
     user,
@@ -245,7 +328,7 @@ export function CalendarReviewWorkspace() {
   const calendarData = useMemo(
     () =>
       buildCalendarReviewMonth({
-        currentMonthKey,
+        currentMonthKey: currentMonthKey ?? fallbackMonthKey,
         trades,
         dailyPlans: dailyPlans as CalendarReviewPlan[],
         setupNames,
@@ -256,6 +339,7 @@ export function CalendarReviewWorkspace() {
         globalRules: profile?.trading_rules ?? [],
       }),
     [
+      fallbackMonthKey,
       currentMonthKey,
       dailyPlans,
       dateMode,
@@ -488,11 +572,22 @@ export function CalendarReviewWorkspace() {
         monthLabel={currentMonthLabel}
         timeZoneLabel={timeZoneLabel}
         accountLabel={accountLabel}
+        resetLabel={resetMonthLabel}
         onModeChange={setMode}
         onDateModeChange={setDateMode}
-        onPreviousMonth={() => setCurrentMonthKey(shiftCalendarMonthKey(currentMonthKey, -1))}
-        onNextMonth={() => setCurrentMonthKey(shiftCalendarMonthKey(currentMonthKey, 1))}
-        onResetMonth={() => setCurrentMonthKey(getCurrentCalendarMonthKey(timeZone))}
+        onPreviousMonth={() =>
+          setCurrentMonthKey((current) =>
+            shiftCalendarMonthKey(current ?? fallbackMonthKey, -1),
+          )
+        }
+        onNextMonth={() =>
+          setCurrentMonthKey((current) =>
+            shiftCalendarMonthKey(current ?? fallbackMonthKey, 1),
+          )
+        }
+        onResetMonth={() =>
+          setCurrentMonthKey(latestActivityMonthKey ?? fallbackMonthKey)
+        }
       />
 
       {loading ? (
@@ -537,6 +632,7 @@ export function CalendarReviewWorkspace() {
 
             <div ref={detailRef} className="calendar-review-inspector-shell">
               <CalendarDayInspector
+                key={selectedDay?.dateKey ?? "empty-day"}
                 mode={mode}
                 selectedDay={selectedDay}
                 dateTools={calendarData.dateTools}

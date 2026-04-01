@@ -70,6 +70,7 @@ function emptyWorkspaceQuery(
       mistakeTag: null,
       direction: null,
       reviewStatus: null,
+      ruleStatus: null,
     },
   };
 }
@@ -140,6 +141,7 @@ export function AnalyticsWorkspace({
         mistakeTag: query.filters.mistakeTag,
         direction: query.filters.direction,
         reviewStatus: query.filters.reviewStatus,
+        ruleStatus: query.filters.ruleStatus,
       },
     }),
     [
@@ -152,6 +154,7 @@ export function AnalyticsWorkspace({
       query.filters.mistakeTag,
       query.filters.mistakeDefinitionId,
       query.filters.playbookId,
+      query.filters.ruleStatus,
       query.filters.reviewStatus,
       query.filters.session,
       query.filters.setupDefinitionId,
@@ -260,6 +263,7 @@ export function AnalyticsWorkspace({
         mistakeTag: null,
         direction: null,
         reviewStatus: null,
+        ruleStatus: null,
       },
     }));
   };
@@ -269,7 +273,7 @@ export function AnalyticsWorkspace({
       <AppPanel>
         <PanelTitle
           title="Drilldown Workspace"
-          subtitle="Pivot by symbol, session, playbook, setup, mistake, template, or review state, then open the exact trades behind each bucket."
+          subtitle="Pivot by symbol, session, playbook, setup, mistake, rule, template, or review state, then open the exact trades behind each bucket."
         />
 
         <div className="space-y-4">
@@ -433,6 +437,35 @@ export function AnalyticsWorkspace({
                     <SelectContent>
                       <SelectItem value="all">All Review States</SelectItem>
                       {result?.facets.reviewStates.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label} ({option.count})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldGroup>
+
+                <FieldGroup label="Rule Status">
+                  <Select
+                    value={query.filters.ruleStatus ?? "all"}
+                    onValueChange={(value) =>
+                      setPartialQuery(
+                        { drilldownKey: null },
+                        {
+                          ruleStatus:
+                            value === "all"
+                              ? null
+                              : (value as AnalyticsWorkspaceQuery["filters"]["ruleStatus"]),
+                        },
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Rule States</SelectItem>
+                      {result?.facets.ruleStatuses.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label} ({option.count})
                         </SelectItem>

@@ -3,6 +3,7 @@ import type {
   AnalyticsWorkspaceMeasure,
   AnalyticsWorkspaceResult,
   AnalyticsWorkspaceReviewState,
+  AnalyticsWorkspaceRuleStatus,
   AnalyticsWorkspaceScopedFilterId,
   AnalyticsWorkspaceSortOrder,
 } from "@/lib/analytics/workspace-types";
@@ -38,6 +39,7 @@ export interface ReportFilters {
   mistakeTag: string | null;
   direction: 'LONG' | 'SHORT' | null;
   reviewStatus: AnalyticsWorkspaceReviewState | null;
+  ruleStatus: AnalyticsWorkspaceRuleStatus | null;
 }
 
 export interface ReportSummary {

@@ -72,7 +72,7 @@ const DIMENSIONS_BY_REPORT_TYPE: Record<
 > = {
   performance: ["symbol", "session", "weekday", "direction", "setup", "template"],
   playbook: ["playbook", "setup", "template", "symbol", "session", "reviewStatus"],
-  risk: ["mistake", "setup", "template", "session", "direction", "reviewStatus"],
+  risk: ["mistake", "rule", "setup", "template", "session", "direction", "reviewStatus"],
 };
 
 const SIMPLE_MEASURE_OPTIONS: Array<ReportFilters["measure"]> = [
@@ -177,6 +177,7 @@ export function ReportBuilder({
     filters.session ? `Session` : null,
     filters.direction ? `Direction` : null,
     filters.reviewStatus ? `Review` : null,
+    filters.ruleStatus ? `Rule state` : null,
     filters.setupTag ? `Setup tag` : null,
     filters.mistakeTag ? `Mistake tag` : null,
     filters.title?.trim() ? `Custom title` : null,
@@ -424,6 +425,67 @@ export function ReportBuilder({
                       }
                     >
                       Needs Review
+                    </ChoiceChip>
+                  </ControlSurface>
+                </FieldGroup>
+
+                <FieldGroup label="Rule Status">
+                  <ControlSurface className="flex flex-wrap gap-2">
+                    <ChoiceChip
+                      active={filters.ruleStatus === null}
+                      onClick={() => onChange({ ...filters, ruleStatus: null })}
+                    >
+                      All
+                    </ChoiceChip>
+                    <ChoiceChip
+                      active={filters.ruleStatus === "followed"}
+                      onClick={() =>
+                        onChange({
+                          ...filters,
+                          ruleStatus:
+                            filters.ruleStatus === "followed" ? null : "followed",
+                        })
+                      }
+                    >
+                      Followed
+                    </ChoiceChip>
+                    <ChoiceChip
+                      active={filters.ruleStatus === "broken"}
+                      onClick={() =>
+                        onChange({
+                          ...filters,
+                          ruleStatus:
+                            filters.ruleStatus === "broken" ? null : "broken",
+                        })
+                      }
+                    >
+                      Broken
+                    </ChoiceChip>
+                    <ChoiceChip
+                      active={filters.ruleStatus === "skipped"}
+                      onClick={() =>
+                        onChange({
+                          ...filters,
+                          ruleStatus:
+                            filters.ruleStatus === "skipped" ? null : "skipped",
+                        })
+                      }
+                    >
+                      Skipped
+                    </ChoiceChip>
+                    <ChoiceChip
+                      active={filters.ruleStatus === "notApplicable"}
+                      onClick={() =>
+                        onChange({
+                          ...filters,
+                          ruleStatus:
+                            filters.ruleStatus === "notApplicable"
+                              ? null
+                              : "notApplicable",
+                        })
+                      }
+                    >
+                      N/A
                     </ChoiceChip>
                   </ControlSurface>
                 </FieldGroup>

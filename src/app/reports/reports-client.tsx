@@ -97,6 +97,7 @@ function createInitialFilters(
     mistakeTag: null,
     direction: null,
     reviewStatus: null,
+    ruleStatus: null,
   };
 }
 

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
+  BookOpenText,
   CalendarDays,
   ChevronDown,
   ClipboardCheck,
@@ -14,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AppPanel } from "@/components/ui/page-primitives";
 import { InsetPanel, WidgetEmptyState } from "@/components/ui/surface-primitives";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   CalendarDateTools,
   CalendarReviewDay,
@@ -26,6 +28,7 @@ import {
   CalendarCompactStatStrip,
   CalendarDayPill,
   CalendarInspectorSection,
+  CalendarMiniStat,
   formatMoney,
   formatSignedMoney,
   getDayDisplay,
@@ -50,74 +53,60 @@ function CalendarPlanSummary({ plan }: { plan: CalendarReviewPlan | null }) {
   return (
     <div className="space-y-4">
       <div className="calendar-review-plan-grid">
-        <InsetPanel paddingClassName="px-4 py-4">
-          <p className="text-label mb-1">Bias</p>
-          <p className="text-sm font-semibold text-foreground">{plan.bias ?? "Not set"}</p>
-        </InsetPanel>
-        <InsetPanel paddingClassName="px-4 py-4">
-          <p className="text-label mb-1">Strategy</p>
-          <p className="text-sm font-semibold text-foreground">
-            {plan.playbookName ?? "No linked playbook"}
-          </p>
-        </InsetPanel>
-        <InsetPanel paddingClassName="px-4 py-4">
-          <p className="text-label mb-1">Max Trades</p>
-          <p className="mono text-sm font-semibold text-foreground">
-            {plan.maxTrades ?? "--"}
-          </p>
-        </InsetPanel>
-        <InsetPanel paddingClassName="px-4 py-4">
-          <p className="text-label mb-1">Daily Limit</p>
-          <p className="mono text-sm font-semibold text-foreground">
-            {plan.dailyLimit != null ? `$${formatMoney(plan.dailyLimit, 2)}` : "--"}
-          </p>
-        </InsetPanel>
+        <CalendarMiniStat label="Bias" value={plan.bias ?? "Not set"} />
+        <CalendarMiniStat
+          label="Strategy"
+          value={plan.playbookName ?? "No linked playbook"}
+        />
+        <CalendarMiniStat
+          label="Max Trades"
+          value={plan.maxTrades != null ? String(plan.maxTrades) : "--"}
+        />
+        <CalendarMiniStat
+          label="Daily Limit"
+          value={plan.dailyLimit != null ? `$${formatMoney(plan.dailyLimit, 2)}` : "--"}
+        />
       </div>
 
       <div className="calendar-review-plan-check-grid">
-        <InsetPanel paddingClassName="px-4 py-4">
-          <p className="text-label mb-1">Universal Checks</p>
-          <p className="mono text-sm font-semibold text-foreground">
-            {plan.universalRulesChecked.length}
-          </p>
-        </InsetPanel>
-        <InsetPanel paddingClassName="px-4 py-4">
-          <p className="text-label mb-1">Strategy Checks</p>
-          <p className="mono text-sm font-semibold text-foreground">
-            {plan.strategyRulesChecked.length}
-          </p>
-        </InsetPanel>
-        <InsetPanel tone={getGradeTone(plan.dayGrade)} paddingClassName="px-4 py-4">
-          <p className="text-label mb-1">Day Grade</p>
-          <p className="mono text-sm font-semibold text-foreground">
-            {plan.dayGrade ?? "--"}
-          </p>
-        </InsetPanel>
+        <CalendarMiniStat
+          label="Universal Checks"
+          value={String(plan.universalRulesChecked.length)}
+        />
+        <CalendarMiniStat
+          label="Strategy Checks"
+          value={String(plan.strategyRulesChecked.length)}
+        />
+        <CalendarMiniStat
+          label="Day Grade"
+          value={plan.dayGrade ?? "--"}
+          tone={getGradeTone(plan.dayGrade)}
+        />
       </div>
 
       {plan.preNote ? (
-        <InsetPanel paddingClassName="px-4 py-4">
+        <div className="calendar-review-note-block">
           <p className="text-label mb-1">Pre-Market Note</p>
           <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
             {plan.preNote}
           </p>
-        </InsetPanel>
+        </div>
       ) : null}
 
       {(plan.wentWell || plan.wentWrong) ? (
         <div className="calendar-review-plan-notes-grid">
-          <InsetPanel paddingClassName="px-4 py-4">
+          <div className="calendar-review-note-block">
             <p className="text-label mb-1">Went Well</p>
             <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
               {plan.wentWell || "No note yet."}
             </p>
-          </InsetPanel>
-          <InsetPanel paddingClassName="px-4 py-4">
+          </div>
+          <div className="calendar-review-note-block">
             <p className="text-label mb-1">Went Wrong</p>
             <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
               {plan.wentWrong || "No note yet."}
             </p>
-          </InsetPanel>
+          </div>
         </div>
       ) : null}
     </div>
@@ -144,31 +133,33 @@ function CalendarRuleFlagSummary({ day }: { day: CalendarReviewDay }) {
   return (
     <div className="space-y-4">
       <div className="calendar-review-rule-summary-grid">
-        <InsetPanel
+        <CalendarMiniStat
+          label="Global Rules Flagged"
+          value={`${day.violatedGlobalRules.length}/${day.globalRulesTracked.length}`}
           tone={day.violatedGlobalRules.length > 0 ? "loss" : "accent"}
-          paddingClassName="px-4 py-4"
-        >
-          <p className="text-label mb-1">Global Rules Flagged</p>
-          <p className="mono text-sm font-semibold text-foreground">
-            {day.violatedGlobalRules.length}/{day.globalRulesTracked.length}
-          </p>
-        </InsetPanel>
-        <InsetPanel
+          helper={
+            day.globalRulesTracked.length > 0
+              ? "Tracked from your active global rulebook"
+              : "No global rules tracked"
+          }
+        />
+        <CalendarMiniStat
+          label="Day Rules Flagged"
+          value={`${day.violatedDailyRules.length}/${day.dailyRulesTracked.length}`}
           tone={day.violatedDailyRules.length > 0 ? "loss" : "accent"}
-          paddingClassName="px-4 py-4"
-        >
-          <p className="text-label mb-1">Day Rules Flagged</p>
-          <p className="mono text-sm font-semibold text-foreground">
-            {day.violatedDailyRules.length}/{day.dailyRulesTracked.length}
-          </p>
-        </InsetPanel>
+          helper={
+            day.dailyRulesTracked.length > 0
+              ? "Tracked from the day plan and selected rulebook"
+              : "No day rules tracked"
+          }
+        />
       </div>
 
       <div className="space-y-3">
         {day.planViolationLabels.length > 0 ? (
-          <div>
+          <div className="calendar-review-note-block">
             <p className="text-label mb-2">Automatic Day Flags</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="calendar-review-chip-group">
               {day.planViolationLabels.map((rule) => (
                 <CalendarDayPill key={`plan-${rule}`} tone="loss">
                   {rule}
@@ -178,9 +169,9 @@ function CalendarRuleFlagSummary({ day }: { day: CalendarReviewDay }) {
           </div>
         ) : null}
 
-        <div>
+        <div className="calendar-review-note-block">
           <p className="text-label mb-2">Global Rule Flags</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="calendar-review-chip-group">
             {day.globalRulesTracked.length > 0 ? (
               day.globalRulesTracked.map((rule) => (
                 <CalendarDayPill
@@ -198,9 +189,9 @@ function CalendarRuleFlagSummary({ day }: { day: CalendarReviewDay }) {
           </div>
         </div>
 
-        <div>
+        <div className="calendar-review-note-block">
           <p className="text-label mb-2">Daily Rule Flags</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="calendar-review-chip-group">
             {day.dailyRulesTracked.length > 0 ? (
               day.dailyRulesTracked.map((rule) => (
                 <CalendarDayPill
@@ -309,7 +300,7 @@ function CalendarTradeCard({
   return (
     <div
       className={cn(
-        "rounded-[24px] border p-4 transition-colors sm:p-5",
+        "calendar-review-trade-card rounded-[22px] border p-3.5 transition-colors sm:p-4",
         selected
           ? "bg-[color-mix(in_srgb,var(--accent-soft)_68%,var(--surface))]"
           : "bg-[var(--surface-elevated)]",
@@ -395,47 +386,25 @@ function CalendarTradeList({
 function CalendarDayCoverage({ day }: { day: CalendarReviewDay }) {
   return (
     <div className="space-y-3">
-      <InsetPanel paddingClassName="px-4 py-4">
-        <p className="text-label mb-3">Coverage</p>
-        <div className="calendar-review-coverage-grid">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-              Screenshots
-            </p>
-            <p className="mono mt-1 text-sm font-semibold text-foreground">
-              {day.screenshotCount}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-              Setup linked
-            </p>
-            <p className="mono mt-1 text-sm font-semibold text-foreground">
-              {day.setupAssignedTrades}/{day.tradesCount}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-              Template linked
-            </p>
-            <p className="mono mt-1 text-sm font-semibold text-foreground">
-              {day.templateAssignedTrades}/{day.tradesCount}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-              Mistake-tagged
-            </p>
-            <p className="mono mt-1 text-sm font-semibold text-foreground">
-              {day.mistakeTaggedTrades}
-            </p>
-          </div>
-        </div>
-      </InsetPanel>
+      <div className="calendar-review-coverage-grid">
+        <CalendarMiniStat label="Screenshots" value={String(day.screenshotCount)} />
+        <CalendarMiniStat
+          label="Setup Linked"
+          value={`${day.setupAssignedTrades}/${day.tradesCount}`}
+        />
+        <CalendarMiniStat
+          label="Template Linked"
+          value={`${day.templateAssignedTrades}/${day.tradesCount}`}
+        />
+        <CalendarMiniStat
+          label="Mistake-Tagged"
+          value={String(day.mistakeTaggedTrades)}
+        />
+      </div>
 
-      <InsetPanel paddingClassName="px-4 py-4">
+      <div className="calendar-review-note-block">
         <p className="text-label mb-3">Structure</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="calendar-review-chip-group">
           {day.sessionsUsed.length > 0 ? (
             day.sessionsUsed.map((session) => (
               <CalendarDayPill key={session}>{session}</CalendarDayPill>
@@ -459,7 +428,7 @@ function CalendarDayCoverage({ day }: { day: CalendarReviewDay }) {
             </CalendarDayPill>
           ))}
         </div>
-      </InsetPanel>
+      </div>
     </div>
   );
 }
@@ -542,6 +511,10 @@ export function CalendarDayInspector({
   onSelectTrade: (tradeId: string) => void;
   className?: string;
 }) {
+  const [activeTab, setActiveTab] = useState<"overview" | "rules" | "trades">(
+    "overview",
+  );
+
   if (!selectedDay) {
     return (
       <AppPanel className={cn("flex items-center justify-center p-6 sm:p-7", className)}>
@@ -567,12 +540,12 @@ export function CalendarDayInspector({
   return (
     <AppPanel
       className={cn(
-        "calendar-review-day-inspector space-y-5 overflow-hidden p-5 sm:p-6",
+        "calendar-review-day-inspector flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-5",
         className,
       )}
     >
-      <InsetPanel tone={getSelectedDayTone(mode, selectedDay)} paddingClassName="px-5 py-5">
-        <div className="space-y-4">
+      <div className="calendar-review-day-inspector-top space-y-4">
+        <InsetPanel tone={getSelectedDayTone(mode, selectedDay)} paddingClassName="px-4 py-4 sm:px-5 sm:py-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-label mb-2">Selected day</p>
@@ -586,7 +559,10 @@ export function CalendarDayInspector({
               <Button
                 size="sm"
                 className="shrink-0"
-                onClick={() => onSelectTrade(firstNeedsReviewTrade.id)}
+                onClick={() => {
+                  setActiveTab("trades");
+                  onSelectTrade(firstNeedsReviewTrade.id);
+                }}
               >
                 Journal next trade
               </Button>
@@ -645,42 +621,69 @@ export function CalendarDayInspector({
               </CalendarDayPill>
             ))}
           </div>
-        </div>
-      </InsetPanel>
-
-      <div className="space-y-5">
-        <CalendarInspectorSection
-          title="Coverage & structure"
-          subtitle="Check whether the day has the right context captured before you move on."
-        >
-          <CalendarDayCoverage day={selectedDay} />
-        </CalendarInspectorSection>
-
-        <CalendarInspectorSection
-          title="Daily plan"
-          subtitle="Pre-market context and closeout notes for this date."
-        >
-          <CalendarPlanSummary plan={selectedDay.dailyPlan} />
-        </CalendarInspectorSection>
+        </InsetPanel>
       </div>
 
-      <CalendarInspectorSection
-        title="Rule flags"
-        subtitle="Global and day-level rules are flagged here when the trade review marks them as broken."
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) =>
+          setActiveTab(value as "overview" | "rules" | "trades")
+        }
+        className="calendar-review-day-tabs min-h-0 flex-1"
       >
-        <CalendarRuleFlagSummary day={selectedDay} />
-      </CalendarInspectorSection>
+        <TabsList className="calendar-review-tab-list h-auto w-full justify-start rounded-[18px] bg-[var(--surface-elevated)] p-1">
+          <TabsTrigger value="overview" className="calendar-review-tab-trigger">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="rules" className="calendar-review-tab-trigger">
+            Rules
+          </TabsTrigger>
+          <TabsTrigger value="trades" className="calendar-review-tab-trigger">
+            <BookOpenText className="h-4 w-4" />
+            Trades
+          </TabsTrigger>
+        </TabsList>
 
-      <CalendarInspectorSection
-        title="Trades"
-        subtitle="Select a trade to journal it directly below without leaving the calendar."
-      >
-        <CalendarTradeList
-          day={selectedDay}
-          selectedTradeId={selectedTradeId}
-          onSelectTrade={onSelectTrade}
-        />
-      </CalendarInspectorSection>
+        <TabsContent value="overview" className="calendar-review-tab-content">
+          <div className="space-y-4">
+            <CalendarInspectorSection
+              title="Coverage & structure"
+              subtitle="Check whether the day has the right context captured before you move on."
+            >
+              <CalendarDayCoverage day={selectedDay} />
+            </CalendarInspectorSection>
+
+            <CalendarInspectorSection
+              title="Daily plan"
+              subtitle="Pre-market context and closeout notes for this date."
+            >
+              <CalendarPlanSummary plan={selectedDay.dailyPlan} />
+            </CalendarInspectorSection>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="rules" className="calendar-review-tab-content">
+          <CalendarInspectorSection
+            title="Rule flags"
+            subtitle="Global and day-level rules are flagged here when the trade review marks them as broken."
+          >
+            <CalendarRuleFlagSummary day={selectedDay} />
+          </CalendarInspectorSection>
+        </TabsContent>
+
+        <TabsContent value="trades" className="calendar-review-tab-content">
+          <CalendarInspectorSection
+            title="Trades"
+            subtitle="Select a trade to journal it directly below without leaving the calendar."
+          >
+            <CalendarTradeList
+              day={selectedDay}
+              selectedTradeId={selectedTradeId}
+              onSelectTrade={onSelectTrade}
+            />
+          </CalendarInspectorSection>
+        </TabsContent>
+      </Tabs>
     </AppPanel>
   );
 }

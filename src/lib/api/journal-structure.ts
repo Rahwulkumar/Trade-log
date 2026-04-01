@@ -1,11 +1,13 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   journalTemplates,
   mistakeDefinitions,
+  playbooks,
   ruleSetItems,
   ruleSets,
   setupDefinitions,
+  trades,
   type JournalTemplate,
   type JournalTemplateInsert,
   type MistakeDefinition,
@@ -16,6 +18,12 @@ import {
   type SetupDefinition,
   type SetupDefinitionInsert,
 } from "@/lib/db/schema";
+import {
+  buildPromotionCandidates,
+  normalizePromotionLabel,
+  type JournalPromotionCandidate,
+  type JournalPromotionRecord,
+} from "@/lib/journal-structure/promotion";
 import { toPersistedTemplateConfig } from "@/lib/validation/journal-structure";
 import type { RuleSetWithItems } from "@/lib/rulebooks/types";
 
@@ -161,6 +169,117 @@ export async function deleteMistakeDefinition(
     .where(
       and(eq(mistakeDefinitions.id, id), eq(mistakeDefinitions.userId, userId)),
     );
+}
+
+function getJournalReviewSetupName(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const setupName = (value as Record<string, unknown>).setupName;
+  return typeof setupName === "string" ? setupName : null;
+}
+
+export async function getSetupPromotionCandidates(
+  userId: string,
+): Promise<JournalPromotionCandidate[]> {
+  const [existingRows, tradeRows] = await Promise.all([
+    db
+      .select({ name: setupDefinitions.name })
+      .from(setupDefinitions)
+      .where(eq(setupDefinitions.userId, userId)),
+    db
+      .select({
+        tradeId: trades.id,
+        setupTags: trades.setupTags,
+        journalReview: trades.journalReview,
+        playbookId: trades.playbookId,
+        playbookName: playbooks.name,
+      })
+      .from(trades)
+      .leftJoin(playbooks, eq(trades.playbookId, playbooks.id))
+      .where(
+        and(
+          eq(trades.userId, userId),
+          sql`(
+            nullif(trim(coalesce(${trades.journalReview} ->> 'setupName', '')), '') is not null
+            or coalesce(cardinality(${trades.setupTags}), 0) > 0
+          )`,
+        ),
+      ),
+  ]);
+
+  const existingLabels = existingRows
+    .map((row) => normalizePromotionLabel(row.name))
+    .filter(Boolean);
+  const records: JournalPromotionRecord[] = [];
+
+  for (const row of tradeRows) {
+    records.push({
+      tradeId: row.tradeId,
+      label: getJournalReviewSetupName(row.journalReview),
+      source: "setup note",
+      playbookId: row.playbookId,
+      playbookName: row.playbookName ?? null,
+    });
+
+    for (const tag of row.setupTags ?? []) {
+      records.push({
+        tradeId: row.tradeId,
+        label: tag,
+        source: "setup tag",
+        playbookId: row.playbookId,
+        playbookName: row.playbookName ?? null,
+      });
+    }
+  }
+
+  return buildPromotionCandidates(records, existingLabels);
+}
+
+export async function getMistakePromotionCandidates(
+  userId: string,
+): Promise<JournalPromotionCandidate[]> {
+  const [existingRows, tradeRows] = await Promise.all([
+    db
+      .select({ name: mistakeDefinitions.name })
+      .from(mistakeDefinitions)
+      .where(eq(mistakeDefinitions.userId, userId)),
+    db
+      .select({
+        tradeId: trades.id,
+        mistakeTags: trades.mistakeTags,
+        playbookId: trades.playbookId,
+        playbookName: playbooks.name,
+      })
+      .from(trades)
+      .leftJoin(playbooks, eq(trades.playbookId, playbooks.id))
+      .where(
+        and(
+          eq(trades.userId, userId),
+          sql`coalesce(cardinality(${trades.mistakeTags}), 0) > 0`,
+        ),
+      ),
+  ]);
+
+  const existingLabels = existingRows
+    .map((row) => normalizePromotionLabel(row.name))
+    .filter(Boolean);
+  const records: JournalPromotionRecord[] = [];
+
+  for (const row of tradeRows) {
+    for (const tag of row.mistakeTags ?? []) {
+      records.push({
+        tradeId: row.tradeId,
+        label: tag,
+        source: "mistake tag",
+        playbookId: row.playbookId,
+        playbookName: row.playbookName ?? null,
+      });
+    }
+  }
+
+  return buildPromotionCandidates(records, existingLabels);
 }
 
 export async function getJournalTemplates(

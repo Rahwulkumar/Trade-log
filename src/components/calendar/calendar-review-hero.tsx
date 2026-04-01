@@ -12,7 +12,6 @@ import {
   CalendarDayPill,
   type CalendarReviewMode,
   type CalendarSummaryCard,
-  REVIEW_MODE_COPY,
 } from "./calendar-review-shared";
 
 export function CalendarWorkspaceHero({
@@ -21,6 +20,7 @@ export function CalendarWorkspaceHero({
   monthLabel,
   timeZoneLabel,
   accountLabel,
+  resetLabel,
   onModeChange,
   onDateModeChange,
   onPreviousMonth,
@@ -32,6 +32,7 @@ export function CalendarWorkspaceHero({
   monthLabel: string;
   timeZoneLabel: string;
   accountLabel: string;
+  resetLabel?: string;
   onModeChange: (mode: CalendarReviewMode) => void;
   onDateModeChange: (mode: CalendarDateMode) => void;
   onPreviousMonth: () => void;
@@ -39,66 +40,62 @@ export function CalendarWorkspaceHero({
   onResetMonth: () => void;
 }) {
   return (
-    <AppPanel className="calendar-review-hero overflow-hidden p-0">
-      <div className="calendar-review-hero-grid px-4 py-4 sm:gap-5 sm:px-6 sm:py-6">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="badge-accent rounded-full px-2.5 py-1">Calendar Review</span>
+    <AppPanel className="calendar-review-hero p-0">
+      <div className="calendar-review-hero-grid px-4 py-3 sm:px-5 sm:py-3.5">
+        <div className="calendar-review-hero-topbar">
+          <div className="calendar-review-hero-title-row">
+            <h1 className="calendar-review-hero-title">Calendar review</h1>
             <CalendarDayPill>{timeZoneLabel}</CalendarDayPill>
-            <CalendarDayPill>{accountLabel}</CalendarDayPill>
+            <CalendarDayPill>
+              <span className="max-w-[10rem] truncate sm:max-w-[13rem]">
+                {accountLabel}
+              </span>
+            </CalendarDayPill>
           </div>
 
-          <div className="space-y-2">
-            <h1 className="headline-lg max-w-[18ch] sm:max-w-3xl">
-              Review your trading month, day by day
-            </h1>
-            <p className="max-w-3xl text-sm leading-relaxed text-[var(--text-secondary)]">
-              {REVIEW_MODE_COPY[mode].subtitle}
-            </p>
-          </div>
-        </div>
-
-        <div
-          className="calendar-review-hero-aside rounded-[24px] border p-3 sm:p-4"
-          style={{
-            background: "var(--surface-elevated)",
-            borderColor: "var(--border-subtle)",
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onPreviousMonth}
-              aria-label="Go to previous month"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="min-w-0 flex-1 text-center" aria-live="polite">
-              <p className="mono text-sm font-semibold text-foreground">{monthLabel}</p>
-              <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">
-                {REVIEW_MODE_COPY[mode].title}
-              </p>
+          <div className="calendar-review-month-panel calendar-review-hero-aside px-3 py-2 sm:px-3.5">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onPreviousMonth}
+                aria-label="Go to previous month"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="min-w-0 flex-1" aria-live="polite">
+                <p className="mono truncate text-sm font-semibold text-foreground">
+                  {monthLabel}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onNextMonth}
+                aria-label="Go to next month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
+
             <Button
               variant="ghost"
-              size="icon"
-              onClick={onNextMonth}
-              aria-label="Go to next month"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={onResetMonth}
             >
-              <ChevronRight className="h-4 w-4" />
+              {resetLabel ?? "Current"}
             </Button>
           </div>
-          <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={onResetMonth}>
-            Jump to current month
-          </Button>
         </div>
       </div>
 
-      <div className="border-t border-border px-4 py-4 sm:px-6">
+      <div className="border-t border-border px-4 py-2.5 sm:px-5 sm:py-3">
         <div className="calendar-review-toolbar-grid">
-          <div className="space-y-2">
-            <p className="text-label">Lens</p>
+          <div className="calendar-review-toolbar-group">
+            <div className="calendar-review-toolbar-label">Mode</div>
             <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
               <ChoiceChip active={mode === "performance"} onClick={() => onModeChange("performance")}>
                 <TrendingUp className="h-3.5 w-3.5" />
@@ -115,8 +112,8 @@ export function CalendarWorkspaceHero({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-label">Calendar basis</p>
+          <div className="calendar-review-toolbar-group">
+            <div className="calendar-review-toolbar-label">Basis</div>
             <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
               <ChoiceChip
                 active={dateMode === "entry"}

@@ -569,18 +569,74 @@ p.stat-huge {
   container-name: calendar-review;
 }
 
+.calendar-review-hero {
+  overflow: visible;
+}
+
+.calendar-review-hero-title {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.55rem, 2.2vw, 2.2rem);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+  color: var(--text-primary);
+  display: block;
+  padding-bottom: 0.12em;
+  text-wrap: balance;
+}
+
 .calendar-review-hero-grid {
   display: grid;
   gap: 1rem;
+}
+
+.calendar-review-hero-topbar {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.calendar-review-hero-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
 }
 
 .calendar-review-hero-aside {
   width: 100%;
 }
 
+.calendar-review-month-panel {
+  border-radius: 20px;
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-elevated) 82%, var(--surface)) 0%,
+      var(--surface-elevated) 100%
+    );
+}
+
 .calendar-review-toolbar-grid {
   display: grid;
   gap: 1rem;
+}
+
+.calendar-review-toolbar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.calendar-review-toolbar-label {
+  font-size: 0.69rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.03em;
 }
 
 .calendar-review-summary-grid {
@@ -602,10 +658,12 @@ p.stat-huge {
 
 .calendar-review-agenda-shell {
   display: block;
+  min-width: 0;
 }
 
 .calendar-review-board-shell {
   display: none;
+  min-width: 0;
 }
 
 .calendar-review-board-toolbar {
@@ -618,9 +676,116 @@ p.stat-huge {
   min-width: 48rem;
 }
 
+.calendar-review-month-dayhead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.calendar-review-month-indicators {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-top: 0.2rem;
+}
+
+.calendar-review-month-core {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  flex: 1 1 auto;
+  justify-content: space-between;
+}
+
+.calendar-review-month-center {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+
+.calendar-review-month-value {
+  font-size: 1.14rem;
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+}
+
+.calendar-review-month-label {
+  font-size: 0.62rem;
+  line-height: 1.25;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.calendar-review-month-meta {
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  max-width: 16ch;
+}
+
+.calendar-review-month-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.calendar-review-month-metric {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+  padding: 0.16rem 0.5rem;
+  font-size: 0.62rem;
+  line-height: 1.2;
+  color: var(--text-secondary);
+}
+
+.calendar-review-inspector-shell {
+  min-width: 0;
+}
+
 .calendar-review-day-inspector {
   container-type: inline-size;
   container-name: calendar-day-inspector;
+}
+
+.calendar-review-inspector-section {
+  border-radius: 24px;
+  border: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface) 94%, var(--accent-soft)) 0%,
+      var(--surface) 100%
+    );
+}
+
+.calendar-review-day-inspector-top {
+  flex: 0 0 auto;
+}
+
+.calendar-review-day-tabs {
+  min-height: 0;
+}
+
+.calendar-review-tab-list {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.calendar-review-tab-trigger {
+  flex: 0 0 auto;
+}
+
+.calendar-review-tab-content {
+  min-height: 0;
+  margin-top: 1rem;
 }
 
 .calendar-review-stat-strip {
@@ -632,6 +797,36 @@ p.stat-huge {
 .calendar-review-stat-item {
   flex: 0 0 10.5rem;
   min-width: 10.5rem;
+}
+
+.calendar-review-mini-stat,
+.calendar-review-note-block {
+  border-radius: 20px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-elevated) 72%, var(--surface));
+}
+
+.calendar-review-mini-stat {
+  min-height: 100%;
+  padding: 0.9rem 1rem;
+}
+
+.calendar-review-note-block {
+  padding: 0.95rem 1rem;
+}
+
+.calendar-review-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.calendar-review-trade-card {
+  box-shadow: 0 1px 0 rgba(5, 31, 32, 0.02);
+}
+
+.calendar-review-trade-card:hover {
+  border-color: var(--border-default) !important;
 }
 
 .calendar-review-plan-grid,
@@ -665,12 +860,16 @@ p.stat-huge {
 
 @container calendar-review (min-width: 72rem) {
   .calendar-review-hero-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, auto);
-    align-items: end;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .calendar-review-hero-aside {
     width: auto;
+  }
+
+  .calendar-review-hero-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
   }
 
   .calendar-review-agenda-shell {
@@ -698,9 +897,9 @@ p.stat-huge {
 @container calendar-review (min-width: 96rem) {
   .calendar-review-main-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.28fr) minmax(24rem, 0.72fr);
+    grid-template-columns: minmax(0, 1.14fr) minmax(27rem, 0.86fr);
     gap: 1.5rem;
-    align-items: start;
+    align-items: stretch;
   }
 
   .calendar-review-summary-grid {
@@ -715,10 +914,29 @@ p.stat-huge {
     position: sticky;
     top: 1rem;
     align-self: start;
+    max-height: calc(100dvh - 2rem);
+  }
+
+  .calendar-review-day-inspector {
+    max-height: calc(100dvh - 2rem);
+  }
+
+  .calendar-review-tab-list {
+    overflow: visible;
+  }
+
+  .calendar-review-tab-trigger {
+    flex: 1 1 0;
+  }
+
+  .calendar-review-tab-content {
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    scrollbar-gutter: stable;
   }
 }
 
-@container calendar-day-inspector (min-width: 34rem) {
+@container calendar-day-inspector (min-width: 28rem) {
   .calendar-review-stat-strip,
   .calendar-review-plan-grid,
   .calendar-review-rule-summary-grid,
@@ -737,7 +955,7 @@ p.stat-huge {
   }
 }
 
-@container calendar-day-inspector (min-width: 48rem) {
+@container calendar-day-inspector (min-width: 40rem) {
   .calendar-review-plan-check-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

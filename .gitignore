@@ -70,3 +70,5 @@ windows-mt5-worker/.venv/
 windows-mt5-worker/logs/
 windows-mt5-worker/artifacts/
 windows-mt5-worker/__pycache__/
+
+.vercel

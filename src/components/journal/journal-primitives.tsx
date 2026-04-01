@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useId, useState } from "react";
+import { type ReactNode, useCallback, useId, useMemo, useState } from "react";
 import { ChevronRight, Circle, Star } from "lucide-react";
 
 import type { QualityRating } from "@/domain/journal-types";
@@ -33,6 +33,12 @@ export interface JournalChapterItem {
   progressLabel: string;
   summary: string;
   state: JournalTabState;
+}
+
+export interface JournalLibraryOption {
+  id: string;
+  label: string;
+  meta?: string | null;
 }
 
 function choiceToneStyles(tone: JournalChoiceTone) {
@@ -671,6 +677,311 @@ export function JournalShortField({
         }}
       />
     </div>
+  );
+}
+
+export function JournalLibraryPicker({
+  label,
+  options,
+  value,
+  onSelect,
+  placeholder,
+  emptyLabel = "No linked item",
+  preferredOptionIds = [],
+}: {
+  label: string;
+  options: JournalLibraryOption[];
+  value: string | null;
+  onSelect: (id: string | null) => void;
+  placeholder: string;
+  emptyLabel?: string;
+  preferredOptionIds?: string[];
+}) {
+  const fieldId = useId();
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const selectedOption =
+    options.find((option) => option.id === value) ?? null;
+
+  const matchingOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const preferred = new Set(preferredOptionIds);
+    const ranked = [...options].sort((left, right) => {
+      const leftPreferred = preferred.has(left.id) ? 1 : 0;
+      const rightPreferred = preferred.has(right.id) ? 1 : 0;
+
+      return (
+        rightPreferred - leftPreferred ||
+        left.label.localeCompare(right.label)
+      );
+    });
+
+    if (!normalizedQuery) {
+      return ranked;
+    }
+
+    return ranked
+      .filter((option) =>
+        [option.label, option.meta ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery),
+      );
+  }, [options, preferredOptionIds, query]);
+
+  const visibleOptions = useMemo(() => {
+    const normalizedQuery = query.trim();
+    const baseOptions =
+      normalizedQuery || showAll
+        ? matchingOptions
+        : matchingOptions.slice(0, 6);
+
+    if (
+      selectedOption &&
+      !baseOptions.some((option) => option.id === selectedOption.id)
+    ) {
+      return [selectedOption, ...baseOptions];
+    }
+
+    return baseOptions;
+  }, [matchingOptions, query, selectedOption, showAll]);
+  const hiddenCount = Math.max(matchingOptions.length - visibleOptions.length, 0);
+
+  return (
+    <fieldset className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <legend className="text-label">{label}</legend>
+        {selectedOption ? (
+          <button
+            type="button"
+            onClick={() => onSelect(null)}
+            className="text-[11px] font-medium"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      <Input
+        id={fieldId}
+        value={query}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setShowAll(false);
+        }}
+        placeholder={placeholder}
+        className="h-10 text-[0.8125rem]"
+        style={{
+          background: "var(--surface)",
+          borderColor: "var(--border-subtle)",
+          color: "var(--text-primary)",
+        }}
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <JournalChoiceChip
+          active={!value}
+          onClick={() => onSelect(null)}
+          tone="neutral"
+        >
+          {emptyLabel}
+        </JournalChoiceChip>
+        {visibleOptions.map((option) => (
+          <JournalChoiceChip
+            key={option.id}
+            active={value === option.id}
+            onClick={() => {
+              onSelect(option.id);
+              setQuery("");
+              setShowAll(false);
+            }}
+            tone="accent"
+          >
+            {option.label}
+          </JournalChoiceChip>
+        ))}
+      </div>
+
+      {!query.trim() && hiddenCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="text-xs font-medium"
+          style={{ color: "var(--accent-primary)" }}
+        >
+          Browse {hiddenCount} more
+        </button>
+      ) : null}
+
+      {!query.trim() && showAll && matchingOptions.length > 6 ? (
+        <button
+          type="button"
+          onClick={() => setShowAll(false)}
+          className="text-xs font-medium"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          Show fewer
+        </button>
+      ) : null}
+
+      {selectedOption?.meta ? (
+        <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+          {selectedOption.meta}
+        </p>
+      ) : query.trim() && visibleOptions.length === 0 ? (
+        <p className="text-xs text-[var(--text-tertiary)]">
+          No matching library items. Create a new one from the Playbooks workspace if needed.
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
+export function JournalLibraryMultiPicker({
+  label,
+  options,
+  values,
+  onToggle,
+  placeholder,
+  tone = "loss",
+}: {
+  label: string;
+  options: JournalLibraryOption[];
+  values: string[];
+  onToggle: (id: string) => void;
+  placeholder: string;
+  tone?: JournalChoiceTone;
+}) {
+  const fieldId = useId();
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const selectedOptions = useMemo(
+    () => options.filter((option) => values.includes(option.id)),
+    [options, values],
+  );
+
+  const matchingOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const ranked = [...options].sort((left, right) =>
+      left.label.localeCompare(right.label),
+    );
+    const available = ranked.filter((option) => !values.includes(option.id));
+
+    if (!normalizedQuery) {
+      return available;
+    }
+
+    return available
+      .filter((option) =>
+        [option.label, option.meta ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery),
+      );
+  }, [options, query, values]);
+
+  const visibleOptions = useMemo(
+    () =>
+      query.trim() || showAll
+        ? matchingOptions
+        : matchingOptions.slice(0, 8),
+    [matchingOptions, query, showAll],
+  );
+  const hiddenCount = Math.max(matchingOptions.length - visibleOptions.length, 0);
+
+  return (
+    <fieldset className="space-y-3">
+      <legend className="text-label">{label}</legend>
+
+      <Input
+        id={fieldId}
+        value={query}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setShowAll(false);
+        }}
+        placeholder={placeholder}
+        className="h-10 text-[0.8125rem]"
+        style={{
+          background: "var(--surface)",
+          borderColor: "var(--border-subtle)",
+          color: "var(--text-primary)",
+        }}
+      />
+
+      {selectedOptions.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-[var(--text-secondary)]">
+            Selected
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {selectedOptions.map((option) => (
+              <JournalChoiceChip
+                key={option.id}
+                active
+                onClick={() => onToggle(option.id)}
+                tone={tone}
+              >
+                {option.label}
+              </JournalChoiceChip>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        {visibleOptions.map((option) => (
+          <JournalChoiceChip
+            key={option.id}
+            active={false}
+            onClick={() => onToggle(option.id)}
+            tone={tone}
+          >
+            {option.label}
+          </JournalChoiceChip>
+        ))}
+      </div>
+
+      {!query.trim() && hiddenCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="text-xs font-medium"
+          style={{ color: "var(--accent-primary)" }}
+        >
+          Browse {hiddenCount} more
+        </button>
+      ) : null}
+
+      {!query.trim() && showAll && matchingOptions.length > 8 ? (
+        <button
+          type="button"
+          onClick={() => setShowAll(false)}
+          className="text-xs font-medium"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          Show fewer
+        </button>
+      ) : null}
+
+      {selectedOptions.length > 0 ? (
+        <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+          {selectedOptions.length} structured{" "}
+          {selectedOptions.length === 1 ? "item" : "items"} linked to this trade.
+        </p>
+      ) : query.trim() && visibleOptions.length === 0 ? (
+        <p className="text-xs text-[var(--text-tertiary)]">
+          No matching library items. Add a new definition from the Playbooks workspace if needed.
+        </p>
+      ) : !query.trim() && options.length > 8 ? (
+        <p className="text-xs text-[var(--text-tertiary)]">
+          Browse the full library only when you need it. Search stays the fastest path.
+        </p>
+      ) : null}
+    </fieldset>
   );
 }
 
