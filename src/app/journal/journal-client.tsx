@@ -171,6 +171,7 @@ export default function JournalPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [railOpen, setRailOpen] = useState(false);
+  const [desktopRailCollapsed, setDesktopRailCollapsed] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
 
   const currentUserId = user?.id ?? null;
@@ -396,9 +397,6 @@ export default function JournalPage() {
     activeIndex >= 0 && activeIndex < filteredRecords.length - 1
       ? filteredRecords[activeIndex + 1]?.trade.id ?? null
       : null;
-  const pendingCount = records.filter(
-    (record) => record.reviewStatus !== "complete",
-  ).length;
   const accountLabel =
     selectedAccountId === "unassigned"
       ? "Unassigned trades"
@@ -426,6 +424,18 @@ export default function JournalPage() {
     },
     [goToTrade],
   );
+
+  const handleOpenTradeQueue = useCallback(() => {
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1280px)").matches
+    ) {
+      setDesktopRailCollapsed((current) => !current);
+      return;
+    }
+
+    setRailOpen(true);
+  }, []);
 
   const goToNextPending = useCallback(() => {
     if (!activeRecord) {
@@ -480,11 +490,8 @@ export default function JournalPage() {
             ? goToNextPending
             : undefined
         }
-        onOpenTradeQueue={() => setRailOpen(true)}
-        tradeQueueLabel={
-          pendingCount > 0 ? `Trades (${pendingCount})` : "Trades"
-        }
-        tradeQueueButtonClassName="xl:hidden"
+        onOpenTradeQueue={handleOpenTradeQueue}
+        tradeQueueLabel="Trade queue"
         onSaved={handleTradeSaved}
       />
     </AnimatePresence>
@@ -544,24 +551,34 @@ export default function JournalPage() {
     <div className="journal-workspace-shell flex min-h-[calc(100dvh-64px)] min-h-0 flex-col gap-2 overflow-visible px-2 py-2 sm:gap-2 sm:px-2.5 sm:py-2.5 2xl:h-[calc(100dvh-64px)] 2xl:overflow-hidden 2xl:px-3">
       <section className="stagger-2 relative min-h-0 flex-1 overflow-visible 2xl:overflow-hidden">
         <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-none">
-          <div className="grid h-full min-h-0 xl:grid-cols-[16.5rem_minmax(0,1fr)] 2xl:grid-cols-[17rem_minmax(0,1fr)]">
-            <div
-              className="hidden h-full min-h-0 overflow-hidden xl:block"
-              style={{
-                background: "var(--surface-elevated)",
-                borderRight: "1px solid var(--border-subtle)",
-              }}
-            >
-              <TradeReviewRail
-                items={filteredRecords.map((record) => record.item)}
-                activeTradeId={activeTradeId}
-                search={search}
-                onSearchChange={setSearch}
-                statusFilter={statusFilter}
-                onStatusFilterChange={setStatusFilter}
-                onSelectTrade={handleSelectTrade}
-              />
-            </div>
+          <div
+            className="grid h-full min-h-0 xl:grid-cols-[16.5rem_minmax(0,1fr)] 2xl:grid-cols-[17rem_minmax(0,1fr)]"
+            style={{
+              gridTemplateColumns: desktopRailCollapsed
+                ? "minmax(0, 1fr)"
+                : undefined,
+              transition: "grid-template-columns 220ms ease",
+            }}
+          >
+            {!desktopRailCollapsed ? (
+              <div
+                className="hidden h-full min-h-0 overflow-hidden xl:block"
+                style={{
+                  background: "var(--surface-elevated)",
+                  borderRight: "1px solid var(--border-subtle)",
+                }}
+              >
+                <TradeReviewRail
+                  items={filteredRecords.map((record) => record.item)}
+                  activeTradeId={activeTradeId}
+                  search={search}
+                  onSearchChange={setSearch}
+                  statusFilter={statusFilter}
+                  onStatusFilterChange={setStatusFilter}
+                  onSelectTrade={handleSelectTrade}
+                />
+              </div>
+            ) : null}
 
             <div className="min-h-0 overflow-hidden">
               {!activeRecord ? (
