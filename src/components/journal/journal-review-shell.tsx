@@ -5,13 +5,6 @@ import { ChevronLeft, ChevronRight, PanelLeftOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { AppPanel } from "@/components/ui/page-primitives";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { InsetPanel } from "@/components/ui/surface-primitives";
 
 import {
@@ -261,7 +254,6 @@ export function JournalDocumentCanvas({
   chapterState,
   chapterLabel,
   chapterCueText,
-  headerAction,
   children,
 }: {
   chapterOrderLabel: string;
@@ -269,7 +261,6 @@ export function JournalDocumentCanvas({
   chapterState: "empty" | "progress" | "complete";
   chapterLabel: string;
   chapterCueText: string;
-  headerAction?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -278,43 +269,39 @@ export function JournalDocumentCanvas({
         className="flex flex-col gap-2 border-b pb-2.5"
         style={{ borderBottomColor: "var(--border-subtle)" }}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-label">Chapter {chapterOrderLabel}</span>
-              <h2
-                style={{
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "1rem",
-                  fontWeight: 700,
-                  lineHeight: 1.1,
-                  letterSpacing: "-0.03em",
-                }}
-              >
-                {chapterLabel}
-              </h2>
-              <span
-                className="rounded-full px-2 py-0.5"
-                style={{
-                  background: "var(--surface-elevated)",
-                  color:
-                    chapterState === "complete"
-                      ? "var(--profit-primary)"
-                      : chapterState === "progress"
-                        ? "var(--warning-primary)"
-                        : "var(--text-tertiary)",
-                  fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
-                  fontSize: "10px",
-                  fontWeight: 700,
-                }}
-              >
-                {chapterProgressLabel}
-              </span>
-            </div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-label">Chapter {chapterOrderLabel}</span>
+            <h2
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: "var(--font-inter)",
+                fontSize: "1rem",
+                fontWeight: 700,
+                lineHeight: 1.1,
+                letterSpacing: "-0.03em",
+              }}
+            >
+              {chapterLabel}
+            </h2>
+            <span
+              className="rounded-full px-2 py-0.5"
+              style={{
+                background: "var(--surface-elevated)",
+                color:
+                  chapterState === "complete"
+                    ? "var(--profit-primary)"
+                    : chapterState === "progress"
+                      ? "var(--warning-primary)"
+                      : "var(--text-tertiary)",
+                fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+                fontSize: "10px",
+                fontWeight: 700,
+              }}
+            >
+              {chapterProgressLabel}
+            </span>
           </div>
-
-          {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
         </div>
         <p
           className="max-w-3xl text-[12px]"
@@ -333,31 +320,18 @@ export function JournalDocumentCanvas({
   );
 }
 
-export function JournalContextDrawer({
-  open,
-  onOpenChange,
-  title,
-  description,
+export function JournalInlineSupport({
   children,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  description: string;
   children: ReactNode;
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[30rem]">
-        <SheetHeader className="border-b px-4 py-4 sm:px-5">
-          <SheetTitle>{title}</SheetTitle>
-          <SheetDescription>{description}</SheetDescription>
-        </SheetHeader>
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
-          {children}
-        </div>
-      </SheetContent>
-    </Sheet>
+    <div
+      className="mt-4 space-y-4 border-t pt-4"
+      style={{ borderTopColor: "var(--border-subtle)" }}
+    >
+      {children}
+    </div>
   );
 }
 

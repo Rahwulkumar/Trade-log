@@ -51,7 +51,6 @@ import {
 } from "@/lib/api/storage";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 import { ChoiceChip } from "@/components/ui/control-primitives";
-import { Button } from "@/components/ui/button";
 import { InsetPanel } from "@/components/ui/surface-primitives";
 import {
   Select,
@@ -74,10 +73,10 @@ import {
 } from "@/components/journal/journal-primitives";
 import { JournalNarrativeCard } from "@/components/journal/journal-narrative-card";
 import {
-  JournalContextDrawer,
   JournalDocumentActions,
   JournalDocumentCanvas,
   JournalDocumentHeader,
+  JournalInlineSupport,
   JournalSupportBlock,
 } from "@/components/journal/journal-review-shell";
 import { JournalTradeChart } from "@/components/journal/journal-trade-chart";
@@ -253,7 +252,6 @@ function TradeReviewDocumentInner({
   const deferredDraft = useDeferredValue(draft);
   const [activeChapter, setActiveChapter] =
     useState<JournalChapterId>("narrative");
-  const [contextOpen, setContextOpen] = useState(false);
   const [setupTagDraft, setSetupTagDraft] = useState("");
   const [mistakeTagDraft, setMistakeTagDraft] = useState("");
   const [executionChecklistDraft, setExecutionChecklistDraft] = useState("");
@@ -1004,10 +1002,6 @@ function TradeReviewDocumentInner({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [activeChapter]);
-
-  useEffect(() => {
-    setContextOpen(false);
   }, [activeChapter]);
 
   const renderActiveChapter = () => {
@@ -1882,6 +1876,26 @@ function TradeReviewDocumentInner({
     }
   };
 
+  const activeChapterSupport = renderActiveChapterContext();
+  const chartReplaySupport =
+    activeChapter === "closeout" ? (
+      <JournalSupportBlock
+        title="Chart replay"
+        description="Review price structure and exits without leaving the review."
+      >
+        <JournalTradeChart
+          tradeId={trade.id}
+          entryPrice={viewModel.entryPrice}
+          exitPrice={viewModel.exitPrice}
+          stopLoss={viewModel.stopLoss}
+          takeProfit={viewModel.takeProfit}
+          entryTime={viewModel.entryDate}
+          exitTime={viewModel.exitDate ?? viewModel.entryDate}
+          direction={viewModel.direction}
+        />
+      </JournalSupportBlock>
+    ) : null;
+
   return (
     <motion.article
       initial={{ opacity: 0, x: -10 }}
@@ -1923,26 +1937,6 @@ function TradeReviewDocumentInner({
                 chapterState={activeChapterItem.state}
                 chapterLabel={activeChapterLabel}
                 chapterCueText={chapterCueText}
-                headerAction={
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-2.5 text-[0.72rem]"
-                    onClick={() => setContextOpen(true)}
-                    style={{
-                      background: "var(--surface)",
-                      borderColor: contextOpen
-                        ? "var(--accent-primary)"
-                        : "var(--border-subtle)",
-                      color: contextOpen
-                        ? "var(--accent-primary)"
-                        : "var(--text-primary)",
-                    }}
-                  >
-                    Open context
-                  </Button>
-                }
               >
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -1956,31 +1950,13 @@ function TradeReviewDocumentInner({
                     {renderActiveChapter()}
                   </motion.div>
                 </AnimatePresence>
+                {activeChapterSupport || chartReplaySupport ? (
+                  <JournalInlineSupport>
+                    {activeChapterSupport}
+                    {chartReplaySupport}
+                  </JournalInlineSupport>
+                ) : null}
               </JournalDocumentCanvas>
-
-              <JournalContextDrawer
-                open={contextOpen}
-                onOpenChange={setContextOpen}
-                title={`${activeChapterLabel} context`}
-                description="The supporting evidence and structured trade details live here so the main page stays focused on the review."
-              >
-                {renderActiveChapterContext()}
-                <JournalSupportBlock
-                  title="Chart replay"
-                  description="Review price structure, execution, and exits without crowding the editor."
-                >
-                  <JournalTradeChart
-                    tradeId={trade.id}
-                    entryPrice={viewModel.entryPrice}
-                    exitPrice={viewModel.exitPrice}
-                    stopLoss={viewModel.stopLoss}
-                    takeProfit={viewModel.takeProfit}
-                    entryTime={viewModel.entryDate}
-                    exitTime={viewModel.exitDate ?? viewModel.entryDate}
-                    direction={viewModel.direction}
-                  />
-                </JournalSupportBlock>
-              </JournalContextDrawer>
 
               <JournalDocumentActions
                 onPreviousChapter={() => goToAdjacentChapter(-1)}
