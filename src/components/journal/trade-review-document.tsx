@@ -223,6 +223,7 @@ interface TradeReviewDocumentProps {
   onNextPending?: () => void;
   onOpenTradeQueue?: () => void;
   tradeQueueLabel?: string;
+  tradeQueueButtonClassName?: string;
   onSaved: (trade: Trade) => void;
 }
 
@@ -243,6 +244,7 @@ function TradeReviewDocumentInner({
   onNextPending,
   onOpenTradeQueue,
   tradeQueueLabel,
+  tradeQueueButtonClassName,
   onSaved,
 }: TradeReviewDocumentProps) {
   const viewModel = useMemo(() => mapTradeToViewModel(trade), [trade]);
@@ -1906,6 +1908,7 @@ function TradeReviewDocumentInner({
         onNextPending={onNextPending}
         onOpenTradeQueue={onOpenTradeQueue}
         tradeQueueLabel={tradeQueueLabel}
+        tradeQueueButtonClassName={tradeQueueButtonClassName}
         chapterTabs={chapterTabs}
         activeTab={activeChapter}
         onChangeTab={(id) => changeChapter(id as JournalChapterId)}

@@ -484,6 +484,7 @@ export default function JournalPage() {
         tradeQueueLabel={
           pendingCount > 0 ? `Trades (${pendingCount})` : "Trades"
         }
+        tradeQueueButtonClassName="xl:hidden"
         onSaved={handleTradeSaved}
       />
     </AnimatePresence>
@@ -543,27 +544,49 @@ export default function JournalPage() {
     <div className="journal-workspace-shell flex min-h-[calc(100dvh-64px)] min-h-0 flex-col gap-2 overflow-visible px-2 py-2 sm:gap-2 sm:px-2.5 sm:py-2.5 2xl:h-[calc(100dvh-64px)] 2xl:overflow-hidden 2xl:px-3">
       <section className="stagger-2 relative min-h-0 flex-1 overflow-visible 2xl:overflow-hidden">
         <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-none">
-          {!activeRecord ? (
-            <div className="flex h-full items-center justify-center px-6">
-              <WidgetEmptyState
-                className="w-full max-w-md"
-                title="No trade in this view"
-                description="Clear the current filter to continue journaling."
+          <div className="grid h-full min-h-0 xl:grid-cols-[16.5rem_minmax(0,1fr)] 2xl:grid-cols-[17rem_minmax(0,1fr)]">
+            <div
+              className="hidden h-full min-h-0 overflow-hidden xl:block"
+              style={{
+                background: "var(--surface-elevated)",
+                borderRight: "1px solid var(--border-subtle)",
+              }}
+            >
+              <TradeReviewRail
+                items={filteredRecords.map((record) => record.item)}
+                activeTradeId={activeTradeId}
+                search={search}
+                onSearchChange={setSearch}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+                onSelectTrade={handleSelectTrade}
               />
             </div>
-          ) : (
-            <div className="min-h-0 h-full overflow-y-auto">{activeDocument}</div>
-          )}
+
+            <div className="min-h-0 overflow-hidden">
+              {!activeRecord ? (
+                <div className="flex h-full items-center justify-center px-6">
+                  <WidgetEmptyState
+                    className="w-full max-w-md"
+                    title="No trade in this view"
+                    description="Clear the current filter to continue journaling."
+                  />
+                </div>
+              ) : (
+                <div className="min-h-0 h-full overflow-y-auto">{activeDocument}</div>
+              )}
+            </div>
+          </div>
         </AppPanel>
       </section>
 
       <Sheet open={railOpen} onOpenChange={setRailOpen}>
         <SheetContent
           side="left"
-          className="h-full w-[92vw] max-w-none border-r p-0 sm:w-[24rem] sm:max-w-[24rem] lg:w-[26rem] lg:max-w-[26rem]"
+          className="h-full w-[92vw] max-w-none border-r p-0 xl:hidden sm:w-[24rem] sm:max-w-[24rem] lg:w-[26rem] lg:max-w-[26rem]"
           style={{
-            background: "var(--surface)",
-            borderColor: "var(--border-default)",
+            background: "var(--surface-elevated)",
+            borderColor: "var(--border-subtle)",
           }}
         >
           <SheetHeader className="sr-only">

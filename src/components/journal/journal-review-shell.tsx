@@ -61,6 +61,7 @@ export function JournalDocumentHeader({
   onNextPending,
   onOpenTradeQueue,
   tradeQueueLabel,
+  tradeQueueButtonClassName,
   chapterTabs,
   activeTab,
   onChangeTab,
@@ -81,6 +82,7 @@ export function JournalDocumentHeader({
   onNextPending?: () => void;
   onOpenTradeQueue?: () => void;
   tradeQueueLabel?: string;
+  tradeQueueButtonClassName?: string;
   chapterTabs: JournalTabItem[];
   activeTab: string;
   onChangeTab: (id: string) => void;
@@ -155,7 +157,7 @@ export function JournalDocumentHeader({
                 onClick={onOpenTradeQueue}
                 size="sm"
                 variant="outline"
-                className="h-8 rounded-full px-2.5 text-[0.72rem]"
+                className={`h-8 rounded-full px-2.5 text-[0.72rem] ${tradeQueueButtonClassName ?? ""}`}
                 style={{
                   background: "var(--surface-elevated)",
                   borderColor: "var(--border-subtle)",
