@@ -1,5 +1,5 @@
-import { CalendarReviewWorkspace } from "@/components/calendar";
+import { CalendarWorkspace } from "@/components/calendar";
 
 export default function CalendarPage() {
-  return <CalendarReviewWorkspace />;
+  return <CalendarWorkspace />;
 }

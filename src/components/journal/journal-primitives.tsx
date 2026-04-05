@@ -119,8 +119,8 @@ export function JournalSection({
 }) {
   if (variant === "editorial") {
     return (
-      <section
-        className={cn("relative space-y-6 pb-10 pl-5", className)}
+        <section
+        className={cn("relative space-y-5 pb-7 pl-4", className)}
         style={{ borderBottom: "1px solid var(--border-subtle)" }}
       >
         <span
@@ -136,17 +136,17 @@ export function JournalSection({
           title={title}
           subtitle={subtitle}
         />
-        <div className={cn("space-y-5", contentClassName)}>{children}</div>
+        <div className={cn("space-y-4", contentClassName)}>{children}</div>
       </section>
     );
   }
 
   const panelPadding =
-    variant === "tool" ? "px-4 py-4 sm:px-5" : "px-5 py-5 sm:px-6";
+    variant === "tool" ? "px-3.5 py-3.5 sm:px-4" : "px-4 py-4 sm:px-5";
 
   return (
     <InsetPanel
-      className={cn(variant === "tool" ? "space-y-4" : "space-y-5", className)}
+      className={cn(variant === "tool" ? "space-y-3.5" : "space-y-4", className)}
       paddingClassName={panelPadding}
       style={
         variant === "tool"
@@ -159,7 +159,7 @@ export function JournalSection({
         title={title}
         subtitle={subtitle}
       />
-      <div className={cn(variant === "tool" ? "space-y-4" : "space-y-5", contentClassName)}>
+      <div className={cn(variant === "tool" ? "space-y-3.5" : "space-y-4", contentClassName)}>
         {children}
       </div>
     </InsetPanel>
@@ -224,7 +224,7 @@ export function JournalChapter({
       <button
         type="button"
         onClick={onActivate}
-        className="flex w-full items-start gap-4 px-4 py-4 text-left sm:px-5"
+        className="flex w-full items-start gap-3.5 px-3.5 py-3.5 text-left sm:px-4"
       >
         <div className="relative flex w-11 shrink-0 justify-center pt-0.5">
           <span
@@ -235,7 +235,7 @@ export function JournalChapter({
                 ? "var(--accent-primary)"
                 : "var(--border-subtle)",
               color: active ? "var(--accent-primary)" : styles.dotColor,
-              fontFamily: "var(--font-syne)",
+              fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
               fontSize: "12px",
               fontWeight: 700,
               lineHeight: 1,
@@ -277,8 +277,9 @@ export function JournalChapter({
               style={{
                 background: active ? "var(--accent-soft)" : "var(--surface)",
                 color: styles.metaColor,
-                fontFamily: "var(--font-jb-mono)",
+                fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
                 fontSize: "10px",
+                fontWeight: 700,
                 lineHeight: 1.2,
               }}
             >
@@ -330,8 +331,8 @@ export function JournalChapter({
         className={cn(
           "overflow-hidden transition-[max-height,opacity,margin,padding] duration-300 ease-out",
           active
-            ? "max-h-[5000px] px-4 pb-5 opacity-100 sm:px-5"
-            : "max-h-0 px-4 pb-0 opacity-0 pointer-events-none sm:px-5",
+            ? "max-h-[5000px] px-3.5 pb-4 opacity-100 sm:px-4"
+            : "max-h-0 px-3.5 pb-0 opacity-0 pointer-events-none sm:px-4",
         )}
         aria-hidden={!active}
       >
@@ -355,51 +356,34 @@ export function JournalOutlineRail({
   const completed = items.filter((item) => item.state === "complete").length;
 
   return (
-    <aside className="space-y-4">
-      <InsetPanel paddingClassName="px-4 py-4">
-        <p className="text-label">Review progress</p>
-        <div className="mt-3 flex items-end justify-between gap-3">
-          <div>
-            <p
-              style={{
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-jb-mono)",
-                fontSize: "24px",
-                fontWeight: 700,
-                lineHeight: 1,
-              }}
-            >
-              {completed}/{items.length}
-            </p>
-            <p
-              className="mt-1"
-              style={{
-                color: "var(--text-tertiary)",
-                fontFamily: "var(--font-inter)",
-                fontSize: "11px",
-              }}
-            >
-              Chapters complete
-            </p>
-          </div>
-          <div
-            className="h-10 w-10 rounded-full border"
+    <aside className="space-y-3">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div>
+          <p className="text-label">Review flow</p>
+          <p
+            className="mt-1"
             style={{
-              borderColor: "var(--accent-primary)",
-              background: "var(--accent-soft)",
-              color: "var(--accent-primary)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontFamily: "var(--font-syne)",
-              fontSize: "13px",
-              fontWeight: 700,
+              color: "var(--text-tertiary)",
+              fontFamily: "var(--font-inter)",
+              fontSize: "11px",
             }}
           >
-            {Math.round((completed / items.length) * 100)}%
-          </div>
+            {completed}/{items.length} chapters complete
+          </p>
         </div>
-      </InsetPanel>
+        <span
+          className="rounded-full px-2.5 py-1"
+          style={{
+            background: "var(--accent-soft)",
+            color: "var(--accent-primary)",
+            fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+            fontSize: "10px",
+            fontWeight: 700,
+          }}
+        >
+          {Math.round((completed / items.length) * 100)}%
+        </span>
+      </div>
 
       <div className="space-y-2">
         {items.map((item) => {
@@ -411,9 +395,11 @@ export function JournalOutlineRail({
               key={item.id}
               type="button"
               onClick={() => onChange(item.id)}
-              className="w-full rounded-[var(--radius-lg)] border px-3 py-3 text-left transition-colors"
+              className="w-full rounded-[18px] border px-3 py-3 text-left transition-colors"
               style={{
-                background: active ? "var(--surface)" : "var(--surface-elevated)",
+                background: active
+                  ? "color-mix(in srgb, var(--accent-soft) 52%, var(--surface))"
+                  : "var(--surface-elevated)",
                 borderColor: active
                   ? "var(--accent-primary)"
                   : "var(--border-subtle)",
@@ -422,21 +408,9 @@ export function JournalOutlineRail({
             >
               <div className="flex items-start gap-3">
                 <span
-                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border"
-                  style={{
-                    borderColor: active
-                      ? "var(--accent-primary)"
-                      : "var(--border-subtle)",
-                    background: active ? "var(--accent-soft)" : "var(--surface)",
-                    color: active ? "var(--accent-primary)" : styles.dotColor,
-                    fontFamily: "var(--font-syne)",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    lineHeight: 1,
-                  }}
-                >
-                  {item.orderLabel}
-                </span>
+                  className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: active ? "var(--accent-primary)" : styles.dotColor }}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
@@ -450,34 +424,22 @@ export function JournalOutlineRail({
                         lineHeight: 1.3,
                       }}
                     >
-                      {item.label}
+                      {item.orderLabel}. {item.label}
                     </span>
                     <span
                       className="rounded-full px-2 py-0.5"
                       style={{
-                        background: active
-                          ? "var(--accent-soft)"
-                          : "var(--surface)",
+                        background: "var(--surface)",
                         color: styles.metaColor,
-                        fontFamily: "var(--font-jb-mono)",
+                        fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
                         fontSize: "10px",
+                        fontWeight: 700,
                         lineHeight: 1.2,
                       }}
                     >
                       {item.progressLabel}
                     </span>
                   </div>
-                  <p
-                    className="mt-1"
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "11px",
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    {item.summary}
-                  </p>
                 </div>
               </div>
             </button>
@@ -523,7 +485,7 @@ export function JournalTabRail({
               aria-controls={`${item.id}-panel`}
               tabIndex={active ? 0 : -1}
               onClick={() => onChange(item.id)}
-              className="flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-left transition-colors"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-left transition-colors"
               style={{
                 background: active
                   ? "var(--accent-soft)"
@@ -544,7 +506,7 @@ export function JournalTabRail({
                     ? "var(--accent-primary)"
                     : "var(--text-primary)",
                   fontFamily: "var(--font-inter)",
-                  fontSize: "12.5px",
+                  fontSize: "12px",
                   fontWeight: 700,
                   lineHeight: 1.3,
                 }}
@@ -559,7 +521,7 @@ export function JournalTabRail({
                     : "var(--surface-elevated)",
                   color: styles.metaColor,
                   fontFamily: "var(--font-jb-mono)",
-                  fontSize: "10px",
+                  fontSize: "9px",
                   lineHeight: 1.2,
                 }}
               >
@@ -613,14 +575,15 @@ export function JournalPromptField({
   const fieldId = useId();
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2">
       <label
         htmlFor={fieldId}
         style={{
-          color: "var(--text-secondary)",
+          color: "var(--text-primary)",
           fontFamily: "var(--font-inter)",
-          fontSize: "13.5px",
-          lineHeight: 1.65,
+          fontSize: "14px",
+          lineHeight: 1.45,
+          fontWeight: 600,
         }}
       >
         {prompt}
@@ -631,7 +594,7 @@ export function JournalPromptField({
         onChange={(event) => onChange(event.target.value)}
         rows={rows}
         placeholder={placeholder}
-        className="px-5 py-4 text-[0.9375rem]"
+        className="rounded-[var(--radius-lg)] px-4 py-4 text-[0.9375rem]"
         style={{
           background: "var(--surface)",
           borderColor: "var(--border-subtle)",
@@ -668,7 +631,7 @@ export function JournalShortField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-10 text-[0.8125rem]"
+        className="h-11 rounded-[var(--radius-lg)] px-3 text-[0.8125rem]"
         style={{
           background: "var(--surface)",
           borderColor: "var(--border-subtle)",

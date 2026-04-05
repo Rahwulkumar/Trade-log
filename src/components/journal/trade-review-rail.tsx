@@ -9,10 +9,7 @@ import {
   FieldGroup,
 } from "@/components/ui/control-primitives";
 import { Input } from "@/components/ui/input";
-import {
-  InsetPanel,
-  WidgetEmptyState,
-} from "@/components/ui/surface-primitives";
+import { WidgetEmptyState } from "@/components/ui/surface-primitives";
 
 export type TradeReviewStatus = "empty" | "draft" | "complete";
 
@@ -173,8 +170,6 @@ export function TradeReviewRail({
   const completeCount = items.filter(
     (item) => item.reviewStatus === "complete",
   ).length;
-  const activeTrade = items.find((item) => item.id === activeTradeId) ?? null;
-  const activeTradeTone = activeTrade ? statusTone(activeTrade.reviewStatus) : null;
   const statusOptions = [
     {
       value: "all",
@@ -208,141 +203,36 @@ export function TradeReviewRail({
         }}
       >
         <div className="px-4 pb-3 pt-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-3">
               <p className="headline-md">Browse trades</p>
-              <p
-                className="text-label"
+              <span
+                className="rounded-full px-2.5 py-1"
                 style={{
-                  textTransform: "none",
-                  letterSpacing: 0,
-                  color: "var(--text-tertiary)",
+                  background: "var(--surface-elevated)",
+                  border: "1px solid var(--border-subtle)",
+                  color: "var(--text-secondary)",
+                  fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+                  fontSize: "10px",
+                  fontWeight: 700,
                 }}
               >
-                Pick a trade, resume drafts, or jump straight into the open queue.
-              </p>
+                {totalCount} total
+              </span>
             </div>
             <span
-              className="rounded-full px-2.5 py-1"
               style={{
-                background: "var(--surface-elevated)",
-                border: "1px solid var(--border-subtle)",
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-jb-mono)",
-                fontSize: "10px",
+                color: "var(--text-tertiary)",
+                fontFamily: "var(--font-inter)",
+                fontSize: "11px",
               }}
             >
-              {totalCount} total
+              {pendingCount} pending • {draftCount} drafts • {completeCount} done
             </span>
           </div>
         </div>
 
         <div className="space-y-3 px-3 pb-3">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <InsetPanel paddingClassName="px-3 py-3">
-              <p className="text-label">Needs review</p>
-              <p
-                style={{
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  marginTop: "4px",
-                }}
-              >
-                {pendingCount}
-              </p>
-            </InsetPanel>
-            <InsetPanel paddingClassName="px-3 py-3">
-              <p className="text-label">Drafts</p>
-              <p
-                style={{
-                  color: "var(--warning-primary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  marginTop: "4px",
-                }}
-              >
-                {draftCount}
-              </p>
-            </InsetPanel>
-            <InsetPanel paddingClassName="px-3 py-3">
-              <p className="text-label">Done</p>
-              <p
-                style={{
-                  color: "var(--accent-primary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  marginTop: "4px",
-                }}
-              >
-                {completeCount}
-              </p>
-            </InsetPanel>
-          </div>
-
-          {activeTrade && activeTradeTone ? (
-            <InsetPanel
-              paddingClassName="px-3 py-3"
-              style={{
-                background: "var(--surface)",
-                borderColor: activeTradeTone.borderColor,
-              }}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-label">Currently open</p>
-                  <div className="flex items-center gap-2">
-                    <span
-                      style={{
-                        color: "var(--text-primary)",
-                        fontFamily: "var(--font-jb-mono)",
-                        fontSize: "13px",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {activeTrade.symbol}
-                    </span>
-                    <span
-                      style={{
-                        color: outcomeTone(activeTrade.outcome),
-                        fontFamily: "var(--font-jb-mono)",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {formatPnl(activeTrade.netPnl)}
-                    </span>
-                  </div>
-                  <p
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "11px",
-                    }}
-                  >
-                    {statusDescription(activeTrade.reviewStatus)}
-                  </p>
-                </div>
-                <span
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-1"
-                  style={{
-                    background: activeTradeTone.background,
-                    color: activeTradeTone.color,
-                    border: `1px solid ${activeTradeTone.borderColor}`,
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                  }}
-                >
-                  <activeTradeTone.icon size={12} />
-                  {statusLabel(activeTrade.reviewStatus)}
-                </span>
-              </div>
-            </InsetPanel>
-          ) : null}
-
           <ControlSurface className="space-y-3">
             <FieldGroup
               label="Find a trade"
@@ -402,8 +292,9 @@ export function TradeReviewRail({
                 <span
                   style={{
                     color: "var(--text-tertiary)",
-                    fontFamily: "var(--font-jb-mono)",
+                    fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
                     fontSize: "10px",
+                    fontWeight: 600,
                   }}
                 >
                   {items.length} showing
@@ -427,8 +318,9 @@ export function TradeReviewRail({
                           statusFilter === option.value
                             ? "color-mix(in srgb, var(--accent-primary) 14%, transparent)"
                             : "var(--surface-elevated)",
-                        fontFamily: "var(--font-jb-mono)",
+                        fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
                         fontSize: "10px",
+                        fontWeight: 700,
                         lineHeight: 1,
                       }}
                     >
@@ -471,10 +363,6 @@ export function TradeReviewRail({
 
               {groupItems.map((item) => {
                 const isActive = item.id === activeTradeId;
-                const directionBg =
-                  item.direction === "LONG"
-                    ? "var(--profit-bg)"
-                    : "var(--loss-bg)";
                 const directionColor =
                   item.direction === "LONG"
                     ? "var(--profit-primary)"
@@ -492,110 +380,57 @@ export function TradeReviewRail({
                     variants={ROW}
                     type="button"
                     onClick={() => onSelectTrade(item.id)}
-                    className="mb-2 block w-full text-left last:mb-0"
+                    className="mb-2 block w-full rounded-[18px] border px-3 py-3 text-left transition-colors last:mb-0"
+                    style={{
+                      background: isActive
+                        ? "color-mix(in srgb, var(--accent-soft) 56%, var(--surface))"
+                        : "var(--surface-elevated)",
+                      borderColor: isActive
+                        ? "var(--accent-primary)"
+                        : "var(--border-subtle)",
+                      boxShadow: "none",
+                    }}
                   >
-                    <InsetPanel
-                      className="transition-colors duration-100"
-                      paddingClassName="px-3.5 py-3"
-                      style={{
-                        background: isActive
-                          ? "var(--accent-soft)"
-                          : "var(--surface-elevated)",
-                        borderColor: isActive
-                          ? "var(--accent-primary)"
-                          : "var(--border-subtle)",
-                        borderLeftWidth: 2,
-                        boxShadow: isActive ? "var(--shadow-sm)" : "none",
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              style={{
-                                color: isActive
-                                  ? "var(--accent-primary)"
-                                  : "var(--text-primary)",
-                                fontFamily: "var(--font-jb-mono)",
-                                fontSize: "13px",
-                                fontWeight: 700,
-                              }}
-                            >
-                              {item.symbol}
-                            </span>
-                            <span
-                              style={{
-                                background: directionBg,
-                                borderRadius: "999px",
-                                color: directionColor,
-                                fontFamily: "var(--font-jb-mono)",
-                                fontSize: "10px",
-                                padding: "2px 7px",
-                              }}
-                            >
-                              {item.direction === "LONG" ? "LONG" : "SHORT"}
-                            </span>
-                            <span
-                              className="inline-flex items-center gap-1 rounded-full px-2 py-1"
-                              style={{
-                                background: statusMeta.background,
-                                color: statusMeta.color,
-                                border: `1px solid ${statusMeta.borderColor}`,
-                                fontFamily: "var(--font-inter)",
-                                fontSize: "10px",
-                                fontWeight: 700,
-                              }}
-                            >
-                              <StatusIcon size={11} />
-                              {statusLabel(item.reviewStatus)}
-                            </span>
-                          </div>
-                          <p
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
                             style={{
-                              color: "var(--text-tertiary)",
-                              fontFamily: "var(--font-inter)",
-                              fontSize: "11px",
-                              lineHeight: 1.45,
-                            }}
-                          >
-                            {statusDescription(item.reviewStatus)}
-                          </p>
-                        </div>
-
-                        <div className="shrink-0 text-right">
-                          <p
-                            style={{
-                              color: pnlColor,
-                              fontFamily: "var(--font-jb-mono)",
-                              fontSize: "12px",
+                              color: isActive
+                                ? "var(--accent-primary)"
+                                : "var(--text-primary)",
+                              fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+                              fontSize: "13px",
                               fontWeight: 700,
                             }}
                           >
-                            {formatPnl(item.netPnl)}
-                          </p>
-                          <p
+                            {item.symbol}
+                          </span>
+                          <span
                             style={{
-                              color: "var(--text-tertiary)",
-                              fontFamily: "var(--font-jb-mono)",
+                              color: directionColor,
+                              fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
                               fontSize: "10px",
-                              marginTop: "4px",
+                              fontWeight: 700,
+                              letterSpacing: "0.08em",
+                              textTransform: "uppercase",
                             }}
                           >
-                            {formatDate(item.closedAt)}
-                          </p>
+                            {item.direction === "LONG" ? "Long" : "Short"}
+                          </span>
                         </div>
-                      </div>
 
-                      <div
-                        className="mt-3 flex items-center justify-between gap-3 border-t pt-2.5"
-                        style={{ borderTop: "1px solid var(--border-subtle)" }}
-                      >
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
+                          <span className="inline-flex items-center gap-1">
+                            <StatusIcon size={11} style={{ color: statusMeta.color }} />
+                            {statusLabel(item.reviewStatus)}
+                          </span>
+                          <span>•</span>
+                          <span>{formatDate(item.closedAt)}</span>
+                          <span>•</span>
                           <span
                             style={{
                               color: outcomeTone(item.outcome),
-                              fontFamily: "var(--font-inter)",
-                              fontSize: "10px",
                               fontWeight: 700,
                               letterSpacing: "0.08em",
                               textTransform: "uppercase",
@@ -604,37 +439,51 @@ export function TradeReviewRail({
                             {item.outcome}
                           </span>
                           {isActive ? (
-                            <span
-                              style={{
-                                color: "var(--accent-primary)",
-                                fontFamily: "var(--font-inter)",
-                                fontSize: "10px",
-                                fontWeight: 700,
-                              }}
-                            >
-                              Open now
-                            </span>
+                            <>
+                              <span>•</span>
+                              <span
+                                style={{
+                                  color: "var(--accent-primary)",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Open now
+                              </span>
+                            </>
                           ) : null}
                         </div>
 
+                        <p
+                          style={{
+                            color: "var(--text-secondary)",
+                            fontFamily: "var(--font-inter)",
+                            fontSize: "11px",
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          {statusDescription(item.reviewStatus)}
+                        </p>
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <p
+                          style={{
+                            color: pnlColor,
+                            fontFamily: "var(--font-jb-mono)",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {formatPnl(item.netPnl)}
+                        </p>
                         {item.reviewStatus === "complete" ? (
                           <Check
                             size={12}
-                            style={{ color: "var(--accent-primary)" }}
+                            style={{ color: "var(--accent-primary)", marginLeft: "auto", marginTop: "6px" }}
                           />
-                        ) : (
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{
-                              background:
-                                item.reviewStatus === "draft"
-                                  ? "var(--warning-primary)"
-                                  : "var(--border-default)",
-                            }}
-                          />
-                        )}
+                        ) : null}
                       </div>
-                    </InsetPanel>
+                    </div>
                   </motion.button>
                 );
               })}

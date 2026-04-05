@@ -1,12 +1,5 @@
-import { LoadingCalendarGrid, LoadingMetricGrid, LoadingPanel } from "@/components/ui/loading";
+import { CalendarWorkspaceLoading } from "@/components/calendar";
 
 export default function CalendarLoading() {
-  return (
-    <div className="page-root page-sections">
-      <LoadingPanel rows={2} title="Loading calendar review" />
-      <LoadingMetricGrid />
-      <LoadingCalendarGrid />
-      <LoadingPanel rows={5} title="Loading day review" />
-    </div>
-  );
+  return <CalendarWorkspaceLoading standalone />;
 }

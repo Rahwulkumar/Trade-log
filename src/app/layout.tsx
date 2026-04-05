@@ -1,6 +1,7 @@
 import "@/lib/env"; // Validate required env vars on startup
 import type { Metadata } from "next";
 import { Syne, Inter, JetBrains_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -46,17 +47,24 @@ export const metadata: Metadata = {
 
 const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
 const isClerkConfigured = clerkKey.startsWith("pk_");
+const SIDEBAR_COLLAPSED_COOKIE = "sidebar-collapsed";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const initialSidebarCollapsed =
+    cookieStore.get(SIDEBAR_COLLAPSED_COOKIE)?.value === "true";
+
   const content = (
     <ThemeProvider defaultTheme="system" storageKey="theme">
       <AuthProvider clerkConfigured={isClerkConfigured}>
         <PropAccountProvider>
-          <AppShell>{children}</AppShell>
+          <AppShell initialSidebarCollapsed={initialSidebarCollapsed}>
+            {children}
+          </AppShell>
         </PropAccountProvider>
       </AuthProvider>
     </ThemeProvider>

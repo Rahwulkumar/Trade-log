@@ -281,34 +281,34 @@ body {
 
 /* ─── Typography ─── */
 .headline-lg {
-  font-family: var(--font-syne), var(--font-inter), sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
-  font-size: 2rem;
-  line-height: 1.28;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.35rem, 2vw, 1.7rem);
+  line-height: 1.14;
+  letter-spacing: -0.035em;
   color: var(--text-primary);
   display: block;
-  padding-bottom: 0.16em;
+  padding-bottom: 0.06em;
 }
 
 .headline-md {
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
-  font-size: 1.15rem;
-  line-height: 1.32;
-  letter-spacing: -0.02em;
+  font-size: clamp(1rem, 1.15vw, 1.12rem);
+  line-height: 1.18;
+  letter-spacing: -0.025em;
   color: var(--text-primary);
   display: block;
-  padding-bottom: 0.04em;
+  padding-bottom: 0.02em;
 }
 
 .text-label {
   font-family: var(--font-inter);
   font-weight: 600;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   line-height: 1.35;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-tertiary);
   display: block;
 }
@@ -324,7 +324,7 @@ p.stat-large {
 }
 
 p.stat-medium {
-  font-family: var(--font-jb-mono);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   font-weight: 600;
   font-size: 1.1rem;
   line-height: 1.18;
@@ -554,410 +554,29 @@ p.stat-huge {
 */
 .page-root {
   width: 100%;
-  padding: 1.5rem;     /* matches DashboardHeader px-6 exactly */
+  padding: 1rem;
   box-sizing: border-box;
 }
 .page-sections {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 1.5rem;
-}
-
-.calendar-review-shell {
-  container-type: inline-size;
-  container-name: calendar-review;
-}
-
-.calendar-review-hero {
-  overflow: visible;
-}
-
-.calendar-review-hero-title {
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  font-weight: 800;
-  font-size: clamp(1.55rem, 2.2vw, 2.2rem);
-  line-height: 1.08;
-  letter-spacing: -0.045em;
-  color: var(--text-primary);
-  display: block;
-  padding-bottom: 0.12em;
-  text-wrap: balance;
-}
-
-.calendar-review-hero-grid {
-  display: grid;
   gap: 1rem;
 }
 
-.calendar-review-hero-topbar {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.calendar-review-hero-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.calendar-review-hero-aside {
-  width: 100%;
-}
-
-.calendar-review-month-panel {
-  border-radius: 20px;
-  border: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface-elevated) 82%, var(--surface)) 0%,
-      var(--surface-elevated) 100%
-    );
-}
-
-.calendar-review-toolbar-grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.calendar-review-toolbar-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.calendar-review-toolbar-label {
-  font-size: 0.69rem;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  letter-spacing: 0.03em;
-}
-
-.calendar-review-summary-grid {
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-}
-
-.calendar-review-summary-item {
-  flex: 0 0 16rem;
-  min-width: 16rem;
-}
-
-.calendar-review-main-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.calendar-review-agenda-shell {
-  display: block;
-  min-width: 0;
-}
-
-.calendar-review-board-shell {
-  display: none;
-  min-width: 0;
-}
-
-.calendar-review-board-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.calendar-review-board-grid {
-  min-width: 48rem;
-}
-
-.calendar-review-month-dayhead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.calendar-review-month-indicators {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding-top: 0.2rem;
-}
-
-.calendar-review-month-core {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-  flex: 1 1 auto;
-  justify-content: space-between;
-}
-
-.calendar-review-month-center {
-  display: flex;
-  flex-direction: column;
-  gap: 0.32rem;
-}
-
-.calendar-review-month-value {
-  font-size: 1.14rem;
-  line-height: 1.04;
-  letter-spacing: -0.04em;
-}
-
-.calendar-review-month-label {
-  font-size: 0.62rem;
-  line-height: 1.25;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.calendar-review-month-meta {
-  font-size: 0.68rem;
-  line-height: 1.35;
-  color: var(--text-secondary);
-  max-width: 16ch;
-}
-
-.calendar-review-month-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.calendar-review-month-metric {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.45rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
-  background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
-  padding: 0.16rem 0.5rem;
-  font-size: 0.62rem;
-  line-height: 1.2;
-  color: var(--text-secondary);
-}
-
-.calendar-review-inspector-shell {
-  min-width: 0;
-}
-
-.calendar-review-day-inspector {
-  container-type: inline-size;
-  container-name: calendar-day-inspector;
-}
-
-.calendar-review-inspector-section {
-  border-radius: 24px;
-  border: 1px solid var(--border-subtle);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface) 94%, var(--accent-soft)) 0%,
-      var(--surface) 100%
-    );
-}
-
-.calendar-review-day-inspector-top {
-  flex: 0 0 auto;
-}
-
-.calendar-review-day-tabs {
-  min-height: 0;
-}
-
-.calendar-review-tab-list {
-  display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.calendar-review-tab-trigger {
-  flex: 0 0 auto;
-}
-
-.calendar-review-tab-content {
-  min-height: 0;
-  margin-top: 1rem;
-}
-
-.calendar-review-stat-strip {
-  display: flex;
-  gap: 0.75rem;
-  overflow-x: auto;
-}
-
-.calendar-review-stat-item {
-  flex: 0 0 10.5rem;
-  min-width: 10.5rem;
-}
-
-.calendar-review-mini-stat,
-.calendar-review-note-block {
-  border-radius: 20px;
-  border: 1px solid var(--border-subtle);
-  background: color-mix(in srgb, var(--surface-elevated) 72%, var(--surface));
-}
-
-.calendar-review-mini-stat {
-  min-height: 100%;
-  padding: 0.9rem 1rem;
-}
-
-.calendar-review-note-block {
-  padding: 0.95rem 1rem;
-}
-
-.calendar-review-chip-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.calendar-review-trade-card {
-  box-shadow: 0 1px 0 rgba(5, 31, 32, 0.02);
-}
-
-.calendar-review-trade-card:hover {
-  border-color: var(--border-default) !important;
-}
-
-.calendar-review-plan-grid,
-.calendar-review-rule-summary-grid,
-.calendar-review-coverage-grid {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.calendar-review-plan-check-grid {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.calendar-review-plan-notes-grid {
-  display: grid;
-  gap: 0.75rem;
-}
-
-@container calendar-review (min-width: 48rem) {
-  .calendar-review-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    overflow: visible;
+@media (min-width: 640px) {
+  .page-root {
+    padding: 1.25rem;
   }
 
-  .calendar-review-summary-item {
-    min-width: 0;
+  .page-sections {
+    gap: 1.25rem;
   }
 }
 
-@container calendar-review (min-width: 72rem) {
-  .calendar-review-hero-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .calendar-review-hero-aside {
-    width: auto;
-  }
-
-  .calendar-review-hero-topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-  }
-
-  .calendar-review-agenda-shell {
-    display: none !important;
-  }
-
-  .calendar-review-board-shell {
-    display: block !important;
-  }
-}
-
-@container calendar-review (min-width: 80rem) {
-  .calendar-review-toolbar-grid {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-  }
-
-  .calendar-review-board-toolbar {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-
-@container calendar-review (min-width: 96rem) {
-  .calendar-review-main-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.14fr) minmax(27rem, 0.86fr);
-    gap: 1.5rem;
-    align-items: stretch;
-  }
-
-  .calendar-review-summary-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .calendar-review-board-grid {
-    min-width: 52rem;
-  }
-
-  .calendar-review-inspector-shell {
-    position: sticky;
-    top: 1rem;
-    align-self: start;
-    max-height: calc(100dvh - 2rem);
-  }
-
-  .calendar-review-day-inspector {
-    max-height: calc(100dvh - 2rem);
-  }
-
-  .calendar-review-tab-list {
-    overflow: visible;
-  }
-
-  .calendar-review-tab-trigger {
-    flex: 1 1 0;
-  }
-
-  .calendar-review-tab-content {
-    overflow-y: auto;
-    padding-right: 0.25rem;
-    scrollbar-gutter: stable;
-  }
-}
-
-@container calendar-day-inspector (min-width: 28rem) {
-  .calendar-review-stat-strip,
-  .calendar-review-plan-grid,
-  .calendar-review-rule-summary-grid,
-  .calendar-review-coverage-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    overflow: visible;
-  }
-
-  .calendar-review-stat-item {
-    min-width: 0;
-  }
-
-  .calendar-review-plan-notes-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@container calendar-day-inspector (min-width: 40rem) {
-  .calendar-review-plan-check-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media (min-width: 1280px) {
+  .page-root {
+    padding: 1.5rem;
   }
 }
 
@@ -1018,9 +637,9 @@ html.dark .text-gradient {
   position: relative;
   border-radius: var(--radius-lg);
   background: var(--surface);
-  border: 1px solid var(--border-default);  /* visible solid border in light mode */
+  border: 1px solid var(--border-default);
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.3s ease, transform 0.2s ease, border-color 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 /* Dark mode: replace solid border with the CSS-mask gradient-border technique */
 html.dark .glow-card {
@@ -1041,8 +660,7 @@ html.dark .glow-card::before {
 }
 .glow-card:hover {
   border-color: var(--border-active);
-  box-shadow: var(--shadow-md), 0 0 24px var(--accent-glow);
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 html.dark .glow-card:hover {
   border-color: transparent;  /* keep gradient border in dark mode on hover too */

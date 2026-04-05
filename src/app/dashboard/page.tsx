@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
-import { TradingCalendar } from '@/components/calendar';
+import { DashboardCalendar } from '@/components/calendar';
 import { useAuth } from '@/components/auth-provider';
 import { usePropAccount } from '@/components/prop-account-provider';
 import { CashflowChart } from '@/components/dashboard/cashflow-chart';
@@ -870,17 +870,8 @@ export default function DashboardPage() {
         />
       </AppPanel>
 
-      <AppPanel id="calendar" className="scroll-mt-8 p-6">
-        <SectionHeader
-          title="Trading Calendar"
-          subtitle="Daily P&L overview"
-          action={
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/calendar">Open workspace {'->'}</Link>
-            </Button>
-          }
-        />
-        <TradingCalendar embedded />
+      <AppPanel id="calendar" className="scroll-mt-8 p-5 sm:p-6">
+        <DashboardCalendar />
       </AppPanel>
     </div>
   );

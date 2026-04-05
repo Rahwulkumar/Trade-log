@@ -189,6 +189,24 @@ function asString(raw: unknown): string {
   return typeof raw === "string" ? raw : "";
 }
 
+function stripSystemTradeNote(raw: string | null | undefined): string {
+  const note = typeof raw === "string" ? raw.trim() : "";
+  if (!note) {
+    return "";
+  }
+
+  const systemPatterns = [
+    /^Auto-synced via Terminal Farm\. Position ID:\s*\d+$/i,
+    /^Auto-synced from MT5\. Ticket:\s*\d+$/i,
+    /^Orphan Exit Synced \(Entry missing\)\. Position ID:\s*\d+$/i,
+    /^Orphan INOUT exit synced \(matching open trade missing\)\. Position ID:\s*\d+$/i,
+    /^Partial close remainder synced\. Position ID:\s*\d+$/i,
+    /^Reversal position synced from INOUT deal\. Position ID:\s*\d+$/i,
+  ];
+
+  return systemPatterns.some((pattern) => pattern.test(note)) ? "" : note;
+}
+
 function parseJournalReview(raw: unknown): JournalReview {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { ...EMPTY_JOURNAL_REVIEW };
@@ -285,7 +303,7 @@ export function mapTradeToViewModel(trade: Trade): JournalTradeViewModel {
         ? trade.createdAt.toISOString()
         : ((trade.createdAt as unknown as string) ?? null),
     marketCondition: trade.marketCondition ?? null,
-    notes: trade.notes ?? "",
+    notes: stripSystemTradeNote(trade.notes),
     feelings: trade.feelings ?? "",
     observations: trade.observations ?? "",
     executionNotes: trade.executionNotes ?? "",

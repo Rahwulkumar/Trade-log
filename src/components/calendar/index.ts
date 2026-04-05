@@ -1,10 +1,4 @@
-export { TradingCalendar } from "./trading-calendar";
-export { CalendarReviewWorkspace } from "./calendar-review-workspace";
-export {
-  CalendarAgendaList,
-  CalendarDayInspector,
-  CalendarJournalShell,
-  CalendarMonthBoard,
-  CalendarSummaryStrip,
-  CalendarWorkspaceHero,
-} from "./calendar-review-primitives";
+export { DashboardCalendar } from "./dashboard-calendar";
+export { CalendarSurface } from "./calendar-surface";
+export { CalendarWorkspace } from "./calendar-workspace";
+export { CalendarWorkspaceLoading } from "./calendar-workspace-loading";

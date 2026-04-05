@@ -11,7 +11,6 @@ import {
   useState,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import type {
   JournalTemplate,
@@ -51,9 +50,8 @@ import {
   uploadTradeScreenshot,
 } from "@/lib/api/storage";
 import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
-import { AppTextArea, ChoiceChip } from "@/components/ui/control-primitives";
+import { ChoiceChip } from "@/components/ui/control-primitives";
 import { Button } from "@/components/ui/button";
-import { SectionHeader } from "@/components/ui/page-primitives";
 import { InsetPanel } from "@/components/ui/surface-primitives";
 import {
   Select,
@@ -69,13 +67,19 @@ import {
   type JournalLibraryOption,
   JournalLibraryMultiPicker,
   JournalLibraryPicker,
-  JournalOutlineRail,
   JournalPromptField,
   JournalRatingInput,
   JournalShortField,
-  JournalTabRail,
   JournalTagField,
 } from "@/components/journal/journal-primitives";
+import { JournalNarrativeCard } from "@/components/journal/journal-narrative-card";
+import {
+  JournalContextDrawer,
+  JournalDocumentActions,
+  JournalDocumentCanvas,
+  JournalDocumentHeader,
+  JournalSupportBlock,
+} from "@/components/journal/journal-review-shell";
 import { JournalTradeChart } from "@/components/journal/journal-trade-chart";
 
 const EXECUTION_CHECKLIST_OPTIONS = [
@@ -122,52 +126,6 @@ const RULE_STATUS_OPTIONS: Array<{
   { value: "skipped", label: "Skipped", tone: "warning" },
   { value: "notApplicable", label: "N/A", tone: "default" },
 ];
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "--";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function formatDuration(
-  openedAt: string | null,
-  closedAt: string | null,
-): string {
-  if (!openedAt || !closedAt) {
-    return "--";
-  }
-
-  const diffMinutes = Math.max(
-    1,
-    Math.round(
-      (new Date(closedAt).getTime() - new Date(openedAt).getTime()) /
-        (1000 * 60),
-    ),
-  );
-
-  if (diffMinutes < 60) {
-    return `${diffMinutes}m`;
-  }
-
-  const hours = Math.floor(diffMinutes / 60);
-  const minutes = diffMinutes % 60;
-
-  if (hours < 24) {
-    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-  }
-
-  const days = Math.floor(hours / 24);
-  const remHours = hours % 24;
-  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
-}
 
 function formatPnl(value: number): string {
   return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toFixed(2)}`;
@@ -263,6 +221,8 @@ interface TradeReviewDocumentProps {
   onPrevious: () => void;
   onNext: () => void;
   onNextPending?: () => void;
+  onOpenTradeQueue?: () => void;
+  tradeQueueLabel?: string;
   onSaved: (trade: Trade) => void;
 }
 
@@ -281,6 +241,8 @@ function TradeReviewDocumentInner({
   onPrevious,
   onNext,
   onNextPending,
+  onOpenTradeQueue,
+  tradeQueueLabel,
   onSaved,
 }: TradeReviewDocumentProps) {
   const viewModel = useMemo(() => mapTradeToViewModel(trade), [trade]);
@@ -289,6 +251,7 @@ function TradeReviewDocumentInner({
   const deferredDraft = useDeferredValue(draft);
   const [activeChapter, setActiveChapter] =
     useState<JournalChapterId>("narrative");
+  const [contextOpen, setContextOpen] = useState(false);
   const [setupTagDraft, setSetupTagDraft] = useState("");
   const [mistakeTagDraft, setMistakeTagDraft] = useState("");
   const [executionChecklistDraft, setExecutionChecklistDraft] = useState("");
@@ -323,22 +286,21 @@ function TradeReviewDocumentInner({
     onSaved,
     debounceMs: 1500,
   });
+  const [showRecentSave, setShowRecentSave] = useState(false);
 
   const netPnl = getTradeNetPnl(trade);
-  const outcome = outcomeFromPnl(netPnl);
-  const tone = outcomeTone(outcome);
-  const duration = formatDuration(viewModel.entryDate, viewModel.exitDate);
+  const tone = outcomeTone(outcomeFromPnl(netPnl));
   const verdict = draft.journalReview.retakeDecision;
   const saveStatusText = saving
     ? "Saving review..."
-    : savedAt
-      ? `Saved ${savedAt.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}`
-      : isDirty
-        ? "Unsaved edits"
-        : "Autosave ready";
+    : isDirty
+      ? "Unsaved edits"
+      : showRecentSave && savedAt
+        ? `Saved ${savedAt.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`
+        : null;
 
   const sortedPlaybooks = useMemo(
     () =>
@@ -529,11 +491,8 @@ function TradeReviewDocumentInner({
         id: "narrative",
         label: "Narrative",
         orderLabel: "01",
-        summary: "Tell the trade cleanly from first observation to final exit.",
-        ...describeChapterProgress([
-          hasText(deferredDraft.notes),
-          deferredDraft.screenshots.length > 0,
-        ]),
+        summary: "Three short notes: why in, what changed, why out.",
+        ...describeChapterProgress([hasText(deferredDraft.notes)]),
       },
       {
         id: "thesis",
@@ -629,9 +588,6 @@ function TradeReviewDocumentInner({
     );
   }, [deferredDraft, enabledChapterIds]);
 
-  const completedChapterCount = chapterItems.filter(
-    (item) => item.state === "complete",
-  ).length;
   const activeChapterIndex = chapterItems.findIndex(
     (item) => item.id === activeChapter,
   );
@@ -655,37 +611,22 @@ function TradeReviewDocumentInner({
     }
   }, [activeChapter, chapterItems]);
 
-  const chapterIntroText = useMemo(
-    () => {
-      const templatePrompts = resolvedTemplateConfig.prompts;
-      const defaultMap: Record<JournalChapterId, string> = {
-          narrative: "Start with the full story while the trade is still fresh.",
-          thesis:
-            "Lock in why the trade existed and what would have invalidated it.",
-          market:
-          "Capture the structural context so the entry makes sense later.",
-        execution:
-          "Explain how the trade was handled, not just how it ended.",
-        psychology:
-          "Make the emotional pattern obvious enough to spot next time.",
-        scorecard: "Keep the scoring tight and the annotations honest.",
-        closeout:
-          "End with one sentence worth remembering and one change worth testing.",
-      };
+  useEffect(() => {
+    if (!savedAt) {
+      setShowRecentSave(false);
+      return;
+    }
 
-      return (
-        templatePrompts[activeChapter as keyof JournalTemplatePrompts] ??
-        defaultMap[activeChapter]
-      );
-    },
-    [activeChapter, resolvedTemplateConfig.prompts],
-  );
+    setShowRecentSave(true);
+    const timeout = window.setTimeout(() => setShowRecentSave(false), 2800);
+    return () => window.clearTimeout(timeout);
+  }, [savedAt]);
 
   const chapterCueText = useMemo(
     () => {
       const templatePrompts = resolvedTemplateConfig.prompts;
       const defaultMap: Record<JournalChapterId, string> = {
-          narrative: "Write the trade before you judge it.",
+          narrative: "Three short notes beat one long replay: entry, shift, exit.",
           thesis: "Name the edge so it is easy to repeat or reject later.",
           market: "Give the setup enough context to make sense on a reread.",
           execution: "Document the decisions, not just the outcome.",
@@ -736,13 +677,6 @@ function TradeReviewDocumentInner({
     },
     [sortedSetups, sortedTemplates],
   );
-
-  const activeChapterStateText =
-    activeChapterItem?.state === "complete"
-      ? "Ready"
-      : activeChapterItem?.state === "progress"
-        ? "In progress"
-        : "Start";
 
   const changeChapter = useCallback((chapterId: JournalChapterId) => {
     setActiveChapter(chapterId);
@@ -1070,179 +1004,18 @@ function TradeReviewDocumentInner({
     return () => window.cancelAnimationFrame(frame);
   }, [activeChapter]);
 
+  useEffect(() => {
+    setContextOpen(false);
+  }, [activeChapter]);
+
   const renderActiveChapter = () => {
     switch (activeChapter) {
       case "narrative":
         return (
-          <div className="space-y-4">
-            <p
-              style={{
-                color: "var(--text-tertiary)",
-                fontFamily: "var(--font-inter)",
-                fontSize: "12px",
-                lineHeight: 1.55,
-              }}
-            >
-              Use this space like a replay. Capture what you noticed, why the
-              trade became interesting, how the management changed, and what
-              mattered after the exit.
-            </p>
-            <AppTextArea
-              value={draft.notes}
-              onChange={(event) =>
-                setDraftField({ notes: event.target.value })
-              }
-              rows={18}
-              placeholder="Tell the trade from first observation to final exit."
-              className="min-h-[24rem] w-full rounded-[var(--radius-xl)] px-6 py-5 text-[1rem]"
-              style={{
-                background: "var(--surface)",
-                borderColor: "var(--border-subtle)",
-                color: "var(--text-primary)",
-                minHeight: "max(32rem, calc(100dvh - 260px))",
-                lineHeight: 1.9,
-              }}
-            />
-            <InsetPanel paddingClassName="px-4 py-4">
-              <SectionHeader
-                className="mb-0"
-                title="Screenshots"
-                subtitle="Attach the chart or execution evidence you want to keep with this trade."
-              />
-              <div className="mt-5 space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <label
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-[12px] font-semibold transition-colors"
-                    style={{
-                      background: "var(--surface)",
-                      borderColor: "var(--border-subtle)",
-                      color: "var(--text-primary)",
-                    }}
-                  >
-                    Add screenshots
-                    <input
-                      type="file"
-                      accept={ALLOWED_SCREENSHOT_TYPES.join(",")}
-                      multiple
-                      className="hidden"
-                      onChange={(event) => {
-                        void handleScreenshotUpload(event.target.files);
-                        event.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-                  <span
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "11px",
-                    }}
-                  >
-                    {uploadingScreenshots
-                      ? "Uploading..."
-                      : `${draft.screenshots.length} attached`}
-                  </span>
-                  <span
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "11px",
-                    }}
-                  >
-                    JPG, PNG, WEBP, GIF up to 5 MB
-                  </span>
-                </div>
-                {screenshotError ? (
-                  <p
-                    style={{
-                      color: "var(--loss-primary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "11px",
-                    }}
-                  >
-                    {screenshotError}
-                  </p>
-                ) : null}
-                {draft.screenshots.length > 0 ? (
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {draft.screenshots.map((screenshot) => (
-                      <div
-                        key={screenshot.id}
-                        className="overflow-hidden rounded-[var(--radius-xl)] border"
-                        style={{
-                          background: "var(--surface)",
-                          borderColor: "var(--border-subtle)",
-                        }}
-                      >
-                        <div
-                          className="relative aspect-[4/3] overflow-hidden"
-                          style={{ background: "var(--surface-elevated)" }}
-                        >
-                          <Image
-                            src={resolveScreenshotPreviewUrl(screenshot.url)}
-                            alt={`Trade screenshot ${screenshot.timeframe}`}
-                            fill
-                            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                            className="object-cover"
-                          />
-                        </div>
-                        <div className="flex items-center justify-between gap-3 px-3 py-3">
-                          <div className="min-w-0">
-                            <p className="text-label">Attached</p>
-                            <p
-                              className="truncate"
-                              style={{
-                                color: "var(--text-secondary)",
-                                fontFamily: "var(--font-jb-mono)",
-                                fontSize: "11px",
-                              }}
-                            >
-                              {screenshot.timeframe}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => void handleScreenshotRemove(screenshot.id)}
-                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors"
-                            style={{
-                              background: "var(--surface)",
-                              borderColor: "var(--border-subtle)",
-                              color: "var(--text-tertiary)",
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    <p
-                      style={{
-                        color: "var(--text-tertiary)",
-                        fontFamily: "var(--font-inter)",
-                        fontSize: "11px",
-                      }}
-                    >
-                      No screenshots yet.
-                    </p>
-                    {resolvedTemplateConfig.screenshotRequired ? (
-                      <p
-                        style={{
-                          color: "var(--warning-primary)",
-                          fontFamily: "var(--font-inter)",
-                          fontSize: "11px",
-                        }}
-                      >
-                        This template expects at least one screenshot for review.
-                      </p>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </InsetPanel>
-          </div>
+          <JournalNarrativeCard
+            value={draft.notes}
+            onChange={(notes) => setDraftField({ notes })}
+          />
         );
 
       case "thesis":
@@ -1352,19 +1125,25 @@ function TradeReviewDocumentInner({
                 onChange={(value) => setReviewField("setupName", value)}
                 placeholder="Add a setup note or refinement"
               />
-              <InsetPanel paddingClassName="px-4 py-3">
-                <p className="text-label">Template Summary</p>
+              <div
+                className="rounded-[18px] px-4 py-3"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--accent-soft) 34%, var(--surface-elevated))",
+                }}
+              >
+                <p className="text-label">Template</p>
                 <p
-                  className="mt-2 text-sm"
+                  className="mt-1.5 text-sm"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  {resolvedTemplateConfig.enabledChapters.length} chapters enabled,{" "}
-                  {resolvedTemplateConfig.checklistItems.length} checklist items,{" "}
+                  {resolvedTemplateConfig.enabledChapters.length} chapters active •{" "}
+                  {resolvedTemplateConfig.checklistItems.length} checklist items •{" "}
                   {resolvedTemplateConfig.screenshotRequired
                     ? "screenshots required"
-                    : "screenshots optional"}.
+                    : "screenshots optional"}
                 </p>
-              </InsetPanel>
+              </div>
             </div>
             <JournalPromptField
               prompt="Why did this trade exist at all?"
@@ -1395,187 +1174,30 @@ function TradeReviewDocumentInner({
       case "market":
         return (
           <div className="space-y-5">
-            <InsetPanel paddingClassName="px-4 py-4">
-              <SectionHeader
-                className="mb-0"
-                title="Timeframe alignment"
-                subtitle="Record the bias, execution frame, trigger frame, and whether the trade was aligned or forced."
+            <div className="grid gap-4 lg:grid-cols-2">
+              <JournalPromptField
+                prompt="What did price make obvious before the entry?"
+                value={draft.observations}
+                onChange={(value) => setDraftField({ observations: value })}
+                rows={6}
+                placeholder="Structure, liquidity, volatility, correlations, or timing tells."
               />
-              <div className="mt-5 space-y-5">
-                <div className="flex flex-wrap gap-2">
-                  {ALIGNMENT_OPTIONS.map((option) => (
-                    <JournalChoiceChip
-                      key={option.value}
-                      active={
-                        draft.journalReview.timeframeAlignment === option.value
-                      }
-                      onClick={() =>
-                        setReviewField(
-                          "timeframeAlignment",
-                          draft.journalReview.timeframeAlignment === option.value
-                            ? null
-                            : option.value,
-                        )
-                      }
-                      tone="accent"
-                    >
-                      {option.label}
-                    </JournalChoiceChip>
-                  ))}
-                </div>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <JournalShortField
-                    label="Higher timeframe bias"
-                    value={draft.journalReview.higherTimeframeBias}
-                    onChange={(value) =>
-                      setReviewField("higherTimeframeBias", value)
-                    }
-                    placeholder="Bullish, bearish, neutral"
-                  />
-                  <JournalShortField
-                    label="Execution timeframe"
-                    value={draft.journalReview.executionTimeframe}
-                    onChange={(value) =>
-                      setReviewField("executionTimeframe", value)
-                    }
-                    placeholder="e.g. 15m"
-                    mono
-                  />
-                  <JournalShortField
-                    label="Trigger timeframe"
-                    value={draft.journalReview.triggerTimeframe}
-                    onChange={(value) =>
-                      setReviewField("triggerTimeframe", value)
-                    }
-                    placeholder="e.g. 1m"
-                    mono
-                  />
-                </div>
-                <JournalPromptField
-                  prompt="How did the timeframes agree or fight each other?"
-                  value={draft.journalReview.higherTimeframeNotes}
-                  onChange={(value) =>
-                    setReviewField("higherTimeframeNotes", value)
-                  }
-                  rows={4}
-                  placeholder="Be explicit about alignment, conflict, or the one frame you ignored."
-                />
-              </div>
-            </InsetPanel>
-
-            <InsetPanel paddingClassName="px-4 py-4">
-              <SectionHeader
-                className="mb-0"
-                title="Market context"
-                subtitle="Session is handled automatically from the trade time. Use this chapter for the actual market context around the setup."
+              <JournalPromptField
+                prompt="What context around the trade mattered most?"
+                value={draft.journalReview.marketContext}
+                onChange={(value) => setReviewField("marketContext", value)}
+                rows={6}
+                placeholder="Macro driver, session behavior, news, or environmental context."
               />
-              <div className="mt-5 space-y-5">
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="text-label">Auto session</span>
-                    <span
-                      className="rounded-full px-2.5 py-1"
-                      style={{
-                        background: "var(--accent-soft)",
-                        color: "var(--accent-primary)",
-                        fontFamily: "var(--font-jb-mono)",
-                        fontSize: "11px",
-                      }}
-                    >
-                      {draft.session ?? "Overnight"}
-                    </span>
-                    <span
-                      style={{
-                        color: "var(--text-tertiary)",
-                        fontFamily: "var(--font-inter)",
-                        fontSize: "11px",
-                      }}
-                    >
-                      detected from trade time
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {MARKET_CONDITIONS.map((option) => (
-                      <JournalChoiceChip
-                        key={option}
-                        active={draft.marketCondition === option}
-                        onClick={() =>
-                          setDraftField({
-                            marketCondition:
-                              draft.marketCondition === option ? null : option,
-                          })
-                        }
-                      >
-                        {option}
-                      </JournalChoiceChip>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <JournalPromptField
-                    prompt="What did price make obvious before the entry?"
-                    value={draft.observations}
-                    onChange={(value) => setDraftField({ observations: value })}
-                    rows={5}
-                    placeholder="Structure, liquidity, volatility, correlations, or timing tells."
-                  />
-                  <JournalPromptField
-                    prompt="What context around the trade mattered most?"
-                    value={draft.journalReview.marketContext}
-                    onChange={(value) => setReviewField("marketContext", value)}
-                    rows={5}
-                    placeholder="Macro driver, session behavior, news, or environmental context."
-                  />
-                </div>
-              </div>
-            </InsetPanel>
+            </div>
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              Alignment, timeframe notes, session context, and market condition are in the context drawer.
+            </p>
           </div>
         );
       case "execution":
         return (
           <div className="space-y-5">
-            <InsetPanel paddingClassName="px-4 py-4">
-              <SectionHeader
-                className="mb-0"
-                title="Execution checklist"
-                subtitle="Mark the conditions that were actually present before and during the trade."
-              />
-              <div className="mt-5 space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {checklistOptions.map((option) => (
-                    <JournalChoiceChip
-                      key={option}
-                      active={draft.executionArrays.includes(option)}
-                      onClick={() => toggleExecutionChecklist(option)}
-                      tone="accent"
-                    >
-                      {option}
-                    </JournalChoiceChip>
-                  ))}
-                </div>
-                  <JournalTagField
-                    label="Custom checklist items"
-                    tags={draft.executionArrays.filter(
-                      (item) => !checklistOptions.includes(item),
-                    )}
-                    onChange={(next) =>
-                      setDraft((current) => ({
-                        ...current,
-                        executionArrays: [
-                          ...current.executionArrays.filter((item) =>
-                            checklistOptions.includes(item),
-                          ),
-                          ...next,
-                        ],
-                      }))
-                    }
-                  tone="neutral"
-                  placeholder="Add custom checklist item"
-                  draftValue={executionChecklistDraft}
-                  onDraftValueChange={setExecutionChecklistDraft}
-                />
-              </div>
-            </InsetPanel>
             <div className="grid gap-4 lg:grid-cols-2">
               <JournalPromptField
                 prompt="Why did you enter at that exact moment?"
@@ -1608,6 +1230,9 @@ function TradeReviewDocumentInner({
                 placeholder="Intentional target, fear, structure break, or loss of edge."
               />
             </div>
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              Checklist, custom execution markers, and chart replay are in the context drawer.
+            </p>
           </div>
         );
 
@@ -1648,316 +1273,59 @@ function TradeReviewDocumentInner({
         );
       case "scorecard":
         return (
-          <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
-            <InsetPanel paddingClassName="px-4 py-4">
-              <SectionHeader
-                className="mb-0"
-                title="Review controls"
-                subtitle="Score the trade, mark conviction, and decide whether it is worth repeating."
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <JournalRatingInput
+                label="Entry"
+                value={draft.entryRating}
+                onChange={(value) => setDraftField({ entryRating: value })}
               />
-              <div className="mt-5 space-y-5">
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <JournalRatingInput
-                    label="Entry"
-                    value={draft.entryRating}
-                    onChange={(value) => setDraftField({ entryRating: value })}
-                  />
-                  <JournalRatingInput
-                    label="Exit"
-                    value={draft.exitRating}
-                    onChange={(value) => setDraftField({ exitRating: value })}
-                  />
-                  <JournalRatingInput
-                    label="Management"
-                    value={draft.managementRating}
-                    onChange={(value) =>
-                      setDraftField({ managementRating: value })
+              <JournalRatingInput
+                label="Exit"
+                value={draft.exitRating}
+                onChange={(value) => setDraftField({ exitRating: value })}
+              />
+              <JournalRatingInput
+                label="Management"
+                value={draft.managementRating}
+                onChange={(value) =>
+                  setDraftField({ managementRating: value })
+                }
+              />
+            </div>
+            <JournalConvictionInput
+              value={draft.conviction}
+              onChange={(value) => setDraftField({ conviction: value })}
+            />
+            <div className="space-y-2">
+              <p className="text-label">Would you take this trade again?</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {RETAKE_OPTIONS.map((option) => (
+                  <JournalChoiceChip
+                    key={option.value}
+                    active={verdict === option.value}
+                    onClick={() =>
+                      setReviewField(
+                        "retakeDecision",
+                        verdict === option.value ? null : option.value,
+                      )
                     }
-                  />
-                </div>
-                <JournalConvictionInput
-                  value={draft.conviction}
-                  onChange={(value) => setDraftField({ conviction: value })}
-                />
-                <div className="space-y-2">
-                  <p className="text-label">Would you take this trade again?</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {RETAKE_OPTIONS.map((option) => (
-                      <JournalChoiceChip
-                        key={option.value}
-                        active={verdict === option.value}
-                        onClick={() =>
-                          setReviewField(
-                            "retakeDecision",
-                            verdict === option.value ? null : option.value,
-                          )
-                        }
-                        tone={
-                          option.value === "yes"
-                            ? "profit"
-                            : option.value === "no"
-                              ? "loss"
-                              : "warning"
-                        }
-                      >
-                        {option.label}
-                      </JournalChoiceChip>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-5">
-                  <div className="space-y-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-label">Rulebook review</p>
-                        <p
-                          className="mt-1 text-xs"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          Evaluate this trade against the most relevant rulebook for the selected workflow.
-                        </p>
-                      </div>
-                      {recommendedRuleSet && !draft.ruleSetId ? (
-                        <p
-                          className="text-xs"
-                          style={{ color: "var(--text-tertiary)" }}
-                        >
-                          Auto: {recommendedRuleSet.name}
-                        </p>
-                      ) : null}
-                    </div>
-                    <Select
-                      value={draft.ruleSetId ?? "__auto"}
-                      onValueChange={handleRuleSetChange}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select rulebook" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__auto">
-                          {recommendedRuleSet
-                            ? `Auto (${recommendedRuleSet.name})`
-                            : "Auto (none matched)"}
-                        </SelectItem>
-                        {sortedRuleSets.map((ruleSet) => (
-                          <SelectItem key={ruleSet.id} value={ruleSet.id}>
-                            {ruleSet.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {effectiveRuleSet ? (
-                      <div className="space-y-3">
-                        {effectiveRuleSet.items.length > 0 ? (
-                          effectiveRuleSet.items.map((rule) => {
-                            const activeResult = ruleResultsByItemId.get(rule.id);
-
-                            return (
-                              <InsetPanel key={rule.id} paddingClassName="px-3 py-3">
-                                <div className="space-y-3">
-                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                    <div>
-                                      <p className="text-sm font-semibold">{rule.title}</p>
-                                      {rule.description ? (
-                                        <p
-                                          className="mt-1 text-xs"
-                                          style={{ color: "var(--text-secondary)" }}
-                                        >
-                                          {rule.description}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 text-[11px]">
-                                      {rule.category ? (
-                                        <span className="rounded-full border px-2 py-0.5">
-                                          {rule.category}
-                                        </span>
-                                      ) : null}
-                                      {rule.severity ? (
-                                        <span className="rounded-full border px-2 py-0.5">
-                                          {rule.severity}
-                                        </span>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {RULE_STATUS_OPTIONS.map((option) => (
-                                      <ChoiceChip
-                                        key={option.value}
-                                        active={activeResult?.status === option.value}
-                                        onClick={() =>
-                                          setTradeRuleStatus(rule.id, option.value)
-                                        }
-                                        activeColor={
-                                          option.tone === "profit"
-                                            ? "var(--profit-primary)"
-                                            : option.tone === "loss"
-                                              ? "var(--loss-primary)"
-                                              : option.tone === "warning"
-                                                ? "var(--warning-primary)"
-                                                : "var(--text-primary)"
-                                        }
-                                        activeBackground={
-                                          option.tone === "profit"
-                                            ? "var(--profit-bg)"
-                                            : option.tone === "loss"
-                                              ? "var(--loss-bg)"
-                                              : option.tone === "warning"
-                                                ? "var(--warning-bg)"
-                                                : "var(--surface-elevated)"
-                                        }
-                                        activeBorderColor={
-                                          option.tone === "profit"
-                                            ? "var(--profit-primary)"
-                                            : option.tone === "loss"
-                                              ? "var(--loss-primary)"
-                                              : option.tone === "warning"
-                                                ? "var(--warning-primary)"
-                                                : "var(--border-strong)"
-                                        }
-                                      >
-                                        {option.label}
-                                      </ChoiceChip>
-                                    ))}
-                                  </div>
-                                </div>
-                              </InsetPanel>
-                            );
-                          })
-                        ) : (
-                          <p
-                            className="text-xs"
-                            style={{ color: "var(--text-tertiary)" }}
-                          >
-                            This rulebook does not have any active rules yet.
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p
-                        className="text-xs"
-                        style={{ color: "var(--text-tertiary)" }}
-                      >
-                        Create a rulebook in the Playbooks workspace to start reviewing trades against explicit rules.
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {sortedMistakes.length > 0 ? (
-                      <JournalLibraryMultiPicker
-                        label="Structured mistakes"
-                        options={mistakePickerOptions}
-                        values={draft.mistakeDefinitionIds}
-                        onToggle={toggleMistakeDefinition}
-                        placeholder="Search mistakes by name or category"
-                        tone="loss"
-                      />
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-label">Structured mistakes</p>
-                        <p
-                          className="text-xs"
-                          style={{ color: "var(--text-tertiary)" }}
-                        >
-                          Create mistake definitions in the Playbooks workspace to reuse them here.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <JournalTagField
-                    label="Additional setup tags"
-                    tags={draft.setupTags}
-                    onChange={(next) => setDraftField({ setupTags: next })}
-                    tone="neutral"
-                    placeholder="Add setup tag"
-                    draftValue={setupTagDraft}
-                    onDraftValueChange={setSetupTagDraft}
-                  />
-                  <JournalTagField
-                    label="Additional mistake tags"
-                    tags={draft.mistakeTags}
-                    onChange={(next) => setDraftField({ mistakeTags: next })}
-                    tone="loss"
-                    placeholder="Add mistake tag"
-                    draftValue={mistakeTagDraft}
-                    onDraftValueChange={setMistakeTagDraft}
-                  />
-                </div>
+                    tone={
+                      option.value === "yes"
+                        ? "profit"
+                        : option.value === "no"
+                          ? "loss"
+                          : "warning"
+                    }
+                  >
+                    {option.label}
+                  </JournalChoiceChip>
+                ))}
               </div>
-            </InsetPanel>
-
-            <InsetPanel paddingClassName="px-4 py-4">
-              <SectionHeader
-                className="mb-0"
-                title="Excursion"
-                subtitle="Record how far price moved against you and for you."
-              />
-              <div className="mt-5 space-y-5">
-                <div
-                  className="relative h-px w-full"
-                  style={{ background: "var(--border-subtle)" }}
-                >
-                  <div
-                    className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                    style={{ background: "var(--text-primary)" }}
-                  />
-                  <div
-                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full"
-                    style={{
-                      left: `calc(50% - ${
-                        Math.min(Math.abs(draft.mae ?? 0), 5) * 9
-                      }%)`,
-                      background: "var(--loss-primary)",
-                    }}
-                  />
-                  <div
-                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full"
-                    style={{
-                      left: `calc(50% + ${
-                        Math.min(Math.abs(draft.mfe ?? 0), 5) * 9
-                      }%)`,
-                      background: "var(--profit-primary)",
-                    }}
-                  />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <JournalShortField
-                    label="MAE"
-                    value={draft.mae == null ? "" : String(draft.mae)}
-                    onChange={(value) => {
-                      if (value.trim() === "") {
-                        setDraftField({ mae: null });
-                        return;
-                      }
-
-                      const parsed = Number(value);
-                      if (Number.isFinite(parsed)) {
-                        setDraftField({ mae: parsed });
-                      }
-                    }}
-                    placeholder="Max adverse excursion"
-                    mono
-                  />
-                  <JournalShortField
-                    label="MFE"
-                    value={draft.mfe == null ? "" : String(draft.mfe)}
-                    onChange={(value) => {
-                      if (value.trim() === "") {
-                        setDraftField({ mfe: null });
-                        return;
-                      }
-
-                      const parsed = Number(value);
-                      if (Number.isFinite(parsed)) {
-                        setDraftField({ mfe: parsed });
-                      }
-                    }}
-                    placeholder="Max favorable excursion"
-                    mono
-                  />
-                </div>
-              </div>
-            </InsetPanel>
+            </div>
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              Rules, mistakes, tags, and excursion tracking are in the context drawer.
+            </p>
           </div>
         );
 
@@ -2029,6 +1397,489 @@ function TradeReviewDocumentInner({
     }
   };
 
+  const renderActiveChapterContext = () => {
+    switch (activeChapter) {
+      case "narrative":
+        return (
+          <>
+            <JournalSupportBlock
+              title="Screenshots"
+              description="Keep only the evidence worth revisiting."
+            >
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-[12px] font-semibold transition-colors"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: "var(--border-subtle)",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    Add screenshots
+                    <input
+                      type="file"
+                      accept={ALLOWED_SCREENSHOT_TYPES.join(",")}
+                      multiple
+                      className="hidden"
+                      onChange={(event) => {
+                        void handleScreenshotUpload(event.target.files);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                  <span className="text-xs text-[var(--text-tertiary)]">
+                    {uploadingScreenshots
+                      ? "Uploading..."
+                      : `${draft.screenshots.length} attached`}
+                  </span>
+                </div>
+                {screenshotError ? (
+                  <p className="text-xs text-[var(--loss-primary)]">
+                    {screenshotError}
+                  </p>
+                ) : null}
+                {draft.screenshots.length > 0 ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {draft.screenshots.map((screenshot) => (
+                      <div
+                        key={screenshot.id}
+                        className="overflow-hidden rounded-[var(--radius-xl)] border"
+                        style={{
+                          background: "var(--surface)",
+                          borderColor: "var(--border-subtle)",
+                        }}
+                      >
+                        <div
+                          className="relative aspect-[4/3] overflow-hidden"
+                          style={{ background: "var(--surface-elevated)" }}
+                        >
+                          <Image
+                            src={resolveScreenshotPreviewUrl(screenshot.url)}
+                            alt={`Trade screenshot ${screenshot.timeframe}`}
+                            fill
+                            sizes="(max-width: 640px) 100vw, 50vw"
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 px-3 py-3">
+                          <div className="min-w-0">
+                            <p className="text-label">Attached</p>
+                            <p className="truncate text-xs text-[var(--text-secondary)]">
+                              {screenshot.timeframe}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleScreenshotRemove(screenshot.id)}
+                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors"
+                            style={{
+                              background: "var(--surface)",
+                              borderColor: "var(--border-subtle)",
+                              color: "var(--text-tertiary)",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--text-tertiary)]">
+                    {resolvedTemplateConfig.screenshotRequired
+                      ? "This template expects at least one screenshot."
+                      : "No screenshots yet."}
+                  </p>
+                )}
+              </div>
+            </JournalSupportBlock>
+          </>
+        );
+
+      case "market":
+        return (
+          <>
+            <JournalSupportBlock
+              title="Alignment"
+              description="Bias, timeframes, and whether the idea was aligned or forced."
+            >
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {ALIGNMENT_OPTIONS.map((option) => (
+                    <JournalChoiceChip
+                      key={option.value}
+                      active={draft.journalReview.timeframeAlignment === option.value}
+                      onClick={() =>
+                        setReviewField(
+                          "timeframeAlignment",
+                          draft.journalReview.timeframeAlignment === option.value
+                            ? null
+                            : option.value,
+                        )
+                      }
+                      tone="accent"
+                    >
+                      {option.label}
+                    </JournalChoiceChip>
+                  ))}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <JournalShortField
+                    label="Higher timeframe bias"
+                    value={draft.journalReview.higherTimeframeBias}
+                    onChange={(value) =>
+                      setReviewField("higherTimeframeBias", value)
+                    }
+                    placeholder="Bullish, bearish, neutral"
+                  />
+                  <JournalShortField
+                    label="Execution timeframe"
+                    value={draft.journalReview.executionTimeframe}
+                    onChange={(value) =>
+                      setReviewField("executionTimeframe", value)
+                    }
+                    placeholder="e.g. 15m"
+                    mono
+                  />
+                  <JournalShortField
+                    label="Trigger timeframe"
+                    value={draft.journalReview.triggerTimeframe}
+                    onChange={(value) =>
+                      setReviewField("triggerTimeframe", value)
+                    }
+                    placeholder="e.g. 1m"
+                    mono
+                  />
+                </div>
+                <JournalPromptField
+                  prompt="How did the timeframes agree or fight each other?"
+                  value={draft.journalReview.higherTimeframeNotes}
+                  onChange={(value) =>
+                    setReviewField("higherTimeframeNotes", value)
+                  }
+                  rows={4}
+                  placeholder="Be explicit about alignment, conflict, or the one frame you ignored."
+                />
+              </div>
+            </JournalSupportBlock>
+
+            <JournalSupportBlock
+              title="Session and conditions"
+              description="The surrounding market environment for this setup."
+            >
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="text-label">Auto session</span>
+                  <span
+                    className="rounded-full px-2.5 py-1"
+                    style={{
+                      background: "var(--accent-soft)",
+                      color: "var(--accent-primary)",
+                      fontFamily: "var(--font-jb-mono)",
+                      fontSize: "11px",
+                    }}
+                  >
+                    {draft.session ?? "Overnight"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {MARKET_CONDITIONS.map((option) => (
+                    <JournalChoiceChip
+                      key={option}
+                      active={draft.marketCondition === option}
+                      onClick={() =>
+                        setDraftField({
+                          marketCondition:
+                            draft.marketCondition === option ? null : option,
+                        })
+                      }
+                    >
+                      {option}
+                    </JournalChoiceChip>
+                  ))}
+                </div>
+              </div>
+            </JournalSupportBlock>
+          </>
+        );
+
+      case "execution":
+        return (
+          <JournalSupportBlock
+            title="Execution checklist"
+            description="Mark the conditions that were actually present before and during the trade."
+          >
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {checklistOptions.map((option) => (
+                  <JournalChoiceChip
+                    key={option}
+                    active={draft.executionArrays.includes(option)}
+                    onClick={() => toggleExecutionChecklist(option)}
+                    tone="accent"
+                  >
+                    {option}
+                  </JournalChoiceChip>
+                ))}
+              </div>
+              <JournalTagField
+                label="Custom checklist items"
+                tags={draft.executionArrays.filter(
+                  (item) => !checklistOptions.includes(item),
+                )}
+                onChange={(next) =>
+                  setDraft((current) => ({
+                    ...current,
+                    executionArrays: [
+                      ...current.executionArrays.filter((item) =>
+                        checklistOptions.includes(item),
+                      ),
+                      ...next,
+                    ],
+                  }))
+                }
+                tone="neutral"
+                placeholder="Add custom checklist item"
+                draftValue={executionChecklistDraft}
+                onDraftValueChange={setExecutionChecklistDraft}
+              />
+            </div>
+          </JournalSupportBlock>
+        );
+
+      case "scorecard":
+        return (
+          <>
+            <JournalSupportBlock
+              title="Rulebook review"
+              description="Evaluate the trade against the most relevant rulebook."
+            >
+              <div className="space-y-4">
+                <Select
+                  value={draft.ruleSetId ?? "__auto"}
+                  onValueChange={handleRuleSetChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select rulebook" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__auto">
+                      {recommendedRuleSet
+                        ? `Auto (${recommendedRuleSet.name})`
+                        : "Auto (none matched)"}
+                    </SelectItem>
+                    {sortedRuleSets.map((ruleSet) => (
+                      <SelectItem key={ruleSet.id} value={ruleSet.id}>
+                        {ruleSet.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {effectiveRuleSet ? (
+                  <div className="space-y-3">
+                    {effectiveRuleSet.items.length > 0 ? (
+                      effectiveRuleSet.items.map((rule) => {
+                        const activeResult = ruleResultsByItemId.get(rule.id);
+
+                        return (
+                          <InsetPanel key={rule.id} paddingClassName="px-3 py-3">
+                            <div className="space-y-3">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                  <p className="text-sm font-semibold">{rule.title}</p>
+                                  {rule.description ? (
+                                    <p
+                                      className="mt-1 text-xs"
+                                      style={{ color: "var(--text-secondary)" }}
+                                    >
+                                      {rule.description}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className="flex flex-wrap gap-2 text-[11px]">
+                                  {rule.category ? (
+                                    <span className="rounded-full border px-2 py-0.5">
+                                      {rule.category}
+                                    </span>
+                                  ) : null}
+                                  {rule.severity ? (
+                                    <span className="rounded-full border px-2 py-0.5">
+                                      {rule.severity}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {RULE_STATUS_OPTIONS.map((option) => (
+                                  <ChoiceChip
+                                    key={option.value}
+                                    active={activeResult?.status === option.value}
+                                    onClick={() =>
+                                      setTradeRuleStatus(rule.id, option.value)
+                                    }
+                                    activeColor={
+                                      option.tone === "profit"
+                                        ? "var(--profit-primary)"
+                                        : option.tone === "loss"
+                                          ? "var(--loss-primary)"
+                                          : option.tone === "warning"
+                                            ? "var(--warning-primary)"
+                                            : "var(--text-primary)"
+                                    }
+                                    activeBackground={
+                                      option.tone === "profit"
+                                        ? "var(--profit-bg)"
+                                        : option.tone === "loss"
+                                          ? "var(--loss-bg)"
+                                          : option.tone === "warning"
+                                            ? "var(--warning-bg)"
+                                            : "var(--surface-elevated)"
+                                    }
+                                    activeBorderColor={
+                                      option.tone === "profit"
+                                        ? "var(--profit-primary)"
+                                        : option.tone === "loss"
+                                          ? "var(--loss-primary)"
+                                          : option.tone === "warning"
+                                            ? "var(--warning-primary)"
+                                            : "var(--border-strong)"
+                                    }
+                                  >
+                                    {option.label}
+                                  </ChoiceChip>
+                                ))}
+                              </div>
+                            </div>
+                          </InsetPanel>
+                        );
+                      })
+                    ) : (
+                      <p className="text-xs text-[var(--text-tertiary)]">
+                        This rulebook does not have any active rules yet.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--text-tertiary)]">
+                    Create a rulebook in Playbooks to review trades against explicit rules.
+                  </p>
+                )}
+              </div>
+            </JournalSupportBlock>
+
+            <JournalSupportBlock
+              title="Mistakes and tags"
+              description="Tag the errors and structure you want to measure later."
+            >
+              <div className="space-y-4">
+                {sortedMistakes.length > 0 ? (
+                  <JournalLibraryMultiPicker
+                    label="Structured mistakes"
+                    options={mistakePickerOptions}
+                    values={draft.mistakeDefinitionIds}
+                    onToggle={toggleMistakeDefinition}
+                    placeholder="Search mistakes by name or category"
+                    tone="loss"
+                  />
+                ) : (
+                  <p className="text-xs text-[var(--text-tertiary)]">
+                    Create mistake definitions in Playbooks to reuse them here.
+                  </p>
+                )}
+                <JournalTagField
+                  label="Additional setup tags"
+                  tags={draft.setupTags}
+                  onChange={(next) => setDraftField({ setupTags: next })}
+                  tone="neutral"
+                  placeholder="Add setup tag"
+                  draftValue={setupTagDraft}
+                  onDraftValueChange={setSetupTagDraft}
+                />
+                <JournalTagField
+                  label="Additional mistake tags"
+                  tags={draft.mistakeTags}
+                  onChange={(next) => setDraftField({ mistakeTags: next })}
+                  tone="loss"
+                  placeholder="Add mistake tag"
+                  draftValue={mistakeTagDraft}
+                  onDraftValueChange={setMistakeTagDraft}
+                />
+              </div>
+            </JournalSupportBlock>
+
+            <JournalSupportBlock
+              title="Excursion"
+              description="Record how far price moved against you and for you."
+            >
+              <div className="space-y-5">
+                <div
+                  className="relative h-px w-full"
+                  style={{ background: "var(--border-subtle)" }}
+                >
+                  <div
+                    className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                    style={{ background: "var(--text-primary)" }}
+                  />
+                  <div
+                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full"
+                    style={{
+                      left: `calc(50% - ${Math.min(Math.abs(draft.mae ?? 0), 5) * 9}%)`,
+                      background: "var(--loss-primary)",
+                    }}
+                  />
+                  <div
+                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full"
+                    style={{
+                      left: `calc(50% + ${Math.min(Math.abs(draft.mfe ?? 0), 5) * 9}%)`,
+                      background: "var(--profit-primary)",
+                    }}
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <JournalShortField
+                    label="MAE"
+                    value={draft.mae == null ? "" : String(draft.mae)}
+                    onChange={(value) => {
+                      if (value.trim() === "") {
+                        setDraftField({ mae: null });
+                        return;
+                      }
+                      const parsed = Number(value);
+                      if (Number.isFinite(parsed)) {
+                        setDraftField({ mae: parsed });
+                      }
+                    }}
+                    placeholder="Max adverse excursion"
+                    mono
+                  />
+                  <JournalShortField
+                    label="MFE"
+                    value={draft.mfe == null ? "" : String(draft.mfe)}
+                    onChange={(value) => {
+                      if (value.trim() === "") {
+                        setDraftField({ mfe: null });
+                        return;
+                      }
+                      const parsed = Number(value);
+                      if (Number.isFinite(parsed)) {
+                        setDraftField({ mfe: parsed });
+                      }
+                    }}
+                    placeholder="Max favorable excursion"
+                    mono
+                  />
+                </div>
+              </div>
+            </JournalSupportBlock>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <motion.article
       initial={{ opacity: 0, x: -10 }}
@@ -2038,507 +1889,103 @@ function TradeReviewDocumentInner({
       className="min-h-full"
       style={{ background: "var(--surface)" }}
     >
-      <div
-        className="sticky top-0 z-10 border-b px-4 py-3 sm:px-6 lg:px-8"
-        style={{
-          background: "color-mix(in srgb, var(--surface) 96%, transparent)",
-          borderBottomColor: "var(--border-subtle)",
-          backdropFilter: "blur(12px)",
-        }}
-      >
-        <div className="flex w-full flex-col gap-3">
-          <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1
-                style={{
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "22px",
-                  fontWeight: 700,
-                  lineHeight: 1.12,
-                  letterSpacing: "-0.03em",
-                }}
-              >
-                {viewModel.symbol}
-              </h1>
-              <span
-                className="rounded-full px-3 py-1"
-                style={{
-                  background:
-                    viewModel.direction === "LONG"
-                      ? "var(--profit-bg)"
-                      : "var(--loss-bg)",
-                  color:
-                    viewModel.direction === "LONG"
-                      ? "var(--profit-primary)"
-                      : "var(--loss-primary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                }}
-              >
-                {viewModel.direction === "LONG" ? "LONG" : "SHORT"}
-              </span>
-              <span
-                className="rounded-full px-3 py-1"
-                style={{
-                  background: tone.background,
-                  color: tone.color,
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
-                }}
-              >
-                {outcome}
-              </span>
-              <span
-                style={{
-                  color: tone.color,
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                }}
-              >
-                {formatPnl(netPnl)}
-              </span>
-              <span
-                style={{
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "11px",
-                }}
-              >
-                {formatDateTime(viewModel.exitDate ?? viewModel.entryDate)}
-              </span>
-              {draft.session ? (
-                <span
-                  className="rounded-full px-2.5 py-1"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border-subtle)",
-                    color: "var(--text-secondary)",
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "11px",
-                  }}
-                >
-                  {draft.session}
-                </span>
-              ) : null}
-              <span
-                style={{
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "11px",
-                }}
-              >
-                {duration}
-              </span>
-            </div>
+      <JournalDocumentHeader
+        symbol={viewModel.symbol}
+        direction={viewModel.direction === "LONG" ? "LONG" : "SHORT"}
+        pnlText={formatPnl(netPnl)}
+        pnlColor={tone.color}
+        saveStatusText={saveStatusText}
+        saving={saving}
+        isDirty={isDirty}
+        index={index}
+        total={total}
+        hasPrevious={hasPrevious}
+        hasNext={hasNext}
+        onPrevious={onPrevious}
+        onNext={onNext}
+        onNextPending={onNextPending}
+        onOpenTradeQueue={onOpenTradeQueue}
+        tradeQueueLabel={tradeQueueLabel}
+        chapterTabs={chapterTabs}
+        activeTab={activeChapter}
+        onChangeTab={(id) => changeChapter(id as JournalChapterId)}
+      />
 
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className="rounded-full px-2.5 py-1"
-                style={{
-                  background: "var(--surface-elevated)",
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "11px",
-                }}
-              >
-                {index + 1}/{total}
-              </span>
-              <span
-                className="rounded-full px-2.5 py-1"
-                style={{
-                  background: "var(--surface-elevated)",
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "11px",
-                }}
-              >
-                {activeChapterItem.orderLabel} / {activeChapterLabel}
-              </span>
-              <span
-                className="rounded-full px-2.5 py-1"
-                style={{
-                  background: "var(--accent-soft)",
-                  color: "var(--accent-primary)",
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "11px",
-                }}
-              >
-                {completedChapterCount}/{chapterItems.length} ready
-              </span>
-              <span
-                style={{
-                  color: saving
-                    ? "var(--accent-primary)"
-                    : isDirty
-                      ? "var(--warning-primary)"
-                      : "var(--text-tertiary)",
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "11px",
-                  fontWeight: 600,
-                }}
-              >
-                {saveStatusText}
-              </span>
-              <Button
-                type="button"
-                onClick={onPrevious}
-                disabled={!hasPrevious}
-                size="sm"
-                variant="outline"
-                style={{
-                  background: "var(--surface-elevated)",
-                  borderColor: "var(--border-subtle)",
-                  color: hasPrevious
-                    ? "var(--text-primary)"
-                    : "var(--text-tertiary)",
-                  opacity: hasPrevious ? 1 : 0.45,
-                }}
-              >
-                <ChevronLeft size={14} />
-                <span className="hidden sm:inline">Previous trade</span>
-              </Button>
-
-              {onNextPending ? (
-                <Button
-                  type="button"
-                  onClick={onNextPending}
-                  size="sm"
-                  variant="outline"
-                  style={{
-                    background: "var(--surface-elevated)",
-                    borderColor: "var(--accent-primary)",
-                    color: "var(--accent-primary)",
-                  }}
-                >
-                  <span className="hidden sm:inline">Next unreviewed</span>
-                  <span className="sm:hidden">Next open</span>
-                </Button>
-              ) : null}
-
-              <Button
-                type="button"
-                onClick={onNext}
-                disabled={!hasNext}
-                size="sm"
-                variant="outline"
-                style={{
-                  background: "var(--surface-elevated)",
-                  borderColor: "var(--border-subtle)",
-                  color: hasNext
-                    ? "var(--text-primary)"
-                    : "var(--text-tertiary)",
-                  opacity: hasNext ? 1 : 0.45,
-                }}
-              >
-                <span className="hidden sm:inline">Next trade</span>
-                <ChevronRight size={14} />
-              </Button>
-            </div>
-          </div>
-
-          <div className="2xl:hidden">
-            <JournalTabRail
-              items={chapterTabs}
-              activeTab={activeChapter}
-              onChange={(id) => changeChapter(id as JournalChapterId)}
-              ariaLabel="Journal chapters"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4 pb-16 pt-4 sm:px-6 lg:px-8">
+      <div className="px-3 pb-12 pt-3 sm:px-4 sm:pb-14 sm:pt-3.5 lg:px-5">
         <div className="w-full">
-          <div className="grid gap-5 2xl:grid-cols-[248px_minmax(0,1fr)]">
-            <div className="hidden 2xl:block">
-              <div className="sticky top-[90px] space-y-4">
-                <JournalOutlineRail
-                  items={chapterItems}
-                  activeChapter={activeChapter}
-                  onChange={(id) => changeChapter(id as JournalChapterId)}
-                />
-                <InsetPanel paddingClassName="px-4 py-4">
-                  <p className="text-label">Current focus</p>
-                  <p
-                    className="mt-2"
+          <div ref={canvasAnchorRef} className="min-w-0 space-y-4">
+              <JournalDocumentCanvas
+                chapterOrderLabel={activeChapterItem.orderLabel}
+                chapterProgressLabel={activeChapterItem.progressLabel}
+                chapterState={activeChapterItem.state}
+                chapterLabel={activeChapterLabel}
+                chapterCueText={chapterCueText}
+                headerAction={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-2.5 text-[0.72rem]"
+                    onClick={() => setContextOpen(true)}
                     style={{
-                      color: "var(--text-primary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      lineHeight: 1.45,
+                      background: "var(--surface)",
+                      borderColor: contextOpen
+                        ? "var(--accent-primary)"
+                        : "var(--border-subtle)",
+                      color: contextOpen
+                        ? "var(--accent-primary)"
+                        : "var(--text-primary)",
                     }}
                   >
-                    {chapterCueText}
-                  </p>
-                  <p
-                    className="mt-2"
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "11px",
-                      lineHeight: 1.55,
-                    }}
-                  >
-                    {chapterIntroText}
-                  </p>
-                </InsetPanel>
-              </div>
-            </div>
-
-            <div ref={canvasAnchorRef} className="min-w-0 space-y-4">
-              <section
-                className="relative overflow-hidden rounded-[var(--radius-2xl)] border"
-                style={{
-                  background: "var(--surface)",
-                  borderColor: "var(--border-subtle)",
-                  boxShadow: "var(--shadow-sm)",
-                }}
+                    Open context
+                  </Button>
+                }
               >
-                <div
-                  className="absolute inset-x-0 top-0 h-24"
-                  style={{
-                    background:
-                      "linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 10%, transparent), transparent)",
-                  }}
-                />
-                <div
-                  className="absolute right-[-44px] top-[-36px] h-36 w-36 rounded-full"
-                  style={{
-                    background:
-                      "color-mix(in srgb, var(--accent-primary) 12%, transparent)",
-                    filter: "blur(18px)",
-                  }}
-                />
-
-                <div className="relative px-5 py-5 sm:px-7 sm:py-6 lg:px-8 lg:py-7 2xl:px-10 2xl:py-8">
-                  <div
-                    className="flex flex-col gap-5 border-b pb-5"
-                    style={{ borderBottomColor: "var(--border-subtle)" }}
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeChapter}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.18 }}
+                    className="mt-4"
                   >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="flex items-start gap-4">
-                        <span
-                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border"
-                          style={{
-                            background: "var(--accent-soft)",
-                            borderColor: "var(--accent-primary)",
-                            color: "var(--accent-primary)",
-                            fontFamily: "var(--font-syne)",
-                            fontSize: "15px",
-                            fontWeight: 700,
-                            lineHeight: 1,
-                          }}
-                        >
-                          {activeChapterItem.orderLabel}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-label">Active chapter</span>
-                            <span
-                              className="rounded-full px-2 py-0.5"
-                              style={{
-                                background: "var(--surface-elevated)",
-                                color:
-                                  activeChapterItem.state === "complete"
-                                    ? "var(--profit-primary)"
-                                    : activeChapterItem.state === "progress"
-                                      ? "var(--warning-primary)"
-                                      : "var(--text-tertiary)",
-                                fontFamily: "var(--font-jb-mono)",
-                                fontSize: "10px",
-                              }}
-                            >
-                              {activeChapterItem.progressLabel}
-                            </span>
-                            <span
-                              className="rounded-full px-2 py-0.5"
-                              style={{
-                                background: "var(--accent-soft)",
-                                color: "var(--accent-primary)",
-                                fontFamily: "var(--font-inter)",
-                                fontSize: "10px",
-                                fontWeight: 700,
-                                letterSpacing: "0.08em",
-                                textTransform: "uppercase",
-                              }}
-                            >
-                              {activeChapterStateText}
-                            </span>
-                          </div>
-                          <h2
-                            className="mt-2"
-                            style={{
-                              color: "var(--text-primary)",
-                              fontFamily: "var(--font-inter)",
-                              fontSize: "clamp(1.35rem, 2vw, 1.75rem)",
-                              fontWeight: 700,
-                              lineHeight: 1.08,
-                              letterSpacing: "-0.03em",
-                            }}
-                          >
-                            {activeChapterLabel}
-                          </h2>
-                          <p
-                            className="mt-2 max-w-3xl"
-                            style={{
-                              color: "var(--text-secondary)",
-                              fontFamily: "var(--font-inter)",
-                              fontSize: "14px",
-                              lineHeight: 1.65,
-                            }}
-                          >
-                            {activeChapterItem.summary}
-                          </p>
-                        </div>
-                      </div>
+                    {renderActiveChapter()}
+                  </motion.div>
+                </AnimatePresence>
+              </JournalDocumentCanvas>
 
-                      <div
-                        className="rounded-[var(--radius-xl)] border px-4 py-3 2xl:max-w-[19rem]"
-                        style={{
-                          background: "var(--surface-elevated)",
-                          borderColor: "var(--border-subtle)",
-                        }}
-                      >
-                        <p className="text-label">Focus cue</p>
-                        <p
-                          className="mt-2"
-                          style={{
-                            color: "var(--text-primary)",
-                            fontFamily: "var(--font-inter)",
-                            fontSize: "13px",
-                            fontWeight: 600,
-                            lineHeight: 1.55,
-                          }}
-                        >
-                          {chapterCueText}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6">
-                    <JournalTradeChart
-                      tradeId={trade.id}
-                      entryPrice={viewModel.entryPrice}
-                      exitPrice={viewModel.exitPrice}
-                      stopLoss={viewModel.stopLoss}
-                      takeProfit={viewModel.takeProfit}
-                      entryTime={viewModel.entryDate}
-                      exitTime={viewModel.exitDate ?? viewModel.entryDate}
-                      direction={viewModel.direction}
-                    />
-                  </div>
-
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={activeChapter}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.18 }}
-                      className="mt-6"
-                    >
-                      {renderActiveChapter()}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </section>
-
-              <div
-                className="flex flex-col gap-3 rounded-[var(--radius-xl)] border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                style={{
-                  background:
-                    "color-mix(in srgb, var(--surface) 94%, transparent)",
-                  borderColor: "var(--border-subtle)",
-                }}
+              <JournalContextDrawer
+                open={contextOpen}
+                onOpenChange={setContextOpen}
+                title={`${activeChapterLabel} context`}
+                description="The supporting evidence and structured trade details live here so the main page stays focused on the review."
               >
-                <div>
-                  <p
-                    style={{
-                      color: "var(--text-primary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "13px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    Chapter {activeChapterIndex + 1} of {chapterItems.length}
-                  </p>
-                  <p
-                    style={{
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "11px",
-                    }}
-                  >
-                    {chapterIntroText}
-                  </p>
-                </div>
+                {renderActiveChapterContext()}
+                <JournalSupportBlock
+                  title="Chart replay"
+                  description="Review price structure, execution, and exits without crowding the editor."
+                >
+                  <JournalTradeChart
+                    tradeId={trade.id}
+                    entryPrice={viewModel.entryPrice}
+                    exitPrice={viewModel.exitPrice}
+                    stopLoss={viewModel.stopLoss}
+                    takeProfit={viewModel.takeProfit}
+                    entryTime={viewModel.entryDate}
+                    exitTime={viewModel.exitDate ?? viewModel.entryDate}
+                    direction={viewModel.direction}
+                  />
+                </JournalSupportBlock>
+              </JournalContextDrawer>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    onClick={() => goToAdjacentChapter(-1)}
-                    disabled={activeChapterIndex <= 0}
-                    size="sm"
-                    variant="outline"
-                    style={{
-                      background: "var(--surface)",
-                      borderColor: "var(--border-subtle)",
-                      color:
-                        activeChapterIndex > 0
-                          ? "var(--text-primary)"
-                          : "var(--text-tertiary)",
-                      opacity: activeChapterIndex > 0 ? 1 : 0.45,
-                    }}
-                  >
-                    <ChevronLeft size={14} />
-                    Previous chapter
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => void save()}
-                    size="sm"
-                    variant="outline"
-                    style={{
-                      background: "var(--surface)",
-                      borderColor: "var(--border-subtle)",
-                      color: "var(--text-primary)",
-                    }}
-                  >
-                    Save review
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => goToAdjacentChapter(1)}
-                    disabled={activeChapterIndex >= chapterItems.length - 1}
-                    size="sm"
-                    variant="outline"
-                    style={{
-                      background: "var(--surface)",
-                      borderColor:
-                        activeChapterIndex >= chapterItems.length - 1
-                          ? "var(--border-subtle)"
-                          : "var(--accent-primary)",
-                      color:
-                        activeChapterIndex >= chapterItems.length - 1
-                          ? "var(--text-tertiary)"
-                          : "var(--accent-primary)",
-                      opacity:
-                        activeChapterIndex >= chapterItems.length - 1 ? 0.45 : 1,
-                    }}
-                  >
-                    Next chapter
-                    <ChevronRight size={14} />
-                  </Button>
-                </div>
-              </div>
-            </div>
+              <JournalDocumentActions
+                onPreviousChapter={() => goToAdjacentChapter(-1)}
+                onSave={() => void save()}
+                onNextChapter={() => goToAdjacentChapter(1)}
+                hasPreviousChapter={activeChapterIndex > 0}
+                hasNextChapter={activeChapterIndex < chapterItems.length - 1}
+              />
           </div>
         </div>
       </div>

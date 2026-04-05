@@ -95,65 +95,64 @@ export function AppPageHeader({
   return (
     <section
       className={cn(
-        "gradient-mesh-header flex flex-col gap-4 md:flex-row md:items-start md:justify-between",
-        "px-6 pt-5 pb-4 rounded-[var(--radius-xl)] relative overflow-hidden",
+        "flex flex-col gap-3 rounded-[var(--radius-xl)] border px-4 py-4 sm:px-5",
+        "lg:flex-row lg:items-end lg:justify-between",
         className,
       )}
       style={{
         background: "var(--surface)",
-        border: "1px solid var(--border-default)",
+        borderColor: "var(--border-default)",
         boxShadow: "var(--shadow-sm)",
       }}
     >
-      <div className="relative z-10">
+      <div className="min-w-0">
         {eyebrow && (
           <p
-            className="text-[0.6rem] uppercase tracking-widest font-bold mb-2"
+            className="mb-1.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em]"
             style={{ color: "var(--text-tertiary)" }}
           >
             {eyebrow}
           </p>
         )}
-        <div className="flex items-center gap-3 mb-1">
+        <div className="flex items-start gap-3">
           {icon && (
             <div
-              className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-default)] shrink-0"
+              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] border"
               style={{
-                background:
-                  "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))",
-                boxShadow: "0 4px 14px var(--accent-glow)",
+                background: "var(--surface-elevated)",
+                borderColor: "var(--border-subtle)",
+                color: "var(--accent-primary)",
               }}
             >
               {icon}
             </div>
           )}
-          <h1
-            className="text-gradient"
-            style={{
-              fontWeight: 800,
-              fontSize: "1.45rem",
-              letterSpacing: "-0.03em",
-              lineHeight: 1.24,
-              paddingBottom: "0.1em",
-            }}
-          >
-            {title}
-          </h1>
+          <div className="min-w-0">
+            <h1
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+                fontWeight: 700,
+                fontSize: "clamp(1.2rem, 1.6vw, 1.5rem)",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.12,
+              }}
+            >
+              {title}
+            </h1>
+            {description && (
+              <p
+                className="mt-1 max-w-2xl text-[0.82rem] leading-6"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {description}
+              </p>
+            )}
+          </div>
         </div>
-        {description && (
-          <p
-            className="mt-1.5 text-[0.76rem] font-medium max-w-xl leading-relaxed"
-            style={{
-              color: "var(--text-tertiary)",
-              paddingLeft: icon ? "3rem" : "0",
-            }}
-          >
-            {description}
-          </p>
-        )}
       </div>
       {actions && (
-        <div className="flex flex-wrap items-center gap-2 relative z-10 shrink-0">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {actions}
         </div>
       )}
@@ -165,8 +164,15 @@ export function AppPanel({ children, className, id }: AppPanelProps) {
   return (
     <section
       id={id}
-      className={cn("glow-card p-5", className)}
-      style={{ background: "var(--surface)" }}
+      className={cn(
+        "rounded-[var(--radius-xl)] border p-4 sm:p-5",
+        className,
+      )}
+      style={{
+        background: "var(--surface)",
+        borderColor: "var(--border-default)",
+        boxShadow: "var(--shadow-sm)",
+      }}
     >
       {children}
     </section>
@@ -191,12 +197,12 @@ export function SectionHeader({
   const resolvedAction = action ?? actions;
   return (
     <div
-      className={cn("mb-5 flex items-start justify-between gap-4", className)}
+      className={cn("mb-4 flex items-start justify-between gap-4", className)}
     >
       <div>
         {eyebrow && (
           <p
-            className="text-[0.6rem] uppercase tracking-widest font-bold mb-1"
+            className="mb-1 text-[0.66rem] font-semibold uppercase tracking-[0.08em]"
             style={{ color: "var(--text-tertiary)" }}
           >
             {eyebrow}
@@ -232,7 +238,7 @@ export function PanelTitle({ title, subtitle, className }: PanelTitleProps) {
   return (
     <div className={cn("mb-4", className)}>
       <h3 className="headline-md mb-0.5">{title}</h3>
-      <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+      <p className="text-[12px] leading-5" style={{ color: "var(--text-secondary)" }}>
         {subtitle}
       </p>
     </div>

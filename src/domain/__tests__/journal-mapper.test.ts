@@ -101,6 +101,16 @@ describe("mapTradeToViewModel", () => {
     const vm = mapTradeToViewModel(makeTrade({ pnl: null }));
     expect(vm.pnl).toBeNull();
   });
+
+  it("strips machine-generated sync notes from the journal narrative", () => {
+    const vm = mapTradeToViewModel(
+      makeTrade({
+        notes: "Auto-synced via Terminal Farm. Position ID: 317168129",
+      }),
+    );
+
+    expect(vm.notes).toBe("");
+  });
 });
 
 describe("viewModelToDraft", () => {
@@ -186,6 +196,25 @@ describe("isRawTradeJournaled", () => {
           tfObservations: null,
         })
       )
+    ).toBe(false);
+  });
+
+  it("does not count machine-generated sync notes as journal content", () => {
+    expect(
+      isRawTradeJournaled(
+        makeTrade({
+          notes: "Auto-synced from MT5. Ticket: 9817263",
+          feelings: null,
+          observations: null,
+          executionNotes: null,
+          conviction: null,
+          setupTags: [],
+          mistakeTags: [],
+          executionArrays: [],
+          screenshots: null,
+          tfObservations: null,
+        }),
+      ),
     ).toBe(false);
   });
 
