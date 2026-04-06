@@ -171,7 +171,7 @@ export default function JournalPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [railOpen, setRailOpen] = useState(false);
-  const [desktopRailCollapsed, setDesktopRailCollapsed] = useState(false);
+  const [desktopBrowserOpen, setDesktopBrowserOpen] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
 
   const currentUserId = user?.id ?? null;
@@ -420,7 +420,14 @@ export default function JournalPage() {
   const handleSelectTrade = useCallback(
     (tradeId: string) => {
       goToTrade(tradeId);
-      setRailOpen(false);
+      if (
+        typeof window !== "undefined" &&
+        window.matchMedia("(min-width: 1280px)").matches
+      ) {
+        setDesktopBrowserOpen(false);
+      } else {
+        setRailOpen(false);
+      }
     },
     [goToTrade],
   );
@@ -430,7 +437,7 @@ export default function JournalPage() {
       typeof window !== "undefined" &&
       window.matchMedia("(min-width: 1280px)").matches
     ) {
-      setDesktopRailCollapsed((current) => !current);
+      setDesktopBrowserOpen((current) => !current);
       return;
     }
 
@@ -491,7 +498,7 @@ export default function JournalPage() {
             : undefined
         }
         onOpenTradeQueue={handleOpenTradeQueue}
-        tradeQueueLabel="Trade queue"
+        tradeQueueLabel={desktopBrowserOpen ? "Hide trades" : "Browse trades"}
         onSaved={handleTradeSaved}
       />
     </AnimatePresence>
@@ -551,24 +558,14 @@ export default function JournalPage() {
     <div className="journal-workspace-shell flex min-h-[calc(100dvh-64px)] min-h-0 flex-col gap-2 overflow-visible px-2 py-2 sm:gap-2 sm:px-2.5 sm:py-2.5 2xl:h-[calc(100dvh-64px)] 2xl:overflow-hidden 2xl:px-3">
       <section className="stagger-2 relative min-h-0 flex-1 overflow-visible 2xl:overflow-hidden">
         <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-none">
-          <div
-            className="grid h-full min-h-0 xl:grid-cols-[16.5rem_minmax(0,1fr)] 2xl:grid-cols-[17rem_minmax(0,1fr)]"
-            style={{
-              gridTemplateColumns: desktopRailCollapsed
-                ? "minmax(0, 1fr)"
-                : undefined,
-              transition: "grid-template-columns 220ms ease",
-            }}
-          >
-            {!desktopRailCollapsed ? (
+          <div className="flex h-full min-h-0 flex-col">
+            {desktopBrowserOpen ? (
               <div
-                className="hidden h-full min-h-0 overflow-hidden xl:block"
-                style={{
-                  background: "var(--surface-elevated)",
-                  borderRight: "1px solid var(--border-subtle)",
-                }}
+                className="hidden shrink-0 border-b px-3 py-3 xl:block sm:px-4 lg:px-5"
+                style={{ borderBottomColor: "var(--border-subtle)" }}
               >
                 <TradeReviewRail
+                  layout="tray"
                   items={filteredRecords.map((record) => record.item)}
                   activeTradeId={activeTradeId}
                   search={search}
@@ -580,7 +577,7 @@ export default function JournalPage() {
               </div>
             ) : null}
 
-            <div className="min-h-0 overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-hidden">
               {!activeRecord ? (
                 <div className="flex h-full items-center justify-center px-6">
                   <WidgetEmptyState
@@ -590,7 +587,7 @@ export default function JournalPage() {
                   />
                 </div>
               ) : (
-                <div className="min-h-0 h-full overflow-y-auto">{activeDocument}</div>
+                <div className="h-full overflow-y-auto">{activeDocument}</div>
               )}
             </div>
           </div>
@@ -617,6 +614,7 @@ export default function JournalPage() {
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-hidden">
             <TradeReviewRail
+              layout="drawer"
               items={filteredRecords.map((record) => record.item)}
               activeTradeId={activeTradeId}
               search={search}
