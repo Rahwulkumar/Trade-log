@@ -4,25 +4,6 @@ import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 
 export type CalendarDateMode = "entry" | "exit";
 
-export interface CalendarReviewPlan {
-  id: string;
-  date: string;
-  bias: string | null;
-  playbookId: string | null;
-  playbookName: string | null;
-  playbookRules: string[];
-  maxTrades: number | null;
-  dailyLimit: number | null;
-  universalRulesChecked: string[];
-  strategyRulesChecked: string[];
-  preNote: string | null;
-  dayGrade: string | null;
-  wentWell: string | null;
-  wentWrong: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface CalendarReviewTrade {
   id: string;
   symbol: string;
@@ -54,7 +35,6 @@ export interface CalendarReviewDay {
   dateKey: string;
   inCurrentMonth: boolean;
   isToday: boolean;
-  dailyPlan: CalendarReviewPlan | null;
   trades: CalendarReviewTrade[];
   totalPnl: number;
   tradesCount: number;
@@ -77,12 +57,7 @@ export interface CalendarReviewDay {
   ruleSetsUsed: string[];
   brokenRuleTitles: string[];
   globalRulesTracked: string[];
-  dailyRulesTracked: string[];
   violatedGlobalRules: string[];
-  violatedDailyRules: string[];
-  planViolationLabels: string[];
-  maxTradesViolated: boolean;
-  dailyLimitViolated: boolean;
   flaggedViolationsCount: number;
 }
 
@@ -96,8 +71,6 @@ export interface CalendarReviewMonthSummary {
   reviewedTrades: number;
   needsReviewTrades: number;
   reviewedPercent: number;
-  plannedDays: number;
-  gradedDays: number;
   screenshotDays: number;
   setupAssignedTrades: number;
   templateAssignedTrades: number;
@@ -110,7 +83,6 @@ export interface CalendarReviewMonthSummary {
   reviewGapDays: number;
   flaggedViolationDays: number;
   violatedGlobalRules: number;
-  violatedDailyRules: number;
   bestDay: CalendarReviewDay | null;
   worstDay: CalendarReviewDay | null;
 }
@@ -129,7 +101,6 @@ export interface CalendarDateTools {
 type BuildCalendarReviewMonthOptions = {
   currentMonthKey: string;
   trades: Trade[];
-  dailyPlans: CalendarReviewPlan[];
   setupNames: Map<string, string>;
   templateNames: Map<string, string>;
   ruleSetNames: Map<string, string>;
@@ -321,7 +292,6 @@ export function getCalendarGridDays(monthKey: string) {
 export function buildCalendarReviewMonth({
   currentMonthKey,
   trades,
-  dailyPlans,
   setupNames,
   templateNames,
   ruleSetNames,
@@ -332,7 +302,6 @@ export function buildCalendarReviewMonth({
   const dateTools = createCalendarDateTools(timeZone);
   const calendarDays = getCalendarGridDays(currentMonthKey);
   const activeMonthKey = currentMonthKey;
-  const planByDate = new Map(dailyPlans.map((plan) => [plan.date, plan]));
 
   const days = calendarDays.map<CalendarReviewDay>((date) => {
     const dateKey = dateTools.formatDateKey(date);
@@ -342,7 +311,6 @@ export function buildCalendarReviewMonth({
       dateKey,
       inCurrentMonth: dateTools.formatYearMonthKey(date) === activeMonthKey,
       isToday: dateTools.isToday(date),
-      dailyPlan: planByDate.get(dateKey) ?? null,
       trades: [],
       totalPnl: 0,
       tradesCount: 0,
@@ -365,12 +333,7 @@ export function buildCalendarReviewMonth({
       ruleSetsUsed: [],
       brokenRuleTitles: [],
       globalRulesTracked: [],
-      dailyRulesTracked: [],
       violatedGlobalRules: [],
-      violatedDailyRules: [],
-      planViolationLabels: [],
-      maxTradesViolated: false,
-      dailyLimitViolated: false,
       flaggedViolationsCount: 0,
     };
   });
@@ -501,10 +464,6 @@ export function buildCalendarReviewMonth({
       day.trades.flatMap((trade) => trade.brokenRuleTitles),
     );
     day.globalRulesTracked = dedupe(globalRules);
-    day.dailyRulesTracked = dedupe([
-      ...(day.dailyPlan?.universalRulesChecked ?? []),
-      ...(day.dailyPlan?.strategyRulesChecked ?? []),
-    ]);
 
     const brokenRuleLookup = new Set(
       day.brokenRuleTitles.map((title) => normalizeRuleLabel(title)),
@@ -513,24 +472,7 @@ export function buildCalendarReviewMonth({
       day.globalRulesTracked,
       brokenRuleLookup,
     );
-    day.violatedDailyRules = collectMatchingRules(
-      day.dailyRulesTracked,
-      brokenRuleLookup,
-    );
-    day.maxTradesViolated =
-      day.dailyPlan?.maxTrades != null && day.tradesCount > day.dailyPlan.maxTrades;
-    day.dailyLimitViolated =
-      day.dailyPlan?.dailyLimit != null &&
-      day.totalPnl < 0 &&
-      Math.abs(day.totalPnl) > day.dailyPlan.dailyLimit;
-    day.planViolationLabels = dedupe([
-      day.maxTradesViolated ? "Exceeded max trades" : null,
-      day.dailyLimitViolated ? "Broke daily loss limit" : null,
-    ]);
-    day.flaggedViolationsCount =
-      day.violatedGlobalRules.length +
-      day.violatedDailyRules.length +
-      day.planViolationLabels.length;
+    day.flaggedViolationsCount = day.violatedGlobalRules.length;
   }
 
   const currentMonthDays = days.filter((day) => day.inCurrentMonth);
@@ -542,8 +484,6 @@ export function buildCalendarReviewMonth({
   let reviewableTrades = 0;
   let reviewedTrades = 0;
   let needsReviewTrades = 0;
-  let plannedDays = 0;
-  let gradedDays = 0;
   let screenshotDays = 0;
   let setupAssignedTrades = 0;
   let templateAssignedTrades = 0;
@@ -557,7 +497,6 @@ export function buildCalendarReviewMonth({
   let reviewGapDays = 0;
   let flaggedViolationDays = 0;
   let violatedGlobalRules = 0;
-  let violatedDailyRules = 0;
 
   for (const day of currentMonthDays) {
     totalPnl += day.totalPnl;
@@ -573,7 +512,6 @@ export function buildCalendarReviewMonth({
     skippedRules += day.skippedRules;
     notApplicableRules += day.notApplicableRules;
     violatedGlobalRules += day.violatedGlobalRules.length;
-    violatedDailyRules += day.violatedDailyRules.length;
 
     if (day.tradesCount > 0) {
       activeTradingDays += 1;
@@ -590,13 +528,6 @@ export function buildCalendarReviewMonth({
         worstDay = day;
       }
     }
-
-    if (day.dailyPlan) {
-      plannedDays += 1;
-      if (day.dailyPlan.dayGrade) {
-        gradedDays += 1;
-      }
-    }
   }
 
   const assessedRules = followedRules + brokenRules;
@@ -611,8 +542,6 @@ export function buildCalendarReviewMonth({
     needsReviewTrades,
     reviewedPercent:
       reviewableTrades > 0 ? round((reviewedTrades / reviewableTrades) * 100, 1) : 0,
-    plannedDays,
-    gradedDays,
     screenshotDays,
     setupAssignedTrades,
     templateAssignedTrades,
@@ -626,7 +555,6 @@ export function buildCalendarReviewMonth({
     reviewGapDays,
     flaggedViolationDays,
     violatedGlobalRules,
-    violatedDailyRules,
     bestDay,
     worstDay,
   };

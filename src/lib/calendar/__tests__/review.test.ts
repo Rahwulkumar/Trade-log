@@ -102,7 +102,7 @@ describe("calendar review date helpers", () => {
 });
 
 describe("buildCalendarReviewMonth", () => {
-  it("flags global rules, day rules, max trades, and daily loss limit correctly", () => {
+  it("flags broken global rules inside the month review", () => {
     const trades = [
       makeTrade({
         id: "trade-1",
@@ -136,26 +136,6 @@ describe("buildCalendarReviewMonth", () => {
     const result = buildCalendarReviewMonth({
       currentMonthKey: "2026-03",
       trades,
-      dailyPlans: [
-        {
-          id: "plan-1",
-          date: "2026-03-15",
-          bias: "Bullish",
-          playbookId: null,
-          playbookName: null,
-          playbookRules: [],
-          maxTrades: 1,
-          dailyLimit: 100,
-          universalRulesChecked: ["No revenge trading"],
-          strategyRulesChecked: ["Wait for A+ setup"],
-          preNote: null,
-          dayGrade: null,
-          wentWell: null,
-          wentWrong: null,
-          createdAt: "2026-03-15T10:00:00.000Z",
-          updatedAt: "2026-03-15T10:00:00.000Z",
-        },
-      ],
       setupNames: new Map(),
       templateNames: new Map(),
       ruleSetNames: new Map([["rule-set-1", "Core Rules"]]),
@@ -167,15 +147,7 @@ describe("buildCalendarReviewMonth", () => {
     const targetDay = result.days.find((day) => day.dateKey === "2026-03-15");
     expect(targetDay).toBeTruthy();
     expect(targetDay?.violatedGlobalRules).toEqual(["No revenge trading"]);
-    expect(targetDay?.violatedDailyRules).toEqual([
-      "No revenge trading",
-      "Wait for A+ setup",
-    ]);
-    expect(targetDay?.planViolationLabels).toEqual([
-      "Exceeded max trades",
-      "Broke daily loss limit",
-    ]);
-    expect(targetDay?.flaggedViolationsCount).toBe(5);
+    expect(targetDay?.flaggedViolationsCount).toBe(1);
     expect(result.summary.flaggedViolationDays).toBe(1);
   });
 });

@@ -10,7 +10,6 @@ import { CashflowChart } from '@/components/dashboard/cashflow-chart';
 import { RecentTrades } from '@/components/dashboard/recent-trades';
 import { DashboardAccountCard } from '@/components/dashboard/summary-primitives';
 import { StatisticsDonut } from '@/components/dashboard/statistics-donut';
-import { TodayPlanWidget } from '@/components/dashboard/today-plan-widget';
 import { TopPlaybooks } from '@/components/dashboard/playbooks-widget';
 import {
   InsetPanel,
@@ -669,10 +668,6 @@ export default function DashboardPage() {
             />
           </div>
         </AppPanel>
-      </section>
-
-      <section className="stagger-5">
-        <TodayPlanWidget />
       </section>
 
       <section className="stagger-5 grid grid-cols-1 gap-5 lg:grid-cols-2">

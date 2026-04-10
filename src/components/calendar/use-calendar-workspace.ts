@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { usePropAccount } from "@/components/prop-account-provider";
 import { resolveAnalyticsTimeZone } from "@/lib/analytics/timezone";
-import { getDailyPlansRange } from "@/lib/api/client/daily-plans";
 import {
   getJournalTemplates,
   getMistakeDefinitions,
@@ -23,7 +22,6 @@ import type {
 import type {
   CalendarDateMode,
   CalendarReviewDay,
-  CalendarReviewPlan,
 } from "@/lib/calendar/review";
 import {
   buildCalendarReviewMonth,
@@ -92,7 +90,6 @@ export function useCalendarWorkspace({
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [dailyPlans, setDailyPlans] = useState<CalendarReviewPlan[]>([]);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [setupDefinitions, setSetupDefinitions] = useState<SetupDefinition[]>([]);
   const [mistakeDefinitions, setMistakeDefinitions] = useState<MistakeDefinition[]>([]);
@@ -203,7 +200,6 @@ export function useCalendarWorkspace({
       if (!currentUserId || !monthKey) {
         if (!cancelled) {
           setTrades([]);
-          setDailyPlans([]);
           setLoading(false);
           setLoadError(null);
         }
@@ -219,8 +215,8 @@ export function useCalendarWorkspace({
           ? "unassigned"
           : selectedAccountId ?? undefined;
 
-      const [tradeResult, planResult] = await Promise.allSettled([
-        getTradesStrict({
+      try {
+        const monthTrades = await getTradesStrict({
           status: "closed",
           propAccountId: propAccountFilter,
           sortBy: dateMode === "exit" ? "exitDate" : "entryDate",
@@ -229,23 +225,18 @@ export function useCalendarWorkspace({
           ...(dateMode === "entry"
             ? { startDate: range.fetchFrom, endDate: range.fetchTo }
             : { exitStartDate: range.fetchFrom, exitEndDate: range.fetchTo }),
-        }),
-        getDailyPlansRange(range.from, range.to),
-      ]);
+        });
 
-      if (cancelled) return;
-
-      if (tradeResult.status === "rejected") {
+        if (cancelled) return;
+        setTrades(monthTrades);
+      } catch (error) {
+        if (cancelled) return;
         setTrades([]);
-        setDailyPlans(planResult.status === "fulfilled" ? planResult.value : []);
         setLoadError(
-          tradeResult.reason instanceof Error
-            ? tradeResult.reason.message
+          error instanceof Error
+            ? error.message
             : "The calendar could not load this month right now.",
         );
-      } else {
-        setTrades(tradeResult.value);
-        setDailyPlans(planResult.status === "fulfilled" ? planResult.value : []);
       }
 
       setLoading(false);
@@ -278,7 +269,6 @@ export function useCalendarWorkspace({
     return buildCalendarReviewMonth({
       currentMonthKey: monthKey,
       trades,
-      dailyPlans,
       setupNames,
       templateNames,
       ruleSetNames,
@@ -289,7 +279,6 @@ export function useCalendarWorkspace({
   }, [
     monthKey,
     trades,
-    dailyPlans,
     setupNames,
     templateNames,
     ruleSetNames,

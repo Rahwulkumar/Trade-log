@@ -385,7 +385,7 @@ export function SettingsTradingPanels({
       <AppPanel>
         <PanelTitle
           title="Universal Trading Rules"
-          subtitle="Rules that apply to every trade and show up in your daily planning workflow."
+          subtitle="Rules that apply to every trade and should be enforced across your journal."
         />
 
         <ControlSurface className="mb-4">
@@ -420,7 +420,7 @@ export function SettingsTradingPanels({
         {resolvedRules.length === 0 ? (
           <WidgetEmptyState
             title="No trading rules yet"
-            description="Add the rules you want enforced across every setup, account, and daily plan."
+            description="Add the rules you want enforced across every setup, account, and journal entry."
           />
         ) : (
           <div className="space-y-3">
