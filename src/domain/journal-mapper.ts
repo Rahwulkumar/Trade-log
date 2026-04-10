@@ -6,6 +6,7 @@ import { resolveTradingSession } from "@/lib/trading-session";
 import {
   EMPTY_JOURNAL_REVIEW,
   type JournalEntryDraft,
+  type JournalSessionState,
   type JournalReview,
   type JournalScreenshot,
   type JournalTradeRuleResult,
@@ -220,6 +221,14 @@ function parseJournalReview(raw: unknown): JournalReview {
     reasonForTrade: asString(review.reasonForTrade),
     invalidation: asString(review.invalidation),
     targetPlan: asString(review.targetPlan),
+    intendedTakeProfit: asString(review.intendedTakeProfit),
+    priorSessionBehavior: asString(review.priorSessionBehavior),
+    sessionState:
+      review.sessionState === "continuation" ||
+      review.sessionState === "reversal" ||
+      review.sessionState === "ranging"
+        ? (review.sessionState as JournalSessionState)
+        : null,
     entryRatingScore: parseQualityValue(review.entryRatingScore),
     exitRatingScore: parseQualityValue(review.exitRatingScore),
     managementRatingScore: parseQualityValue(review.managementRatingScore),
@@ -243,10 +252,20 @@ function parseJournalReview(raw: unknown): JournalReview {
     entryReason: asString(review.entryReason),
     managementReview: asString(review.managementReview),
     exitReason: asString(review.exitReason),
+    scaleInNotes: asString(review.scaleInNotes),
+    psychologyBeforeTags: parseStringArray(review.psychologyBeforeTags),
+    psychologyDuringTags: parseStringArray(review.psychologyDuringTags),
+    psychologyAfterTags: parseStringArray(review.psychologyAfterTags),
     psychologyBefore: asString(review.psychologyBefore),
     psychologyDuring: asString(review.psychologyDuring),
     psychologyAfter: asString(review.psychologyAfter),
     marketContext: asString(review.marketContext),
+    overallGrade:
+      typeof review.overallGrade === "string" && review.overallGrade.trim()
+        ? review.overallGrade.trim()
+        : null,
+    primaryFailureCause: asString(review.primaryFailureCause),
+    stopDoing: asString(review.stopDoing),
     followUpAction: asString(review.followUpAction),
   };
 }
@@ -436,6 +455,9 @@ export function isTradeJournaled(viewModel: JournalTradeViewModel): boolean {
       review.reasonForTrade ||
       review.invalidation ||
       review.targetPlan ||
+      review.intendedTakeProfit ||
+      review.priorSessionBehavior ||
+      review.sessionState ||
       review.timeframeAlignment ||
       review.retakeDecision ||
       review.higherTimeframeBias ||
@@ -445,10 +467,17 @@ export function isTradeJournaled(viewModel: JournalTradeViewModel): boolean {
       review.entryReason ||
       review.managementReview ||
       review.exitReason ||
+      review.scaleInNotes ||
+      review.psychologyBeforeTags.length > 0 ||
+      review.psychologyDuringTags.length > 0 ||
+      review.psychologyAfterTags.length > 0 ||
       review.psychologyBefore ||
       review.psychologyDuring ||
       review.psychologyAfter ||
       review.marketContext ||
+      review.overallGrade ||
+      review.primaryFailureCause ||
+      review.stopDoing ||
       review.followUpAction,
   );
 }

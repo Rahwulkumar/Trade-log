@@ -6,10 +6,7 @@ import type {
   MistakeDefinition,
   Trade,
 } from "@/lib/db/schema";
-import type {
-  JournalAlignment,
-  JournalEntryDraft,
-} from "@/domain/journal-types";
+import type { JournalEntryDraft } from "@/domain/journal-types";
 import type { JournalTemplateConfig } from "@/lib/journal-structure/types";
 import type {
   RuleItemStatus,
@@ -40,18 +37,17 @@ import { JournalTradeChart } from "@/components/journal/journal-trade-chart";
 import type { JournalChapterId } from "@/components/journal/trade-review-types";
 
 const MARKET_CONDITIONS = [
-  "Trending",
-  "Ranging",
-  "Choppy",
-  "High Volatility",
+  "Quiet",
+  "Normal",
+  "Expanded",
+  "News-driven",
 ] as const;
 
-const ALIGNMENT_OPTIONS: Array<{ value: JournalAlignment; label: string }> = [
-  { value: "aligned", label: "Aligned" },
-  { value: "mixed", label: "Mixed" },
-  { value: "countertrend", label: "Countertrend" },
-  { value: "unclear", label: "Unclear" },
-];
+const SESSION_STATE_OPTIONS = [
+  "continuation",
+  "reversal",
+  "ranging",
+] as const;
 
 const RULE_STATUS_OPTIONS: Array<{
   value: RuleItemStatus;
@@ -88,8 +84,6 @@ interface JournalChapterSupportProps {
   uploadingScreenshots: boolean;
   executionChecklistDraft: string;
   setExecutionChecklistDraft: (value: string) => void;
-  setupTagDraft: string;
-  setSetupTagDraft: (value: string) => void;
   mistakeTagDraft: string;
   setMistakeTagDraft: (value: string) => void;
   checklistOptions: readonly string[];
@@ -132,8 +126,6 @@ export function JournalChapterSupport({
   uploadingScreenshots,
   executionChecklistDraft,
   setExecutionChecklistDraft,
-  setupTagDraft,
-  setSetupTagDraft,
   mistakeTagDraft,
   setMistakeTagDraft,
   checklistOptions,
@@ -254,72 +246,8 @@ export function JournalChapterSupport({
       return (
         <div className="grid gap-4 xl:grid-cols-2">
           <JournalSupportBlock
-            title="Alignment"
-            description="Bias, timeframes, and whether the idea was aligned or forced."
-          >
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {ALIGNMENT_OPTIONS.map((option) => (
-                  <JournalChoiceChip
-                    key={option.value}
-                    active={draft.journalReview.timeframeAlignment === option.value}
-                    onClick={() =>
-                      setReviewField(
-                        "timeframeAlignment",
-                        draft.journalReview.timeframeAlignment === option.value
-                          ? null
-                          : option.value,
-                      )
-                    }
-                    tone="accent"
-                  >
-                    {option.label}
-                  </JournalChoiceChip>
-                ))}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <JournalShortField
-                  label="Higher timeframe bias"
-                  value={draft.journalReview.higherTimeframeBias}
-                  onChange={(value) =>
-                    setReviewField("higherTimeframeBias", value)
-                  }
-                  placeholder="Bullish, bearish, neutral"
-                />
-                <JournalShortField
-                  label="Execution timeframe"
-                  value={draft.journalReview.executionTimeframe}
-                  onChange={(value) =>
-                    setReviewField("executionTimeframe", value)
-                  }
-                  placeholder="e.g. 15m"
-                  mono
-                />
-                <JournalShortField
-                  label="Trigger timeframe"
-                  value={draft.journalReview.triggerTimeframe}
-                  onChange={(value) =>
-                    setReviewField("triggerTimeframe", value)
-                  }
-                  placeholder="e.g. 1m"
-                  mono
-                />
-              </div>
-              <JournalPromptField
-                prompt="How did the timeframes agree or fight each other?"
-                value={draft.journalReview.higherTimeframeNotes}
-                onChange={(value) =>
-                  setReviewField("higherTimeframeNotes", value)
-                }
-                rows={4}
-                placeholder="Be explicit about alignment, conflict, or the one frame you ignored."
-              />
-            </div>
-          </JournalSupportBlock>
-
-          <JournalSupportBlock
-            title="Session and conditions"
-            description="The surrounding market environment for this setup."
+            title="Session profile"
+            description="Keep the session state and volatility regime explicit."
           >
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2.5">
@@ -337,6 +265,64 @@ export function JournalChapterSupport({
                 </span>
               </div>
               <div className="flex flex-wrap gap-2">
+                {SESSION_STATE_OPTIONS.map((option) => (
+                  <JournalChoiceChip
+                    key={option}
+                    active={draft.journalReview.sessionState === option}
+                    onClick={() =>
+                      setReviewField(
+                        "sessionState",
+                        draft.journalReview.sessionState === option
+                          ? null
+                          : option,
+                      )
+                    }
+                    tone="accent"
+                  >
+                    {option[0].toUpperCase()}
+                    {option.slice(1)}
+                  </JournalChoiceChip>
+                ))}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <JournalShortField
+                  label="Bias"
+                  value={draft.journalReview.higherTimeframeBias}
+                  onChange={(value) =>
+                    setReviewField("higherTimeframeBias", value)
+                  }
+                  placeholder="Bullish, bearish, neutral"
+                />
+                <JournalShortField
+                  label="Execution timeframe"
+                  value={draft.journalReview.executionTimeframe}
+                  onChange={(value) =>
+                    setReviewField("executionTimeframe", value)
+                  }
+                  placeholder="e.g. 15m"
+                  mono
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <JournalShortField
+                  label="Trigger timeframe"
+                  value={draft.journalReview.triggerTimeframe}
+                  onChange={(value) =>
+                    setReviewField("triggerTimeframe", value)
+                  }
+                  placeholder="e.g. 1m"
+                  mono
+                />
+              </div>
+            </div>
+          </JournalSupportBlock>
+
+          <JournalSupportBlock
+            title="Volatility"
+            description="Confirm the regime instead of rewriting it in prose."
+          >
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
                 {MARKET_CONDITIONS.map((option) => (
                   <JournalChoiceChip
                     key={option}
@@ -352,6 +338,15 @@ export function JournalChapterSupport({
                   </JournalChoiceChip>
                 ))}
               </div>
+              <JournalPromptField
+                prompt="Anything session-specific worth carrying forward?"
+                value={draft.journalReview.higherTimeframeNotes}
+                onChange={(value) =>
+                  setReviewField("higherTimeframeNotes", value)
+                }
+                rows={3}
+                placeholder="Only note the session detail you would want on the next similar trade."
+              />
             </div>
           </JournalSupportBlock>
         </div>
@@ -541,15 +536,6 @@ export function JournalChapterSupport({
                     Create mistake definitions in Playbooks to reuse them here.
                   </p>
                 )}
-                <JournalTagField
-                  label="Additional setup tags"
-                  tags={draft.setupTags}
-                  onChange={(next) => setDraftField({ setupTags: next })}
-                  tone="neutral"
-                  placeholder="Add setup tag"
-                  draftValue={setupTagDraft}
-                  onDraftValueChange={setSetupTagDraft}
-                />
                 <JournalTagField
                   label="Additional mistake tags"
                   tags={draft.mistakeTags}

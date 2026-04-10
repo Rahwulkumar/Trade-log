@@ -85,35 +85,53 @@ function getReviewStatus(viewModel: JournalTradeViewModel): TradeReviewStatus {
 
   const signals = [
     viewModel.notes.trim().length > 0 || viewModel.screenshots.length > 0,
-    Boolean(review.strategyName || review.setupName || viewModel.playbookId),
+    Boolean(viewModel.playbookId || review.strategyName),
     Boolean(
       review.reasonForTrade ||
-        review.entryReason ||
+        review.invalidation ||
         review.targetPlan ||
-        review.invalidation,
+        review.higherTimeframeBias ||
+        viewModel.setupTags.length > 0,
     ),
     Boolean(
-      review.managementReview ||
-        review.exitReason ||
-        viewModel.executionNotes ||
-        viewModel.executionArrays.length > 0 ||
-        viewModel.entryRating ||
-        viewModel.exitRating ||
-        viewModel.managementRating,
+      review.priorSessionBehavior ||
+        review.sessionState ||
+        viewModel.marketCondition ||
+        review.marketContext,
     ),
     Boolean(
-      review.psychologyBefore ||
-        review.psychologyDuring ||
-        review.psychologyAfter ||
+      review.entryReason ||
+        review.scaleInNotes ||
+        review.managementReview ||
+        review.exitReason,
+    ),
+    Boolean(
+      review.psychologyBeforeTags.length > 0 ||
+        review.psychologyDuringTags.length > 0 ||
+        review.psychologyAfterTags.length > 0 ||
         viewModel.feelings,
     ),
-    Boolean(viewModel.lessonLearned || review.followUpAction),
+    Boolean(
+      viewModel.entryRating ||
+        viewModel.exitRating ||
+        viewModel.managementRating ||
+        review.overallGrade ||
+        review.retakeDecision ||
+        viewModel.tradeRuleResults.length > 0 ||
+        viewModel.mistakeDefinitionIds.length > 0,
+    ),
+    Boolean(
+      viewModel.lessonLearned ||
+        review.primaryFailureCause ||
+        review.stopDoing ||
+        review.followUpAction,
+    ),
   ].filter(Boolean).length;
 
   if (signals === 0) {
     return "empty";
   }
-  if (signals >= 4) {
+  if (signals >= 5) {
     return "complete";
   }
   return "draft";

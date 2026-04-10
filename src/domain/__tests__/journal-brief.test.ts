@@ -8,8 +8,8 @@ describe("journal-brief", () => {
     expect(
       parseJournalBrief(
         [
-          "Trigger: Sweep into prior low and reclaim.",
-          "Management: Held through first pullback then trimmed early.",
+          "Entry: Sweep into prior low and reclaim.",
+          "Adds: Held through first pullback then trimmed early.",
           "Exit: Closed when structure broke.",
         ].join("\n"),
       ),
@@ -37,6 +37,6 @@ describe("journal-brief", () => {
         management: "",
         exit: "Closed on structure break.",
       }),
-    ).toBe("Trigger: Sweep and reclaim.\nExit: Closed on structure break.");
+    ).toBe("Entry: Sweep and reclaim.\nExit: Closed on structure break.");
   });
 });

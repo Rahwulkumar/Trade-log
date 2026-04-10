@@ -16,6 +16,10 @@ export type JournalAlignment =
   | "unclear";
 
 export type JournalRetakeDecision = "yes" | "maybe" | "no";
+export type JournalSessionState =
+  | "continuation"
+  | "reversal"
+  | "ranging";
 export type JournalRuleStatus = RuleItemStatus;
 export type JournalTradeRuleResult = TradeRuleResult;
 
@@ -38,6 +42,9 @@ export interface JournalReview {
   reasonForTrade: string;
   invalidation: string;
   targetPlan: string;
+  intendedTakeProfit: string;
+  priorSessionBehavior: string;
+  sessionState: JournalSessionState | null;
   entryRatingScore: QualityRating | null;
   exitRatingScore: QualityRating | null;
   managementRatingScore: QualityRating | null;
@@ -50,10 +57,17 @@ export interface JournalReview {
   entryReason: string;
   managementReview: string;
   exitReason: string;
+  scaleInNotes: string;
+  psychologyBeforeTags: string[];
+  psychologyDuringTags: string[];
+  psychologyAfterTags: string[];
   psychologyBefore: string;
   psychologyDuring: string;
   psychologyAfter: string;
   marketContext: string;
+  overallGrade: string | null;
+  primaryFailureCause: string;
+  stopDoing: string;
   followUpAction: string;
 }
 
@@ -138,6 +152,9 @@ export const EMPTY_JOURNAL_REVIEW: JournalReview = {
   reasonForTrade: "",
   invalidation: "",
   targetPlan: "",
+  intendedTakeProfit: "",
+  priorSessionBehavior: "",
+  sessionState: null,
   entryRatingScore: null,
   exitRatingScore: null,
   managementRatingScore: null,
@@ -150,9 +167,16 @@ export const EMPTY_JOURNAL_REVIEW: JournalReview = {
   entryReason: "",
   managementReview: "",
   exitReason: "",
+  scaleInNotes: "",
+  psychologyBeforeTags: [],
+  psychologyDuringTags: [],
+  psychologyAfterTags: [],
   psychologyBefore: "",
   psychologyDuring: "",
   psychologyAfter: "",
   marketContext: "",
+  overallGrade: null,
+  primaryFailureCause: "",
+  stopDoing: "",
   followUpAction: "",
 };

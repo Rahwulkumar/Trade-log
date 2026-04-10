@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight, PanelLeftOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { AppPanel } from "@/components/ui/page-primitives";
 import { InsetPanel } from "@/components/ui/surface-primitives";
 
 import {
@@ -264,12 +263,18 @@ export function JournalDocumentCanvas({
   children: ReactNode;
 }) {
   return (
-    <AppPanel className="w-full p-3 sm:p-4 lg:p-4">
+    <section
+      className="w-full rounded-[20px] border px-3 py-3 sm:px-3.5 sm:py-3.5 lg:px-4"
+      style={{
+        background: "var(--surface)",
+        borderColor: "var(--border-subtle)",
+      }}
+    >
       <div
         className="flex flex-col gap-2 border-b pb-2.5"
         style={{ borderBottomColor: "var(--border-subtle)" }}
       >
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-label">Chapter {chapterOrderLabel}</span>
             <h2
@@ -302,21 +307,21 @@ export function JournalDocumentCanvas({
               {chapterProgressLabel}
             </span>
           </div>
+          <p
+            className="max-w-2xl text-[12px]"
+            style={{
+              color: "var(--text-secondary)",
+              fontFamily: "var(--font-inter)",
+              lineHeight: 1.4,
+            }}
+          >
+            {chapterCueText}
+          </p>
         </div>
-        <p
-          className="max-w-3xl text-[12px]"
-          style={{
-            color: "var(--text-secondary)",
-            fontFamily: "var(--font-inter)",
-            lineHeight: 1.5,
-          }}
-        >
-          {chapterCueText}
-        </p>
       </div>
 
       {children}
-    </AppPanel>
+    </section>
   );
 }
 
@@ -327,7 +332,7 @@ export function JournalInlineSupport({
 }) {
   return (
     <div
-      className="mt-4 space-y-4 border-t pt-4"
+      className="mt-3.5 space-y-3.5 border-t pt-3.5"
       style={{ borderTopColor: "var(--border-subtle)" }}
     >
       {children}

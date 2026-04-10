@@ -101,10 +101,6 @@ function hasValue<T>(value: T | null | undefined): boolean {
   return value != null;
 }
 
-function hasNumber(value: number | null | undefined): boolean {
-  return value != null && Number.isFinite(value);
-}
-
 function describeChapterProgress(checks: boolean[]) {
   const completeCount = checks.filter(Boolean).length;
   const totalCount = checks.length;
@@ -151,6 +147,9 @@ export function useTradeReviewDocument({
     useState<JournalChapterId>("narrative");
   const [setupTagDraft, setSetupTagDraft] = useState("");
   const [mistakeTagDraft, setMistakeTagDraft] = useState("");
+  const [psychologyBeforeDraft, setPsychologyBeforeDraft] = useState("");
+  const [psychologyDuringDraft, setPsychologyDuringDraft] = useState("");
+  const [psychologyAfterDraft, setPsychologyAfterDraft] = useState("");
   const [executionChecklistDraft, setExecutionChecklistDraft] = useState("");
   const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
@@ -273,26 +272,6 @@ export function useTradeReviewDocument({
     [resolvedTemplateConfig],
   );
 
-  const setupPickerOptions = useMemo<JournalLibraryOption[]>(
-    () =>
-      sortedSetups.map((setup) => ({
-        id: setup.id,
-        label: setup.name,
-        meta: setup.description ?? null,
-      })),
-    [sortedSetups],
-  );
-
-  const preferredSetupIds = useMemo(
-    () =>
-      selectedPlaybook
-        ? sortedSetups
-            .filter((setup) => setup.playbookId === selectedPlaybook.id)
-            .map((setup) => setup.id)
-        : [],
-    [selectedPlaybook, sortedSetups],
-  );
-
   const mistakePickerOptions = useMemo<JournalLibraryOption[]>(
     () =>
       sortedMistakes.map((mistake) => ({
@@ -397,37 +376,35 @@ export function useTradeReviewDocument({
     const items = [
       {
         id: "narrative",
-        label: "Narrative",
+        label: "Brief",
         orderLabel: "01",
-        summary: "Three short notes: why in, what changed, why out.",
+        summary: "Capture the trade idea, any adds, and the final exit reason.",
         ...describeChapterProgress([hasText(deferredDraft.notes)]),
       },
       {
         id: "thesis",
         label: "Thesis",
         orderLabel: "02",
-        summary: "Capture the edge, invalidation, and target logic.",
+        summary: "Lock the strategy, edge, invalidation, and intended path.",
         ...describeChapterProgress([
-          hasValue(deferredDraft.setupDefinitionId),
-          hasText(deferredDraft.journalReview.strategyName),
+          hasValue(deferredDraft.playbookId) ||
+            hasText(deferredDraft.journalReview.strategyName),
+          deferredDraft.setupTags.length > 0,
           hasText(deferredDraft.journalReview.setupName),
           hasText(deferredDraft.journalReview.reasonForTrade),
           hasText(deferredDraft.journalReview.invalidation),
+          hasText(deferredDraft.journalReview.higherTimeframeBias),
           hasText(deferredDraft.journalReview.targetPlan),
         ]),
       },
       {
         id: "market",
-        label: "Market",
+        label: "Context",
         orderLabel: "03",
-        summary:
-          "Record alignment, conditions, and the context around the trade.",
+        summary: "Record prior-session behavior, market state, and the context that mattered.",
         ...describeChapterProgress([
-          hasValue(deferredDraft.journalReview.timeframeAlignment),
-          hasText(deferredDraft.journalReview.higherTimeframeBias),
-          hasText(deferredDraft.journalReview.executionTimeframe),
-          hasText(deferredDraft.journalReview.triggerTimeframe),
-          hasText(deferredDraft.journalReview.higherTimeframeNotes),
+          hasText(deferredDraft.journalReview.priorSessionBehavior),
+          hasValue(deferredDraft.journalReview.sessionState),
           hasValue(deferredDraft.marketCondition),
           hasText(deferredDraft.observations),
           hasText(deferredDraft.journalReview.marketContext),
@@ -437,44 +414,40 @@ export function useTradeReviewDocument({
         id: "execution",
         label: "Execution",
         orderLabel: "04",
-        summary: "Break down the entry, management, and exit decisions.",
+        summary: "Document the trigger, adds, management shift, and full exit.",
         ...describeChapterProgress([
-          deferredDraft.executionArrays.length > 0,
           hasText(deferredDraft.journalReview.entryReason),
+          hasText(deferredDraft.journalReview.scaleInNotes),
           hasText(deferredDraft.journalReview.managementReview),
-          hasText(deferredDraft.executionNotes),
           hasText(deferredDraft.journalReview.exitReason),
         ]),
       },
       {
         id: "psychology",
-        label: "Psychology",
+        label: "Behavior",
         orderLabel: "05",
-        summary:
-          "Describe the emotional state before, during, and after the trade.",
+        summary: "Tag the actual state before, during, and after the trade.",
         ...describeChapterProgress([
-          hasText(deferredDraft.journalReview.psychologyBefore),
-          hasText(deferredDraft.journalReview.psychologyDuring),
-          hasText(deferredDraft.journalReview.psychologyAfter),
+          deferredDraft.journalReview.psychologyBeforeTags.length > 0,
+          deferredDraft.journalReview.psychologyDuringTags.length > 0,
+          deferredDraft.journalReview.psychologyAfterTags.length > 0,
           hasText(deferredDraft.feelings),
         ]),
       },
       {
         id: "scorecard",
-        label: "Scorecard",
+        label: "Review",
         orderLabel: "06",
-        summary: "Rate the trade, record conviction, tags, and excursion.",
+        summary: "Grade the trade, tag mistakes, and mark rule outcomes.",
         ...describeChapterProgress([
           hasValue(deferredDraft.entryRating),
           hasValue(deferredDraft.exitRating),
           hasValue(deferredDraft.managementRating),
           hasValue(deferredDraft.conviction),
           hasValue(deferredDraft.journalReview.retakeDecision),
-          hasNumber(deferredDraft.mae),
-          hasNumber(deferredDraft.mfe),
+          hasText(deferredDraft.journalReview.overallGrade),
           deferredDraft.tradeRuleResults.length > 0,
           deferredDraft.mistakeDefinitionIds.length > 0,
-          deferredDraft.setupTags.length > 0,
           deferredDraft.mistakeTags.length > 0,
         ]),
       },
@@ -482,10 +455,11 @@ export function useTradeReviewDocument({
         id: "closeout",
         label: "Closeout",
         orderLabel: "07",
-        summary:
-          "Distill the lesson and define the next change you will make.",
+        summary: "Finish with the lesson, the main leak, and the next correction.",
         ...describeChapterProgress([
           hasText(deferredDraft.lessonLearned),
+          hasText(deferredDraft.journalReview.primaryFailureCause),
+          hasText(deferredDraft.journalReview.stopDoing),
           hasText(deferredDraft.journalReview.followUpAction),
         ]),
       },
@@ -503,13 +477,13 @@ export function useTradeReviewDocument({
     chapterItems[activeChapterIndex] ??
     chapterItems[0] ?? {
       id: "narrative",
-      label: "Narrative",
+      label: "Brief",
       orderLabel: "01",
       summary: "",
       progressLabel: "0/0",
       state: "empty" as const,
     };
-  const activeChapterLabel = activeChapterItem?.label ?? "Narrative";
+  const activeChapterLabel = activeChapterItem?.label ?? "Brief";
   const chapterTabs = useMemo(
     () =>
       chapterItems.map((item) => ({
@@ -541,13 +515,13 @@ export function useTradeReviewDocument({
   const chapterCueText = useMemo(() => {
     const templatePrompts = resolvedTemplateConfig.prompts;
     const defaultMap: Record<JournalChapterId, string> = {
-      narrative: "Three short notes beat one long replay: entry, shift, exit.",
-      thesis: "Name the edge so it is easy to repeat or reject later.",
-      market: "Give the setup enough context to make sense on a reread.",
-      execution: "Document the decisions, not just the outcome.",
-      psychology: "Be specific enough to catch the pattern next time.",
-      scorecard: "Keep the scoring crisp and the tags honest.",
-      closeout: "Finish with one lesson and one change worth testing.",
+      narrative: "Keep the brief short enough to reread before the next similar trade.",
+      thesis: "Lock the strategy and the edge before you write anything else.",
+      market: "Only keep the context that changed the decision.",
+      execution: "Capture the trigger, the adds, and the exit logic.",
+      psychology: "Use tags first. Write only what the tags miss.",
+      scorecard: "Grade the trade honestly and let the rule check do the rest.",
+      closeout: "Finish with the lesson, the leak, and the next correction.",
     };
 
     return (
@@ -677,60 +651,6 @@ export function useTradeReviewDocument({
       }));
     },
     [draft.setupDefinitionId, resolveTemplateForSelection, sortedPlaybooks],
-  );
-
-  const handleSetupChange = useCallback(
-    (value: string) => {
-      if (value === "__none") {
-        const nextTemplate = resolveTemplateForSelection(draft.playbookId, null);
-        setDraft((current) => ({
-          ...current,
-          setupDefinitionId: null,
-          journalTemplateId: nextTemplate?.id ?? null,
-          ruleSetId: null,
-          tradeRuleResults: [],
-          journalTemplateSnapshot:
-            nextTemplate?.config &&
-            typeof nextTemplate.config === "object" &&
-            !Array.isArray(nextTemplate.config)
-              ? normalizeJournalTemplateConfig(
-                  nextTemplate.config as Partial<JournalTemplateConfig>,
-                )
-              : null,
-          journalReview: {
-            ...current.journalReview,
-            setupName: "",
-          },
-        }));
-        return;
-      }
-
-      const selected = sortedSetups.find((setup) => setup.id === value) ?? null;
-      const nextTemplate = resolveTemplateForSelection(
-        draft.playbookId,
-        selected?.id ?? null,
-      );
-      setDraft((current) => ({
-        ...current,
-        setupDefinitionId: selected?.id ?? null,
-        journalTemplateId: nextTemplate?.id ?? null,
-        ruleSetId: null,
-        tradeRuleResults: [],
-        journalTemplateSnapshot:
-          nextTemplate?.config &&
-          typeof nextTemplate.config === "object" &&
-          !Array.isArray(nextTemplate.config)
-            ? normalizeJournalTemplateConfig(
-                nextTemplate.config as Partial<JournalTemplateConfig>,
-              )
-            : null,
-        journalReview: {
-          ...current.journalReview,
-          setupName: selected?.name ?? current.journalReview.setupName,
-        },
-      }));
-    },
-    [draft.playbookId, resolveTemplateForSelection, sortedSetups],
   );
 
   const handleTemplateChange = useCallback(
@@ -946,7 +866,6 @@ export function useTradeReviewDocument({
     handleRuleSetChange,
     handleScreenshotRemove,
     handleScreenshotUpload,
-    handleSetupChange,
     handleStrategyChange,
     handleTemplateChange,
     activeChapter,
@@ -958,7 +877,6 @@ export function useTradeReviewDocument({
     mistakeTagDraft,
     netPnl,
     pnlText,
-    preferredSetupIds,
     recommendedRuleSet,
     resolvedTemplateConfig,
     ruleResultsByItemId,
@@ -970,10 +888,15 @@ export function useTradeReviewDocument({
     setDraftField,
     setExecutionChecklistDraft,
     setMistakeTagDraft,
+    setPsychologyAfterDraft,
+    setPsychologyBeforeDraft,
+    setPsychologyDuringDraft,
     setReviewField,
     setSetupTagDraft,
     setTradeRuleStatus,
-    setupPickerOptions,
+    psychologyAfterDraft,
+    psychologyBeforeDraft,
+    psychologyDuringDraft,
     setupTagDraft,
     sortedMistakes,
     sortedPlaybooks,

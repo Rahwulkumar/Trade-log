@@ -85,6 +85,7 @@ const nullableInteger = z.union([z.number().int(), z.string().trim().min(1), z.n
 );
 
 const stringArray = z.array(z.string().trim().min(1).max(120)).max(50);
+const shortStringArray = z.array(z.string().trim().min(1).max(80)).max(24);
 const normalizedUuidArray = z
   .union([z.array(uuidSchema).max(50), z.null()])
   .transform((value) => value ?? []);
@@ -123,6 +124,14 @@ const journalReview = z.union([
       reasonForTrade: nullableString(10000).optional(),
       invalidation: nullableString(4000).optional(),
       targetPlan: nullableString(4000).optional(),
+      intendedTakeProfit: nullableString(4000).optional(),
+      priorSessionBehavior: nullableString(4000).optional(),
+      sessionState: z
+        .union([
+          z.enum(["continuation", "reversal", "ranging"]),
+          z.null(),
+        ])
+        .optional(),
       entryRatingScore: z.union([z.number().int().min(1).max(5), z.null()]).optional(),
       exitRatingScore: z.union([z.number().int().min(1).max(5), z.null()]).optional(),
       managementRatingScore: z.union([z.number().int().min(1).max(5), z.null()]).optional(),
@@ -142,10 +151,17 @@ const journalReview = z.union([
       entryReason: nullableString(8000).optional(),
       managementReview: nullableString(8000).optional(),
       exitReason: nullableString(8000).optional(),
+      scaleInNotes: nullableString(8000).optional(),
+      psychologyBeforeTags: z.union([shortStringArray, z.null()]).optional(),
+      psychologyDuringTags: z.union([shortStringArray, z.null()]).optional(),
+      psychologyAfterTags: z.union([shortStringArray, z.null()]).optional(),
       psychologyBefore: nullableString(4000).optional(),
       psychologyDuring: nullableString(4000).optional(),
       psychologyAfter: nullableString(4000).optional(),
       marketContext: nullableString(4000).optional(),
+      overallGrade: nullableString(24).optional(),
+      primaryFailureCause: nullableString(4000).optional(),
+      stopDoing: nullableString(4000).optional(),
       followUpAction: nullableString(4000).optional(),
     })
     .strict(),

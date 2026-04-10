@@ -79,14 +79,15 @@ function TradeReviewDocumentInner({
     handleRuleSetChange,
     handleScreenshotRemove,
     handleScreenshotUpload,
-    handleSetupChange,
     handleStrategyChange,
     handleTemplateChange,
     isDirty,
     mistakePickerOptions,
     mistakeTagDraft,
     pnlText,
-    preferredSetupIds,
+    psychologyAfterDraft,
+    psychologyBeforeDraft,
+    psychologyDuringDraft,
     recommendedRuleSet,
     resolvedTemplateConfig,
     ruleResultsByItemId,
@@ -98,10 +99,12 @@ function TradeReviewDocumentInner({
     setDraftField,
     setExecutionChecklistDraft,
     setMistakeTagDraft,
+    setPsychologyAfterDraft,
+    setPsychologyBeforeDraft,
+    setPsychologyDuringDraft,
     setReviewField,
     setSetupTagDraft,
     setTradeRuleStatus,
-    setupPickerOptions,
     setupTagDraft,
     sortedMistakes,
     sortedPlaybooks,
@@ -136,17 +139,26 @@ function TradeReviewDocumentInner({
       usesManualStrategy={usesManualStrategy}
       sortedPlaybooks={sortedPlaybooks}
       selectedPlaybook={selectedPlaybook}
-      setupPickerOptions={setupPickerOptions}
-      preferredSetupIds={preferredSetupIds}
       sortedTemplates={sortedTemplates}
       selectedTemplate={selectedTemplate}
       resolvedTemplateConfig={resolvedTemplateConfig}
       verdict={verdict}
+      setupTagDraft={setupTagDraft}
+      setSetupTagDraft={setSetupTagDraft}
+      psychologyBeforeDraft={psychologyBeforeDraft}
+      setPsychologyBeforeDraft={setPsychologyBeforeDraft}
+      psychologyDuringDraft={psychologyDuringDraft}
+      setPsychologyDuringDraft={setPsychologyDuringDraft}
+      psychologyAfterDraft={psychologyAfterDraft}
+      setPsychologyAfterDraft={setPsychologyAfterDraft}
       setDraftField={setDraftField}
       setReviewField={setReviewField}
       handleStrategyChange={handleStrategyChange}
-      handleSetupChange={handleSetupChange}
       handleTemplateChange={handleTemplateChange}
+      sessionLabel={viewModel.session ?? "Overnight"}
+      entryPrice={viewModel.entryPrice}
+      stopLoss={viewModel.stopLoss}
+      takeProfit={viewModel.takeProfit}
     />
   );
 
@@ -167,8 +179,6 @@ function TradeReviewDocumentInner({
       uploadingScreenshots={uploadingScreenshots}
       executionChecklistDraft={executionChecklistDraft}
       setExecutionChecklistDraft={setExecutionChecklistDraft}
-      setupTagDraft={setupTagDraft}
-      setSetupTagDraft={setSetupTagDraft}
       mistakeTagDraft={mistakeTagDraft}
       setMistakeTagDraft={setMistakeTagDraft}
       checklistOptions={checklistOptions}

@@ -7,11 +7,11 @@ export interface JournalBrief {
 export type JournalBriefField = keyof JournalBrief;
 
 const SECTION_MAP: Array<{
-  label: "Trigger" | "Management" | "Exit";
+  label: "Entry" | "Adds" | "Exit";
   field: JournalBriefField;
 }> = [
-  { label: "Trigger", field: "trigger" },
-  { label: "Management", field: "management" },
+  { label: "Entry", field: "trigger" },
+  { label: "Adds", field: "management" },
   { label: "Exit", field: "exit" },
 ];
 
@@ -30,7 +30,9 @@ export function parseJournalBrief(value: string): JournalBrief {
   }
 
   const matches = [
-    ...normalized.matchAll(/(^|\n)(Trigger|Management|Exit):\s*/g),
+    ...normalized.matchAll(
+      /(^|\n)(Entry|Trigger|Adds|Management|Exit):\s*/g,
+    ),
   ];
 
   if (matches.length === 0 || matches[0].index !== 0) {
@@ -45,7 +47,12 @@ export function parseJournalBrief(value: string): JournalBrief {
   for (let index = 0; index < matches.length; index += 1) {
     const match = matches[index];
     const label = match[2];
-    const section = SECTION_MAP.find((item) => item.label === label);
+    const section =
+      label === "Trigger"
+        ? SECTION_MAP.find((item) => item.field === "trigger")
+        : label === "Management"
+          ? SECTION_MAP.find((item) => item.field === "management")
+          : SECTION_MAP.find((item) => item.label === label);
 
     if (!section) {
       continue;

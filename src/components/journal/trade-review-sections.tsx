@@ -9,24 +9,15 @@ import type {
 } from "@/domain/journal-types";
 import type { Playbook } from "@/lib/api/client/playbooks";
 import type { JournalTemplateConfig } from "@/lib/journal-structure/types";
-import { InsetPanel } from "@/components/ui/surface-primitives";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   JournalChoiceChip,
   JournalConvictionInput,
-  type JournalLibraryOption,
-  JournalLibraryPicker,
+  JournalTagField,
   JournalPromptField,
   JournalRatingInput,
-  JournalShortField,
 } from "@/components/journal/journal-primitives";
 import { JournalNarrativeCard } from "@/components/journal/journal-narrative-card";
+import { JournalThesisCanvas } from "@/components/journal/journal-thesis-canvas";
 import type { JournalChapterId } from "@/components/journal/trade-review-types";
 
 const RETAKE_OPTIONS: Array<{
@@ -38,26 +29,37 @@ const RETAKE_OPTIONS: Array<{
   { value: "no", label: "No" },
 ];
 
+const GRADE_OPTIONS = ["A+", "A", "B", "C", "F"] as const;
+
 interface JournalChapterContentProps {
   activeChapter: JournalChapterId;
   draft: JournalEntryDraft;
   usesManualStrategy: boolean;
   sortedPlaybooks: Playbook[];
   selectedPlaybook: Playbook | null;
-  setupPickerOptions: JournalLibraryOption[];
-  preferredSetupIds: string[];
   sortedTemplates: JournalTemplate[];
   selectedTemplate: JournalTemplate | null;
   resolvedTemplateConfig: JournalTemplateConfig;
   verdict: JournalRetakeDecision | null;
+  setupTagDraft: string;
+  setSetupTagDraft: (value: string) => void;
+  psychologyBeforeDraft: string;
+  setPsychologyBeforeDraft: (value: string) => void;
+  psychologyDuringDraft: string;
+  setPsychologyDuringDraft: (value: string) => void;
+  psychologyAfterDraft: string;
+  setPsychologyAfterDraft: (value: string) => void;
   setDraftField: (value: Partial<JournalEntryDraft>) => void;
   setReviewField: <K extends keyof JournalEntryDraft["journalReview"]>(
     field: K,
     value: JournalEntryDraft["journalReview"][K],
   ) => void;
   handleStrategyChange: (value: string) => void;
-  handleSetupChange: (value: string) => void;
   handleTemplateChange: (value: string) => void;
+  sessionLabel: string;
+  entryPrice: number | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
 }
 
 export function JournalChapterContent({
@@ -66,17 +68,26 @@ export function JournalChapterContent({
   usesManualStrategy,
   sortedPlaybooks,
   selectedPlaybook,
-  setupPickerOptions,
-  preferredSetupIds,
   sortedTemplates,
   selectedTemplate,
   resolvedTemplateConfig,
   verdict,
+  setupTagDraft,
+  setSetupTagDraft,
+  psychologyBeforeDraft,
+  setPsychologyBeforeDraft,
+  psychologyDuringDraft,
+  setPsychologyDuringDraft,
+  psychologyAfterDraft,
+  setPsychologyAfterDraft,
   setDraftField,
   setReviewField,
   handleStrategyChange,
-  handleSetupChange,
   handleTemplateChange,
+  sessionLabel,
+  entryPrice,
+  stopLoss,
+  takeProfit,
 }: JournalChapterContentProps) {
   switch (activeChapter) {
     case "narrative":
@@ -89,176 +100,25 @@ export function JournalChapterContent({
 
     case "thesis":
       return (
-        <div className="space-y-4">
-          <InsetPanel paddingClassName="px-3.5 py-3.5 sm:px-4 sm:py-4">
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-label">Trade frame</p>
-                <p className="text-xs text-[var(--text-tertiary)]">
-                  Link the structure first, then keep the thesis short.
-                </p>
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-label">Strategy</label>
-                    <Select
-                      value={
-                        draft.playbookId ??
-                        (usesManualStrategy ? "__manual" : "__none")
-                      }
-                      onValueChange={handleStrategyChange}
-                    >
-                      <SelectTrigger
-                        className="h-10 text-[0.8125rem]"
-                        style={{
-                          background: "var(--surface)",
-                          borderColor: "var(--border-subtle)",
-                          color: "var(--text-primary)",
-                        }}
-                      >
-                        <SelectValue placeholder="Select a strategy" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none">No linked strategy</SelectItem>
-                        {sortedPlaybooks.map((playbook) => (
-                          <SelectItem key={playbook.id} value={playbook.id}>
-                            {playbook.name}
-                          </SelectItem>
-                        ))}
-                        {usesManualStrategy ? (
-                          <SelectItem value="__manual">
-                            Manual: {draft.journalReview.strategyName}
-                          </SelectItem>
-                        ) : null}
-                      </SelectContent>
-                    </Select>
-                    {selectedPlaybook?.description ? (
-                      <p
-                        style={{
-                          color: "var(--text-tertiary)",
-                          fontFamily: "var(--font-inter)",
-                          fontSize: "11px",
-                          lineHeight: 1.55,
-                        }}
-                      >
-                        {selectedPlaybook.description}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <JournalLibraryPicker
-                    label="Setup"
-                    options={setupPickerOptions}
-                    value={draft.setupDefinitionId}
-                    onSelect={(id) => handleSetupChange(id ?? "__none")}
-                    placeholder="Search setups by name or note"
-                    emptyLabel="No linked setup"
-                    preferredOptionIds={preferredSetupIds}
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-label">Template</label>
-                    <Select
-                      value={draft.journalTemplateId ?? "__none"}
-                      onValueChange={handleTemplateChange}
-                    >
-                      <SelectTrigger
-                        className="h-10 text-[0.8125rem]"
-                        style={{
-                          background: "var(--surface)",
-                          borderColor: "var(--border-subtle)",
-                          color: "var(--text-primary)",
-                        }}
-                      >
-                        <SelectValue placeholder="Select a template" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none">No linked template</SelectItem>
-                        {sortedTemplates.map((template) => (
-                          <SelectItem key={template.id} value={template.id}>
-                            {template.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-[var(--text-tertiary)]">
-                      {selectedTemplate
-                        ? `${selectedTemplate.name} template linked`
-                        : "Use a template only when it changes the review flow."}
-                    </p>
-                  </div>
-
-                  <JournalShortField
-                    label="Refinement"
-                    value={draft.journalReview.setupName}
-                    onChange={(value) => setReviewField("setupName", value)}
-                    placeholder="Optional note about this variation"
-                  />
-
-                  <div
-                    className="rounded-[16px] border px-3.5 py-3"
-                    style={{
-                      background: "var(--surface)",
-                      borderColor: "var(--border-subtle)",
-                    }}
-                  >
-                    <p className="text-label">Template summary</p>
-                    <p
-                      className="mt-1.5 text-sm"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {resolvedTemplateConfig.enabledChapters.length} active chapters,{" "}
-                      {resolvedTemplateConfig.checklistItems.length} checklist items,{" "}
-                      {resolvedTemplateConfig.screenshotRequired
-                        ? "screenshots required"
-                        : "screenshots optional"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </InsetPanel>
-
-          <InsetPanel paddingClassName="px-3.5 py-3.5 sm:px-4 sm:py-4">
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-label">Core thesis</p>
-                <p className="text-xs text-[var(--text-tertiary)]">
-                  Edge, failure point, and payoff are enough.
-                </p>
-              </div>
-
-              <JournalPromptField
-                prompt="What was the edge?"
-                value={draft.journalReview.reasonForTrade}
-                onChange={(value) => setReviewField("reasonForTrade", value)}
-                rows={4}
-                placeholder="One clean statement on why this trade was worth taking."
-              />
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <JournalPromptField
-                  prompt="What had to stay true?"
-                  value={draft.journalReview.invalidation}
-                  onChange={(value) => setReviewField("invalidation", value)}
-                  rows={4}
-                  placeholder="The condition that would keep the idea valid."
-                />
-                <JournalPromptField
-                  prompt="If right, where should price go?"
-                  value={draft.journalReview.targetPlan}
-                  onChange={(value) => setReviewField("targetPlan", value)}
-                  rows={4}
-                  placeholder="The target logic in plain language."
-                />
-              </div>
-            </div>
-          </InsetPanel>
-        </div>
+        <JournalThesisCanvas
+          draft={draft}
+          usesManualStrategy={usesManualStrategy}
+          sortedPlaybooks={sortedPlaybooks}
+          selectedPlaybook={selectedPlaybook}
+          sortedTemplates={sortedTemplates}
+          selectedTemplate={selectedTemplate}
+          resolvedTemplateConfig={resolvedTemplateConfig}
+          setupTagDraft={setupTagDraft}
+          setSetupTagDraft={setSetupTagDraft}
+          setDraftField={setDraftField}
+          setReviewField={setReviewField}
+          handleStrategyChange={handleStrategyChange}
+          handleTemplateChange={handleTemplateChange}
+          sessionLabel={sessionLabel}
+          entryPrice={entryPrice}
+          stopLoss={stopLoss}
+          takeProfit={takeProfit}
+        />
       );
 
     case "market":
@@ -266,20 +126,29 @@ export function JournalChapterContent({
         <div className="space-y-5">
           <div className="grid gap-4 lg:grid-cols-2">
             <JournalPromptField
-              prompt="What did price make obvious before the entry?"
-              value={draft.observations}
-              onChange={(value) => setDraftField({ observations: value })}
+              prompt="How did the previous sessions set this trade up?"
+              value={draft.journalReview.priorSessionBehavior}
+              onChange={(value) =>
+                setReviewField("priorSessionBehavior", value)
+              }
               rows={6}
-              placeholder="Structure, liquidity, volatility, correlations, or timing tells."
+              placeholder="What did Asia or London do before your entry? Was liquidity taken, defended, or repriced?"
             />
             <JournalPromptField
-              prompt="What context around the trade mattered most?"
+              prompt="What was the market context that actually mattered?"
               value={draft.journalReview.marketContext}
               onChange={(value) => setReviewField("marketContext", value)}
               rows={6}
-              placeholder="Macro driver, session behavior, news, or environmental context."
+              placeholder="Only include the context that changed the decision: news, volatility, structure, or session behavior."
             />
           </div>
+          <JournalPromptField
+            prompt="What did you want to see from this session?"
+            value={draft.observations}
+            onChange={(value) => setDraftField({ observations: value })}
+            rows={4}
+            placeholder={`Use this to capture the session-specific read for ${sessionLabel}.`}
+          />
         </div>
       );
 
@@ -288,34 +157,34 @@ export function JournalChapterContent({
         <div className="space-y-5">
           <div className="grid gap-4 lg:grid-cols-2">
             <JournalPromptField
-              prompt="Why did you enter at that exact moment?"
+              prompt="What was the exact trigger?"
               value={draft.journalReview.entryReason}
               onChange={(value) => setReviewField("entryReason", value)}
-              rows={5}
-              placeholder="What confirmed the trigger? What made it timely?"
+              rows={4}
+              placeholder="What was the final thing that made you execute?"
             />
             <JournalPromptField
-              prompt="What happened during management?"
-              value={draft.journalReview.managementReview}
-              onChange={(value) => setReviewField("managementReview", value)}
-              rows={5}
-              placeholder="Partials, stop movement, patience, discipline, hesitation."
+              prompt="Why did you add or change size?"
+              value={draft.journalReview.scaleInNotes}
+              onChange={(value) => setReviewField("scaleInNotes", value)}
+              rows={4}
+              placeholder="If you added, trimmed, or split entries, explain why."
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <JournalPromptField
-              prompt="What is the plain execution story?"
-              value={draft.executionNotes}
-              onChange={(value) => setDraftField({ executionNotes: value })}
-              rows={5}
-              placeholder="Describe the trade management as if another trader had to learn from it."
+              prompt="What changed once the trade was live?"
+              value={draft.journalReview.managementReview}
+              onChange={(value) => setReviewField("managementReview", value)}
+              rows={4}
+              placeholder="What changed in structure, confidence, or management?"
             />
             <JournalPromptField
-              prompt="Why did the exit happen where it did?"
+              prompt="Why were you fully out?"
               value={draft.journalReview.exitReason}
               onChange={(value) => setReviewField("exitReason", value)}
-              rows={5}
-              placeholder="Intentional target, fear, structure break, or loss of edge."
+              rows={4}
+              placeholder="Target hit, invalidation, fear, structure break, or loss of edge."
             />
           </div>
         </div>
@@ -325,34 +194,46 @@ export function JournalChapterContent({
       return (
         <div className="space-y-5">
           <div className="grid gap-4 lg:grid-cols-3">
-            <JournalPromptField
-              prompt="Before the trade"
-              value={draft.journalReview.psychologyBefore}
-              onChange={(value) => setReviewField("psychologyBefore", value)}
-              rows={5}
-              placeholder="Confidence, caution, impatience, bias, or clarity before entry."
+            <JournalTagField
+              label="Before entry tags"
+              tags={draft.journalReview.psychologyBeforeTags}
+              onChange={(next) =>
+                setReviewField("psychologyBeforeTags", next)
+              }
+              tone="neutral"
+              placeholder="Add pre-trade state"
+              draftValue={psychologyBeforeDraft}
+              onDraftValueChange={setPsychologyBeforeDraft}
             />
-            <JournalPromptField
-              prompt="During the trade"
-              value={draft.journalReview.psychologyDuring}
-              onChange={(value) => setReviewField("psychologyDuring", value)}
-              rows={5}
-              placeholder="How did your emotional state evolve while the trade was open?"
+            <JournalTagField
+              label="During trade tags"
+              tags={draft.journalReview.psychologyDuringTags}
+              onChange={(next) =>
+                setReviewField("psychologyDuringTags", next)
+              }
+              tone="neutral"
+              placeholder="Add in-trade state"
+              draftValue={psychologyDuringDraft}
+              onDraftValueChange={setPsychologyDuringDraft}
             />
-            <JournalPromptField
-              prompt="After the trade"
-              value={draft.journalReview.psychologyAfter}
-              onChange={(value) => setReviewField("psychologyAfter", value)}
-              rows={5}
-              placeholder="What did the result make you want to do next?"
+            <JournalTagField
+              label="After trade tags"
+              tags={draft.journalReview.psychologyAfterTags}
+              onChange={(next) =>
+                setReviewField("psychologyAfterTags", next)
+              }
+              tone="neutral"
+              placeholder="Add post-trade state"
+              draftValue={psychologyAfterDraft}
+              onDraftValueChange={setPsychologyAfterDraft}
             />
           </div>
           <JournalPromptField
-            prompt="How would you summarize the emotional weather of this trade?"
+            prompt="Anything worth noting beyond the tags?"
             value={draft.feelings}
             onChange={(value) => setDraftField({ feelings: value })}
-            rows={4}
-            placeholder="Name the dominant feeling plainly: calm, rushed, defensive, stubborn, detached, clear."
+            rows={3}
+            placeholder="Only write the part the tags cannot capture."
           />
         </div>
       );
@@ -381,6 +262,26 @@ export function JournalChapterContent({
             value={draft.conviction}
             onChange={(value) => setDraftField({ conviction: value })}
           />
+          <div className="space-y-2">
+            <p className="text-label">Overall grade</p>
+            <div className="flex flex-wrap gap-2">
+              {GRADE_OPTIONS.map((option) => (
+                <JournalChoiceChip
+                  key={option}
+                  active={draft.journalReview.overallGrade === option}
+                  onClick={() =>
+                    setReviewField(
+                      "overallGrade",
+                      draft.journalReview.overallGrade === option ? null : option,
+                    )
+                  }
+                  tone="accent"
+                >
+                  {option}
+                </JournalChoiceChip>
+              ))}
+            </div>
+          </div>
           <div className="space-y-2">
             <p className="text-label">Would you take this trade again?</p>
             <div className="flex flex-wrap items-center gap-2">
@@ -413,13 +314,31 @@ export function JournalChapterContent({
     case "closeout":
       return (
         <div className="space-y-5">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+          <div className="grid gap-4 lg:grid-cols-2">
             <JournalPromptField
               prompt="What is the lesson?"
               value={draft.lessonLearned}
               onChange={(value) => setDraftField({ lessonLearned: value })}
               rows={4}
               placeholder="Reduce the entire trade to one repeatable sentence."
+            />
+            <JournalPromptField
+              prompt="What was the main reason this trade failed or underdelivered?"
+              value={draft.journalReview.primaryFailureCause}
+              onChange={(value) =>
+                setReviewField("primaryFailureCause", value)
+              }
+              rows={4}
+              placeholder="State the main failure cause plainly."
+            />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <JournalPromptField
+              prompt="What do you stop doing next time?"
+              value={draft.journalReview.stopDoing}
+              onChange={(value) => setReviewField("stopDoing", value)}
+              rows={4}
+              placeholder="The one behavior or habit that cannot come forward."
             />
             <JournalPromptField
               prompt="What changes next time?"
