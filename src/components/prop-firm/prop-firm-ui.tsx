@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type {
   CSSProperties,
   Dispatch,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 
 import type { TerminalStatusByPropAccountResult } from "@/lib/api/terminal-farm";
+import type { PropAccountDeleteMode } from "@/lib/prop-accounts/status";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
@@ -96,7 +98,7 @@ interface DeletePropAccountDialogProps {
   open: boolean;
   accountName: string;
   deleting: boolean;
-  onConfirm: () => void;
+  onConfirm: (mode: PropAccountDeleteMode) => void;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -519,27 +521,126 @@ export function DeletePropAccountDialog({
   onConfirm,
   onOpenChange,
 }: DeletePropAccountDialogProps) {
+  const [mode, setMode] = useState<PropAccountDeleteMode>("archive");
+
+  useEffect(() => {
+    if (open) {
+      setMode("archive");
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>Delete account?</DialogTitle>
+          <DialogTitle>Remove account</DialogTitle>
           <DialogDescription>
-            <strong style={{ color: "var(--text-primary)" }}>{accountName}</strong> will be deleted along with any linked MT5 connection. This cannot be undone.
+            Choose whether <strong style={{ color: "var(--text-primary)" }}>{accountName}</strong>{" "}
+            should disappear from your workspace but stay saved for later, or be erased completely.
           </DialogDescription>
         </DialogHeader>
+        <div className="grid gap-3 py-2">
+          <button
+            type="button"
+            onClick={() => setMode("archive")}
+            className="text-left"
+          >
+            <InsetPanel
+              tone={mode === "archive" ? "accent" : "default"}
+              className="space-y-2 transition-colors"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                  Hide account and keep records
+                </p>
+                <span
+                  className="inline-flex rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold"
+                  style={{
+                    color:
+                      mode === "archive"
+                        ? "var(--accent-primary)"
+                        : "var(--text-tertiary)",
+                    background:
+                      mode === "archive"
+                        ? "var(--accent-soft)"
+                        : "var(--surface)",
+                    borderColor:
+                      mode === "archive"
+                        ? "var(--accent-primary)"
+                        : "var(--border-subtle)",
+                  }}
+                >
+                  Recommended
+                </span>
+              </div>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                The account leaves the dashboard, calendar, and journal, but the trade history stays saved.
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                You can restore it later from Settings &gt; Data.
+              </p>
+            </InsetPanel>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMode("permanent")}
+            className="text-left"
+          >
+            <InsetPanel
+              tone={mode === "permanent" ? "loss" : "default"}
+              className="space-y-2 transition-colors"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                  Delete account and erase records
+                </p>
+                <span
+                  className="inline-flex rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold"
+                  style={{
+                    color:
+                      mode === "permanent"
+                        ? "var(--loss-primary)"
+                        : "var(--text-tertiary)",
+                    background:
+                      mode === "permanent"
+                        ? "var(--loss-bg)"
+                        : "var(--surface)",
+                    borderColor:
+                      mode === "permanent"
+                        ? "color-mix(in srgb, var(--loss-primary) 30%, transparent)"
+                        : "var(--border-subtle)",
+                  }}
+                >
+                  Permanent
+                </span>
+              </div>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                The account, linked trades, and connected account-specific records are removed from TradeLog.
+              </p>
+              <p className="text-xs" style={{ color: "var(--loss-primary)" }}>
+                This cannot be undone.
+              </p>
+            </InsetPanel>
+          </button>
+        </div>
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" variant="destructive" disabled={deleting} onClick={onConfirm}>
+          <Button
+            type="button"
+            variant={mode === "permanent" ? "destructive" : "default"}
+            disabled={deleting}
+            onClick={() => onConfirm(mode)}
+          >
             {deleting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Deleting...
+                Removing...
               </>
             ) : (
-              "Delete"
+              mode === "archive" ? "Hide Account" : "Delete Permanently"
             )}
           </Button>
         </DialogFooter>

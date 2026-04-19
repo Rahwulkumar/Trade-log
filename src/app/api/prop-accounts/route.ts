@@ -1,6 +1,11 @@
 import { requireAuth } from '@/lib/auth/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { createPropAccount, getActivePropAccounts, getPropAccounts } from '@/lib/api/prop-accounts';
+import {
+  createPropAccount,
+  getActivePropAccounts,
+  getArchivedPropAccounts,
+  getPropAccounts,
+} from '@/lib/api/prop-accounts';
 import { db } from '@/lib/db';
 import { propAccounts } from '@/lib/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
@@ -13,10 +18,14 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('active') === 'true';
+    const archivedOnly = searchParams.get('archivedOnly') === 'true';
+    const includeArchived = searchParams.get('includeArchived') === 'true';
 
     const accounts = activeOnly
       ? await getActivePropAccounts(userId)
-      : await getPropAccounts(userId);
+      : archivedOnly
+        ? await getArchivedPropAccounts(userId)
+        : await getPropAccounts(userId, { includeArchived });
 
     return NextResponse.json(accounts);
   } catch (err) {

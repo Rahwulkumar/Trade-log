@@ -2,7 +2,9 @@ import { z } from 'zod';
 
 const mt5ResetSyncSchema = z
   .object({
-    reason: z.enum(['manual_reset', 'reconnect', 'delete_account']).optional(),
+    reason: z
+      .enum(['manual_reset', 'reconnect', 'archive_account', 'delete_account'])
+      .optional(),
   })
   .strict();
 

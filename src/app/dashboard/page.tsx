@@ -674,10 +674,10 @@ export default function DashboardPage() {
         <AppPanel className="p-6">
           <SectionHeader
             title="Top Strategies"
-            subtitle="Performance by playbook"
+            subtitle="Performance by strategy"
             action={
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/playbooks">View all {'->'}</Link>
+                <Link href="/strategies">View all {'->'}</Link>
               </Button>
             }
           />

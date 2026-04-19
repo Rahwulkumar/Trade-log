@@ -1,22 +1,25 @@
 "use client";
 
 import { useMemo } from "react";
-import { Check, Clock3, FileEdit, Search, X } from "lucide-react";
+import { Check, Circle, Clock3, FileEdit, Search, X } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { WidgetEmptyState } from "@/components/ui/surface-primitives";
 
-export type TradeReviewStatus = "empty" | "draft" | "complete";
+export type TradeReviewStatus = "empty" | "draft" | "complete" | "trivial";
 export type TradeReviewRailLayout = "tray" | "drawer";
 
 export interface TradeReviewRailItem {
   id: string;
   symbol: string;
+  title?: string;
   direction: "LONG" | "SHORT";
   netPnl: number;
   outcome: "WIN" | "LOSS" | "BE";
   closedAt: string | Date | null;
   reviewStatus: TradeReviewStatus;
+  tradeCount?: number;
+  isTrivial?: boolean;
 }
 
 interface TradeReviewRailProps {
@@ -24,9 +27,9 @@ interface TradeReviewRailProps {
   activeTradeId: string | null;
   search: string;
   onSearchChange: (value: string) => void;
-  statusFilter: "all" | "pending" | "draft" | "complete";
+  statusFilter: "all" | "pending" | "draft" | "complete" | "trivial";
   onStatusFilterChange: (
-    value: "all" | "pending" | "draft" | "complete",
+    value: "all" | "pending" | "draft" | "complete" | "trivial",
   ) => void;
   onSelectTrade: (tradeId: string) => void;
   layout?: TradeReviewRailLayout;
@@ -71,6 +74,14 @@ function statusMeta(status: TradeReviewStatus) {
       label: "Draft",
       color: "var(--warning-primary)",
       icon: FileEdit,
+    };
+  }
+
+  if (status === "trivial") {
+    return {
+      label: "Trivial",
+      color: "var(--text-tertiary)",
+      icon: Circle,
     };
   }
 
@@ -156,14 +167,15 @@ function RailToolbar({
   items: TradeReviewRailItem[];
   search: string;
   onSearchChange: (value: string) => void;
-  statusFilter: "all" | "pending" | "draft" | "complete";
+  statusFilter: "all" | "pending" | "draft" | "complete" | "trivial";
   onStatusFilterChange: (
-    value: "all" | "pending" | "draft" | "complete",
+    value: "all" | "pending" | "draft" | "complete" | "trivial",
   ) => void;
   compact?: boolean;
 }) {
   const pendingCount = items.filter(
-    (item) => item.reviewStatus !== "complete",
+    (item) =>
+      item.reviewStatus !== "complete" && item.reviewStatus !== "trivial",
   ).length;
   const draftCount = items.filter(
     (item) => item.reviewStatus === "draft",
@@ -171,12 +183,16 @@ function RailToolbar({
   const completeCount = items.filter(
     (item) => item.reviewStatus === "complete",
   ).length;
+  const trivialCount = items.filter(
+    (item) => item.reviewStatus === "trivial",
+  ).length;
 
   const statusOptions = [
     { value: "all", label: "All", count: items.length },
     { value: "pending", label: "Open", count: pendingCount },
     { value: "draft", label: "Draft", count: draftCount },
     { value: "complete", label: "Done", count: completeCount },
+    { value: "trivial", label: "Trivial", count: trivialCount },
   ] as const;
 
   return (
@@ -259,6 +275,7 @@ function TradeQueueTile({
   const status = statusMeta(item.reviewStatus);
   const direction = directionMeta(item.direction);
   const StatusIcon = status.icon;
+  const title = item.title?.trim() || item.symbol;
 
   return (
     <button
@@ -285,8 +302,22 @@ function TradeQueueTile({
                 fontWeight: 700,
               }}
             >
-              {item.symbol}
+              {title}
             </span>
+            {item.tradeCount && item.tradeCount > 1 ? (
+              <span
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background: "var(--surface-elevated)",
+                  color: "var(--text-secondary)",
+                  fontSize: "9px",
+                  fontWeight: 700,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {item.tradeCount} positions
+              </span>
+            ) : null}
             <span
               className="rounded-full px-2 py-0.5"
               style={{
@@ -345,6 +376,7 @@ function TradeQueueRow({
   const status = statusMeta(item.reviewStatus);
   const direction = directionMeta(item.direction);
   const StatusIcon = status.icon;
+  const title = item.title?.trim() || item.symbol;
 
   return (
     <button
@@ -372,8 +404,22 @@ function TradeQueueRow({
                 fontWeight: 700,
               }}
             >
-              {item.symbol}
+              {title}
             </span>
+            {item.tradeCount && item.tradeCount > 1 ? (
+              <span
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background: "var(--surface-elevated)",
+                  color: "var(--text-secondary)",
+                  fontSize: "9px",
+                  fontWeight: 700,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {item.tradeCount} positions
+              </span>
+            ) : null}
             <span
               className="rounded-full px-2 py-0.5"
               style={{

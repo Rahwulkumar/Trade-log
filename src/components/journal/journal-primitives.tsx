@@ -1,7 +1,14 @@
 "use client";
 
-import { type ReactNode, useCallback, useId, useMemo, useState } from "react";
-import { ChevronRight, Circle, Star } from "lucide-react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from "react";
+import { ChevronDown, ChevronRight, Circle, Star } from "lucide-react";
 
 import type { QualityRating } from "@/domain/journal-types";
 import {
@@ -356,36 +363,22 @@ export function JournalOutlineRail({
   const completed = items.filter((item) => item.state === "complete").length;
 
   return (
-    <aside className="space-y-3">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div>
-          <p className="text-label">Review flow</p>
-          <p
-            className="mt-1"
-            style={{
-              color: "var(--text-tertiary)",
-              fontFamily: "var(--font-inter)",
-              fontSize: "11px",
-            }}
-          >
-            {completed}/{items.length} chapters complete
-          </p>
-        </div>
+    <aside className="space-y-2.5">
+      <div className="flex items-center justify-between gap-3 px-0.5">
+        <p className="text-label">Review path</p>
         <span
-          className="rounded-full px-2.5 py-1"
           style={{
-            background: "var(--accent-soft)",
-            color: "var(--accent-primary)",
+            color: "var(--text-tertiary)",
             fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
             fontSize: "10px",
             fontWeight: 700,
           }}
         >
-          {Math.round((completed / items.length) * 100)}%
+          {completed}/{items.length}
         </span>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {items.map((item) => {
           const active = item.id === activeChapter;
           const styles = tabStateStyles(item.state);
@@ -395,52 +388,59 @@ export function JournalOutlineRail({
               key={item.id}
               type="button"
               onClick={() => onChange(item.id)}
-              className="w-full rounded-[18px] border px-3 py-3 text-left transition-colors"
+              className="w-full rounded-[14px] border px-2.5 py-2 text-left transition-colors"
               style={{
                 background: active
-                  ? "color-mix(in srgb, var(--accent-soft) 52%, var(--surface))"
+                  ? "color-mix(in srgb, var(--accent-soft) 44%, var(--surface))"
                   : "var(--surface-elevated)",
                 borderColor: active
                   ? "var(--accent-primary)"
                   : "var(--border-subtle)",
-                boxShadow: active ? "var(--shadow-sm)" : "none",
               }}
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-center gap-2.5">
                 <span
-                  className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                  className="h-2 w-2 shrink-0 rounded-full"
                   style={{ background: active ? "var(--accent-primary)" : styles.dotColor }}
                 />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      style={{
-                        color: active
-                          ? "var(--text-primary)"
-                          : "var(--text-secondary)",
-                        fontFamily: "var(--font-inter)",
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {item.orderLabel}. {item.label}
-                    </span>
-                    <span
-                      className="rounded-full px-2 py-0.5"
-                      style={{
-                        background: "var(--surface)",
-                        color: styles.metaColor,
-                        fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {item.progressLabel}
-                    </span>
-                  </div>
-                </div>
+                <span
+                  className="shrink-0"
+                  style={{
+                    color: active ? "var(--accent-primary)" : "var(--text-tertiary)",
+                    fontFamily: "var(--font-jb-mono), ui-monospace, monospace",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {item.orderLabel}
+                </span>
+                <span
+                  className="min-w-0 flex-1 truncate"
+                  style={{
+                    color: active
+                      ? "var(--text-primary)"
+                      : "var(--text-secondary)",
+                    fontFamily: "var(--font-inter)",
+                    fontSize: "12.5px",
+                    fontWeight: 700,
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {item.label}
+                </span>
+                <span
+                  className="shrink-0"
+                  style={{
+                    color: styles.metaColor,
+                    fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {item.progressLabel}
+                </span>
               </div>
             </button>
           );
@@ -513,24 +513,69 @@ export function JournalTabRail({
               >
                 {item.label}
               </span>
-              <span
-                className="rounded-full px-2 py-0.5"
-                style={{
-                  background: active
-                    ? "color-mix(in srgb, var(--accent-primary) 14%, transparent)"
-                    : "var(--surface-elevated)",
-                  color: styles.metaColor,
-                  fontFamily: "var(--font-jb-mono)",
-                  fontSize: "9px",
-                  lineHeight: 1.2,
-                }}
-              >
-                {item.progressLabel}
-              </span>
             </button>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+export function JournalDetailDisclosure({
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (defaultOpen) {
+      setOpen(true);
+    }
+  }, [defaultOpen]);
+
+  return (
+    <div
+      className="rounded-[16px] border"
+      style={{
+        background: "var(--surface-elevated)",
+        borderColor: "var(--border-subtle)",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left"
+      >
+        <div className="space-y-0.5">
+          <p className="text-label">{title}</p>
+          {description ? (
+            <p className="text-xs text-[var(--text-tertiary)]">{description}</p>
+          ) : null}
+        </div>
+        <ChevronDown
+          size={14}
+          style={{
+            color: "var(--text-tertiary)",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 180ms ease",
+          }}
+        />
+      </button>
+      {open ? (
+        <div
+          className="space-y-3 border-t px-3.5 py-3.5"
+          style={{ borderTopColor: "var(--border-subtle)" }}
+        >
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -581,7 +626,7 @@ export function JournalPromptField({
         style={{
           color: "var(--text-primary)",
           fontFamily: "var(--font-inter)",
-          fontSize: "14px",
+          fontSize: "12.5px",
           lineHeight: 1.45,
           fontWeight: 600,
         }}
@@ -594,12 +639,12 @@ export function JournalPromptField({
         onChange={(event) => onChange(event.target.value)}
         rows={rows}
         placeholder={placeholder}
-        className="rounded-[var(--radius-lg)] px-4 py-4 text-[0.9375rem]"
+        className="rounded-[var(--radius-lg)] px-3.5 py-3 text-[0.88rem]"
         style={{
-          background: "var(--surface)",
+          background: "var(--surface-elevated)",
           borderColor: "var(--border-subtle)",
           color: "var(--text-primary)",
-          lineHeight: 1.8,
+          lineHeight: 1.6,
         }}
       />
     </div>
@@ -795,7 +840,7 @@ export function JournalLibraryPicker({
         </p>
       ) : query.trim() && visibleOptions.length === 0 ? (
         <p className="text-xs text-[var(--text-tertiary)]">
-          No matching library items. Create a new one from the Playbooks workspace if needed.
+          No matching library items. Add it to the library before linking it here.
         </p>
       ) : null}
     </fieldset>
@@ -937,7 +982,7 @@ export function JournalLibraryMultiPicker({
         </p>
       ) : query.trim() && visibleOptions.length === 0 ? (
         <p className="text-xs text-[var(--text-tertiary)]">
-          No matching library items. Add a new definition from the Playbooks workspace if needed.
+          No matching library items. Add a new definition to the library before linking it here.
         </p>
       ) : !query.trim() && options.length > 8 ? (
         <p className="text-xs text-[var(--text-tertiary)]">

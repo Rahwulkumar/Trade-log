@@ -20,6 +20,12 @@ export type JournalSessionState =
   | "continuation"
   | "reversal"
   | "ranging";
+export type JournalPositionRole =
+  | "primary"
+  | "add"
+  | "re-entry"
+  | "trim"
+  | "hedge";
 export type JournalRuleStatus = RuleItemStatus;
 export type JournalTradeRuleResult = TradeRuleResult;
 
@@ -39,6 +45,15 @@ export interface JournalScreenshot {
 export interface JournalReview {
   strategyName: string;
   setupName: string;
+  tradeIdeaId: string | null;
+  tradeIdeaTitle: string;
+  linkedTradeIds: string[];
+  groupSummary: string;
+  positionRole: JournalPositionRole | null;
+  positionReason: string;
+  isTrivial: boolean | null;
+  trivialReason: string;
+  autoRuleFlags: string[];
   reasonForTrade: string;
   invalidation: string;
   targetPlan: string;
@@ -149,6 +164,15 @@ export interface JournalEntryDraft {
 export const EMPTY_JOURNAL_REVIEW: JournalReview = {
   strategyName: "",
   setupName: "",
+  tradeIdeaId: null,
+  tradeIdeaTitle: "",
+  linkedTradeIds: [],
+  groupSummary: "",
+  positionRole: null,
+  positionReason: "",
+  isTrivial: null,
+  trivialReason: "",
+  autoRuleFlags: [],
   reasonForTrade: "",
   invalidation: "",
   targetPlan: "",

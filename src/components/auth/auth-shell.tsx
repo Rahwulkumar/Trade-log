@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   IconAnalytics,
   IconJournal,
-  IconPlaybooks,
+  IconStrategies,
 } from "@/components/ui/icons";
 import { AppPanel } from "@/components/ui/page-primitives";
 import { InsetPanel } from "@/components/ui/surface-primitives";
@@ -37,8 +37,8 @@ const FEATURE_ITEMS: Array<{
   },
   {
     title: "Reliable review loop",
-    description: "Keep your playbooks, dashboard, and journal tied to the same trading process.",
-    icon: IconPlaybooks,
+    description: "Keep your strategies, dashboard, and journal tied to the same trading process.",
+    icon: IconStrategies,
   },
 ];
 
@@ -108,7 +108,7 @@ export function AuthShell({
                   className="mt-1 text-sm leading-relaxed"
                   style={{ color: "var(--text-tertiary)" }}
                 >
-                  Journal, review, analytics, and playbooks stay tied to the
+                  Journal, review, analytics, and strategies stay tied to the
                   same trading process.
                 </p>
               </InsetPanel>

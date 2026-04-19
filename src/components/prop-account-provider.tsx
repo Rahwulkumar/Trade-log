@@ -51,25 +51,37 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Persist to localStorage when selection changes
-  const setSelectedAccountId = (id: string | null) => {
+  const setSelectedAccountId = useCallback((id: string | null) => {
     setSelectedAccountIdState(id);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, id ?? "null");
     }
-  };
+  }, []);
+
+  const syncSelectionToAccounts = useCallback(
+    (accounts: PropAccount[]) => {
+      if (!selectedAccountId) return;
+      const stillExists = accounts.some((account) => account.id === selectedAccountId);
+      if (!stillExists) {
+        setSelectedAccountId(null);
+      }
+    },
+    [selectedAccountId, setSelectedAccountId],
+  );
 
   const refreshPropAccounts = useCallback(async () => {
     if (!isConfigured || !userId) return;
     try {
       const accounts = await getActivePropAccounts();
       setPropAccounts(accounts);
+      syncSelectionToAccounts(accounts);
       fetchedForUserRef.current = userId;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.includes("Failed to fetch"))
         console.error("Failed to load prop accounts:", err);
     }
-  }, [isConfigured, userId]);
+  }, [isConfigured, syncSelectionToAccounts, userId]);
 
   // Fetch active prop accounts — wait for auth to fully resolve first
   useEffect(() => {
@@ -86,6 +98,7 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         const accounts = await getActivePropAccounts();
         setPropAccounts(accounts);
+        syncSelectionToAccounts(accounts);
         fetchedForUserRef.current = userId;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -103,7 +116,7 @@ export function PropAccountProvider({ children }: { children: ReactNode }) {
       }
       loadAccounts();
     }
-  }, [authLoading, userId, isConfigured, initialized]);
+  }, [authLoading, userId, isConfigured, initialized, syncSelectionToAccounts]);
 
   return (
     <PropAccountContext.Provider

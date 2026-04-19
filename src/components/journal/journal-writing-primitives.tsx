@@ -15,7 +15,7 @@ export function JournalWritingDeck({
     <div
       className={`overflow-hidden rounded-[20px] border ${className}`.trim()}
       style={{
-        background: "color-mix(in srgb, var(--surface-elevated) 72%, var(--surface))",
+        background: "var(--surface-elevated)",
         borderColor: "var(--border-subtle)",
       }}
     >
@@ -39,14 +39,14 @@ export function JournalWritingCell({
 }) {
   return (
     <section className={`space-y-3 px-4 py-4 sm:px-5 ${className}`.trim()}>
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2.5">
         <span
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border"
+          className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full border"
           style={{
             background: "var(--surface)",
             borderColor: "var(--border-subtle)",
             color: "var(--text-secondary)",
-            fontSize: "11px",
+            fontSize: "10px",
             fontWeight: 700,
           }}
         >
@@ -58,7 +58,7 @@ export function JournalWritingCell({
               color: "var(--text-primary)",
               fontFamily:
                 "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
-              fontSize: "14px",
+              fontSize: "13.5px",
               fontWeight: 700,
               lineHeight: 1.25,
             }}
@@ -92,12 +92,12 @@ export function JournalWritingArea({
       onChange={(event) => onChange(event.target.value)}
       rows={rows}
       placeholder={placeholder}
-      className={`rounded-[14px] border px-3.5 py-3 text-[0.93rem] ${className}`.trim()}
+      className={`rounded-[14px] border px-3.5 py-3 text-[0.9rem] ${className}`.trim()}
       style={{
-        background: "color-mix(in srgb, var(--surface) 92%, transparent)",
+        background: "var(--surface)",
         borderColor: "var(--border-subtle)",
         color: "var(--text-primary)",
-        lineHeight: 1.65,
+        lineHeight: 1.6,
       }}
     />
   );

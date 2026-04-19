@@ -7,6 +7,7 @@ import {
   journalTemplates,
   mistakeDefinitions,
   playbooks,
+  propAccounts,
   ruleSets,
   setupDefinitions,
   trades,
@@ -30,6 +31,7 @@ import type {
   AnalyticsWorkspaceRow,
   AnalyticsWorkspaceTrade,
 } from "@/lib/analytics/workspace-types";
+import { buildVisibleTradeAccountCondition } from "@/lib/prop-accounts/status";
 
 type WorkspaceRow = {
   id: string;
@@ -887,7 +889,11 @@ export async function getAnalyticsWorkspaceResult(
   userId: string,
   query: AnalyticsWorkspaceQuery,
 ): Promise<AnalyticsWorkspaceResult> {
-  const conditions = [eq(trades.userId, userId), eq(trades.status, "CLOSED")];
+  const conditions = [
+    eq(trades.userId, userId),
+    eq(trades.status, "CLOSED"),
+    buildVisibleTradeAccountCondition(),
+  ];
 
   if (query.filters.accountScope === "unassigned") {
     conditions.push(isNull(trades.propAccountId));
@@ -944,6 +950,7 @@ export async function getAnalyticsWorkspaceResult(
         rMultiple: trades.rMultiple,
       })
       .from(trades)
+      .leftJoin(propAccounts, eq(trades.propAccountId, propAccounts.id))
       .leftJoin(playbooks, eq(trades.playbookId, playbooks.id))
       .leftJoin(setupDefinitions, eq(trades.setupDefinitionId, setupDefinitions.id))
       .leftJoin(

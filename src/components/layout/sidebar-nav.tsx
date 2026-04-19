@@ -12,7 +12,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import {
   IconDashboard,
   IconAnalytics,
-  IconPlaybooks,
   IconStrategies,
   IconCalendar,
   IconJournal,
@@ -36,7 +35,6 @@ const NAV_GROUPS = [
     items: [
       { href: "/journal", label: "Journal", Icon: IconJournal },
       { href: "/calendar", label: "Calendar", Icon: IconCalendar },
-      { href: "/playbooks", label: "Playbooks", Icon: IconPlaybooks },
       { href: "/strategies", label: "Strategies", Icon: IconStrategies },
     ],
   },

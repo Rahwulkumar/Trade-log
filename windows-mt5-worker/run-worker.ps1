@@ -22,11 +22,18 @@ if ($Once) {
     $arguments += '--once'
 }
 
-if ($NoLogFile) {
-    & $python @arguments
-    exit $LASTEXITCODE
-}
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 
-Write-Host "Writing worker output to $logPath"
-& $python @arguments *>> $logPath
-exit $LASTEXITCODE
+try {
+    if ($NoLogFile) {
+        & $python @arguments 2>&1
+        exit $LASTEXITCODE
+    }
+
+    Write-Host "Writing worker output to $logPath"
+    & $python @arguments 2>&1 | Tee-Object -FilePath $logPath -Append
+    exit $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+}

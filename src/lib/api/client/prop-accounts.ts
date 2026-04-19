@@ -5,6 +5,9 @@
 
 import type { PropAccount, PropAccountInsert } from '@/lib/db/schema';
 import { readJsonIfAvailable } from '@/lib/api/client/http';
+import type { PropAccountDeleteMode } from '@/lib/prop-accounts/status';
+import { invalidateTradesCache } from '@/lib/api/client/trades';
+import { invalidateAnalyticsCache } from '@/lib/api/client/analytics';
 export type { PropAccount, PropAccountInsert };
 
 export interface ComplianceStatus {
@@ -32,12 +35,36 @@ async function getApiErrorMessage(
   return data?.error ?? fallback;
 }
 
-export async function getPropAccounts(): Promise<PropAccount[]> {
-  const res = await fetch('/api/prop-accounts', { credentials: 'include' });
+function invalidateAccountMutationCaches() {
+  invalidateTradesCache();
+  invalidateAnalyticsCache();
+}
+
+export async function getPropAccounts(options?: {
+  includeArchived?: boolean;
+  archivedOnly?: boolean;
+}): Promise<PropAccount[]> {
+  const searchParams = new URLSearchParams();
+  if (options?.includeArchived) {
+    searchParams.set('includeArchived', 'true');
+  }
+  if (options?.archivedOnly) {
+    searchParams.set('archivedOnly', 'true');
+  }
+
+  const url = searchParams.size > 0
+    ? `/api/prop-accounts?${searchParams.toString()}`
+    : '/api/prop-accounts';
+
+  const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) {
     throw new Error(await getApiErrorMessage(res, 'Failed to load prop accounts'));
   }
   return (await readJsonIfAvailable<PropAccount[]>(res)) ?? [];
+}
+
+export async function getArchivedPropAccounts(): Promise<PropAccount[]> {
+  return getPropAccounts({ archivedOnly: true });
 }
 
 export async function getActivePropAccounts(): Promise<PropAccount[]> {
@@ -73,6 +100,7 @@ export async function createPropAccount(
   }
   const data = await readJsonIfAvailable<PropAccount>(res);
   if (!data) throw new Error('Failed to create prop account');
+  invalidateAccountMutationCaches();
   return data;
 }
 
@@ -91,14 +119,28 @@ export async function updatePropAccount(
   }
   const data = await readJsonIfAvailable<PropAccount>(res);
   if (!data) throw new Error('Failed to update prop account');
+  invalidateAccountMutationCaches();
   return data;
 }
 
-export async function deletePropAccount(id: string): Promise<void> {
-  const res = await fetch(`/api/prop-accounts/${id}`, { method: 'DELETE', credentials: 'include' });
+export async function deletePropAccount(
+  id: string,
+  mode: PropAccountDeleteMode = 'archive'
+): Promise<void> {
+  const res = await fetch(`/api/prop-accounts/${id}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ mode }),
+  });
   if (!res.ok) {
     throw new Error(await getApiErrorMessage(res, 'Failed to delete prop account'));
   }
+  invalidateAccountMutationCaches();
+}
+
+export async function restorePropAccount(id: string): Promise<PropAccount> {
+  return updatePropAccount(id, { status: 'active' });
 }
 
 /**

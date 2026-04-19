@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  RefreshCw,
   ArrowDown,
   ArrowUp,
   Download,
@@ -11,6 +12,7 @@ import {
   Monitor,
   Moon,
   Plus,
+  RotateCcw,
   ShieldCheck,
   Sun,
   Trash2,
@@ -23,6 +25,7 @@ import { ChoiceChip, ControlSurface, FieldGroup } from "@/components/ui/control-
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppPanel, PanelTitle } from "@/components/ui/page-primitives";
+import type { PropAccount } from "@/lib/db/schema";
 import {
   Select,
   SelectContent,
@@ -488,9 +491,21 @@ export function SettingsTradingPanels({
 export function SettingsDataPanels({
   canDownloadSettings,
   onDownloadSettings,
+  archivedAccounts,
+  archivedAccountsLoading,
+  archivedAccountsError,
+  restoringAccountId,
+  onRefreshArchivedAccounts,
+  onRestoreAccount,
 }: {
   canDownloadSettings: boolean;
   onDownloadSettings: () => void;
+  archivedAccounts: PropAccount[];
+  archivedAccountsLoading: boolean;
+  archivedAccountsError: string;
+  restoringAccountId: string | null;
+  onRefreshArchivedAccounts: () => void;
+  onRestoreAccount: (accountId: string) => void;
 }) {
   return (
     <>
@@ -528,6 +543,93 @@ export function SettingsDataPanels({
 
       <AppPanel>
         <PanelTitle
+          title="Archived Accounts"
+          subtitle="Accounts you removed but chose to keep on file."
+        />
+
+        <ControlSurface>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Restore saved account history</p>
+              <p
+                className="mt-1 text-sm"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                Archived accounts stay out of the dashboard, calendar, and journal until you bring them back.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={onRefreshArchivedAccounts}
+              disabled={archivedAccountsLoading}
+            >
+              <RefreshCw
+                className={archivedAccountsLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+              />
+              Refresh
+            </Button>
+          </div>
+
+          {archivedAccountsError ? (
+            <p className="mt-4 text-sm" style={{ color: "var(--loss-primary)" }}>
+              {archivedAccountsError}
+            </p>
+          ) : null}
+
+          {archivedAccounts.length === 0 ? (
+            <WidgetEmptyState
+              className="mt-4"
+              title="No archived accounts"
+              description="When you hide an account instead of deleting it permanently, it will appear here for later restore."
+            />
+          ) : (
+            <div className="mt-4 space-y-3">
+              {archivedAccounts.map((account) => (
+                <ListItemRow
+                  key={account.id}
+                  leading={
+                    <div>
+                      <p className="text-sm font-medium">
+                        {account.accountName}
+                      </p>
+                      <p
+                        className="mt-1 text-sm"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        {[account.firmName, account.currentPhaseStatus]
+                          .filter(Boolean)
+                          .join(" / ") || "Saved account history"}
+                      </p>
+                    </div>
+                  }
+                  trailing={
+                    <Button
+                      variant="outline"
+                      onClick={() => onRestoreAccount(account.id)}
+                      disabled={restoringAccountId === account.id}
+                    >
+                      {restoringAccountId === account.id ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          Restoring...
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="h-4 w-4" />
+                          Restore
+                        </>
+                      )}
+                    </Button>
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </ControlSurface>
+      </AppPanel>
+
+      <AppPanel>
+        <PanelTitle
           title="Activity Log"
           subtitle="Security and account history will return once the audit log migration is complete."
         />
@@ -551,8 +653,8 @@ export function SettingsDataPanels({
 
       <AppPanel>
         <PanelTitle
-          title="Danger Zone"
-          subtitle="Destructive account actions stay hidden until they are backed by verified server-side flows."
+          title="Account Removal"
+          subtitle="Account removal is handled from the account tracker so you can choose what happens to the saved history."
         />
 
         <InsetPanel tone="loss">
@@ -561,13 +663,13 @@ export function SettingsDataPanels({
               className="h-4 w-4"
               style={{ color: "var(--loss-primary)" }}
             />
-            <p className="text-sm font-medium">Destructive actions are not available here.</p>
+            <p className="text-sm font-medium">Permanent delete is now a separate choice.</p>
           </div>
           <p
             className="mt-2 text-sm"
             style={{ color: "var(--text-tertiary)" }}
           >
-            The old delete buttons were removed because they were not connected to real account-deletion flows. When these actions return, they will require explicit backend confirmation and dedicated dialogs.
+            When you remove an account from the tracker, TradeLog asks whether to keep the records for later restore or erase them completely. Restore stays here in Settings so the destructive action does not happen by accident.
           </p>
         </InsetPanel>
       </AppPanel>

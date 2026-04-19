@@ -7,6 +7,7 @@ import {
 } from '@/lib/api/prop-accounts';
 import { resetMt5SyncByPropAccount } from '@/lib/terminal-farm/service';
 import { parsePropAccountUpdatePayload } from '@/lib/validation/prop-accounts';
+import type { PropAccountDeleteMode } from '@/lib/prop-accounts/status';
 
 export async function GET(
   _request: NextRequest,
@@ -66,18 +67,34 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId, error } = await requireAuth();
   if (error) return error;
 
   const { id } = await params;
+  const body = await request.json().catch(() => null);
+  const mode =
+    body && typeof body === 'object' && 'mode' in body
+      ? (body.mode as PropAccountDeleteMode)
+      : 'archive';
+
+  if (mode !== 'archive' && mode !== 'permanent') {
+    return NextResponse.json(
+      { error: 'Invalid delete mode. Use "archive" or "permanent".' },
+      { status: 400 },
+    );
+  }
 
   try {
-    await resetMt5SyncByPropAccount(id, userId, 'delete_account');
-    await deletePropAccount(id, userId);
-    return NextResponse.json({ success: true });
+    await resetMt5SyncByPropAccount(
+      id,
+      userId,
+      mode === 'archive' ? 'archive_account' : 'delete_account',
+    );
+    await deletePropAccount(id, userId, mode);
+    return NextResponse.json({ success: true, mode });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to delete prop account';
     const lower = message.toLowerCase();

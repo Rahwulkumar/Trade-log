@@ -13,6 +13,7 @@ import { useClerk } from "@clerk/nextjs";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
+import { usePropAccount } from "@/components/prop-account-provider";
 import {
   SaveStatus,
   SettingsAppearancePanels,
@@ -35,6 +36,11 @@ import {
   LoadingHeroPanel,
   LoadingPanel,
 } from "@/components/ui/loading";
+import type { PropAccount } from "@/lib/db/schema";
+import {
+  getArchivedPropAccounts,
+  restorePropAccount,
+} from "@/lib/api/client/prop-accounts";
 
 const SETTINGS_TABS = [
   { id: "profile", label: "Profile" },
@@ -85,6 +91,7 @@ function SettingsPageContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { theme, setTheme } = useTheme();
+  const { refreshPropAccounts } = usePropAccount();
   const { user, profile, refreshProfile, loading, isConfigured, isLoaded, isSignedIn, signOut } =
     useAuth();
   const { openUserProfile } = useClerk();
@@ -166,6 +173,10 @@ function SettingsPageContent() {
   const [newRuleText, setNewRuleText] = useState("");
   const [rulesSaveStatus, setRulesSaveStatus] = useState<SaveStatus>("idle");
   const [rulesSaveError, setRulesSaveError] = useState("");
+  const [archivedAccounts, setArchivedAccounts] = useState<PropAccount[]>([]);
+  const [archivedAccountsLoading, setArchivedAccountsLoading] = useState(false);
+  const [archivedAccountsError, setArchivedAccountsError] = useState("");
+  const [restoringAccountId, setRestoringAccountId] = useState<string | null>(null);
 
   const resolvedFirstName = firstName ?? profile?.first_name ?? "";
   const resolvedLastName = lastName ?? profile?.last_name ?? "";
@@ -197,6 +208,54 @@ function SettingsPageContent() {
   }, [resolvedFirstName, resolvedLastName, user]);
 
   const themeValue = (theme ?? "system") as SettingsTheme;
+
+  const loadArchivedAccounts = useCallback(async () => {
+    if (!user) {
+      setArchivedAccounts([]);
+      return;
+    }
+
+    setArchivedAccountsLoading(true);
+    setArchivedAccountsError("");
+
+    try {
+      const accounts = await getArchivedPropAccounts();
+      setArchivedAccounts(accounts);
+    } catch (error) {
+      setArchivedAccountsError(
+        error instanceof Error ? error.message : "Failed to load archived accounts",
+      );
+    } finally {
+      setArchivedAccountsLoading(false);
+    }
+  }, [user]);
+
+  const handleRestoreAccount = useCallback(
+    async (accountId: string) => {
+      setRestoringAccountId(accountId);
+      setArchivedAccountsError("");
+
+      try {
+        await restorePropAccount(accountId);
+        await Promise.all([loadArchivedAccounts(), refreshPropAccounts()]);
+      } catch (error) {
+        setArchivedAccountsError(
+          error instanceof Error ? error.message : "Failed to restore account",
+        );
+      } finally {
+        setRestoringAccountId(null);
+      }
+    },
+    [loadArchivedAccounts, refreshPropAccounts],
+  );
+
+  useEffect(() => {
+    if (activeTab !== "data" || !isSignedIn || !user) {
+      return;
+    }
+
+    void loadArchivedAccounts();
+  }, [activeTab, isSignedIn, loadArchivedAccounts, user]);
 
   const saveRules = useCallback(
     async (rules: string[]) => {
@@ -508,6 +567,16 @@ function SettingsPageContent() {
           <SettingsDataPanels
             canDownloadSettings={Boolean(profile)}
             onDownloadSettings={handleDownloadSettings}
+            archivedAccounts={archivedAccounts}
+            archivedAccountsLoading={archivedAccountsLoading}
+            archivedAccountsError={archivedAccountsError}
+            restoringAccountId={restoringAccountId}
+            onRefreshArchivedAccounts={() => {
+              void loadArchivedAccounts();
+            }}
+            onRestoreAccount={(accountId) => {
+              void handleRestoreAccount(accountId);
+            }}
           />
         </TabsContent>
       </Tabs>

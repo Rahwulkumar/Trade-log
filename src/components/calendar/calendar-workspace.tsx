@@ -22,6 +22,7 @@ export function CalendarWorkspace() {
     monthLabel,
     loading,
     loadError,
+    trades,
     calendar,
     selectedDay,
     resolvedSelectedTradeId,
@@ -33,6 +34,7 @@ export function CalendarWorkspace() {
     mistakeDefinitions,
     journalTemplates,
     ruleSets,
+    globalRules,
     handleChangeDateMode,
     handlePreviousMonth,
     handleNextMonth,
@@ -45,6 +47,13 @@ export function CalendarWorkspace() {
     setSelectedTradeId,
     setJournalTradeId,
   } = useCalendarWorkspace();
+
+  const selectedDayIdeaTrades =
+    selectedDay == null
+      ? []
+      : trades.filter((trade) =>
+          selectedDay.trades.some((dayTrade) => dayTrade.id === trade.id),
+        );
 
   if (!authLoading && !isConfigured) {
     return (
@@ -129,6 +138,14 @@ export function CalendarWorkspace() {
                 <div className="max-h-[calc(100dvh-9rem)] overflow-y-auto">
                   <TradeReviewDocument
                     trade={journalTrade}
+                    tradeIdea={selectedDayIdeaTrades}
+                    activeTradeId={journalTrade.id}
+                    onSelectTradeInIdea={(tradeId) => {
+                      setSelectedTradeId(tradeId);
+                      setJournalTradeId(tradeId);
+                    }}
+                    allTrades={selectedDayIdeaTrades}
+                    globalRules={globalRules}
                     userId={currentUserId ?? ""}
                     playbooks={playbooks}
                     setupDefinitions={setupDefinitions}

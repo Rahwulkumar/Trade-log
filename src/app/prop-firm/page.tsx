@@ -50,6 +50,7 @@ import {
   getPropAccounts,
   recalculateAllBalances,
 } from "@/lib/api/client/prop-accounts";
+import type { PropAccountDeleteMode } from "@/lib/prop-accounts/status";
 import {
   createMT5Account,
   disableAutoSync,
@@ -381,7 +382,7 @@ export default function PropFirmPage() {
     setDeleteConfirmId(id);
   }
 
-  async function confirmDelete() {
+  async function confirmDelete(mode: PropAccountDeleteMode) {
     const id = deleteConfirmId;
     if (!id) return;
 
@@ -390,7 +391,7 @@ export default function PropFirmPage() {
     setError(null);
 
     try {
-      await deletePropAccount(id);
+      await deletePropAccount(id, mode);
       if (selectedAccountId === id) {
         setSelectedAccountId(null);
       }

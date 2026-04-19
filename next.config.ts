@@ -19,6 +19,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/playbooks",
+        destination: "/strategies",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -1,8 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-
-import type { JournalTemplate } from "@/lib/db/schema";
+import type { JournalTemplate, SetupDefinition } from "@/lib/db/schema";
 import type {
   JournalEntryDraft,
   JournalRetakeDecision,
@@ -12,6 +10,8 @@ import type { JournalTemplateConfig } from "@/lib/journal-structure/types";
 import {
   JournalChoiceChip,
   JournalConvictionInput,
+  JournalDetailDisclosure,
+  type JournalLibraryOption,
   JournalTagField,
   JournalPromptField,
   JournalRatingInput,
@@ -36,8 +36,10 @@ interface JournalChapterContentProps {
   draft: JournalEntryDraft;
   usesManualStrategy: boolean;
   sortedPlaybooks: Playbook[];
+  filteredSetups: SetupDefinition[];
   selectedPlaybook: Playbook | null;
-  sortedTemplates: JournalTemplate[];
+  filteredTemplates: JournalTemplate[];
+  selectedSetup: SetupDefinition | null;
   selectedTemplate: JournalTemplate | null;
   resolvedTemplateConfig: JournalTemplateConfig;
   verdict: JournalRetakeDecision | null;
@@ -54,12 +56,26 @@ interface JournalChapterContentProps {
     field: K,
     value: JournalEntryDraft["journalReview"][K],
   ) => void;
+  handleSetupChange: (value: string) => void;
   handleStrategyChange: (value: string) => void;
   handleTemplateChange: (value: string) => void;
   sessionLabel: string;
   entryPrice: number | null;
   stopLoss: number | null;
   takeProfit: number | null;
+  activeTradeId: string;
+  onSelectTradeInIdea: (tradeId: string) => void;
+  tradeIdeaMembers: Array<{
+    id: string;
+    label: string;
+    meta: string;
+    pnlText: string;
+    pnlTone: "profit" | "loss" | "neutral";
+  }>;
+  relatedTradeOptions: JournalLibraryOption[];
+  linkedTradeIds: string[];
+  toggleLinkedTrade: (tradeId: string) => void;
+  saveBlockedReason: string | null;
 }
 
 export function JournalChapterContent({
@@ -67,8 +83,10 @@ export function JournalChapterContent({
   draft,
   usesManualStrategy,
   sortedPlaybooks,
+  filteredSetups,
   selectedPlaybook,
-  sortedTemplates,
+  filteredTemplates,
+  selectedSetup,
   selectedTemplate,
   resolvedTemplateConfig,
   verdict,
@@ -82,12 +100,20 @@ export function JournalChapterContent({
   setPsychologyAfterDraft,
   setDraftField,
   setReviewField,
+  handleSetupChange,
   handleStrategyChange,
   handleTemplateChange,
   sessionLabel,
   entryPrice,
   stopLoss,
   takeProfit,
+  activeTradeId,
+  onSelectTradeInIdea,
+  tradeIdeaMembers,
+  relatedTradeOptions,
+  linkedTradeIds,
+  toggleLinkedTrade,
+  saveBlockedReason,
 }: JournalChapterContentProps) {
   switch (activeChapter) {
     case "narrative":
@@ -104,98 +130,136 @@ export function JournalChapterContent({
           draft={draft}
           usesManualStrategy={usesManualStrategy}
           sortedPlaybooks={sortedPlaybooks}
+          filteredSetups={filteredSetups}
           selectedPlaybook={selectedPlaybook}
-          sortedTemplates={sortedTemplates}
+          filteredTemplates={filteredTemplates}
+          selectedSetup={selectedSetup}
           selectedTemplate={selectedTemplate}
           resolvedTemplateConfig={resolvedTemplateConfig}
           setupTagDraft={setupTagDraft}
           setSetupTagDraft={setSetupTagDraft}
           setDraftField={setDraftField}
           setReviewField={setReviewField}
+          handleSetupChange={handleSetupChange}
           handleStrategyChange={handleStrategyChange}
           handleTemplateChange={handleTemplateChange}
           sessionLabel={sessionLabel}
           entryPrice={entryPrice}
           stopLoss={stopLoss}
           takeProfit={takeProfit}
+          activeTradeId={activeTradeId}
+          onSelectTradeInIdea={onSelectTradeInIdea}
+          tradeIdeaMembers={tradeIdeaMembers}
+          relatedTradeOptions={relatedTradeOptions}
+          linkedTradeIds={linkedTradeIds}
+          toggleLinkedTrade={toggleLinkedTrade}
+          saveBlockedReason={saveBlockedReason}
         />
       );
 
     case "market":
       return (
-        <div className="space-y-5">
-          <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <JournalPromptField
+            prompt="What session context actually mattered?"
+            value={draft.journalReview.marketContext}
+            onChange={(value) => setReviewField("marketContext", value)}
+            rows={5}
+            placeholder="Write only the session behavior, range, trend, or profile that changed the decision."
+          />
+          <JournalDetailDisclosure
+            title="Session build-up"
+            description="Open only if the earlier sessions or your session expectation matter later."
+            defaultOpen={
+              draft.journalReview.priorSessionBehavior.trim().length > 0 ||
+              draft.observations.trim().length > 0
+            }
+          >
             <JournalPromptField
-              prompt="How did the previous sessions set this trade up?"
+              prompt="How did the earlier sessions behave?"
               value={draft.journalReview.priorSessionBehavior}
               onChange={(value) =>
                 setReviewField("priorSessionBehavior", value)
               }
-              rows={6}
-              placeholder="What did Asia or London do before your entry? Was liquidity taken, defended, or repriced?"
+              rows={4}
+              placeholder="How did Asia, London, or the prior session shape this setup?"
             />
             <JournalPromptField
-              prompt="What was the market context that actually mattered?"
-              value={draft.journalReview.marketContext}
-              onChange={(value) => setReviewField("marketContext", value)}
-              rows={6}
-              placeholder="Only include the context that changed the decision: news, volatility, structure, or session behavior."
+              prompt={`What did you need from ${sessionLabel}?`}
+              value={draft.observations}
+              onChange={(value) => setDraftField({ observations: value })}
+              rows={3}
+              placeholder="State the one condition you were waiting for."
             />
-          </div>
-          <JournalPromptField
-            prompt="What did you want to see from this session?"
-            value={draft.observations}
-            onChange={(value) => setDraftField({ observations: value })}
-            rows={4}
-            placeholder={`Use this to capture the session-specific read for ${sessionLabel}.`}
-          />
+          </JournalDetailDisclosure>
         </div>
       );
 
     case "execution":
       return (
-        <div className="space-y-5">
-          <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <JournalPromptField
+            prompt="What exactly triggered entry?"
+            value={draft.journalReview.entryReason}
+            onChange={(value) => setReviewField("entryReason", value)}
+            rows={4}
+            placeholder="Name the trigger that made you execute, not the whole replay."
+          />
+          <JournalDetailDisclosure
+            title="Trade management"
+            description="Open only if size changes, management, or the final exit need their own reason."
+            defaultOpen={
+              draft.journalReview.scaleInNotes.trim().length > 0 ||
+              draft.journalReview.managementReview.trim().length > 0 ||
+              draft.journalReview.exitReason.trim().length > 0
+            }
+          >
             <JournalPromptField
-              prompt="What was the exact trigger?"
-              value={draft.journalReview.entryReason}
-              onChange={(value) => setReviewField("entryReason", value)}
-              rows={4}
-              placeholder="What was the final thing that made you execute?"
-            />
-            <JournalPromptField
-              prompt="Why did you add or change size?"
+              prompt="Why add or trim?"
               value={draft.journalReview.scaleInNotes}
               onChange={(value) => setReviewField("scaleInNotes", value)}
-              rows={4}
-              placeholder="If you added, trimmed, or split entries, explain why."
+              rows={3}
+              placeholder="If you changed size, explain why."
             />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
             <JournalPromptField
-              prompt="What changed once the trade was live?"
+              prompt="What changed while it was live?"
               value={draft.journalReview.managementReview}
               onChange={(value) => setReviewField("managementReview", value)}
-              rows={4}
-              placeholder="What changed in structure, confidence, or management?"
+              rows={3}
+              placeholder="What changed once the trade was active?"
             />
             <JournalPromptField
-              prompt="Why were you fully out?"
+              prompt="Why exit here?"
               value={draft.journalReview.exitReason}
               onChange={(value) => setReviewField("exitReason", value)}
-              rows={4}
-              placeholder="Target hit, invalidation, fear, structure break, or loss of edge."
+              rows={3}
+              placeholder="What made you close the trade here?"
             />
-          </div>
+          </JournalDetailDisclosure>
         </div>
       );
 
     case "psychology":
       return (
-        <div className="space-y-5">
-          <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4">
+          <JournalPromptField
+            prompt="What behavior helped or hurt?"
+            value={draft.feelings}
+            onChange={(value) => setDraftField({ feelings: value })}
+            rows={3}
+            placeholder="Write only the behavior you want to repeat or catch earlier next time."
+          />
+          <JournalDetailDisclosure
+            title="State tags"
+            description="Tag before, during, and after only if the behavior is important."
+            defaultOpen={
+              draft.journalReview.psychologyBeforeTags.length > 0 ||
+              draft.journalReview.psychologyDuringTags.length > 0 ||
+              draft.journalReview.psychologyAfterTags.length > 0
+            }
+          >
             <JournalTagField
-              label="Before entry tags"
+              label="Before entry"
               tags={draft.journalReview.psychologyBeforeTags}
               onChange={(next) =>
                 setReviewField("psychologyBeforeTags", next)
@@ -206,7 +270,7 @@ export function JournalChapterContent({
               onDraftValueChange={setPsychologyBeforeDraft}
             />
             <JournalTagField
-              label="During trade tags"
+              label="During trade"
               tags={draft.journalReview.psychologyDuringTags}
               onChange={(next) =>
                 setReviewField("psychologyDuringTags", next)
@@ -217,7 +281,7 @@ export function JournalChapterContent({
               onDraftValueChange={setPsychologyDuringDraft}
             />
             <JournalTagField
-              label="After trade tags"
+              label="After trade"
               tags={draft.journalReview.psychologyAfterTags}
               onChange={(next) =>
                 setReviewField("psychologyAfterTags", next)
@@ -227,14 +291,7 @@ export function JournalChapterContent({
               draftValue={psychologyAfterDraft}
               onDraftValueChange={setPsychologyAfterDraft}
             />
-          </div>
-          <JournalPromptField
-            prompt="Anything worth noting beyond the tags?"
-            value={draft.feelings}
-            onChange={(value) => setDraftField({ feelings: value })}
-            rows={3}
-            placeholder="Only write the part the tags cannot capture."
-          />
+          </JournalDetailDisclosure>
         </div>
       );
 
@@ -313,84 +370,47 @@ export function JournalChapterContent({
 
     case "closeout":
       return (
-        <div className="space-y-5">
-          <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <JournalPromptField
+            prompt="What is the one lesson?"
+            value={draft.lessonLearned}
+            onChange={(value) => setDraftField({ lessonLearned: value })}
+            rows={4}
+            placeholder="Write the one thing future-you needs from this trade."
+          />
+          <JournalDetailDisclosure
+            title="What changes next time"
+            description="Open only if you need to spell out what failed and what you will do differently."
+            defaultOpen={
+              draft.journalReview.primaryFailureCause.trim().length > 0 ||
+              draft.journalReview.stopDoing.trim().length > 0 ||
+              draft.journalReview.followUpAction.trim().length > 0
+            }
+          >
             <JournalPromptField
-              prompt="What is the lesson?"
-              value={draft.lessonLearned}
-              onChange={(value) => setDraftField({ lessonLearned: value })}
-              rows={4}
-              placeholder="Reduce the entire trade to one repeatable sentence."
-            />
-            <JournalPromptField
-              prompt="What was the main reason this trade failed or underdelivered?"
+              prompt="What failed first?"
               value={draft.journalReview.primaryFailureCause}
               onChange={(value) =>
                 setReviewField("primaryFailureCause", value)
               }
-              rows={4}
-              placeholder="State the main failure cause plainly."
+              rows={3}
+              placeholder="What made the trade underdeliver or break down?"
             />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
             <JournalPromptField
-              prompt="What do you stop doing next time?"
+              prompt="What must stop?"
               value={draft.journalReview.stopDoing}
               onChange={(value) => setReviewField("stopDoing", value)}
-              rows={4}
-              placeholder="The one behavior or habit that cannot come forward."
+              rows={3}
+              placeholder="What should not repeat on the next similar trade?"
             />
             <JournalPromptField
-              prompt="What changes next time?"
+              prompt="What will you do instead?"
               value={draft.journalReview.followUpAction}
               onChange={(value) => setReviewField("followUpAction", value)}
-              rows={4}
-              placeholder="Define the next action, rule, or behavior change."
+              rows={3}
+              placeholder="What changes the next time this setup appears?"
             />
-          </div>
-
-          <AnimatePresence>
-            {draft.lessonLearned.trim() ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.97 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.97 }}
-                transition={{ duration: 0.15 }}
-                style={{
-                  background: "var(--accent-soft)",
-                  borderLeft: "3px solid var(--accent-primary)",
-                  borderRadius: "0 var(--radius-default) var(--radius-default) 0",
-                  padding: "16px 18px",
-                }}
-              >
-                <span
-                  style={{
-                    color: "var(--accent-primary)",
-                    display: "block",
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Lesson
-                </span>
-                <p
-                  style={{
-                    color: "var(--text-primary)",
-                    fontFamily: "var(--font-inter)",
-                    fontSize: "14px",
-                    fontStyle: "italic",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {draft.lessonLearned}
-                </p>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+          </JournalDetailDisclosure>
         </div>
       );
 

@@ -6,6 +6,7 @@ import { resolveTradingSession } from "@/lib/trading-session";
 import {
   EMPTY_JOURNAL_REVIEW,
   type JournalEntryDraft,
+  type JournalPositionRole,
   type JournalSessionState,
   type JournalReview,
   type JournalScreenshot,
@@ -218,6 +219,26 @@ function parseJournalReview(raw: unknown): JournalReview {
   return {
     strategyName: asString(review.strategyName),
     setupName: asString(review.setupName),
+    tradeIdeaId:
+      typeof review.tradeIdeaId === "string" && review.tradeIdeaId.trim()
+        ? review.tradeIdeaId.trim()
+        : null,
+    tradeIdeaTitle: asString(review.tradeIdeaTitle),
+    linkedTradeIds: parseStringArray(review.linkedTradeIds),
+    groupSummary: asString(review.groupSummary),
+    positionRole:
+      review.positionRole === "primary" ||
+      review.positionRole === "add" ||
+      review.positionRole === "re-entry" ||
+      review.positionRole === "trim" ||
+      review.positionRole === "hedge"
+        ? (review.positionRole as JournalPositionRole)
+        : null,
+    positionReason: asString(review.positionReason),
+    isTrivial:
+      typeof review.isTrivial === "boolean" ? review.isTrivial : null,
+    trivialReason: asString(review.trivialReason),
+    autoRuleFlags: parseStringArray(review.autoRuleFlags),
     reasonForTrade: asString(review.reasonForTrade),
     invalidation: asString(review.invalidation),
     targetPlan: asString(review.targetPlan),
@@ -452,6 +473,15 @@ export function isTradeJournaled(viewModel: JournalTradeViewModel): boolean {
       Object.keys(viewModel.tfObservations).length > 0 ||
       review.strategyName ||
       review.setupName ||
+      review.tradeIdeaId ||
+      review.tradeIdeaTitle ||
+      review.linkedTradeIds.length > 0 ||
+      review.groupSummary ||
+      review.positionRole ||
+      review.positionReason ||
+      review.isTrivial !== null ||
+      review.trivialReason ||
+      review.autoRuleFlags.length > 0 ||
       review.reasonForTrade ||
       review.invalidation ||
       review.targetPlan ||

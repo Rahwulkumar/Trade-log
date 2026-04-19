@@ -86,6 +86,7 @@ const nullableInteger = z.union([z.number().int(), z.string().trim().min(1), z.n
 
 const stringArray = z.array(z.string().trim().min(1).max(120)).max(50);
 const shortStringArray = z.array(z.string().trim().min(1).max(80)).max(24);
+const mediumStringArray = z.array(z.string().trim().min(1).max(160)).max(50);
 const normalizedUuidArray = z
   .union([z.array(uuidSchema).max(50), z.null()])
   .transform((value) => value ?? []);
@@ -121,6 +122,20 @@ const journalReview = z.union([
     .object({
       strategyName: nullableString(200).optional(),
       setupName: nullableString(200).optional(),
+      tradeIdeaId: nullableUuid.optional(),
+      tradeIdeaTitle: nullableString(240).optional(),
+      linkedTradeIds: normalizedUuidArray.optional(),
+      groupSummary: nullableString(8000).optional(),
+      positionRole: z
+        .union([
+          z.enum(["primary", "add", "re-entry", "trim", "hedge"]),
+          z.null(),
+        ])
+        .optional(),
+      positionReason: nullableString(4000).optional(),
+      isTrivial: z.union([z.boolean(), z.null()]).optional(),
+      trivialReason: nullableString(4000).optional(),
+      autoRuleFlags: z.union([mediumStringArray, z.null()]).optional(),
       reasonForTrade: nullableString(10000).optional(),
       invalidation: nullableString(4000).optional(),
       targetPlan: nullableString(4000).optional(),

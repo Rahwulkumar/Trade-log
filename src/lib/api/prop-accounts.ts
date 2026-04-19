@@ -3,18 +3,47 @@
  */
 
 import { db } from '@/lib/db';
-import { propAccounts, type PropAccount, type PropAccountInsert } from '@/lib/db/schema';
-import { eq, and, asc, desc } from 'drizzle-orm';
+import {
+  journalEntries,
+  propAccounts,
+  ruleSets,
+  savedReports,
+  trades,
+  type PropAccount,
+  type PropAccountInsert,
+} from '@/lib/db/schema';
+import { eq, and, asc, desc, inArray } from 'drizzle-orm';
+import {
+  buildArchivedPropAccountCondition,
+  buildVisiblePropAccountCondition,
+  PROP_ACCOUNT_STATUS_ACTIVE,
+  PROP_ACCOUNT_STATUS_ARCHIVED,
+  type PropAccountDeleteMode,
+} from '@/lib/prop-accounts/status';
 
 export type { PropAccount, PropAccountInsert };
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
-export async function getPropAccounts(userId: string): Promise<PropAccount[]> {
+export async function getPropAccounts(
+  userId: string,
+  options?: {
+    includeArchived?: boolean;
+    archivedOnly?: boolean;
+  }
+): Promise<PropAccount[]> {
+  const conditions = [eq(propAccounts.userId, userId)];
+
+  if (options?.archivedOnly) {
+    conditions.push(buildArchivedPropAccountCondition());
+  } else if (!options?.includeArchived) {
+    conditions.push(buildVisiblePropAccountCondition());
+  }
+
   return db
     .select()
     .from(propAccounts)
-    .where(eq(propAccounts.userId, userId))
+    .where(and(...conditions))
     .orderBy(desc(propAccounts.createdAt));
 }
 
@@ -22,8 +51,26 @@ export async function getActivePropAccounts(userId: string): Promise<PropAccount
   return db
     .select()
     .from(propAccounts)
-    .where(and(eq(propAccounts.userId, userId), eq(propAccounts.status, 'active')))
+    .where(
+      and(
+        eq(propAccounts.userId, userId),
+        eq(propAccounts.status, PROP_ACCOUNT_STATUS_ACTIVE),
+      )
+    )
     .orderBy(asc(propAccounts.accountName));
+}
+
+export async function getArchivedPropAccounts(userId: string): Promise<PropAccount[]> {
+  return db
+    .select()
+    .from(propAccounts)
+    .where(
+      and(
+        eq(propAccounts.userId, userId),
+        buildArchivedPropAccountCondition(),
+      )
+    )
+    .orderBy(desc(propAccounts.updatedAt), asc(propAccounts.accountName));
 }
 
 export async function getPropAccount(id: string, userId: string): Promise<PropAccount | null> {
@@ -62,7 +109,43 @@ export async function updatePropAccount(
   return row;
 }
 
-export async function deletePropAccount(id: string, userId: string): Promise<void> {
+export async function archivePropAccount(
+  id: string,
+  userId: string
+): Promise<PropAccount> {
+  const account = await getPropAccount(id, userId);
+  if (!account) {
+    throw new Error('Account not found or you do not own it');
+  }
+
+  if (account.status === PROP_ACCOUNT_STATUS_ARCHIVED) {
+    return account;
+  }
+
+  return updatePropAccount(id, userId, {
+    status: PROP_ACCOUNT_STATUS_ARCHIVED,
+  });
+}
+
+export async function restorePropAccount(
+  id: string,
+  userId: string
+): Promise<PropAccount> {
+  const account = await getPropAccount(id, userId);
+  if (!account) {
+    throw new Error('Account not found or you do not own it');
+  }
+
+  return updatePropAccount(id, userId, {
+    status: PROP_ACCOUNT_STATUS_ACTIVE,
+  });
+}
+
+export async function deletePropAccount(
+  id: string,
+  userId: string,
+  mode: PropAccountDeleteMode = 'permanent'
+): Promise<void> {
   const [account] = await db
     .select({ id: propAccounts.id })
     .from(propAccounts)
@@ -71,13 +154,50 @@ export async function deletePropAccount(id: string, userId: string): Promise<voi
 
   if (!account) throw new Error('Account not found or you do not own it');
 
+  if (mode === 'archive') {
+    await archivePropAccount(id, userId);
+    return;
+  }
+
   try {
-    await db.delete(propAccounts).where(eq(propAccounts.id, id));
+    await db.transaction(async (tx) => {
+      const linkedTrades = await tx
+        .select({ id: trades.id })
+        .from(trades)
+        .where(and(eq(trades.userId, userId), eq(trades.propAccountId, id)));
+
+      if (linkedTrades.length > 0) {
+        await tx
+          .delete(journalEntries)
+          .where(
+            inArray(
+              journalEntries.tradeId,
+              linkedTrades.map((trade) => trade.id),
+            ),
+          );
+      }
+
+      await tx
+        .delete(savedReports)
+        .where(and(eq(savedReports.userId, userId), eq(savedReports.propAccountId, id)));
+
+      await tx
+        .delete(ruleSets)
+        .where(and(eq(ruleSets.userId, userId), eq(ruleSets.propAccountId, id)));
+
+      await tx
+        .delete(trades)
+        .where(and(eq(trades.userId, userId), eq(trades.propAccountId, id)));
+
+      await tx
+        .delete(propAccounts)
+        .where(and(eq(propAccounts.id, id), eq(propAccounts.userId, userId)));
+    });
   } catch (err: unknown) {
     const code = (err as { code?: string }).code;
     if (code === '23503') {
       throw new Error(
-        'Cannot delete account: It is referenced by other records. Please delete linked trades or MT5 accounts first.'
+        'This account still has linked records that could not be removed automatically.'
       );
     }
     throw err;

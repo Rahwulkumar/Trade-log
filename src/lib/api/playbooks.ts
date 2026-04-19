@@ -6,11 +6,12 @@
 
 import { db } from '@/lib/db';
 import {
-  playbooks, trades,
+  playbooks, propAccounts, trades,
   type Playbook, type PlaybookInsert,
 } from '@/lib/db/schema';
 import { eq, and, desc, asc, isNull } from 'drizzle-orm';
 import { getTradeNetPnl } from '@/lib/utils/trade-pnl';
+import { buildVisibleTradeAccountCondition } from '@/lib/prop-accounts/status';
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,7 @@ export async function getPlaybookStats(
     eq(trades.playbookId, playbookId),
     eq(trades.userId, userId),
     eq(trades.status, 'CLOSED'),
+    buildVisibleTradeAccountCondition(),
   ];
   if (propAccountId === 'unassigned') {
     conditions.push(isNull(trades.propAccountId));
@@ -134,6 +136,7 @@ export async function getPlaybookStats(
       rMultiple: trades.rMultiple,
     })
     .from(trades)
+    .leftJoin(propAccounts, eq(trades.propAccountId, propAccounts.id))
     .where(and(...conditions));
 
   const pnlNums = closedTrades.map(t => ({

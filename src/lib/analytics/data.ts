@@ -19,6 +19,7 @@ import {
   propFirmChallenges,
   trades,
 } from '@/lib/db/schema';
+import { buildVisibleTradeAccountCondition } from '@/lib/prop-accounts/status';
 
 export interface AnalyticsFilters {
   accountScope: AnalyticsAccountScope;
@@ -55,6 +56,7 @@ export async function getAnalyticsPayload(
   const conditions = [
     eq(trades.userId, userId),
     eq(trades.status, 'CLOSED'),
+    buildVisibleTradeAccountCondition(),
   ];
 
   if (filters.accountScope === 'unassigned') {
@@ -106,6 +108,7 @@ export async function getAnalyticsPayload(
       playbookName: playbooks.name,
     })
     .from(trades)
+    .leftJoin(propAccounts, eq(trades.propAccountId, propAccounts.id))
     .leftJoin(playbooks, eq(trades.playbookId, playbooks.id))
     .where(and(...conditions))
     .orderBy(asc(trades.exitDate), asc(trades.entryDate));

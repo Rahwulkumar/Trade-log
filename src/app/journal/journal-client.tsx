@@ -31,8 +31,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { mapTradeToViewModel } from "@/domain/journal-mapper";
-import type { JournalTradeViewModel } from "@/domain/journal-types";
+import {
+  buildJournalTradeGroups,
+  buildJournalTradeRecords,
+  type JournalTradeGroupRecord,
+} from "@/domain/journal-review-groups";
 import {
   getPlaybooks,
   type Playbook,
@@ -50,111 +53,9 @@ import type {
   SetupDefinition,
   Trade,
 } from "@/lib/db/schema";
-import { getTradeNetPnl } from "@/lib/utils/trade-pnl";
 import type { RuleSetWithItems } from "@/lib/rulebooks/types";
 
-type StatusFilter = "all" | "pending" | "draft" | "complete";
-
-interface JournalTradeRecord {
-  trade: Trade;
-  searchText: string;
-  closedAt: string | null;
-  netPnl: number;
-  outcome: "WIN" | "LOSS" | "BE";
-  reviewStatus: TradeReviewStatus;
-  item: TradeReviewRailItem;
-}
-
-function formatTradeSearchDate(value: string | null): string {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(value));
-}
-
-function getOutcome(value: number): "WIN" | "LOSS" | "BE" {
-  if (value > 0.5) return "WIN";
-  if (value < -0.5) return "LOSS";
-  return "BE";
-}
-
-function getReviewStatus(viewModel: JournalTradeViewModel): TradeReviewStatus {
-  const review = viewModel.journalReview;
-
-  const signals = [
-    viewModel.notes.trim().length > 0 || viewModel.screenshots.length > 0,
-    Boolean(viewModel.playbookId || review.strategyName),
-    Boolean(
-      review.reasonForTrade ||
-        review.invalidation ||
-        review.targetPlan ||
-        review.higherTimeframeBias ||
-        viewModel.setupTags.length > 0,
-    ),
-    Boolean(
-      review.priorSessionBehavior ||
-        review.sessionState ||
-        viewModel.marketCondition ||
-        review.marketContext,
-    ),
-    Boolean(
-      review.entryReason ||
-        review.scaleInNotes ||
-        review.managementReview ||
-        review.exitReason,
-    ),
-    Boolean(
-      review.psychologyBeforeTags.length > 0 ||
-        review.psychologyDuringTags.length > 0 ||
-        review.psychologyAfterTags.length > 0 ||
-        viewModel.feelings,
-    ),
-    Boolean(
-      viewModel.entryRating ||
-        viewModel.exitRating ||
-        viewModel.managementRating ||
-        review.overallGrade ||
-        review.retakeDecision ||
-        viewModel.tradeRuleResults.length > 0 ||
-        viewModel.mistakeDefinitionIds.length > 0,
-    ),
-    Boolean(
-      viewModel.lessonLearned ||
-        review.primaryFailureCause ||
-        review.stopDoing ||
-        review.followUpAction,
-    ),
-  ].filter(Boolean).length;
-
-  if (signals === 0) {
-    return "empty";
-  }
-  if (signals >= 5) {
-    return "complete";
-  }
-  return "draft";
-}
-
-function buildSearchText(viewModel: JournalTradeViewModel): string {
-  return [
-    viewModel.symbol,
-    formatTradeSearchDate(viewModel.exitDate),
-    viewModel.session ?? "",
-    viewModel.notes,
-    viewModel.observations,
-    viewModel.executionArrays.join(" "),
-    viewModel.setupTags.join(" "),
-    viewModel.mistakeTags.join(" "),
-    viewModel.journalReview.strategyName,
-    viewModel.journalReview.setupName,
-    viewModel.journalReview.reasonForTrade,
-    viewModel.journalReview.marketContext,
-  ]
-    .join(" ")
-    .toLowerCase();
-}
+type StatusFilter = "all" | "pending" | "draft" | "complete" | "trivial";
 
 function withTradeQuery(
   pathname: string,
@@ -172,7 +73,7 @@ function withTradeQuery(
 }
 
 export default function JournalPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { propAccounts, selectedAccountId } = usePropAccount();
   const router = useRouter();
   const pathname = usePathname();
@@ -188,8 +89,7 @@ export default function JournalPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [railOpen, setRailOpen] = useState(false);
-  const [desktopBrowserOpen, setDesktopBrowserOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
 
   const currentUserId = user?.id ?? null;
@@ -308,51 +208,18 @@ export default function JournalPage() {
     };
   }, [currentUserId]);
 
-  const records = useMemo<JournalTradeRecord[]>(() => {
-    return trades
-      .map((trade) => {
-        const viewModel = mapTradeToViewModel(trade);
-        const closedAt = viewModel.exitDate ?? viewModel.entryDate;
-        const netPnl = getTradeNetPnl(trade);
-        const outcome = getOutcome(netPnl);
-        const reviewStatus = getReviewStatus(viewModel);
+  const records = useMemo(() => buildJournalTradeRecords(trades), [trades]);
+  const groupedRecords = useMemo(
+    () => buildJournalTradeGroups(records),
+    [records],
+  );
 
-        return {
-          trade,
-          searchText: buildSearchText(viewModel),
-          closedAt,
-          netPnl,
-          outcome,
-          reviewStatus,
-          item: {
-            id: trade.id,
-            symbol: trade.symbol,
-            direction:
-              trade.direction === "SHORT"
-                ? ("SHORT" as const)
-                : ("LONG" as const),
-            netPnl,
-            outcome,
-            closedAt,
-            reviewStatus,
-          },
-        };
-      })
-      .sort((left, right) => {
-        const leftTime = left.closedAt ? new Date(left.closedAt).getTime() : 0;
-        const rightTime = right.closedAt
-          ? new Date(right.closedAt).getTime()
-          : 0;
-        return rightTime - leftTime;
-      });
-  }, [trades]);
-
-  const filteredRecords = useMemo(() => {
+  const filteredGroups = useMemo(() => {
     const query = deferredSearch.trim().toLowerCase();
 
-    return records.filter((record) => {
+    return groupedRecords.filter((group) => {
       const matchesSearch =
-        query.length === 0 || record.searchText.includes(query);
+        query.length === 0 || group.searchText.includes(query);
 
       if (!matchesSearch) {
         return false;
@@ -363,30 +230,57 @@ export default function JournalPage() {
       }
 
       if (statusFilter === "pending") {
-        return record.reviewStatus !== "complete";
+        return (
+          group.reviewStatus !== "complete" && group.reviewStatus !== "trivial"
+        );
       }
 
-      return record.reviewStatus === statusFilter;
+      return group.reviewStatus === statusFilter;
     });
-  }, [deferredSearch, records, statusFilter]);
+  }, [deferredSearch, groupedRecords, statusFilter]);
 
-  const activeTradeId = useMemo(() => {
-    if (filteredRecords.length === 0) {
+  const activeGroup = useMemo<JournalTradeGroupRecord | null>(() => {
+    if (filteredGroups.length === 0) {
       return null;
     }
 
     if (
       tradeParam &&
-      filteredRecords.some((record) => record.trade.id === tradeParam)
+      filteredGroups.some((group) =>
+        group.trades.some((record) => record.trade.id === tradeParam),
+      )
+    ) {
+      return (
+        filteredGroups.find((group) =>
+          group.trades.some((record) => record.trade.id === tradeParam),
+        ) ?? null
+      );
+    }
+
+    return (
+      filteredGroups.find(
+        (group) =>
+          group.reviewStatus !== "complete" && group.reviewStatus !== "trivial",
+      ) ??
+      filteredGroups[0] ??
+      null
+    );
+  }, [filteredGroups, tradeParam]);
+
+  const activeTradeId = useMemo(() => {
+    if (!activeGroup) {
+      return null;
+    }
+
+    if (
+      tradeParam &&
+      activeGroup.trades.some((record) => record.trade.id === tradeParam)
     ) {
       return tradeParam;
     }
 
-    return (
-      filteredRecords.find((record) => record.reviewStatus !== "complete")?.trade
-        .id ?? filteredRecords[0].trade.id
-    );
-  }, [filteredRecords, tradeParam]);
+    return activeGroup.primaryTrade.trade.id;
+  }, [activeGroup, tradeParam]);
 
   useEffect(() => {
     const nextUrl = withTradeQuery(
@@ -405,15 +299,21 @@ export default function JournalPage() {
     }
   }, [activeTradeId, pathname, router, searchParams, tradeParam]);
 
-  const activeIndex = filteredRecords.findIndex(
-    (record) => record.trade.id === activeTradeId,
+  const activeIndex = filteredGroups.findIndex(
+    (group) => group.id === activeGroup?.id,
   );
-  const activeRecord = activeIndex >= 0 ? filteredRecords[activeIndex] : null;
+  const activeRecord =
+    activeTradeId && activeGroup
+      ? activeGroup.trades.find((record) => record.trade.id === activeTradeId) ??
+        activeGroup.primaryTrade
+      : null;
   const previousTradeId =
-    activeIndex > 0 ? filteredRecords[activeIndex - 1]?.trade.id ?? null : null;
+    activeIndex > 0
+      ? filteredGroups[activeIndex - 1]?.primaryTrade.trade.id ?? null
+      : null;
   const nextTradeId =
-    activeIndex >= 0 && activeIndex < filteredRecords.length - 1
-      ? filteredRecords[activeIndex + 1]?.trade.id ?? null
+    activeIndex >= 0 && activeIndex < filteredGroups.length - 1
+      ? filteredGroups[activeIndex + 1]?.primaryTrade.trade.id ?? null
       : null;
   const accountLabel =
     selectedAccountId === "unassigned"
@@ -438,28 +338,13 @@ export default function JournalPage() {
   const handleSelectTrade = useCallback(
     (tradeId: string) => {
       goToTrade(tradeId);
-      if (
-        typeof window !== "undefined" &&
-        window.matchMedia("(min-width: 1280px)").matches
-      ) {
-        setDesktopBrowserOpen(false);
-      } else {
-        setRailOpen(false);
-      }
+      setBrowserOpen(false);
     },
     [goToTrade],
   );
 
   const handleOpenTradeQueue = useCallback(() => {
-    if (
-      typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 1280px)").matches
-    ) {
-      setDesktopBrowserOpen((current) => !current);
-      return;
-    }
-
-    setRailOpen(true);
+    setBrowserOpen(true);
   }, []);
 
   const goToNextPending = useCallback(() => {
@@ -467,19 +352,27 @@ export default function JournalPage() {
       return;
     }
 
-    const currentPosition = filteredRecords.findIndex(
-      (record) => record.trade.id === activeRecord.trade.id,
+    const currentPosition = filteredGroups.findIndex(
+      (group) => group.id === activeGroup?.id,
     );
     const nextPending =
-      filteredRecords
+      filteredGroups
         .slice(currentPosition + 1)
-        .find((record) => record.reviewStatus !== "complete") ??
-      filteredRecords.find((record) => record.reviewStatus !== "complete");
+        .find(
+          (group) =>
+            group.reviewStatus !== "complete" &&
+            group.reviewStatus !== "trivial",
+        ) ??
+      filteredGroups.find(
+        (group) =>
+          group.reviewStatus !== "complete" &&
+          group.reviewStatus !== "trivial",
+      );
 
     if (nextPending) {
-      goToTrade(nextPending.trade.id);
+      goToTrade(nextPending.primaryTrade.trade.id);
     }
-  }, [activeRecord, filteredRecords, goToTrade]);
+  }, [activeGroup?.id, activeRecord, filteredGroups, goToTrade]);
 
   const handlePreviousTrade = useCallback(() => {
     if (previousTradeId) {
@@ -498,6 +391,11 @@ export default function JournalPage() {
       <TradeReviewDocument
         key={activeRecord.trade.id}
         trade={activeRecord.trade}
+        tradeIdea={activeGroup?.trades.map((record) => record.trade) ?? [activeRecord.trade]}
+        activeTradeId={activeRecord.trade.id}
+        onSelectTradeInIdea={handleSelectTrade}
+        allTrades={trades}
+        globalRules={profile?.trading_rules ?? []}
         userId={currentUserId ?? ""}
         playbooks={playbooks}
         setupDefinitions={setupDefinitions}
@@ -505,18 +403,22 @@ export default function JournalPage() {
         journalTemplates={journalTemplates}
         ruleSets={ruleSets}
         index={activeIndex >= 0 ? activeIndex : 0}
-        total={filteredRecords.length}
+        total={filteredGroups.length}
         hasPrevious={activeIndex > 0}
-        hasNext={activeIndex >= 0 && activeIndex < filteredRecords.length - 1}
+        hasNext={activeIndex >= 0 && activeIndex < filteredGroups.length - 1}
         onPrevious={handlePreviousTrade}
         onNext={handleNextTrade}
         onNextPending={
-          filteredRecords.some((record) => record.reviewStatus !== "complete")
+          filteredGroups.some(
+            (group) =>
+              group.reviewStatus !== "complete" &&
+              group.reviewStatus !== "trivial",
+          )
             ? goToNextPending
             : undefined
         }
         onOpenTradeQueue={handleOpenTradeQueue}
-        tradeQueueLabel={desktopBrowserOpen ? "Hide trades" : "Browse trades"}
+        tradeQueueLabel="Browse ideas"
         onSaved={handleTradeSaved}
       />
     </AnimatePresence>
@@ -576,46 +478,26 @@ export default function JournalPage() {
     <div className="journal-workspace-shell flex min-h-[calc(100dvh-64px)] min-h-0 flex-col gap-2 overflow-visible px-2 py-2 sm:gap-2 sm:px-2.5 sm:py-2.5 2xl:h-[calc(100dvh-64px)] 2xl:overflow-hidden 2xl:px-3">
       <section className="stagger-2 relative min-h-0 flex-1 overflow-visible 2xl:overflow-hidden">
         <AppPanel className="h-full min-h-0 overflow-hidden p-0 shadow-none">
-          <div className="flex h-full min-h-0 flex-col">
-            {desktopBrowserOpen ? (
-              <div
-                className="hidden shrink-0 border-b px-3 py-3 xl:block sm:px-4 lg:px-5"
-                style={{ borderBottomColor: "var(--border-subtle)" }}
-              >
-                <TradeReviewRail
-                  layout="tray"
-                  items={filteredRecords.map((record) => record.item)}
-                  activeTradeId={activeTradeId}
-                  search={search}
-                  onSearchChange={setSearch}
-                  statusFilter={statusFilter}
-                  onStatusFilterChange={setStatusFilter}
-                  onSelectTrade={handleSelectTrade}
+          <div className="min-h-0 min-w-0 h-full overflow-hidden">
+            {!activeRecord ? (
+              <div className="flex h-full items-center justify-center px-6">
+                <WidgetEmptyState
+                  className="w-full max-w-md"
+                  title="No trade in this view"
+                  description="Clear the current filter to continue journaling."
                 />
               </div>
-            ) : null}
-
-            <div className="min-h-0 flex-1 overflow-hidden">
-              {!activeRecord ? (
-                <div className="flex h-full items-center justify-center px-6">
-                  <WidgetEmptyState
-                    className="w-full max-w-md"
-                    title="No trade in this view"
-                    description="Clear the current filter to continue journaling."
-                  />
-                </div>
-              ) : (
-                <div className="h-full overflow-y-auto">{activeDocument}</div>
-              )}
-            </div>
+            ) : (
+              <div className="h-full overflow-y-auto">{activeDocument}</div>
+            )}
           </div>
         </AppPanel>
       </section>
 
-      <Sheet open={railOpen} onOpenChange={setRailOpen}>
+      <Sheet open={browserOpen} onOpenChange={setBrowserOpen}>
         <SheetContent
           side="left"
-          className="h-full w-[92vw] max-w-none border-r p-0 xl:hidden sm:w-[24rem] sm:max-w-[24rem] lg:w-[26rem] lg:max-w-[26rem]"
+          className="h-full w-[92vw] max-w-none border-r p-0 sm:w-[24rem] sm:max-w-[24rem] lg:w-[26rem] lg:max-w-[26rem] xl:w-[28rem] xl:max-w-[28rem]"
           style={{
             background: "var(--surface-elevated)",
             borderColor: "var(--border-subtle)",
@@ -633,7 +515,18 @@ export default function JournalPage() {
           <div className="min-h-0 flex-1 overflow-hidden">
             <TradeReviewRail
               layout="drawer"
-              items={filteredRecords.map((record) => record.item)}
+              items={filteredGroups.map((group) => ({
+                id: group.primaryTrade.trade.id,
+                symbol: group.primaryTrade.trade.symbol,
+                title: group.title,
+                direction: group.direction,
+                netPnl: group.netPnl,
+                outcome: group.outcome,
+                closedAt: group.closedAt,
+                reviewStatus: group.reviewStatus as TradeReviewStatus,
+                tradeCount: group.tradeCount,
+                isTrivial: group.isTrivial,
+              }))}
               activeTradeId={activeTradeId}
               search={search}
               onSearchChange={setSearch}

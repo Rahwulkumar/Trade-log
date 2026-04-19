@@ -23,7 +23,11 @@ export type TerminalWebhookCode =
     | 'RATE_LIMITED'
     | 'INTERNAL_ERROR';
 export type TerminalHistorySyncReason = 'startup' | 'poll' | 'new_deal' | 'no_change';
-export type ResetMt5SyncReason = 'manual_reset' | 'reconnect' | 'delete_account';
+export type ResetMt5SyncReason =
+    | 'manual_reset'
+    | 'reconnect'
+    | 'archive_account'
+    | 'delete_account';
 
 // Terminal instance from database (camelCase to match Drizzle/Neon schema)
 export interface TerminalInstance {

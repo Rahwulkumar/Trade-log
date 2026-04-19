@@ -6,12 +6,14 @@
 
 import { db } from '@/lib/db';
 import {
+  propAccounts,
   trades,
   type Trade, type TradeInsert, type TradeUpdate,
 } from '@/lib/db/schema';
 import {
   eq, and, desc, asc, gte, lte, ilike, isNull,
 } from 'drizzle-orm';
+import { buildVisibleTradeAccountCondition } from '@/lib/prop-accounts/status';
 
 export type { Trade, TradeInsert, TradeUpdate };
 
@@ -48,7 +50,10 @@ export async function getTrades(
 ): Promise<Trade[]> {
   // Build conditions array
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const conditions: any[] = [eq(trades.userId, userId)];
+  const conditions: any[] = [
+    eq(trades.userId, userId),
+    buildVisibleTradeAccountCondition(),
+  ];
 
   if (filters?.status && filters.status !== 'all') {
     // Normalise to uppercase to match DB constraint ('OPEN' | 'CLOSED')
@@ -91,8 +96,9 @@ export async function getTrades(
     filters?.sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
 
   const query = db
-    .select()
+    .select({ trade: trades })
     .from(trades)
+    .leftJoin(propAccounts, eq(trades.propAccountId, propAccounts.id))
     .where(and(...conditions))
     .orderBy(orderDirection);
 
@@ -106,30 +112,41 @@ export async function getTrades(
   if (hasLimit && hasOffset) {
     const safeLimit = Math.max(1, Math.min(filters.limit as number, 250));
     const safeOffset = filters.offset as number;
-    return query
+    const rows = await query
       .limit(safeLimit)
       .offset(safeOffset);
+    return rows.map((row) => row.trade);
   }
 
   if (hasLimit) {
     const safeLimit = Math.max(1, Math.min(filters.limit as number, 250));
-    return query.limit(safeLimit);
+    const rows = await query.limit(safeLimit);
+    return rows.map((row) => row.trade);
   }
 
   if (hasOffset) {
-    return query.offset(filters.offset as number);
+    const rows = await query.offset(filters.offset as number);
+    return rows.map((row) => row.trade);
   }
 
-  return query;
+  const rows = await query;
+  return rows.map((row) => row.trade);
 }
 
 export async function getTrade(id: string, userId: string): Promise<Trade | null> {
   const [row] = await db
-    .select()
+    .select({ trade: trades })
     .from(trades)
-    .where(and(eq(trades.id, id), eq(trades.userId, userId)))
+    .leftJoin(propAccounts, eq(trades.propAccountId, propAccounts.id))
+    .where(
+      and(
+        eq(trades.id, id),
+        eq(trades.userId, userId),
+        buildVisibleTradeAccountCondition(),
+      )
+    )
     .limit(1);
-  return row ?? null;
+  return row?.trade ?? null;
 }
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
@@ -219,6 +236,7 @@ export async function getTradesByDateRange(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const conditions: any[] = [
     eq(trades.userId, userId),
+    buildVisibleTradeAccountCondition(),
     gte(trades.entryDate, new Date(startDate)),
     lte(trades.entryDate, new Date(endDate)),
   ];
@@ -229,16 +247,26 @@ export async function getTradesByDateRange(
   }
 
   return db
-    .select()
+    .select({ trade: trades })
     .from(trades)
+    .leftJoin(propAccounts, eq(trades.propAccountId, propAccounts.id))
     .where(and(...conditions))
-    .orderBy(asc(trades.entryDate));
+    .orderBy(asc(trades.entryDate))
+    .then((rows) => rows.map((row) => row.trade));
 }
 
 export async function getOpenTrades(userId: string): Promise<Trade[]> {
   return db
-    .select()
+    .select({ trade: trades })
     .from(trades)
-    .where(and(eq(trades.userId, userId), eq(trades.status, 'OPEN')))
-    .orderBy(desc(trades.entryDate));
+    .leftJoin(propAccounts, eq(trades.propAccountId, propAccounts.id))
+    .where(
+      and(
+        eq(trades.userId, userId),
+        eq(trades.status, 'OPEN'),
+        buildVisibleTradeAccountCondition(),
+      )
+    )
+    .orderBy(desc(trades.entryDate))
+    .then((rows) => rows.map((row) => row.trade));
 }

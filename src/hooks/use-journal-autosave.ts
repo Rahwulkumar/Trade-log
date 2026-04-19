@@ -26,6 +26,12 @@ interface UseJournalAutosaveOptions {
   onSaved: (trade: Trade) => void;
   /** Debounce delay in ms (default: 2500) */
   debounceMs?: number;
+  /** When false, autosave stays idle until the journal has the required structure. */
+  enabled?: boolean;
+  /** Optional related trade updates to keep grouped idea metadata in sync. */
+  buildRelatedUpdates?: (
+    draft: JournalEntryDraft,
+  ) => Array<{ tradeId: string; updates: Record<string, unknown> }>;
 }
 
 interface UseJournalAutosaveReturn {
@@ -64,6 +70,8 @@ export function useJournalAutosave({
   tradeId,
   onSaved,
   debounceMs = 2500,
+  enabled = true,
+  buildRelatedUpdates,
 }: UseJournalAutosaveOptions): UseJournalAutosaveReturn {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -144,6 +152,38 @@ export function useJournalAutosave({
       invalidateTradesCache();
       setSavedAt(new Date());
       onSavedRef.current(savedTrade);
+
+      const relatedUpdates = buildRelatedUpdates?.(draftRef.current) ?? [];
+      if (relatedUpdates.length > 0) {
+        await Promise.all(
+          relatedUpdates.map(async (item) => {
+            if (item.tradeId === tradeIdRef.current) {
+              return;
+            }
+
+            const relatedResponse = await fetch(`/api/trades/${item.tradeId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(item.updates),
+            });
+
+            if (!relatedResponse.ok) {
+              const relatedPayload = await readJsonIfAvailable<{
+                error?: string;
+              }>(relatedResponse.clone());
+              console.error(
+                `[Journal group sync] ${item.tradeId}: ${relatedPayload?.error ?? relatedResponse.statusText}`,
+              );
+              return;
+            }
+
+            const relatedTrade = await readJsonIfAvailable<Trade>(relatedResponse);
+            if (relatedTrade) {
+              onSavedRef.current(relatedTrade);
+            }
+          }),
+        );
+      }
     } catch (e) {
       console.error("[Journal save]", e);
     } finally {
@@ -153,13 +193,16 @@ export function useJournalAutosave({
 
   // ── Manual save (for the Save button) ─────────────────────────────────
   const save = useCallback(async () => {
+    if (!enabled) {
+      return;
+    }
     // Cancel any pending autosave to avoid double-save
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
     await performSave(genRef.current);
-  }, [performSave]);
+  }, [enabled, performSave]);
 
   // ── Autosave effect (trailing debounce) ───────────────────────────────
   const initialSnapshot = useMemo(
@@ -170,7 +213,7 @@ export function useJournalAutosave({
   const isDirty = draft !== initialDraft && draftSnapshot !== initialSnapshot;
 
   useEffect(() => {
-    if (!isDirty) return;
+    if (!enabled || !isDirty) return;
 
     const currentGen = genRef.current;
     timerRef.current = setTimeout(() => {
@@ -183,7 +226,7 @@ export function useJournalAutosave({
         timerRef.current = null;
       }
     };
-  }, [draftSnapshot, isDirty, debounceMs, performSave]);
+  }, [draftSnapshot, enabled, isDirty, debounceMs, performSave]);
 
   return { saving, savedAt, isDirty, save };
 }

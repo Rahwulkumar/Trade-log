@@ -3,10 +3,14 @@
 import Image from "next/image";
 
 import type {
+  JournalAutoRuleFlag,
+} from "@/domain/journal-rule-intelligence";
+import type {
   MistakeDefinition,
   Trade,
 } from "@/lib/db/schema";
 import type { JournalEntryDraft } from "@/domain/journal-types";
+import type { JournalSessionProfile } from "@/domain/journal-session-profile";
 import type { JournalTemplateConfig } from "@/lib/journal-structure/types";
 import type {
   RuleItemStatus,
@@ -92,6 +96,7 @@ interface JournalChapterSupportProps {
   sortedRuleSets: RuleSetWithItems[];
   recommendedRuleSet: RuleSetWithItems | null;
   effectiveRuleSet: RuleSetWithItems | null;
+  autoRuleFlags: JournalAutoRuleFlag[];
   ruleResultsByItemId: Map<
     string,
     JournalEntryDraft["tradeRuleResults"][number] | undefined
@@ -108,6 +113,9 @@ interface JournalChapterSupportProps {
   setTradeRuleStatus: (ruleItemId: string, status: RuleItemStatus) => void;
   handleScreenshotUpload: (files: FileList | null) => Promise<void>;
   handleScreenshotRemove: (screenshotId: string) => Promise<void>;
+  sessionProfile: JournalSessionProfile;
+  sessionProfileLoading: boolean;
+  saveBlockedReason: string | null;
 }
 
 export function JournalChapterSupport({
@@ -134,6 +142,7 @@ export function JournalChapterSupport({
   sortedRuleSets,
   recommendedRuleSet,
   effectiveRuleSet,
+  autoRuleFlags,
   ruleResultsByItemId,
   setDraftField,
   setReviewField,
@@ -144,6 +153,9 @@ export function JournalChapterSupport({
   setTradeRuleStatus,
   handleScreenshotUpload,
   handleScreenshotRemove,
+  sessionProfile,
+  sessionProfileLoading,
+  saveBlockedReason,
 }: JournalChapterSupportProps) {
   switch (activeChapter) {
     case "narrative":
@@ -242,6 +254,52 @@ export function JournalChapterSupport({
         </JournalSupportBlock>
       );
 
+    case "thesis":
+      return (
+        <JournalSupportBlock
+          title="Structure"
+          description="Lock the shared review structure before you spend time writing the rest."
+        >
+          <div className="space-y-3">
+            {saveBlockedReason ? (
+              <p className="text-sm text-[var(--warning-primary)]">
+                {saveBlockedReason}
+              </p>
+            ) : (
+              <p className="text-sm text-[var(--profit-primary)]">
+                Strategy, setup, and template are locked for this idea.
+              </p>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div
+                className="rounded-[14px] border px-3 py-2.5"
+                style={{
+                  background: "var(--surface)",
+                  borderColor: "var(--border-subtle)",
+                }}
+              >
+                <p className="text-label">Idea title</p>
+                <p className="mt-1 text-sm text-[var(--text-primary)]">
+                  {draft.journalReview.tradeIdeaTitle || "No shared title yet"}
+                </p>
+              </div>
+              <div
+                className="rounded-[14px] border px-3 py-2.5"
+                style={{
+                  background: "var(--surface)",
+                  borderColor: "var(--border-subtle)",
+                }}
+              >
+                <p className="text-label">Linked positions</p>
+                <p className="mt-1 text-sm text-[var(--text-primary)]">
+                  {draft.journalReview.linkedTradeIds.length}
+                </p>
+              </div>
+            </div>
+          </div>
+        </JournalSupportBlock>
+      );
+
     case "market":
       return (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -263,7 +321,17 @@ export function JournalChapterSupport({
                 >
                   {draft.session ?? "Overnight"}
                 </span>
+                {sessionProfileLoading ? (
+                  <span className="text-xs text-[var(--text-tertiary)]">
+                    Loading chart context...
+                  </span>
+                ) : null}
               </div>
+              {sessionProfile.priorSessionBehavior ? (
+                <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+                  {sessionProfile.priorSessionBehavior}
+                </p>
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 {SESSION_STATE_OPTIONS.map((option) => (
                   <JournalChoiceChip
@@ -338,6 +406,11 @@ export function JournalChapterSupport({
                   </JournalChoiceChip>
                 ))}
               </div>
+              {sessionProfile.marketCondition ? (
+                <p className="text-xs text-[var(--text-tertiary)]">
+                  Detected regime: {sessionProfile.marketCondition}
+                </p>
+              ) : null}
               <JournalPromptField
                 prompt="Anything session-specific worth carrying forward?"
                 value={draft.journalReview.higherTimeframeNotes}
@@ -400,6 +473,49 @@ export function JournalChapterSupport({
       return (
         <div className="space-y-4">
           <div className="grid gap-4 xl:grid-cols-2">
+            <JournalSupportBlock
+              title="Detected flags"
+              description="Anything the system can infer from the rule logic shows up here first."
+            >
+              {autoRuleFlags.length > 0 ? (
+                <div className="space-y-3">
+                  {autoRuleFlags.map((flag) => (
+                    <InsetPanel key={flag.id} paddingClassName="px-3 py-3">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
+                            style={{
+                              background:
+                                flag.status === "broken"
+                                  ? "var(--loss-bg)"
+                                  : "var(--profit-bg)",
+                              color:
+                                flag.status === "broken"
+                                  ? "var(--loss-primary)"
+                                  : "var(--profit-primary)",
+                            }}
+                          >
+                            {flag.status}
+                          </span>
+                          <span className="text-sm font-semibold text-[var(--text-primary)]">
+                            {flag.label}
+                          </span>
+                        </div>
+                        <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+                          {flag.reason}
+                        </p>
+                      </div>
+                    </InsetPanel>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--text-tertiary)]">
+                  No automatic flags were detected for this trade yet.
+                </p>
+              )}
+            </JournalSupportBlock>
+
             <JournalSupportBlock
               title="Rulebook review"
               description="Evaluate the trade against the most relevant rulebook."
@@ -511,7 +627,7 @@ export function JournalChapterSupport({
                   </div>
                 ) : (
                   <p className="text-xs text-[var(--text-tertiary)]">
-                    Create a rulebook in Playbooks to review trades against explicit rules.
+                    No rulebook is available yet to review this trade against explicit rules.
                   </p>
                 )}
               </div>
@@ -533,7 +649,7 @@ export function JournalChapterSupport({
                   />
                 ) : (
                   <p className="text-xs text-[var(--text-tertiary)]">
-                    Create mistake definitions in Playbooks to reuse them here.
+                    No structured mistake definitions are available yet to reuse here.
                   </p>
                 )}
                 <JournalTagField

@@ -32,6 +32,15 @@ function getCacheKey(filters: AnalyticsClientFilters): string {
   return `/api/analytics${buildQueryString(filters)}`;
 }
 
+function clearAnalyticsQueryCache() {
+  analyticsResponseCache.clear();
+  pendingAnalyticsRequests.clear();
+}
+
+export function invalidateAnalyticsCache() {
+  clearAnalyticsQueryCache();
+}
+
 export async function getAnalyticsPayloadClient(
   filters: AnalyticsClientFilters = {},
 ): Promise<AnalyticsPayload | null> {

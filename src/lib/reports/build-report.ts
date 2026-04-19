@@ -3,7 +3,8 @@ import 'server-only';
 import { and, asc, eq, gte, ilike, isNull, lte } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
-import { playbooks, trades } from '@/lib/db/schema';
+import { playbooks, propAccounts, trades } from '@/lib/db/schema';
+import { buildVisibleTradeAccountCondition } from '@/lib/prop-accounts/status';
 import { deriveTradeReportSnapshot, type TradeReportInput } from '@/lib/reports/derive-trade-report';
 import { generateReportAiCommentary } from '@/lib/reports/gemini-report';
 import type { ReportFilters, TradeReportSnapshot } from '@/lib/reports/types';
@@ -27,6 +28,7 @@ export async function buildTradeReport(
   const conditions = [
     eq(trades.userId, userId),
     eq(trades.status, 'CLOSED'),
+    buildVisibleTradeAccountCondition(),
   ];
 
   if (filters.accountScope === 'unassigned') {
@@ -87,6 +89,7 @@ export async function buildTradeReport(
       observations: trades.observations,
     })
     .from(trades)
+    .leftJoin(propAccounts, eq(trades.propAccountId, propAccounts.id))
     .leftJoin(playbooks, eq(trades.playbookId, playbooks.id))
     .where(and(...conditions))
     .orderBy(asc(trades.exitDate), asc(trades.entryDate));
